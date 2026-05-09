@@ -1,0 +1,23 @@
+# 涉诈域名列表
+# 版本: v1.0.0
+# 更新日期: 2026-05-08
+
+# 钓鱼网站
+phishing.example.com
+fake-bank.com
+secure-login.tk
+
+# 诈骗网站
+scam-site.com
+fraud.game
+fake-investment.com
+pyramid-scheme.net
+
+# 恶意软件分发
+malware-distribution.com
+virus-download.com
+trojan-server.org
+
+# 钓鱼/欺诈相关子域
+login.fake-bank.com
+secure.account.verify.phishing-site.net

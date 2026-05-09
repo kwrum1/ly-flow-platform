@@ -1,0 +1,23 @@
+# 自定义域名标签列表
+# 版本: v1.0.0
+# 更新日期: 2026-05-08
+# 格式: domain,tag,description
+
+# 广告追踪
+ads.example.com,ads,Advertising tracker
+tracker.example.net,ads,Analytics tracker
+
+# 成人内容
+adult.example.com,adult,Adult content
+xxx.adult-site.net,adult,Adult content
+
+# 赌博
+gambling.example.com,gambling,Online gambling
+casino.gamble.net,gambling,Online casino
+
+# 加密货币相关
+crypto-exchange.example.com,crypto,Cryptocurrency exchange
+wallet.crypto.net,crypto,Cryptocurrency wallet
+
+# 社交媒体
+social.example.com,social,Social media

@@ -1,0 +1,35 @@
+# 挖矿域名列表
+# 版本: v1.0.0
+# 更新日期: 2026-05-08
+
+# 常见矿池域名
+pool.mining.com
+mining.bitcoin.org
+stratum.slushpool.com
+stratum.antpool.com
+pool.btc.com
+btc.miningpool.com
+ethermine.org
+eth.pool.mining.com
+
+# 已知挖矿相关域名
+cryptomining-pool.com
+crypto-miner.net
+coinhive.com
+coinhive.miner
+cryptonight.hosthash.com
+deepminer.io
+
+# 恶意挖矿域名
+xmr.crypto-pool.fr
+pool.supportxmr.com
+xmrpool.eu
+minexmr.com
+multipooler.com
+
+# 备用矿池
+asia.cryptonight-hub.com
+us-east.cryptonight-hub.com
+pool.minexmr.com
+xmr-eu1.nanopool.org
+xmr-eu2.nanopool.org

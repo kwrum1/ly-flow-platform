@@ -1,0 +1,7 @@
+Manifest-Version: 1.0
+Premain-Class: com.lyflow.rasp.java.Agent
+Agent-Class: com.lyflow.rasp.java.Agent
+Can-Redefine-Classes: true
+Can-Retransform-Classes: true
+Built-By: lyflow
+Build-Date: 2026-05-08

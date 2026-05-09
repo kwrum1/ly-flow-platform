@@ -1,0 +1,44 @@
+# Dependencies
+vendor/
+node_modules/
+
+# Build outputs
+dist/
+build/
+*.exe
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Docker
+.dockerignore
+
+# Temp
+tmp/
+temp/
+*.tmp
+
+# Sisyphus
+.sisyphus/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Secrets
+.env
+*.pem
+*.key
+
+# OpenCode
+opencode.json
+
+# Workspace
+workspace/

@@ -1,0 +1,172 @@
+# 流影安全态势感知平台 - Docker Compose
+# 版本: v2.0.1
+# 更新日期: 2026-05-08
+
+version: '3.8'
+
+services:
+  # =====================================================
+  # PostgreSQL 数据库
+  # =====================================================
+  postgres:
+    image: postgres:16-alpine
+    container_name: ly-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: lyflow
+      POSTGRES_USER: lyflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lyflow_secret_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U lyflow -d lyflow"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ly-network
+
+  # =====================================================
+  # Redis 数据库
+  # =====================================================
+  redis:
+    image: redis:7-alpine
+    container_name: ly-redis
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - ly-network
+
+  # =====================================================
+  # ly-server (后端API)
+  # =====================================================
+  ly-server:
+    image: ly-flow/server:latest
+    container_name: ly-server
+    restart: unless-stopped
+    command: ["/app/ly-server"]
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=lyflow
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-lyflow_secret_password}
+      - DB_NAME=lyflow
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=
+      - SERVER_PORT=8080
+      - JWT_SECRET=${JWT_SECRET:-change_this_in_production}
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./rules:/etc/ly/rules:ro
+      - ./server:/app
+    working_dir: /app
+    networks:
+      - ly-network
+
+  # =====================================================
+  # ly-dpi-engine (DPI分析引擎，Server端)
+  # =====================================================
+  ly-dpi-engine:
+    image: ly-flow/dpi-engine:latest
+    container_name: ly-dpi-engine
+    restart: unless-stopped
+    command: ["/app/ly-dpi-engine"]
+    environment:
+      - REDIS_ADDR=redis:6379
+      - REDIS_PASSWORD=
+      - REDIS_STREAM_IN=flows:raw
+      - REDIS_STREAM_OUT=alerts:dpi
+      - CONSUMER_GROUP=dpi-workers
+      - CONSUMER_NAME=dpi-engine
+      - WORKERS=4
+      - DOMAIN_MINING=/etc/ly/rules/domain/mining.txt
+      - DOMAIN_FRAUD=/etc/ly/rules/domain/fraud.txt
+      - DOMAIN_CUSTOM=/etc/ly/rules/domain/custom.txt
+      - RULES_FILE=/etc/ly/rules/suricata/et-open.rules
+    volumes:
+      - ./rules:/etc/ly/rules:ro
+      - ./dpi-engine:/app
+    working_dir: /app
+    depends_on:
+      redis:
+        condition: service_healthy
+    networks:
+      - ly-network
+
+  # =====================================================
+  # ly-vis (Vue3 前端)
+  # =====================================================
+  ly-vis:
+    image: ly-flow/frontend:latest
+    container_name: ly-vis
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    depends_on:
+      - ly-server
+    networks:
+      - ly-network
+
+  # =====================================================
+  # AgentCenter (Agent管理服务，gRPC)
+  # =====================================================
+  agent-center:
+    image: ly-flow/server:latest
+    container_name: agent-center
+    restart: unless-stopped
+    command: ["/app/ly-server", "agentcenter"]
+    environment:
+      - DB_HOST=postgres
+      - DB_PORT=5432
+      - DB_USER=lyflow
+      - DB_PASSWORD=${POSTGRES_PASSWORD:-lyflow_secret_password}
+      - DB_NAME=lyflow
+      - REDIS_ADDR=redis:6379
+      - GRPC_PORT=8081
+    ports:
+      - "8081:8081"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      - ./server:/app
+    working_dir: /app
+    networks:
+      - ly-network
+
+# =====================================================
+# 网络配置
+# =====================================================
+networks:
+  ly-network:
+    external: true
+    name: ly-flow_ly-network
+
+# =====================================================
+# 存储卷
+# =====================================================
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local

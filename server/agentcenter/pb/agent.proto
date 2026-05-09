@@ -1,0 +1,118 @@
+// AgentCenter gRPC Protocol
+syntax = "proto3";
+
+package lyflow.agent.v1;
+
+option go_package = "ly-flow-platform/agentcenter/pb";
+
+// AgentService 处理 Agent 注册、心跳和任务分发
+service AgentService {
+    // Agent 注册
+    rpc Enroll(EnrollRequest) returns (EnrollResponse);
+    
+    // Agent 心跳
+    rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+    
+    // 获取配置
+    rpc GetConfig(GetConfigRequest) returns (GetConfigResponse);
+    
+    // 上报任务结果
+    rpc ReportTaskResult(TaskResultRequest) returns (TaskResultResponse);
+}
+
+// Agent 注册请求
+message EnrollRequest {
+    string hostname = 1;
+    string ip = 2;
+    string os = 3;
+    string version = 4;
+    map<string, string> capabilities = 5;
+    map<string, string> metadata = 6;
+}
+
+// Agent 注册响应
+message EnrollResponse {
+    string agent_id = 1;
+    string agent_key = 2;
+    AgentConfig config = 3;
+}
+
+// Agent 心跳请求
+message HeartbeatRequest {
+    string agent_id = 1;
+    string status = 2;
+    AgentMetrics metrics = 3;
+    repeated string event_ids = 4;
+}
+
+// Agent 心跳响应
+message HeartbeatResponse {
+    bool ack = 1;
+    repeated Task pending_tasks = 2;
+    AgentConfig config_update = 3;
+}
+
+// Agent 配置
+message AgentConfig {
+    bool traffic_analysis_enabled = 1;
+    bool log_audit_enabled = 2;
+    bool endpoint_detection_enabled = 3;
+    bool rasp_enabled = 4;
+    RASPConfig rasp_config = 5;
+    int64 heartbeat_interval = 6;
+    int64 report_interval = 7;
+}
+
+// RASP 配置
+message RASPConfig {
+    bool java_enabled = 1;
+    bool python_enabled = 2;
+    bool sql_injection_enabled = 3;
+    bool command_injection_enabled = 4;
+    bool file_access_enabled = 5;
+    bool deserialize_enabled = 6;
+}
+
+// Agent 指标
+message AgentMetrics {
+    int64 cpu_percent = 1;
+    int64 memory_bytes = 2;
+    int64 disk_bytes = 3;
+    int64 network_rx_bytes = 4;
+    int64 network_tx_bytes = 5;
+    int64 events_sent = 6;
+    int64 events_dropped = 7;
+}
+
+// 任务
+message Task {
+    string task_id = 1;
+    string task_type = 2;
+    map<string, string> params = 3;
+    int64 deadline = 4;
+}
+
+// 获取配置请求
+message GetConfigRequest {
+    string agent_id = 1;
+}
+
+// 获取配置响应
+message GetConfigResponse {
+    AgentConfig config = 1;
+}
+
+// 任务结果请求
+message TaskResultRequest {
+    string agent_id = 1;
+    string task_id = 2;
+    bool success = 3;
+    string result = 4;
+    string error = 5;
+    int64 duration_ms = 6;
+}
+
+// 任务结果响应
+message TaskResultResponse {
+    bool ack = 1;
+}

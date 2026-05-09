@@ -1,0 +1,36 @@
+# ly-server AgentCenter Dockerfile
+# Alpine-based
+
+FROM golang:1.21-alpine AS builder
+
+WORKDIR /build
+
+RUN apk add --no-cache gcc musl-dev protobuf protobuf-dev
+
+COPY pkg/ ./pkg/
+COPY server/ ./server/
+
+WORKDIR /build/server/agentcenter
+
+# 生成 protobuf 代码
+RUN protoc --go_out=. --go_opt=paths=source_relative pb/agent.proto
+RUN protoc --go-grpc_out=. --go-grpc_opt=paths=source_relative pb/agent.proto
+
+WORKDIR /build/server
+
+RUN go mod download
+RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-w -s' -o agent-center ./agentcenter/server.go
+
+FROM alpine:3.19
+
+RUN apk add --no-cache ca-certificates tzdata
+
+WORKDIR /app
+
+COPY --from=builder /build/server/agent-center .
+
+RUN chmod +x /app/agent-center
+
+EXPOSE 8081
+
+ENTRYPOINT ["/app/agent-center"]
