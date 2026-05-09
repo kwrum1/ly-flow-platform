@@ -12,48 +12,36 @@ jobs:
   build:
     runs-on: docker
     container:
-      image: bitnami/minideb:latest
+      image: debian:bookworm-slim
       
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      
       - name: Install dependencies
         run: |
-          apt-get update && apt-get install -y wget curl git docker.io
-      
+          apt-get update && apt-get install -y git curl wget docker.io
+
+      - name: Set up Git
+        run: |
+          git config --global user.email "ci@ly-flow.local"
+          git config --global user.name "CI Bot"
+
+      - name: Clone repository
+        run: |
+          git clone --depth 1 http://localhost:10000/ly-flow-platform/ly-flow-platform.git /workspace
+
       - name: Set up Docker
         run: |
           curl -fsSL https://get.docker.com -o get-docker.sh
           sh get-docker.sh
           docker version
-      
-      - name: Build probe
+
+      - name: Build all images
         run: |
-          docker build -f probe/Dockerfile -t ly-flow/probe:${{ github.sha }} probe/
+          cd /workspace
           docker build -f probe/Dockerfile -t ly-flow/probe:latest probe/
-      
-      - name: Build dpi-engine
-        run: |
-          docker build -f dpi-engine/Dockerfile -t ly-flow/dpi-engine:${{ github.sha }} dpi-engine/
           docker build -f dpi-engine/Dockerfile -t ly-flow/dpi-engine:latest dpi-engine/
-      
-      - name: Build server
-        run: |
-          docker build -f server/Dockerfile -t ly-flow/server:${{ github.sha }} server/
           docker build -f server/Dockerfile -t ly-flow/server:latest server/
-      
-      - name: Build frontend
-        run: |
-          docker build -f frontend/Dockerfile -t ly-flow/frontend:${{ github.sha }} frontend/
           docker build -f frontend/Dockerfile -t ly-flow/frontend:latest frontend/
-      
-      - name: Build agent
-        run: |
-          docker build -f agent/Dockerfile -t ly-flow/agent:${{ github.sha }} agent/
           docker build -f agent/Dockerfile -t ly-flow/agent:latest agent/
-      
+
       - name: List images
         run: docker images | grep ly-flow || true
