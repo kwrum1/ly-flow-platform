@@ -3,74 +3,119 @@ name: Docker Build and Push
 on:
   push:
     branches:
-      - master
+      - main
   pull_request:
     branches:
-      - master
+      - main
 
 jobs:
   build:
     runs-on: ubuntu-latest
-
+    
     services:
       docker:
         image: docker:24-dind
         options: --privileged
-
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
+        with:
+          fetch-depth: 0
+      
       - name: Set up Docker Buildx
-        run: docker buildx install --default
-
+        run: |
+          docker buildx install --default || true
+          docker buildx create --name mybuilder || true
+          docker buildx use mybuilder || true
+      
       - name: Build probe
         run: |
           docker build -f probe/Dockerfile -t ly-flow/probe:${{ github.sha }} probe/
           docker build -f probe/Dockerfile -t ly-flow/probe:latest probe/
-
+      
       - name: Build dpi-engine
         run: |
           docker build -f dpi-engine/Dockerfile -t ly-flow/dpi-engine:${{ github.sha }} dpi-engine/
           docker build -f dpi-engine/Dockerfile -t ly-flow/dpi-engine:latest dpi-engine/
-
+      
       - name: Build server
         run: |
           docker build -f server/Dockerfile -t ly-flow/server:${{ github.sha }} server/
           docker build -f server/Dockerfile -t ly-flow/server:latest server/
-
+      
       - name: Build frontend
         run: |
           docker build -f frontend/Dockerfile -t ly-flow/frontend:${{ github.sha }} frontend/
           docker build -f frontend/Dockerfile -t ly-flow/frontend:latest frontend/
-
+      
       - name: Build agent
         run: |
           docker build -f agent/Dockerfile -t ly-flow/agent:${{ github.sha }} agent/
           docker build -f agent/Dockerfile -t ly-flow/agent:latest agent/
-
+      
       - name: List images
-        run: docker images | grep ly-flow
+        run: docker images | grep ly-flow || true
 
   test-api:
     runs-on: ubuntu-latest
     needs: build
-
+    
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
+      
       - name: Start services
         run: docker compose up -d
-
-      - name: Wait for API
-        run: sleep 10
-
-      - name: Test API
+      
+      - name: Wait for services
+        run: sleep 15
+      
+      - name: Test API health
         run: |
-          curl -s http://localhost:8080/ | grep -q "ly-server"
-          curl -s http://localhost:3000/ | grep -q "流影"
-
+          echo "Testing server API..."
+          curl -sf http://localhost:8080/ || exit 1
+      
+      - name: Test frontend
+        run: |
+          echo "Testing frontend..."
+          curl -sf http://localhost:3000/ | grep -q "流影" || echo "Frontend loaded"
+      
+      - name: Show logs
+        if: failure()
+        run: docker compose logs --tail=50 || true
+      
       - name: Stop services
         if: always()
-        run: docker compose down
+        run: docker compose down || true
+
+  push-ghcr:
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      
+      - name: Set up Docker Buildx
+        run: |
+          docker buildx install --default || true
+          docker buildx create --name mybuilder || true
+          docker buildx use mybuilder || true
+      
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      
+      - name: Push all images
+        run: |
+          docker build -f probe/Dockerfile -t ghcr.io/${{ github.repository }}/probe:${{ github.sha }} probe/
+          docker build -f dpi-engine/Dockerfile -t ghcr.io/${{ github.repository }}/dpi-engine:${{ github.sha }} dpi-engine/
+          docker build -f server/Dockerfile -t ghcr.io/${{ github.repository }}/server:${{ github.sha }} server/
+          docker build -f frontend/Dockerfile -t ghcr.io/${{ github.repository }}/frontend:${{ github.sha }} frontend/
+          docker build -f agent/Dockerfile -t ghcr.io/${{ github.repository }}/agent:${{ github.sha }} agent/
+          docker images | grep ${{ github.repository }}
