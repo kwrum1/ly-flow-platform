@@ -1,4 +1,4 @@
-name: Docker Build and Push
+name: Docker 构建
 
 on:
   push:
@@ -9,33 +9,33 @@ on:
       - main
 
 jobs:
-  build:
+  构建:
     runs-on: docker
     container:
       image: debian:bookworm-slim
-      
+
     steps:
-      - name: Install dependencies
+      - name: 安装依赖
         run: |
           apt-get update && apt-get install -y git curl wget docker.io
 
-      - name: Set up Git
+      - name: 配置 Git
         run: |
           git config --global user.email "ci@ly-flow.local"
           git config --global user.name "CI Bot"
 
-      - name: Clone repository
+      - name: 克隆仓库
         run: |
           rm -rf /workspace 2>/dev/null || true
           git clone --depth 1 http://localhost:10000/ly-flow-platform/ly-flow-platform.git /workspace
 
-      - name: Set up Docker
+      - name: 配置 Docker
         run: |
           curl -fsSL https://get.docker.com -o get-docker.sh
           sh get-docker.sh
           docker version
 
-      - name: Build all images
+      - name: 构建所有镜像
         run: |
           cd /workspace
           docker build -f probe/Dockerfile -t ly-flow/probe:latest probe/
@@ -44,5 +44,5 @@ jobs:
           docker build -f frontend/Dockerfile -t ly-flow/frontend:latest frontend/
           docker build -f agent/Dockerfile -t ly-flow/agent:latest agent/
 
-      - name: List images
+      - name: 列出镜像
         run: docker images | grep ly-flow || true
