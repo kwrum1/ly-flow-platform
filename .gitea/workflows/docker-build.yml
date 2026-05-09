@@ -26,6 +26,7 @@ jobs:
 
       - name: Clone repository
         run: |
+          rm -rf /workspace 2>/dev/null || true
           git clone --depth 1 http://localhost:10000/ly-flow-platform/ly-flow-platform.git /workspace
 
       - name: Set up Docker
