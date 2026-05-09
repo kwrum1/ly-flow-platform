@@ -10,7 +10,7 @@ on:
 
 jobs:
   build:
-    runs-on: docker
+    runs-on: ubuntu-latest
     services:
       docker:
         image: docker:24-dind
@@ -57,7 +57,7 @@ jobs:
         run: docker images | grep ly-flow || true
 
   test-api:
-    runs-on: docker
+    runs-on: ubuntu-latest
     needs: build
     
     steps:
@@ -89,7 +89,7 @@ jobs:
         run: docker compose down || true
 
   push-ghcr:
-    runs-on: docker
+    runs-on: ubuntu-latest
     needs: build
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     
