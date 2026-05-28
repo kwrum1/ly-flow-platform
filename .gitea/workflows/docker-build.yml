@@ -40,6 +40,7 @@ jobs:
           go version
           node --version
           npm --version
+          python3 --version
 
       - name: Run targeted tests
         run: |
@@ -62,12 +63,26 @@ jobs:
           tar -xzf "$package" -C /tmp/lyflow-amd64-artifact --strip-components=1
           grep -qx 'amd64' /tmp/lyflow-amd64-artifact/ARCH
 
-      - name: Upload amd64 package
-        uses: actions/upload-artifact@v3
-        with:
-          name: lyflow-offline-install-amd64
-          path: release/lyflow-offline-install-amd64-*.tar.gz
-          if-no-files-found: error
+      - name: Upload amd64 package to Gitea release
+        run: |
+          set -euo pipefail
+          package=$(ls -1 release/lyflow-offline-install-amd64-*.tar.gz | tail -n 1)
+          tag="offline-${GITHUB_SHA:-$(git rev-parse --short HEAD)}"
+          api="${GITEA_SERVER_URL:-http://127.0.0.1:10000}/api/v1/repos/ly-flow-platform/ly-flow-platform"
+          token="${GITEA_TOKEN:-${GITHUB_TOKEN:-}}"
+          if [ -z "$token" ]; then
+            echo "GITEA_TOKEN or GITHUB_TOKEN is required for release upload" >&2
+            exit 1
+          fi
+          release_json=$(curl -fsS -H "Authorization: token $token" "$api/releases/tags/$tag" || true)
+          if [ -z "$release_json" ]; then
+            payload=$(TAG="$tag" TARGET="${GITHUB_SHA:-main}" python3 -c 'import json, os; print(json.dumps({"tag_name": os.environ["TAG"], "target_commitish": os.environ["TARGET"], "name": "Offline packages " + os.environ["TAG"], "body": "Automated amd64 and arm64 offline release packages.", "draft": False, "prerelease": False}))')
+            release_json=$(curl -fsS -X POST -H "Authorization: token $token" -H "Content-Type: application/json" \
+              -d "$payload" \
+              "$api/releases")
+          fi
+          release_id=$(printf '%s' "$release_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+          curl -fsS -X POST -H "Authorization: token $token" -F "attachment=@${package}" "$api/releases/$release_id/assets"
 
   release-arm64:
     name: Build arm64 offline package
@@ -96,6 +111,7 @@ jobs:
           go version
           node --version
           npm --version
+          python3 --version
 
       - name: Run targeted tests
         run: |
@@ -136,9 +152,23 @@ jobs:
           grep -qx 'arm64' /tmp/lyflow-arm64-artifact/ARCH
           grep -q 'latest-arm64' /tmp/lyflow-arm64-artifact/docker-compose.yml
 
-      - name: Upload arm64 package
-        uses: actions/upload-artifact@v3
-        with:
-          name: lyflow-offline-install-arm64
-          path: release/lyflow-offline-install-arm64-*.tar.gz
-          if-no-files-found: error
+      - name: Upload arm64 package to Gitea release
+        run: |
+          set -euo pipefail
+          package=$(ls -1 release/lyflow-offline-install-arm64-*.tar.gz | tail -n 1)
+          tag="offline-${GITHUB_SHA:-$(git rev-parse --short HEAD)}"
+          api="${GITEA_SERVER_URL:-http://127.0.0.1:10000}/api/v1/repos/ly-flow-platform/ly-flow-platform"
+          token="${GITEA_TOKEN:-${GITHUB_TOKEN:-}}"
+          if [ -z "$token" ]; then
+            echo "GITEA_TOKEN or GITHUB_TOKEN is required for release upload" >&2
+            exit 1
+          fi
+          release_json=$(curl -fsS -H "Authorization: token $token" "$api/releases/tags/$tag" || true)
+          if [ -z "$release_json" ]; then
+            payload=$(TAG="$tag" TARGET="${GITHUB_SHA:-main}" python3 -c 'import json, os; print(json.dumps({"tag_name": os.environ["TAG"], "target_commitish": os.environ["TARGET"], "name": "Offline packages " + os.environ["TAG"], "body": "Automated amd64 and arm64 offline release packages.", "draft": False, "prerelease": False}))')
+            release_json=$(curl -fsS -X POST -H "Authorization: token $token" -H "Content-Type: application/json" \
+              -d "$payload" \
+              "$api/releases")
+          fi
+          release_id=$(printf '%s' "$release_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+          curl -fsS -X POST -H "Authorization: token $token" -F "attachment=@${package}" "$api/releases/$release_id/assets"
