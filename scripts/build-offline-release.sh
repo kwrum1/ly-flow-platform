@@ -76,20 +76,23 @@ ensure_image redis:7-alpine
 ensure_image clickhouse/clickhouse-server:24.8-alpine
 ensure_image nginx:1.27-alpine
 
-log "rebuilding application images without cache"
-if [[ "$TARGET_ARCH" == "amd64" ]]; then
-  if [[ "${LYFLOW_CI_LOCAL_CACHE:-}" == "1" ]]; then
-    run docker compose build ly-server ly-vis
-    run docker compose --profile legacy-dpi build ly-dpi-engine
-    run docker compose build ly-security-engine ly-engine-lab ly-local-mirror
-    run docker compose --profile container-agent build ly-agent
-  else
-    run docker compose build --no-cache ly-server ly-vis
-    run docker compose --profile legacy-dpi build --no-cache ly-dpi-engine
-    run docker compose build --no-cache ly-security-engine ly-engine-lab ly-local-mirror
-    run docker compose --profile container-agent build --no-cache ly-agent
-  fi
+if [[ "${LYFLOW_CI_LOCAL_CACHE:-}" == "1" ]]; then
+  log "using prebuilt local application images from CI cache"
+  for image in "${IMAGES[@]}"; do
+    if ! docker image inspect "$image" >/dev/null 2>&1; then
+      printf '[lyflow-release] ERROR: required cached image %s is missing. Build or pull it before running with LYFLOW_CI_LOCAL_CACHE=1.
+' "$image" >&2
+      exit 1
+    fi
+  done
+elif [[ "$TARGET_ARCH" == "amd64" ]]; then
+  log "rebuilding application images without cache"
+  run docker compose build --no-cache ly-server ly-vis
+  run docker compose --profile legacy-dpi build --no-cache ly-dpi-engine
+  run docker compose build --no-cache ly-security-engine ly-engine-lab ly-local-mirror
+  run docker compose --profile container-agent build --no-cache ly-agent
 else
+  log "rebuilding application images without cache"
   run docker buildx build --platform "$PLATFORM" --load --no-cache -f server/Dockerfile.final -t "ly-flow/server:latest${TAG_SUFFIX}" .
   run docker buildx build --platform "$PLATFORM" --load --no-cache -f frontend/Dockerfile -t "ly-flow/frontend:latest${TAG_SUFFIX}" .
   run docker buildx build --platform "$PLATFORM" --load --no-cache -f dpi-engine/Dockerfile -t "ly-flow/dpi-engine:latest${TAG_SUFFIX}" .
