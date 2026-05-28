@@ -3,10 +3,11 @@ package webhook
 import (
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"sync"
 	"time"
 
-	"ly-flow-platform/pkg/model"
+	"github.com/lyflow/ly-flow-platform/model"
 )
 
 // Manager manages webhook configurations and message dispatching
@@ -164,17 +165,23 @@ func (m *Manager) EnableWebhook(id string, enabled bool) error {
 // SendAlert sends an alert to all matching webhooks
 func (m *Manager) SendAlert(alert *model.Alert) error {
 	webhookAlert := &Alert{
-		ID:         alert.ID,
-		Severity:   alert.Severity,
+		ID:         strconv.FormatUint(alert.ID, 10),
+		Severity:   model.SeverityFromUint8(alert.Severity),
 		Category:   alert.Category,
-		SourceIP:   alert.SourceIP,
-		TargetIP:   alert.TargetIP,
+		SourceIP:   alert.SrcIP,
+		TargetIP:   alert.DstIP,
 		Domain:     alert.Domain,
 		Signature:  alert.Signature,
-		DetailURL:  alert.DetailURL,
-		Tags:       alert.Tags,
+		Tags:       []string{alert.Category},
 		Timestamp:  alert.Timestamp,
-		Metadata:   alert.Metadata,
+		Metadata: map[string]interface{}{
+			"protocol":  alert.Protocol,
+			"src_port":  alert.SrcPort,
+			"dst_port":  alert.DstPort,
+			"risk_score": alert.Score,
+			"sensor_id":  alert.SensorID,
+			"status":     alert.Status,
+		},
 	}
 
 	return m.sendAlertToWebhooks(webhookAlert)

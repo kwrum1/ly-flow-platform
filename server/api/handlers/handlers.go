@@ -7,18 +7,18 @@ import (
 	"strings"
 	"time"
 
-	"ly-flow-platform/server/api/websocket"
-	"ly-flow-platform/server/models"
+	"github.com/lyflow/ly-flow-platform/server/api/websocket"
+	"github.com/lyflow/ly-flow-platform/server/models"
 )
 
-// Handler holds dependencies for API handlers
+// Handler 持有 API 处理器的依赖项
 type Handler struct {
 	DB        *models.DB
 	WsHub     *websocket.Hub
 	RedisAddr string
 }
 
-// NewHandler creates a new Handler instance
+// NewHandler 创建一个新的 Handler 实例
 func NewHandler(db *models.DB, wsHub *websocket.Hub, redisAddr string) *Handler {
 	return &Handler{
 		DB:        db,
@@ -27,14 +27,14 @@ func NewHandler(db *models.DB, wsHub *websocket.Hub, redisAddr string) *Handler 
 	}
 }
 
-// Response represents a standard API response
+// Response 表示标准的 API 响应
 type Response struct {
 	Code    int         `json:"code"`
 	Message string      `json:"message"`
 	Data    interface{} `json:"data,omitempty"`
 }
 
-// ListResponse represents a paginated list response
+// ListResponse 表示分页列表响应
 type ListResponse struct {
 	Items  interface{} `json:"items"`
 	Total  int         `json:"total"`
@@ -42,7 +42,7 @@ type ListResponse struct {
 	Offset int         `json:"offset"`
 }
 
-// NewResponse creates a new API response
+// NewResponse 创建一个新的 API 响应
 func NewResponse(code int, message string, data interface{}) Response {
 	return Response{
 		Code:    code,
@@ -51,18 +51,18 @@ func NewResponse(code int, message string, data interface{}) Response {
 	}
 }
 
-// SuccessResponse returns a successful response
+// SuccessResponse 返回一个成功响应
 func SuccessResponse(data interface{}) Response {
 	return NewResponse(0, "success", data)
 }
 
-// ErrorResponse sends an error response
+// ErrorResponse 发送一个错误响应
 func ErrorResponse(w http.ResponseWriter, status int, message string) {
 	w.WriteHeader(status)
 	json.NewEncoder(w).Encode(NewResponse(1, message, nil))
 }
 
-// parseQueryInt parses a query parameter as int
+// parseQueryInt 解析查询参数为整数
 func parseQueryInt(r *http.Request, key string, defaultVal int) int {
 	val := r.URL.Query().Get(key)
 	if val == "" {
@@ -75,7 +75,7 @@ func parseQueryInt(r *http.Request, key string, defaultVal int) int {
 	return i
 }
 
-// parsePathID parses the last path segment as int64
+// parsePathID 解析最后一个路径段为 int64
 func parsePathID(path string) (int64, error) {
 	parts := strings.Split(strings.Trim(path, "/"), "/")
 	if len(parts) == 0 {
@@ -85,7 +85,7 @@ func parsePathID(path string) (int64, error) {
 	return strconv.ParseInt(idStr, 10, 64)
 }
 
-// HealthCheck handles GET /api/v1/health
+// HealthCheck 处理 GET /api/v1/health
 func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -96,7 +96,7 @@ func (h *Handler) HealthCheck(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// ListEvents handles GET /api/v1/events
+// ListEvents 处理 GET /api/v1/events
 func (h *Handler) ListEvents(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		ErrorResponse(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -128,7 +128,7 @@ func (h *Handler) ListEvents(w http.ResponseWriter, r *http.Request) {
 	}))
 }
 
-// GetEvent handles GET /api/v1/events/{id}
+// GetEvent 处理 GET /api/v1/events/{id}
 func (h *Handler) GetEvent(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		ErrorResponse(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -151,7 +151,7 @@ func (h *Handler) GetEvent(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(SuccessResponse(event))
 }
 
-// SearchRequest represents a search request
+// SearchRequest 表示搜索请求
 type SearchRequest struct {
 	Query     string   `json:"query"`
 	Severity  string   `json:"severity,omitempty"`
@@ -167,7 +167,7 @@ type SearchRequest struct {
 	Offset    int      `json:"offset,omitempty"`
 }
 
-// SearchEvents handles POST /api/v1/events/search
+// SearchEvents 处理 POST /api/v1/events/search
 func (h *Handler) SearchEvents(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		ErrorResponse(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -219,7 +219,7 @@ func (h *Handler) SearchEvents(w http.ResponseWriter, r *http.Request) {
 	}))
 }
 
-// ListAssets handles GET /api/v1/assets
+// ListAssets 处理 GET /api/v1/assets
 func (h *Handler) ListAssets(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		ErrorResponse(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -244,7 +244,7 @@ func (h *Handler) ListAssets(w http.ResponseWriter, r *http.Request) {
 	}))
 }
 
-// GetAsset handles GET /api/v1/assets/{id}
+// GetAsset 处理 GET /api/v1/assets/{id}
 func (h *Handler) GetAsset(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		ErrorResponse(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -267,7 +267,7 @@ func (h *Handler) GetAsset(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(SuccessResponse(asset))
 }
 
-// GetStats handles GET /api/v1/stats
+// GetStats 处理 GET /api/v1/stats
 func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		ErrorResponse(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -284,19 +284,19 @@ func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(SuccessResponse(stats))
 }
 
-// LoginRequest represents a login request
+// LoginRequest 表示登录请求
 type LoginRequest struct {
 	Username string `json:"username"`
 	Password string `json:"password"`
 }
 
-// LoginResponse represents a login response
+// LoginResponse 表示登录响应
 type LoginResponse struct {
 	Token     string `json:"token"`
 	ExpiresAt string `json:"expires_at"`
 }
 
-// Login handles POST /api/v1/auth/login
+// Login 处理 POST /api/v1/auth/login
 func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
 		ErrorResponse(w, http.StatusMethodNotAllowed, "Method not allowed")
@@ -309,7 +309,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Simple authentication (replace with real auth in production)
+	// 简单认证（生产环境请替换为真实认证）
 	if req.Username == "admin" && req.Password == "admin123" {
 		token := "lyflow-jwt-token-" + time.Now().Format("20060102150405")
 		expiresAt := time.Now().Add(24 * time.Hour).Format(time.RFC3339)
@@ -325,7 +325,7 @@ func (h *Handler) Login(w http.ResponseWriter, r *http.Request) {
 	ErrorResponse(w, http.StatusUnauthorized, "Invalid credentials")
 }
 
-// TestWebhook handles POST /api/v1/webhook/test
+// TestWebhook 处理 POST /api/v1/webhook/test
 type WebhookTestRequest struct {
 	URL     string            `json:"url"`
 	Method  string            `json:"method,omitempty"`
@@ -349,7 +349,7 @@ func (h *Handler) TestWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Simulate webhook test
+	// 模拟 webhook 测试
 	testPayload := map[string]interface{}{
 		"event":     "test",
 		"timestamp": time.Now().UTC().Format(time.RFC3339),

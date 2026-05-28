@@ -6,6 +6,32 @@ import (
 	"time"
 )
 
+type IncidentNotification struct {
+	ID       string
+	Title    string
+	Severity string
+	Status   string
+	Asset    string
+	Action   string
+	DetailURL string
+}
+
+func FormatWeComIncidentMarkdown(incident IncidentNotification) *WeComMessage {
+	msg := &WeComMessage{MsgType: "markdown"}
+	content := fmt.Sprintf(`### LyFlow P0/P1 Incident
+
+> **%s** %s
+
+**ID**: %s
+**状态**: %s
+**资产**: %s
+**动作**: %s
+
+[查看详情](%s)`, strings.ToUpper(incident.Severity), incident.Title, incident.ID, incident.Status, incident.Asset, incident.Action, incident.DetailURL)
+	msg.Markdown = &struct { Content string `json:"content"` }{Content: content}
+	return msg
+}
+
 // WeComMessage represents a WeCom (Enterprise WeChat) webhook message
 type WeComMessage struct {
 	MsgType  string `json:"msgtype"`

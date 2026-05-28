@@ -5,6 +5,7 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -57,6 +58,24 @@ type Vulnerability struct {
 	Status       string     `json:"status" db:"status"`
 	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
 	ResolvedAt   *time.Time `json:"resolved_at" db:"resolved_at"`
+}
+
+// Agent represents a registered security agent
+type Agent struct {
+	ID              int64     `json:"id" db:"id"`
+	UUID            string    `json:"uuid" db:"uuid"`
+	AgentKey        string    `json:"agent_key" db:"agent_key"`
+	Hostname        string    `json:"hostname" db:"hostname"`
+	IP              string    `json:"ip" db:"ip"`
+	OS              string    `json:"os" db:"os"`
+	AgentVersion    string    `json:"agent_version" db:"agent_version"`
+	Status          string    `json:"status" db:"status"`
+	TrafficEnabled  bool      `json:"traffic_enabled" db:"traffic_enabled"`
+	HIDSEnabled     bool      `json:"hids_enabled" db:"hids_enabled"`
+	RASPEnabled     bool      `json:"rasp_enabled" db:"rasp_enabled"`
+	LastHeartbeat   time.Time `json:"last_heartbeat" db:"last_heartbeat"`
+	EnrolledAt      time.Time `json:"enrolled_at" db:"enrolled_at"`
+	ConnectionSince time.Time `json:"connection_since" db:"connection_since"`
 }
 
 // AlertInput represents input for creating an event from an alert
@@ -465,5 +484,63 @@ func (db *DB) UpsertAsset(ctx context.Context, asset *Asset) error {
 	return err
 }
 
-// strconv helper - uses standard library
+func (db *DB) CreateAgent(ctx context.Context, agent *Agent) error {
+	query := `
+		INSERT INTO agents (uuid, agent_key, hostname, ip, os, agent_version, status, traffic_enabled, hids_enabled, rasp_enabled, last_heartbeat, enrolled_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, NOW())
+		RETURNING id
+	`
+	return db.pool.QueryRow(ctx, query,
+		agent.UUID, agent.AgentKey, agent.Hostname, agent.IP, agent.OS,
+		agent.AgentVersion, agent.Status, agent.TrafficEnabled,
+		agent.HIDSEnabled, agent.RASPEnabled, agent.LastHeartbeat,
+	).Scan(&agent.ID)
+}
+
+func (db *DB) UpdateAgentHeartbeat(ctx context.Context, uuid string) error {
+	query := `UPDATE agents SET last_heartbeat = NOW(), status = 'online' WHERE uuid = $1`
+	_, err := db.pool.Exec(ctx, query, uuid)
+	return err
+}
+
+func (db *DB) GetAgentByUUID(ctx context.Context, uuid string) (*Agent, error) {
+	var a Agent
+	query := `SELECT id, uuid, agent_key, hostname, ip, os, agent_version, status, traffic_enabled, hids_enabled, rasp_enabled, last_heartbeat, enrolled_at FROM agents WHERE uuid = $1`
+	err := db.pool.QueryRow(ctx, query, uuid).Scan(&a.ID, &a.UUID, &a.AgentKey, &a.Hostname, &a.IP, &a.OS, &a.AgentVersion, &a.Status, &a.TrafficEnabled, &a.HIDSEnabled, &a.RASPEnabled, &a.LastHeartbeat, &a.EnrolledAt)
+	if err != nil {
+		return nil, err
+	}
+	return &a, nil
+}
+
+func (db *DB) GetAllAgents(ctx context.Context) ([]*Agent, error) {
+	query := `SELECT id, uuid, agent_key, hostname, ip, os, agent_version, status, traffic_enabled, hids_enabled, rasp_enabled, last_heartbeat, enrolled_at FROM agents ORDER BY enrolled_at DESC`
+	rows, err := db.pool.Query(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var agents []*Agent
+	for rows.Next() {
+		var a Agent
+		err := rows.Scan(&a.ID, &a.UUID, &a.AgentKey, &a.Hostname, &a.IP, &a.OS, &a.AgentVersion, &a.Status,
+			&a.TrafficEnabled, &a.HIDSEnabled, &a.RASPEnabled, &a.LastHeartbeat, &a.EnrolledAt)
+		if err != nil {
+			return nil, err
+		}
+		agents = append(agents, &a)
+	}
+	return agents, nil
+}
+
+func (db *DB) GetAgentStats(ctx context.Context) (total, online int64, err error) {
+	err = db.pool.QueryRow(ctx, "SELECT COUNT(*) FROM agents").Scan(&total)
+	if err != nil {
+		return
+	}
+	err = db.pool.QueryRow(ctx, "SELECT COUNT(*) FROM agents WHERE status = 'online'").Scan(&online)
+	return
+}
+
 var _ = strconv.Itoa

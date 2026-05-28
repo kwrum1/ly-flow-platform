@@ -1,16 +1,22 @@
 module ly-flow-platform/agent
 
-go 1.21
+go 1.22
 
 require (
-	google.golang.org/grpc v1.50.0
-	google.golang.org/protobuf v1.28.1
+	github.com/google/gopacket v1.1.19
+	github.com/lyflow/ly-flow-platform v0.0.0
+	github.com/redis/go-redis/v9 v9.5.1
+	golang.org/x/net v0.22.0
+	google.golang.org/grpc v1.64.0
+	google.golang.org/protobuf v1.36.4
 )
 
+replace github.com/lyflow/ly-flow-platform => ../pkg
+
 require (
-	github.com/golang/protobuf v1.5.2 // indirect
-	golang.org/x/net v0.0.0-20221004154528-8021a29435af // indirect
-	golang.org/x/sys v0.0.0-20220722155257-8c9f86f7d055 // indirect
-	golang.org/x/text v0.3.7 // indirect
-	google.golang.org/genproto v0.0.0-20221018193956-64e7b2f2c93f // indirect
+	github.com/cespare/xxhash/v2 v2.2.0 // indirect
+	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
+	golang.org/x/sys v0.18.0 // indirect
+	golang.org/x/text v0.14.0 // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20240318140521-94a12d6c2237 // indirect
 )

@@ -62,11 +62,11 @@ func (e *Event) FromAlert(alert *Alert) {
 // SeverityFromUint8 converts uint8 severity to string
 func SeverityFromUint8(s uint8) string {
 	switch s {
-	case SeverityCritical:
+	case AlertSeverityCritical:
 		return SeverityCritical
-	case SeverityHigh:
+	case AlertSeverityHigh:
 		return SeverityHigh
-	case SeverityMedium:
+	case AlertSeverityMedium:
 		return SeverityMedium
 	default:
 		return SeverityLow

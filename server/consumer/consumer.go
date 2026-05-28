@@ -10,7 +10,7 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
-	"ly-flow-platform/server/models"
+	"github.com/lyflow/ly-flow-platform/server/models"
 )
 
 // Consumer reads alerts from Redis streams and stores them in PostgreSQL

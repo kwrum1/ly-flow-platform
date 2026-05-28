@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"ly-flow-platform/pkg/model"
+	"github.com/lyflow/ly-flow-platform/model"
 )
 
 // DailyReport represents a daily security report
@@ -82,11 +82,11 @@ func GenerateDailyReport(alerts []*model.Alert, date time.Time) *DailyReport {
 	categoryCounts := make(map[string]int)
 
 	for _, alert := range dayAlerts {
-		severity := strings.ToLower(alert.Severity)
+		severity := strings.ToLower(model.SeverityFromUint8(alert.Severity))
 		severityCounts[severity]++
 
-		if alert.SourceIP != "" {
-			ipCounts[alert.SourceIP]++
+		if alert.SrcIP != "" {
+			ipCounts[alert.SrcIP]++
 		}
 
 		if alert.Category != "" {
@@ -103,7 +103,7 @@ func GenerateDailyReport(alerts []*model.Alert, date time.Time) *DailyReport {
 	report.TopSources = getTopStats(ipCounts, 10)
 
 	// Get top categories
-	report.TopCategories = getTopStats(categoryCounts, 10)
+	report.TopCategories = getTopCategoryStats(categoryCounts, 10)
 
 	// Detect attack chains
 	report.AttackChains = detectAttackChains(dayAlerts)
@@ -144,7 +144,7 @@ func GenerateWeeklyReport(dailyReports []*DailyReport) *DailyReport {
 	}
 
 	report.TopSources = getTopStats(ipCounts, 10)
-	report.TopCategories = getTopStats(categoryCounts, 10)
+	report.TopCategories = getTopCategoryStats(categoryCounts, 10)
 
 	return report
 }
@@ -286,8 +286,8 @@ func detectAttackChains(alerts []*model.Alert) []*AttackChain {
 	// Group alerts by source IP
 	alertsBySource := make(map[string][]*model.Alert)
 	for _, alert := range alerts {
-		if alert.SourceIP != "" {
-			alertsBySource[alert.SourceIP] = append(alertsBySource[alert.SourceIP], alert)
+		if alert.SrcIP != "" {
+			alertsBySource[alert.SrcIP] = append(alertsBySource[alert.SrcIP], alert)
 		}
 	}
 
@@ -317,7 +317,10 @@ func detectAttackChains(alerts []*model.Alert) []*AttackChain {
 			}
 
 			// Check if this alert is related to existing chain
-			lastStep := currentChain.Steps[len(currentChain.Steps)-1] if len(currentChain.Steps) > 0 else AttackStep{}
+			lastStep := AttackStep{Timestamp: alert.Timestamp}
+			if len(currentChain.Steps) > 0 {
+				lastStep = currentChain.Steps[len(currentChain.Steps)-1]
+			}
 			timeDiff := alert.Timestamp.Sub(lastStep.Timestamp)
 
 			if timeDiff > timeWindow && len(currentChain.Steps) > 0 {
@@ -334,8 +337,8 @@ func detectAttackChains(alerts []*model.Alert) []*AttackChain {
 			step := AttackStep{
 				Timestamp: alert.Timestamp,
 				Category:  alert.Category,
-				SourceIP:  alert.SourceIP,
-				TargetIP:  alert.TargetIP,
+				SourceIP:  alert.SrcIP,
+				TargetIP:  alert.DstIP,
 				Signature: alert.Signature,
 			}
 			currentChain.Steps = append(currentChain.Steps, step)
@@ -343,19 +346,20 @@ func detectAttackChains(alerts []*model.Alert) []*AttackChain {
 			// Track target IPs
 			found := false
 			for _, tip := range currentChain.TargetIPs {
-				if tip == alert.TargetIP {
+				if tip == alert.DstIP {
 					found = true
 					break
 				}
 			}
-			if !found && alert.TargetIP != "" {
-				currentChain.TargetIPs = append(currentChain.TargetIPs, alert.TargetIP)
+			if !found && alert.DstIP != "" {
+				currentChain.TargetIPs = append(currentChain.TargetIPs, alert.DstIP)
 			}
 
 			// Update severity
-			if alert.Severity == "critical" {
+			severity := model.SeverityFromUint8(alert.Severity)
+			if severity == "critical" {
 				currentChain.Severity = "critical"
-			} else if alert.Severity == "high" && currentChain.Severity != "critical" {
+			} else if severity == "high" && currentChain.Severity != "critical" {
 				currentChain.Severity = "high"
 			}
 		}

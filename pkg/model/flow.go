@@ -4,7 +4,7 @@ import (
 	"time"
 )
 
-// FlowData represents a network flow record sent from ly-probe to flows:raw
+// FlowData represents a network flow record sent from ly-agent to flows:raw
 type FlowData struct {
 	ID          string `json:"id"`
 	Timestamp   int64  `json:"timestamp"`

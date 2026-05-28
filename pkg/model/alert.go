@@ -25,10 +25,10 @@ type Alert struct {
 
 // Severity levels
 const (
-	SeverityCritical = 1
-	SeverityHigh     = 2
-	SeverityMedium   = 3
-	SeverityLow     = 4
+	AlertSeverityCritical = 1
+	AlertSeverityHigh     = 2
+	AlertSeverityMedium   = 3
+	AlertSeverityLow      = 4
 )
 
 // Alert types

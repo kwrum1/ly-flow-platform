@@ -44,7 +44,7 @@ CREATE TABLE IF NOT EXISTS assets (
     hostname VARCHAR(256) UNIQUE,
     ip INET,
     os VARCHAR(128),
-    agent_id UUID,
+    agent_id VARCHAR(64),
     tags TEXT[],
     first_seen TIMESTAMPTZ,
     last_seen TIMESTAMPTZ,
@@ -115,12 +115,16 @@ CREATE TABLE IF NOT EXISTS custom_tags (
 -- =====================================================
 CREATE TABLE IF NOT EXISTS agents (
     id BIGSERIAL PRIMARY KEY,
-    uuid UUID UNIQUE NOT NULL,
+    uuid TEXT UNIQUE NOT NULL,
+    agent_key VARCHAR(64),
     hostname VARCHAR(256),
     ip INET,
     os VARCHAR(128),
     agent_version VARCHAR(32),
     status VARCHAR(16) DEFAULT 'offline',
+    traffic_enabled BOOLEAN DEFAULT false,
+    hids_enabled BOOLEAN DEFAULT false,
+    rasp_enabled BOOLEAN DEFAULT false,
     last_heartbeat TIMESTAMPTZ,
     config JSONB,
     tags TEXT[],
@@ -132,7 +136,7 @@ CREATE INDEX IF NOT EXISTS idx_agents_uuid ON agents(uuid);
 
 CREATE TABLE IF NOT EXISTS agent_tasks (
     id BIGSERIAL PRIMARY KEY,
-    agent_uuid UUID REFERENCES agents(uuid) ON DELETE CASCADE,
+    agent_uuid TEXT REFERENCES agents(uuid) ON DELETE CASCADE,
     task_type VARCHAR(32),
     task_params JSONB,
     status VARCHAR(16) DEFAULT 'pending',
