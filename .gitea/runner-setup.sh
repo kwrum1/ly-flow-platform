@@ -39,7 +39,7 @@ chmod +x act_runner
 printf 'Getting registration token...\n'
 response=$(curl -fsS \
   -H "Authorization: token ${GITEA_TOKEN}" \
-  "${GITEA_URL}/api/v1/repos/${REPO}/actions/runners/registration-tokens")
+  "${GITEA_URL}/api/v1/repos/${REPO}/actions/runners/registration-token")
 
 token_value=$(printf '%s' "$response" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
 if [[ -z "$token_value" ]]; then
