@@ -18,6 +18,7 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
       GIT_TERMINAL_PROMPT: "0"
       GOTOOLCHAIN: auto
+      LYFLOW_GITEA_TOKEN: ${{ secrets.LYFLOW_GITEA_TOKEN }}
     steps:
       - name: Checkout repository
         run: |
@@ -41,6 +42,11 @@ jobs:
           node --version
           npm --version
           python3 --version
+
+      - name: Install frontend dependencies
+        run: |
+          set -euo pipefail
+          npm --prefix frontend ci
 
       - name: Run targeted tests
         run: |
@@ -69,9 +75,9 @@ jobs:
           package=$(ls -1 release/lyflow-offline-install-amd64-*.tar.gz | tail -n 1)
           tag="offline-${GITHUB_SHA:-$(git rev-parse --short HEAD)}"
           api="${GITEA_SERVER_URL:-http://127.0.0.1:10000}/api/v1/repos/ly-flow-platform/ly-flow-platform"
-          token="${GITEA_TOKEN:-${GITHUB_TOKEN:-}}"
+          token="${LYFLOW_GITEA_TOKEN:-${GITHUB_TOKEN:-}}"
           if [ -z "$token" ]; then
-            echo "GITEA_TOKEN or GITHUB_TOKEN is required for release upload" >&2
+            echo "LYFLOW_GITEA_TOKEN or GITHUB_TOKEN is required for release upload" >&2
             exit 1
           fi
           release_json=$(curl -fsS -H "Authorization: token $token" "$api/releases/tags/$tag" || true)
@@ -92,7 +98,17 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
       GIT_TERMINAL_PROMPT: "0"
       GOTOOLCHAIN: auto
+      LYFLOW_GITEA_TOKEN: ${{ secrets.LYFLOW_GITEA_TOKEN }}
     steps:
+      - name: Checkout repository
+        run: |
+          set -euo pipefail
+          if [ ! -f scripts/build-offline-release.sh ]; then
+            rm -rf /tmp/lyflow-actions-workspace
+            git clone --depth 1 http://127.0.0.1:10000/ly-flow-platform/ly-flow-platform.git /tmp/lyflow-actions-workspace
+            cp -a /tmp/lyflow-actions-workspace/. .
+          fi
+
       - name: Enable arm64 binfmt
         run: |
           set -euo pipefail
@@ -112,6 +128,11 @@ jobs:
           node --version
           npm --version
           python3 --version
+
+      - name: Install frontend dependencies
+        run: |
+          set -euo pipefail
+          npm --prefix frontend ci
 
       - name: Run targeted tests
         run: |
@@ -158,9 +179,9 @@ jobs:
           package=$(ls -1 release/lyflow-offline-install-arm64-*.tar.gz | tail -n 1)
           tag="offline-${GITHUB_SHA:-$(git rev-parse --short HEAD)}"
           api="${GITEA_SERVER_URL:-http://127.0.0.1:10000}/api/v1/repos/ly-flow-platform/ly-flow-platform"
-          token="${GITEA_TOKEN:-${GITHUB_TOKEN:-}}"
+          token="${LYFLOW_GITEA_TOKEN:-${GITHUB_TOKEN:-}}"
           if [ -z "$token" ]; then
-            echo "GITEA_TOKEN or GITHUB_TOKEN is required for release upload" >&2
+            echo "LYFLOW_GITEA_TOKEN or GITHUB_TOKEN is required for release upload" >&2
             exit 1
           fi
           release_json=$(curl -fsS -H "Authorization: token $token" "$api/releases/tags/$tag" || true)
