@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+echo "Wazuh source-packaged bridge (wazuh/wazuh ruleset vendored)"

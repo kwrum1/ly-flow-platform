@@ -1,0 +1,4 @@
+Premain-Class: com.lyflow.rasp.LyRaspAgent
+Agent-Class: com.lyflow.rasp.LyRaspAgent
+Can-Redefine-Classes: false
+Can-Retransform-Classes: false

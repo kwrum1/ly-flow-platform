@@ -1,19 +1,20 @@
-# ly-server Dockerfile - using pre-built binary
-FROM debian:bookworm-slim
+ARG RUNTIME_IMAGE=ly-flow/server:latest
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    ca-certificates tzdata && rm -rf /var/lib/apt/lists/* \
-    && useradd -m -u 1000 appuser
+FROM ${RUNTIME_IMAGE}
+
+USER root
 
 WORKDIR /app
 
 COPY server/ly-server /app/ly-server
+COPY server/ly-agent-center /app/ly-agent-center
+COPY agent/ly-agent /app/ly-agent
 COPY rules/ /etc/ly/rules/
+COPY probe/rasp/ /app/probe/rasp/
 
-RUN chown appuser:appuser /app/ly-server /etc/ly/rules -R
-
-USER appuser
+RUN chmod +x /app/ly-server /app/ly-agent-center /app/ly-agent \
+    && find /app/probe/rasp -name '*.sh' -exec chmod +x {} \;
 
 EXPOSE 8080 8081
 
-ENTRYPOINT ["/app/ly-server"]
+CMD ["/app/ly-server"]

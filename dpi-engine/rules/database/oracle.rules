@@ -1,0 +1,40 @@
+# Oracle Detection Rules
+# SID Range: 50001-50099
+# Created: 2026-05-10
+
+# SQL Injection Detection
+alert tcp any any -> any 1521 (msg:"Oracle SQL Injection - UNION SELECT"; content:"UNION|20SELECT"; nocase; sid:50001; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle SQL Injection - OR 1=1"; content:"OR|20'1'='1"; nocase; sid:50002; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle SQL Injection - CHR Injection"; content:"CHR("; nocase; sid:50003; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle SQL Injection - EXECUTE IMMEDIATE"; content:"EXECUTE|20IMMEDIATE"; nocase; sid:50004; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle SQL Injection - DBMS_SQL"; content:"DBMS_SQL"; nocase; sid:50005; rev:1;)
+
+# Account Lockout Detection
+alert tcp any any -> any 1521 (msg:"Oracle Account Lockout - ORA-28000"; content:"ORA-28000"; nocase; sid:50006; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle Account Lockout - ORA-28001"; content:"ORA-28001"; nocase; sid:50007; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle Account Lockout - Password Expired"; content:"ORA-28002"; nocase; sid:50008; rev:1;)
+
+# Brute Force Detection
+alert tcp any any -> any 1521 (msg:"Oracle Brute Force - Multiple Failed Auth"; threshold:type threshold, track by_src, count 5, seconds 60; sid:50009; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle Brute Force - TNS Listener Slam"; threshold:type threshold, track by_src, count 20, seconds 30; sid:50010; rev:1;)
+
+# Malicious Commands
+alert tcp any any -> any 1521 (msg:"Oracle Malicious - UTL_HTTP Request"; content:"UTL_HTTP"; nocase; sid:50011; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle Malicious - UTL_FILE"; content:"UTL_FILE"; nocase; sid:50012; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle Malicious - DBMS_LOB"; content:"DBMS_LOB"; nocase; sid:50013; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle Malicious - JAVA Execution"; content:"java.lang"; nocase; sid:50014; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle Malicious - DBMS_SCHEDULER"; content:"DBMS_SCHEDULER"; nocase; sid:50015; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle Malicious - CTXSYS"; content:"CTXSYS"; nocase; sid:50016; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle Malicious - SYS Context"; content:"SYS."; nocase; sid:50017; rev:1;)
+
+# Data Exfiltration
+alert tcp any any -> any 1521 (msg:"Oracle Exfil - ALL_TABLES"; content:"ALL_TABLES"; nocase; sid:50018; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle Exfil - ALL_COLUMNS"; content:"ALL_COLUMNS"; nocase; sid:50019; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle Exfil - DBA_USERS"; content:"DBA_USERS"; nocase; sid:50020; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle Exfil - V$CONTROLFILE"; content:"V$CONTROLFILE"; nocase; sid:50021; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle Exfil - V$PASSWORDFILE"; content:"V$PWFILE_USERS"; nocase; sid:50022; rev:1;)
+
+# Reconnaissance
+alert tcp any any -> any 1521 (msg:"Oracle Recon - SELECT VERSION"; content:"v$version"; nocase; sid:50023; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle Recon - List Sessions"; content:"v$session"; nocase; sid:50024; rev:1;)
+alert tcp any any -> any 1521 (msg:"Oracle Recon - List Privileges"; content:"v$privilege"; nocase; sid:50025; rev:1;)

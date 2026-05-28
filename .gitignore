@@ -7,6 +7,14 @@ dist/
 build/
 *.exe
 
+# Generated binaries
+agent/ly-agent
+server/ly-server
+server/ly-agent
+dpi-engine/ly-dpi-engine
+frontend/dist/
+frontend/node_modules/
+
 # IDE
 .idea/
 .vscode/
@@ -34,6 +42,9 @@ Thumbs.db
 
 # Secrets
 .env
+.env.*
+!.env.example
+!.env.*.example
 *.pem
 *.key
 
@@ -42,3 +53,10 @@ opencode.json
 
 # Workspace
 workspace/
+
+# Generated release artifacts
+agent/ly-agent-arm64
+security-engine/ly-security-engine
+release/
+lyflow-offline-install-*.tar.gz
+.playwright-mcp/

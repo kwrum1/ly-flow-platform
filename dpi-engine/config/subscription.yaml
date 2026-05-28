@@ -1,0 +1,176 @@
+# 流影规则订阅配置
+# 版本: 1.0.0
+# 更新时间: 2026-05-09
+
+subscriptions:
+  # Emerging Threats Open (ET Open) - 每日更新
+  et-open:
+    name: "ET Open"
+    name_cn: "Emerging Threats 开放规则"
+    url: "https://rules.emergingthreats.net/open/suricata-7.0.3/emerging.rules.tar.gz"
+    enabled: false
+    schedule: "0 3 * * *"  # 每日凌晨3点
+    description: "Proofpoint ET Open规则集，检测已知威胁"
+    categories:
+      # Web攻击
+      emerging-web_server:
+        enabled: false
+        description: "Web服务器攻击（SQL注入、XSS、命令注入等）"
+        priority: high
+      emerging-web_client:
+        enabled: false
+        description: "Web客户端攻击（恶意脚本、钓鱼等）"
+        priority: medium
+      # 漏洞利用
+      emerging-exploit:
+        enabled: false
+        description: "漏洞利用攻击（RCE、缓冲区溢出等）"
+        priority: high
+      emerging-exploit_kit:
+        enabled: false
+        description: "漏洞利用工具包检测"
+        priority: medium
+      # 恶意软件
+      emerging-malware:
+        enabled: false
+        description: "恶意软件通信（C2、木马后门等）"
+        priority: high
+      emerging-trojan:
+        enabled: false
+        description: "木马与后门程序检测"
+        priority: high
+      emerging-coinminer:
+        enabled: false
+        description: "挖矿程序检测"
+        priority: high
+      # 扫描攻击
+      emerging-scan:
+        enabled: false
+        description: "扫描行为检测（Nmap等）"
+        priority: medium
+      emerging-dos:
+        enabled: false
+        description: "拒绝服务攻击检测"
+        priority: low
+      # 信息泄露
+      emerging-attack_response:
+        enabled: false
+        description: "攻击响应规则"
+        priority: low
+      emerging-info:
+        enabled: false
+        description: "信息性告警（低优先级，可能产生大量噪音）"
+        priority: low
+      # 协议检测
+      emerging-dns:
+        enabled: false
+        description: "DNS隧道与异常检测"
+        priority: medium
+      emerging-icmp:
+        enabled: false
+        description: "ICMP隧道检测"
+        priority: medium
+      emerging-netbios:
+        enabled: false
+        description: "NetBIOS/SMB攻击"
+        priority: medium
+      emerging-ja3:
+        enabled: false
+        description: "TLS指纹恶意检测"
+        priority: high
+      # 认证攻击
+      emerging-ssh:
+        enabled: false
+        description: "SSH暴力破解/异常"
+        priority: medium
+      emerging-telnet:
+        enabled: false
+        description: "Telnet异常检测"
+        priority: low
+      # 其他
+      emerging-hunting:
+        enabled: false
+        description: "威胁狩猎规则（需安全分析人员）"
+        priority: low
+      emerging-mobile_malware:
+        enabled: false
+        description: "移动端恶意软件"
+        priority: low
+
+  # PT Research AttackDetection - 不定期更新
+  pt-attack:
+    name: "PT AttackDetection"
+    name_cn: "Positive Technologies 攻击检测"
+    url: "https://raw.githubusercontent.com/ptresearch/AttackDetection/master/pt.rules.tar.gz"
+    enabled: false
+    schedule: "0 3 * * *"
+    description: "Positive Technologies 攻击检测规则集"
+
+# 自定义规则配置
+custom_rules:
+  ly-frp:
+    name: "FRP内网穿透检测"
+    path: "rules/ly-custom/frp.rules"
+    enabled: false
+    description: "检测FRP内网穿透工具连接特征"
+
+  ly-c2:
+    name: "C2远控工具检测"
+    path: "rules/ly-custom/c2.rules"
+    enabled: false
+    description: "检测CobaltStrike/Metasploit等C2远控工具"
+
+  ly-scan:
+    name: "扫描工具检测"
+    path: "rules/ly-custom/scanner.rules"
+    enabled: false
+    description: "检测Nmap/Masscan/Fscan等扫描工具"
+
+  ly-webshell:
+    name: "WebShell检测"
+    path: "rules/ly-custom/webshell.rules"
+    enabled: false
+    description: "检测PHP/JSP/ASP等WebShell"
+
+  ly-database:
+    name: "数据库攻击检测"
+    path: "rules/ly-custom/database.rules"
+    enabled: false
+    description: "检测MySQL/Redis/MSSQL等数据库攻击"
+
+  ly-lateral:
+    name: "内网横向检测"
+    path: "rules/ly-custom/lateral.rules"
+    enabled: false
+    description: "检测SMB/RDP/SSH横向移动"
+
+  ly-proxy:
+    name: "代理穿透工具检测"
+    path: "rules/ly-custom/proxy.rules"
+    enabled: false
+    description: "检测reGeorg/EarthWorm等代理工具"
+
+  ly-privilege:
+    name: "权限提升检测"
+    path: "rules/ly-custom/privilege.rules"
+    enabled: false
+    description: "检测Mimikatz/Responder等凭据窃取"
+
+# 更新设置
+update:
+  enabled: false
+  schedule: "0 3 * * *"
+  backup_before_update: true
+  backup_dir: "rules/backup"
+  log_file: "logs/rules-update.log"
+  max_backup_versions: 7
+  notify_on_failure: true
+  notify_on_success: false
+
+# 统计信息
+stats:
+  total_rules: 0
+  enabled_rules: 0
+  last_update: null
+  last_check: null
+  update_status: "never"

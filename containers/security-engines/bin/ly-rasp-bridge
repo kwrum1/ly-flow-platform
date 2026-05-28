@@ -1,0 +1,2 @@
+#!/usr/bin/env sh
+echo "RASP source-packaged bridge (OpenRASP/Elkeid vendored)"
