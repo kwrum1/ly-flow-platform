@@ -3,5 +3,5 @@
 </template>
 
 <script setup>
-// App 根组件
+import './assets/styles/global.css'
 </script>

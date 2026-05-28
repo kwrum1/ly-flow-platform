@@ -1,47 +1,56 @@
-# Vue3 Frontend Dockerfile
-# Node.js based
+ARG RUNTIME_IMAGE=nginx:1.27-alpine
 
-FROM node:20 AS builder
+FROM ${RUNTIME_IMAGE}
 
-WORKDIR /build
+USER root
 
-COPY frontend/package*.json ./
+COPY frontend/dist /usr/share/nginx/html
 
-RUN npm install
-
-COPY frontend/ ./
-
-RUN npm run build
-
-# Nginx serving
-FROM nginx:alpine
-
-COPY --from=builder /build/dist /usr/share/nginx/html
-
-# Nginx 配置
-RUN echo 'server { \
-    listen 3000; \
+ENV LY_SERVER_UPSTREAM=http://ly-server:8080
+RUN apk add --no-cache openssl \
+    && mkdir -p /etc/nginx/templates /etc/nginx/ssl \
+    && openssl req -x509 -nodes -newkey rsa:2048 -days 3650 \
+        -keyout /etc/nginx/ssl/lyflow.key \
+        -out /etc/nginx/ssl/lyflow.crt \
+        -subj "/CN=lyflow.local/O=LyFlow Security Console" \
+        -addext "subjectAltName=DNS:localhost,DNS:lyflow.local,IP:127.0.0.1" \
+    && echo 'server { \
+    listen 443 ssl; \
     server_name _; \
+    ssl_certificate /etc/nginx/ssl/lyflow.crt; \
+    ssl_certificate_key /etc/nginx/ssl/lyflow.key; \
+    ssl_protocols TLSv1.2 TLSv1.3; \
+    ssl_prefer_server_ciphers off; \
     root /usr/share/nginx/html; \
     index index.html; \
+    resolver 127.0.0.11 valid=10s ipv6=off; \
+    set $ly_server_upstream ${LY_SERVER_UPSTREAM}; \
     \
     location / { \
-        try_files $uri $uri/ /index.html; \
+        try_files $uri /index.html; \
     } \
     \
     location /api/ { \
-        proxy_pass http://ly-server:8080/; \
+        proxy_pass $ly_server_upstream; \
         proxy_set_header Host $host; \
+        proxy_set_header X-Forwarded-Host $host; \
+        proxy_set_header X-Forwarded-Proto https; \
     } \
     \
-    location /ws { \
-        proxy_pass http://ly-server:8080/ws; \
+    location /ws/ { \
+        proxy_pass $ly_server_upstream; \
         proxy_http_version 1.1; \
         proxy_set_header Upgrade $http_upgrade; \
         proxy_set_header Connection "upgrade"; \
+        proxy_set_header Host $host; \
+        proxy_set_header X-Forwarded-Host $host; \
+        proxy_set_header X-Forwarded-Proto https; \
     } \
-}' > /etc/nginx/conf.d/default.conf
+}' > /etc/nginx/templates/default.conf.template
 
-EXPOSE 3000
+EXPOSE 443
+
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD wget --no-check-certificate -q -O /dev/null https://127.0.0.1/ || exit 1
 
 CMD ["nginx", "-g", "daemon off;"]

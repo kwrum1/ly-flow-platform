@@ -1,0 +1,152 @@
+export const productIdentity = Object.freeze({
+  name: '流影',
+  primaryWorkspace: '攻击链工作台',
+  locale: 'zh-CN',
+  timeZone: 'Asia/Shanghai',
+})
+
+export const backendContractDomains = Object.freeze([
+  {
+    id: 'auth',
+    title: '身份与访问控制',
+    workspace: '系统入口',
+    purpose: '登录、首次改密、会话、用户与角色管理',
+    maturity: 'api-backed',
+    uiRequired: true,
+    routes: [
+      { method: 'POST', path: '/api/v1/auth/login', feature: '管理员登录' },
+      { method: 'POST', path: '/api/v1/auth/logout', feature: '退出登录' },
+      { method: 'GET', path: '/api/v1/auth/profile', feature: '当前用户信息' },
+      { method: 'POST', path: '/api/v1/auth/change-password', feature: '首次登录强制改密' },
+      { method: 'GET', path: '/api/v1/auth/users', feature: '用户列表' },
+      { method: 'PUT', path: '/api/v1/auth/users/{id}', feature: '用户状态与角色维护' },
+      { method: 'DELETE', path: '/api/v1/auth/users/{id}', feature: '删除用户' },
+      { method: 'POST', path: '/api/v1/auth/users/password', feature: '管理员重置密码' },
+    ],
+  },
+  {
+    id: 'attack-workbench',
+    title: '攻击链工作台',
+    workspace: '攻击链工作台',
+    purpose: '从事件队列进入关联分析、事故、时间线与证据查看',
+    maturity: 'backend-first-required',
+    uiRequired: true,
+    routes: [
+      { method: 'GET', path: '/api/v1/unified/stats', feature: '统一事件统计' },
+      { method: 'GET', path: '/api/v1/unified/events', feature: '统一事件队列' },
+      { method: 'GET', path: '/api/v1/unified/events/search', feature: '事件检索' },
+      { method: 'GET', path: '/api/v1/incidents', feature: '事故列表' },
+      { method: 'GET', path: '/api/v1/incidents/{id}', feature: '事故详情' },
+      { method: 'GET', path: '/api/v1/timeline', feature: '攻击时间线' },
+      { method: 'GET', path: '/api/v1/timeline/{id}', feature: '时间线详情' },
+    ],
+    backendGaps: ['统一事件、事故与时间线必须由真实持久化数据生成，不能使用静态或内存假数据'],
+  },
+  {
+    id: 'assets-agents',
+    title: '资产与 Agent 管理',
+    workspace: '资产控制面',
+    purpose: '资产清单、Agent 在线状态、安装包、配置与任务回执',
+    maturity: 'backend-first-required',
+    uiRequired: true,
+    routes: [
+      { method: 'GET', path: '/api/v1/assets/stats', feature: '资产统计' },
+      { method: 'GET', path: '/api/v1/assets', feature: '资产列表' },
+      { method: 'GET', path: '/api/v1/assets/{id}', feature: '资产详情' },
+      { method: 'GET', path: '/api/v1/assets/groups', feature: '资产分组' },
+      { method: 'GET', path: '/api/v1/agents', feature: 'Agent 列表' },
+      { method: 'GET', path: '/api/v1/agents/{id}', feature: 'Agent 详情' },
+      { method: 'GET', path: '/api/v1/agent/install.sh', feature: '一键安装脚本' },
+      { method: 'GET', path: '/api/v1/agent/download', feature: 'Agent 二进制下载' },
+      { method: 'POST', path: '/api/v1/agent/config', feature: 'Agent 配置拉取' },
+      { method: 'POST', path: '/api/v1/agent/task-result', feature: '任务执行结果' },
+      { method: 'POST', path: '/api/v1/agent/snapshot', feature: '资产快照上报' },
+    ],
+    backendGaps: ['Agent 策略状态、能力状态、漂移状态、性能状态需要真实持久化与可查询 API'],
+  },
+  {
+    id: 'rules',
+    title: '检测规则中心',
+    workspace: '检测规则中心',
+    purpose: '规则包、分类、统计、测试、更新、启停与命中证据',
+    maturity: 'backend-first-required',
+    uiRequired: true,
+    routes: [
+      { method: 'GET', path: '/api/v1/rules', feature: '规则列表' },
+      { method: 'GET', path: '/api/v1/rules/categories', feature: '规则分类' },
+      { method: 'GET', path: '/api/v1/rules/stats', feature: '规则统计' },
+      { method: 'GET', path: '/api/v1/rules/subscription', feature: '规则订阅状态' },
+      { method: 'POST', path: '/api/v1/rules/update', feature: '规则更新' },
+      { method: 'POST', path: '/api/v1/rules/test', feature: '规则测试' },
+    ],
+    backendGaps: ['在线更新必须有干运行差异、确认激活、版本与命中记录'],
+  },
+  {
+    id: 'signals',
+    title: '多源信号分析',
+    workspace: '信号分析中心',
+    purpose: 'XDR、RASP、Runtime、Trace、DPI 与日志审计信号归一化展示',
+    maturity: 'backend-first-required',
+    uiRequired: true,
+    routes: [
+      { method: 'GET', path: '/api/v1/xdr/stats', feature: 'XDR 统计' },
+      { method: 'GET', path: '/api/v1/xdr/events', feature: 'XDR 事件' },
+      { method: 'GET', path: '/api/v1/xdr/sources', feature: 'XDR 数据源' },
+      { method: 'GET', path: '/api/v1/xdr/top-events', feature: '高频事件' },
+      { method: 'GET', path: '/api/v1/rasp/stats', feature: 'RASP 统计' },
+      { method: 'GET', path: '/api/v1/rasp/events', feature: 'RASP 事件' },
+      { method: 'GET', path: '/api/v1/rasp/rules', feature: 'RASP 规则' },
+      { method: 'GET', path: '/api/v1/rasp/agents', feature: 'RASP Agent 状态' },
+      { method: 'GET', path: '/api/v1/rasp/protection/status', feature: 'RASP 防护状态' },
+      { method: 'POST', path: '/api/v1/rasp/protection/enable', feature: '启用 RASP 防护' },
+      { method: 'POST', path: '/api/v1/rasp/protection/disable', feature: '停用 RASP 防护' },
+      { method: 'GET', path: '/api/v1/trace/stats', feature: 'Trace 统计' },
+      { method: 'GET', path: '/api/v1/trace/sessions', feature: '会话列表' },
+      { method: 'GET', path: '/api/v1/trace/sessions/{id}', feature: '会话详情' },
+      { method: 'GET', path: '/api/v1/trace/events', feature: 'Trace 事件' },
+      { method: 'POST', path: '/api/v1/trace/analyze', feature: '会话分析' },
+      { method: 'GET', path: '/api/v1/trace/search', feature: 'Trace 检索' },
+    ],
+    backendGaps: ['RASP、Trace、Runtime、日志审计必须使用真实持久化数据，不可只包装内存事件数组'],
+  },
+  {
+    id: 'traffic-overview',
+    title: '流量分析与态势总览',
+    workspace: '态势总览',
+    purpose: '流量分析模式、全局态势、系统健康与实时更新',
+    maturity: 'backend-first-required',
+    uiRequired: true,
+    routes: [
+      { method: 'GET', path: '/api/v1/health', feature: '服务健康' },
+      { method: 'GET', path: '/api/v1/stats', feature: '平台统计' },
+      { method: 'GET', path: '/api/v1/events', feature: '基础事件' },
+      { method: 'GET', path: '/api/v1/public/situation/global', feature: '全球态势' },
+      { method: 'WS', path: '/api/v1/realtime', feature: '实时状态推送' },
+    ],
+    backendGaps: ['流量分析模式的启停、网卡切换与热加载状态需要可查询和可操作 API'],
+  },
+])
+
+export const forbiddenUiTerms = Object.freeze([
+  'demo',
+  'mock',
+  'placeholder',
+  'TODO',
+  'test product',
+  '测试产品',
+  '占位',
+  '示例数据',
+  '假数据',
+])
+
+export function listUiRequiredRoutes() {
+  return backendContractDomains
+    .filter((domain) => domain.uiRequired)
+    .flatMap((domain) => domain.routes.map((route) => ({ ...route, domain: domain.id })))
+}
+
+export function listBackendGaps() {
+  return backendContractDomains.flatMap((domain) =>
+    (domain.backendGaps || []).map((gap) => ({ domain: domain.id, gap })),
+  )
+}
