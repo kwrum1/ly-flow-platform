@@ -60,3 +60,11 @@ security-engine/ly-security-engine
 release/
 lyflow-offline-install-*.tar.gz
 .playwright-mcp/
+
+# Local test and build outputs
+agent/main
+server/main
+server/ly-agent-center
+server/cmd/ly-server
+server/cmd/ly-agent-center
+frontend/test-results/
