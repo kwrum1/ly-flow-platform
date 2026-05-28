@@ -1,0 +1,80 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "elkeid-rebuilt-h1007",
+  "name": "SSH Key Auth Brute Force",
+  "description": "SSH key authentication brute force attempt",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "rebuilt_internal",
+    "vendor": "ByteDance Elkeid",
+    "license": "Apache-2.0",
+    "url": "https://github.com/bytedance/Elkeid",
+    "version": "local-2024-01-15",
+    "upstream_id": "H1007",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/hids/elkeid_hids_rules.yaml",
+    "converted_path": "rules/internal/hids/elkeid-rebuilt/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Converted from local Elkeid curated YAML patterns"
+    ]
+  },
+  "classification": {
+    "stage": "initial_access",
+    "mitre_tactics": [
+      "TA0006"
+    ],
+    "mitre_techniques": [
+      "T1110"
+    ],
+    "confidence": 0.82,
+    "rationale": "Mapped from Elkeid category bruteforce."
+  },
+  "scoring": {
+    "base_score": 82,
+    "severity": "high",
+    "source_reliability": 78
+  },
+  "match": {
+    "logic": "any",
+    "entities": [
+      "host.id",
+      "user.name",
+      "process.pid"
+    ],
+    "conditions": [
+      {
+        "field": "metadata.line",
+        "operator": "regex",
+        "value": "(?i)(Did\\\\s+not\\\\s+receive|bad\\\\s+signature|signature)"
+      },
+      {
+        "field": "metadata.line",
+        "operator": "regex",
+        "value": "20"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/hids/elkeid_hids_rules.yaml",
+      "rule_id": "H1007",
+      "category": "bruteforce",
+      "hook_type": "auth"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "collect_forensic_bundle",
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  }
+}

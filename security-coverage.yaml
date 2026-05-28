@@ -1,0 +1,36 @@
+signals:
+  dpi:
+    fixture: fixtures/architecture/scenarios.json
+    analyzer: dpi-engine/core/rules/engine.go
+    output_stream: alerts:dpi
+    xdr_correlation: true
+  semantic_flow:
+    fixture: fixtures/architecture/scenarios.json
+    analyzer: dpi-engine/core/engine/engine.go
+    output_stream: flows:semantic
+    xdr_correlation: true
+  runtime:
+    fixture: fixtures/architecture/scenarios.json
+    analyzer: agent/cmd/main.go
+    output_stream: alerts:runtime
+    xdr_correlation: true
+  rasp:
+    fixture: fixtures/architecture/scenarios.json
+    analyzer: agent/rasp/python/ly_rasp/detector/sql_injection.py
+    output_stream: alerts:rasp
+    xdr_correlation: true
+  logs:
+    fixture: fixtures/architecture/scenarios.json
+    analyzer: server/loganalyzer/analyzer.go
+    output_stream: logs:raw
+    xdr_correlation: true
+  xdr:
+    fixture: fixtures/architecture/scenarios.json
+    analyzer: server/xdr/xdr.go
+    output_stream: events:xdr
+    xdr_correlation: true
+  asset_context:
+    fixture: fixtures/architecture/scenarios.json
+    analyzer: server/cmd/main.go
+    output_stream: api:/api/v1/assets
+    xdr_correlation: true

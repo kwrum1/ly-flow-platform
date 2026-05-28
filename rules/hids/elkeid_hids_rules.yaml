@@ -1,0 +1,672 @@
+# Elkeid HIDS 规则集
+# 来源: 字节跳动 Elkeid 官方策略
+# https://elkeid.bytedance.com/docs/ElkeidData/hids_rule.html
+
+version: "1.0"
+source: "elkeid"
+updated: "2024-01-15"
+
+categories:
+  - id: backdoor
+    name: "后门驻留"
+    description: "隐藏内核模块/后门检测"
+  - id: bruteforce
+    name: "暴力破解"
+    description: "SSH/数据库暴力破解检测"
+  - id: binary_hijack
+    name: "二进制劫持"
+    description: "系统二进制文件替换检测"
+  - id: network_anomaly
+    name: "网络异常"
+    description: "异常网络行为检测"
+  - id: privilege_escalation
+    name: "权限提升"
+    description: "本地提权检测"
+  - id: lateral_movement
+    name: "横向移动"
+    description: "内网横向移动检测"
+
+rules:
+
+  # ============ 后门检测 ============
+  - id: H1001
+    category: backdoor
+    name: "Hidden kernel module"
+    severity: critical
+    description: "Hidden Kernel Module Detected"
+    hook_type: kernel
+    patterns:
+      - type: regex
+        value: "(?i)(\\.ko$|\\.ko\\.xz|lkm|kernel_module|hidden_module)"
+        description: "内核模块特征"
+      - type: regex
+        value: "(?i)(\\/proc\\/modules.*hidden|\\/sys\\/module\\/.*init_section)"
+        description: "隐藏模块检测"
+    mitre:
+      tactic: "TA0003"
+      technique: "T1014"
+    action: alert
+    enabled: true
+
+  - id: H1002
+    category: backdoor
+    name: "Rootkit Detection"
+    severity: critical
+    description: "Rootkit behavior detected"
+    hook_type: system
+    patterns:
+      - type: regex
+        value: "(?i)(\\.bash_history|\\.ssh\\/authorized_keys|\\/etc\\/cron)"
+        description: "后门配置位置"
+      - type: regex
+        value: "(?i)(nc\\s+-l|ncat|\\/dev\\/tcp|\\/bin\\/sh.*-i)"
+        description: "反向Shell特征"
+    mitre:
+      tactic: "TA0003"
+      technique: "T1014"
+    action: alert
+    enabled: true
+
+  - id: H1003
+    category: backdoor
+    name: "Persistence Mechanism"
+    severity: high
+    description: "Suspicious persistence mechanism detected"
+    hook_type: system
+    patterns:
+      - type: regex
+        value: "(?i)(crontab.*\\*|cron\\.d|systemd.*timer|init\\.d)"
+        description: "持久化机制"
+      - type: regex
+        value: "(?i)(systemctl.*enable|update-rc\\.d|chkconfig)"
+        description: "自启动配置"
+    mitre:
+      tactic: "TA0003"
+      technique: "T1543"
+    action: alert
+    enabled: true
+
+  # ============ 暴力破解检测 ============
+  - id: H1004
+    category: bruteforce
+    name: "Bruteforce from single-source"
+    severity: medium
+    description: "Bruteforce from single source address"
+    hook_type: auth
+    patterns:
+      - type: regex
+        value: "(?i)(Failed\\s+password|authentication\\s+failure|incorrect)"
+        description: "认证失败"
+      - type: threshold
+        value: 10
+        window: 300
+        description: "单源5分钟10次失败"
+    mitre:
+      tactic: "TA0006"
+      technique: "T1110"
+    action: alert
+    enabled: true
+
+  - id: H1005
+    category: bruteforce
+    name: "Bruteforce from multi-sources"
+    severity: medium
+    description: "Bruteforce from multiple source addresses"
+    hook_type: auth
+    patterns:
+      - type: threshold
+        value: 50
+        window: 600
+        description: "多源10分钟50次失败"
+    mitre:
+      tactic: "TA0006"
+      technique: "T1110"
+    action: alert
+    enabled: true
+
+  - id: H1006
+    category: bruteforce
+    name: "Bruteforce success"
+    severity: critical
+    description: "Bruteforce login attempt ended with successful password login"
+    hook_type: auth
+    patterns:
+      - type: regex
+        value: "(?i)(Accepted\\s+password|session\\s+opened|login\\s+successful)"
+        description: "认证成功"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1078"
+    action: alert
+    enabled: true
+
+  - id: H1007
+    category: bruteforce
+    name: "SSH Key Auth Brute Force"
+    severity: high
+    description: "SSH key authentication brute force attempt"
+    hook_type: auth
+    patterns:
+      - type: regex
+        value: "(?i)(Did\\s+not\\s+receive|bad\\s+signature|signature)"
+        description: "SSH密钥失败"
+      - type: threshold
+        value: 20
+        window: 300
+        description: "SSH密钥验证失败"
+    mitre:
+      tactic: "TA0006"
+      technique: "T1110"
+    action: alert
+    enabled: true
+
+  # ============ 二进制劫持检测 ============
+  - id: H1008
+    category: binary_hijack
+    name: "Binary file hijack"
+    severity: critical
+    description: "Binary file replacement detected"
+    hook_type: file
+    patterns:
+      - type: regex
+        value: "(?i)(\\/usr\\/bin|\\/bin|\\/sbin|\\/usr\\/sbin)"
+        description: "系统二进制目录"
+      - type: regex
+        value: "(?i)(chmod\\s+\\+x|wget.*http|curl.*-o|scp.*\\|)"
+        description: "下载并执行"
+    mitre:
+      tactic: "TA0003"
+      technique: "T1034"
+    action: alert
+    enabled: true
+
+  - id: H1009
+    category: binary_hijack
+    name: "SSH Binary Replacement"
+    severity: critical
+    description: "SSH binary replaced with backdoor"
+    hook_type: file
+    patterns:
+      - type: regex
+        value: "(?i)(\\/usr\\/sbin\\/sshd|\\/usr\\/bin\\/ssh|\\/etc\\/ssh)"
+        description: "SSH相关文件"
+      - type: regex
+        value: "(?i)(modify.*timestamp|write.*binary|replace.*binary)"
+        description: "文件修改"
+    mitre:
+      tactic: "TA0003"
+      technique: "T1034"
+    action: alert
+    enabled: true
+
+  - id: H1010
+    category: binary_hijack
+    name: "Library Injection"
+    severity: critical
+    description: "Shared library injection detected"
+    hook_type: process
+    patterns:
+      - type: regex
+        value: "(?i)(LD_PRELOAD|LD_AUDIT|LD_LIBRARY_PATH)"
+        description: "动态链接库环境变量"
+      - type: regex
+        value: "(?i)(\\.so$|\\.so\\..|\\/usr\\/lib\\/security)"
+        description: "SO文件"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1574"
+    action: alert
+    enabled: true
+
+  # ============ 网络异常检测 ============
+  - id: H1011
+    category: network_anomaly
+    name: "Port Scan Detection"
+    severity: medium
+    description: "Network port scan detected"
+    hook_type: network
+    patterns:
+      - type: regex
+        value: "(?i)(SYN.*SENT|SYN.*RECV|connect.*fail)"
+        description: "端口扫描特征"
+      - type: threshold
+        value: 50
+        window: 60
+        description: "1分钟内50个不同端口"
+    mitre:
+      tactic: "TA0007"
+      technique: "T1046"
+    action: alert
+    enabled: true
+
+  - id: H1012
+    category: network_anomaly
+    name: "Suspicious Outbound Connection"
+    severity: high
+    description: "Suspicious outbound network connection"
+    hook_type: network
+    patterns:
+      - type: regex
+        value: "(?i)(external\\.ip|malicious\\.domain|c2\\.server|backdoor\\.connect)"
+        description: "恶意连接"
+      - type: regex
+        value: "(?i)(443->4444|80->8080|https->http)"
+        description: "可疑端口重定向"
+    mitre:
+      tactic: "TA0011"
+      technique: "T1071"
+    action: alert
+    enabled: true
+
+  - id: H1013
+    category: network_anomaly
+    name: "Reverse Shell Detection"
+    severity: critical
+    description: "Reverse shell connection detected"
+    hook_type: network
+    patterns:
+      - type: regex
+        value: "(?i)(\\/dev\\/tcp|\\$\\(.*\\)|bash\\s+-i|/bin/sh\\s+-i)"
+        description: "反向Shell特征"
+      - type: regex
+        value: "(?i)(nc\\s+-[el]|ncat|mkfifo|python.*-c)"
+        description: "常见反向Shell"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1059"
+    action: alert
+    enabled: true
+
+  - id: H1014
+    category: network_anomaly
+    name: "DNS Tunnel Detection"
+    severity: high
+    description: "Potential DNS tunnel traffic"
+    hook_type: network
+    patterns:
+      - type: regex
+        value: "(?i)(subdomain\\..*\\.length|base64.*\\.dns|tunnel\\.domain)"
+        description: "DNS隧道特征"
+      - type: threshold
+        value: 100
+        window: 60
+        description: "大量DNS请求"
+    mitre:
+      tactic: "TA0011"
+      technique: "T1071"
+    action: alert
+    enabled: true
+
+  - id: H1015
+    category: network_anomaly
+    name: "Unusual Port Usage"
+    severity: medium
+    description: "Process using unusual port"
+    hook_type: network
+    patterns:
+      - type: regex
+        value: "(?i)(port\\s*>\\s*65535|port\\s*<\\s*1)"
+        description: "异常端口号"
+      - type: regex
+        value: "(?i)(4444|5555|6666|8888|31337)"
+        description: "后门常用端口"
+    mitre:
+      tactic: "TA0007"
+      technique: "T1046"
+    action: alert
+    enabled: true
+
+  # ============ 权限提升检测 ============
+  - id: H1016
+    category: privilege_escalation
+    name: "SUID Binary Exploitation"
+    severity: high
+    description: "SUID binary exploitation detected"
+    hook_type: process
+    patterns:
+      - type: regex
+        value: "(?i)(-p\\s+.*\\$|exec\\s+suid|nohup.*\\&)"
+        description: "SUID利用"
+      - type: regex
+        value: "(?i)(find.*-perm.*4000|\\.\\./.*root)"
+        description: "提权路径"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1068"
+    action: alert
+    enabled: true
+
+  - id: H1017
+    category: privilege_escalation
+    name: "Sudo Privilege Escalation"
+    severity: high
+    description: "Sudo privilege escalation detected"
+    hook_type: process
+    patterns:
+      - type: regex
+        value: "(?i)(sudo\\s+-u|wheel.*group|sudoers)"
+        description: "Sudo使用"
+      - type: regex
+        value: "(?i)(su\\s+root|sudo\\s+su|sudo\\s+-i)"
+        description: "提权命令"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1548"
+    action: alert
+    enabled: true
+
+  - id: H1018
+    category: privilege_escalation
+    name: "Capability Exploitation"
+    severity: critical
+    description: "Linux capability exploitation"
+    hook_type: process
+    patterns:
+      - type: regex
+        value: "(?i)(CAP_SYS_ADMIN|CAP_NET_RAW|CAP_SYS_PTRACE)"
+        description: "危险Capabilities"
+      - type: regex
+        value: "(?i)(setcap.*\\+|capset|PR_SET_KEEPCAPS)"
+        description: "Capability修改"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1548"
+    action: alert
+    enabled: true
+
+  - id: H1019
+    category: privilege_escalation
+    name: "Docker Privilege Escalation"
+    severity: critical
+    description: "Docker privilege escalation detected"
+    hook_type: docker
+    patterns:
+      - type: regex
+        value: "(?i)(docker.sock|docker.sock:/var/run)"
+        description: "Docker Socket"
+      - type: regex
+        value: "(?i)(--privileged|\\.dockerenv|\\/host)"
+        description: "Docker特权模式"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1611"
+    action: alert
+    enabled: true
+
+  - id: H1020
+    category: privilege_escalation
+    name: "K8s Privilege Escalation"
+    severity: critical
+    description: "Kubernetes privilege escalation"
+    hook_type: k8s
+    patterns:
+      - type: regex
+        value: "(?i)(serviceaccount|system:serviceaccount)"
+        description: "ServiceAccount"
+      - type: regex
+        value: "(?i)(hostPath|hostNetwork|privileged)"
+        description: "危险K8s配置"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1611"
+    action: alert
+    enabled: true
+
+  # ============ 横向移动检测 ============
+  - id: H1021
+    category: lateral_movement
+    name: "SSH Lateral Movement"
+    severity: high
+    description: "SSH lateral movement detected"
+    hook_type: network
+    patterns:
+      - type: regex
+        value: "(?i)(ssh.*-o|scp.*\\:|rsync.*-e)"
+        description: "SSH横向移动"
+      - type: regex
+        value: "(?i)(known_hosts|known_hosts.*hash)"
+        description: "SSH信任关系"
+    mitre:
+      tactic: "TA0008"
+      technique: "T1021"
+    action: alert
+    enabled: true
+
+  - id: H1022
+    category: lateral_movement
+    name: "WMI Lateral Movement"
+    severity: critical
+    description: "WMI lateral movement detected"
+    hook_type: process
+    patterns:
+      - type: regex
+        value: "(?i)(wmic.*process|wmic.*call|wmiexec)"
+        description: "WMI执行"
+      - type: regex
+        value: "(?i)(psexec.*\\\\|at.*\\\\|schtasks.*\\\\)"
+        description: "远程执行"
+    mitre:
+      tactic: "TA0008"
+      technique: "T1047"
+    action: alert
+    enabled: true
+
+  - id: H1023
+    category: lateral_movement
+    name: "Pass-the-Hash Attack"
+    severity: critical
+    description: "Pass-the-hash attack detected"
+    hook_type: auth
+    patterns:
+      - type: regex
+        value: "(?i)(ntlm|lm_hash|\\$NT\\$|passwd.*hash)"
+        description: "Pass-the-Hash特征"
+    mitre:
+      tactic: "TA0006"
+      technique: "T1550"
+    action: alert
+    enabled: true
+
+  # ============ 数据窃取检测 ============
+  - id: H1024
+    category: exfiltration
+    name: "Large Data Transfer"
+    severity: high
+    description: "Large volume data transfer detected"
+    hook_type: network
+    patterns:
+      - type: threshold
+        value: 104857600
+        window: 300
+        description: "5分钟内100MB+外传"
+    mitre:
+      tactic: "TA0010"
+      technique: "T1041"
+    action: alert
+    enabled: true
+
+  - id: H1025
+    category: exfiltration
+    name: "Sensitive File Access"
+    severity: high
+    description: "Access to sensitive files detected"
+    hook_type: file
+    patterns:
+      - type: regex
+        value: "(?i)(\\/etc\\/passwd|\\/etc\\/shadow|\\/etc\\/sudoers)"
+        description: "系统敏感文件"
+      - type: regex
+        value: "(?i)(\\.env|credentials\\.json|secrets\\.yaml)"
+        description: "敏感配置"
+      - type: regex
+        value: "(?i)(\\.ssh|\\.aws|\\.gcp|\\.azure)"
+        description: "云凭据目录"
+    mitre:
+      tactic: "TA0006"
+      technique: "T1005"
+    action: alert
+    enabled: true
+
+  - id: H1026
+    category: exfiltration
+    name: "Database Export"
+    severity: critical
+    description: "Database export detected"
+    hook_type: database
+    patterns:
+      - type: regex
+        value: "(?i)(mysqldump|pg_dump|mongoexport|redis-cli.*save)"
+        description: "数据库导出"
+      - type: regex
+        value: "(?i)(\\.sql$|\\.csv$|\\.dump$)"
+        description: "导出文件格式"
+    mitre:
+      tactic: "TA0010"
+      technique: "T1041"
+    action: alert
+    enabled: true
+
+  # ============ 进程异常检测 ============
+  - id: H1027
+    category: process_anomaly
+    name: "Suspicious Process Execution"
+    severity: medium
+    description: "Suspicious process execution detected"
+    hook_type: process
+    patterns:
+      - type: regex
+        value: "(?i)(strace|ltrace|ptrace|debugger)"
+        description: "调试工具"
+      - type: regex
+        value: "(?i)(\\/tmp\\/.*|\\/var\\/tmp\\/.*|\\/dev\\/shm)"
+        description: "临时目录执行"
+    mitre:
+      tactic: "TA0002"
+      technique: "T1055"
+    action: alert
+    enabled: true
+
+  - id: H1028
+    category: process_anomaly
+    name: "Hidden Process"
+    severity: critical
+    description: "Hidden process detected"
+    hook_type: process
+    patterns:
+      - type: regex
+        value: "(?i)(\\/proc\\/.*\\/cmdline.*hidden|comm.*hidden)"
+        description: "隐藏进程"
+      - type: regex
+        value: "(?i)(\\$0|\\/proc\\/self|\\/proc\\/$$)"
+        description: "进程名混淆"
+    mitre:
+      tactic: "TA0003"
+      technique: "T1014"
+    action: alert
+    enabled: true
+
+  # ============ 容器安全检测 ============
+  - id: H1029
+    category: container
+    name: "Container Escape Attempt"
+    severity: critical
+    description: "Container escape attempt detected"
+    hook_type: container
+    patterns:
+      - type: regex
+        value: "(?i)(\\/proc\\/1\\/mount|\\/host\\/proc|\\/host\\/sys)"
+        description: "容器逃逸路径"
+      - type: regex
+        value: "(?i)(nsenter|unshare|setns|cgroups)"
+        description: "Namespace操作"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1611"
+    action: alert
+    enabled: true
+
+  - id: H1030
+    category: container
+    name: "Privileged Container"
+    severity: high
+    description: "Privileged container detected"
+    hook_type: container
+    patterns:
+      - type: regex
+        value: "(?i)(security-opt.*seccomp|security-opt.*apparmor)"
+        description: "安全配置"
+      - type: regex
+        value: "(?i)(cap-add.*ALL|privileged.*true)"
+        description: "特权容器"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1611"
+    action: alert
+    enabled: true
+
+  # ============ WebShell 检测 ============
+  - id: H1031
+    category: webshell
+    name: "PHP WebShell Detection"
+    severity: critical
+    description: "PHP WebShell detected"
+    hook_type: webshell
+    patterns:
+      - type: regex
+        value: "(?i)(eval\\s*\\(|assert\\s*\\(|create_function)"
+        description: "动态代码执行"
+      - type: regex
+        value: "(?i)(system\\s*\\(|exec\\s*\\(|shell_exec\\s*\\()"
+        description: "命令执行函数"
+      - type: regex
+        value: "(?i)(base64_decode\\s*\\(|gzinflate\\s*\\(|str_rot13)"
+        description: "混淆函数"
+    mitre:
+      tactic: "TA0003"
+      technique: "T1505"
+    action: alert
+    enabled: true
+
+  - id: H1032
+    category: webshell
+    name: "JSP WebShell Detection"
+    severity: critical
+    description: "JSP WebShell detected"
+    hook_type: webshell
+    patterns:
+      - type: regex
+        value: "(?i)(Runtime\\.getRuntime|ProcessBuilder|java\\.lang\\.Process)"
+        description: "Java命令执行"
+      - type: regex
+        value: "(?i)(request\\.getParameter|response\\.setHeader)"
+        description: "HTTP交互"
+      - type: regex
+        value: "(?i)(ClassLoader.*defineClass|MethodHandle|INVOKEDYNAMIC)"
+        description: "动态类加载"
+    mitre:
+      tactic: "TA0003"
+      technique: "T1505"
+    action: alert
+    enabled: true
+
+  - id: H1033
+    category: webshell
+    name: "Python WebShell Detection"
+    severity: critical
+    description: "Python WebShell detected"
+    hook_type: webshell
+    patterns:
+      - type: regex
+        value: "(?i)(exec\\s*\\(|eval\\s*\\(|compile\\s*\\()"
+        description: "Python执行"
+      - type: regex
+        value: "(?i)(os\\.system|subprocess\\.Popen|pty\\.spawn)"
+        description: "命令执行"
+      - type: regex
+        value: "(?i)(__import__|getattr|setattr)"
+        description: "动态属性"
+    mitre:
+      tactic: "TA0003"
+      technique: "T1505"
+    action: alert
+    enabled: true

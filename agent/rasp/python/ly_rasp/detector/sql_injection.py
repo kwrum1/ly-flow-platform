@@ -71,6 +71,20 @@ class SQLInjectionDetector(BaseDetector):
         if not sql or not isinstance(sql, str):
             return None
 
+        comment_probe = self._strip_string_literals(sql)
+        for raw_pattern in (r"--\s*$", r"/\*.*\*/"):
+            pattern = re.compile(raw_pattern, re.IGNORECASE | re.DOTALL)
+            match = pattern.search(comment_probe)
+            if match:
+                return self._build_result(
+                    pattern.pattern,
+                    match.group(0),
+                    match.start(),
+                    match.end(),
+                    sql,
+                    comment_probe,
+                )
+
         # 规范化 SQL
         normalized_sql = self._normalize(sql)
 
@@ -102,6 +116,9 @@ class SQLInjectionDetector(BaseDetector):
 
     def _normalize(self, sql: str) -> str:
         """规范化 SQL 语句"""
+        # 移除字符串常量的具体内容（保留引号标记）
+        sql = self._strip_string_literals(sql)
+
         # 移除注释
         sql = re.sub(r'--[^\n]*', '', sql)
         sql = re.sub(r'/\*.*?\*/', '', sql, flags=re.DOTALL)
@@ -109,11 +126,12 @@ class SQLInjectionDetector(BaseDetector):
         # 规范化空白字符
         sql = re.sub(r'\s+', ' ', sql)
 
-        # 移除字符串常量的具体内容（保留引号标记）
-        sql = re.sub(r"'(?:[^']|'')*'", "''", sql)
-        sql = re.sub(r'"(?:[^"]|"")*"', '""', sql)
-
         return sql.strip()
+
+    def _strip_string_literals(self, sql: str) -> str:
+        """移除字符串常量内容，避免把字符串值误判为注入语句。"""
+        sql = re.sub(r"'(?:[^']|'')*'", "''", sql)
+        return re.sub(r'"(?:[^"]|"")*"', '""', sql)
 
     def _build_result(
         self,

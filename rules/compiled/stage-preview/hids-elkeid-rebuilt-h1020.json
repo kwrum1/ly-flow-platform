@@ -1,0 +1,92 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "elkeid-rebuilt-h1020",
+  "name": "K8s Privilege Escalation",
+  "description": "Kubernetes privilege escalation",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "rebuilt_internal",
+    "vendor": "ByteDance Elkeid",
+    "license": "Apache-2.0",
+    "url": "https://github.com/bytedance/Elkeid",
+    "version": "local-2024-01-15",
+    "upstream_id": "H1020",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/hids/elkeid_hids_rules.yaml",
+    "converted_path": "rules/internal/hids/elkeid-rebuilt/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Converted from local Elkeid curated YAML patterns"
+    ]
+  },
+  "classification": {
+    "stage": "privilege_escalation",
+    "mitre_tactics": [
+      "TA0004"
+    ],
+    "mitre_techniques": [
+      "T1611"
+    ],
+    "confidence": 0.82,
+    "rationale": "kept existing valid stage"
+  },
+  "scoring": {
+    "base_score": 95,
+    "severity": "critical",
+    "source_reliability": 78
+  },
+  "match": {
+    "logic": "any",
+    "entities": [
+      "host.id",
+      "user.name",
+      "process.pid"
+    ],
+    "conditions": [
+      {
+        "field": "metadata.command_line",
+        "operator": "regex",
+        "value": "(?i)(serviceaccount|system:serviceaccount)"
+      },
+      {
+        "field": "metadata.command_line",
+        "operator": "regex",
+        "value": "(?i)(hostPath|hostNetwork|privileged)"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/hids/elkeid_hids_rules.yaml",
+      "rule_id": "H1020",
+      "category": "privilege_escalation",
+      "hook_type": "k8s"
+    },
+    {
+      "source": "rules/internal/hids/elkeid-rebuilt/generated/elkeid-rebuilt-h1020.json",
+      "rule_id": "elkeid-rebuilt-h1020",
+      "vendor": "ByteDance Elkeid"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "collect_forensic_bundle",
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "c6fdea7b7db6d408",
+    "merged_rule_ids": [
+      "elkeid-rebuilt-h1020"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

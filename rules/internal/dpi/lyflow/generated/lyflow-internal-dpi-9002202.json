@@ -1,0 +1,79 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-dpi-9002202",
+  "name": "[LY-POSH-002] PowerShell Base64 Encoded Command",
+  "description": "[LY-POSH-002] PowerShell Base64 Encoded Command",
+  "category": "dpi",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal/dpi",
+    "version": "2026.05",
+    "upstream_id": "9002202",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/ly-custom/c2.rules",
+    "converted_path": "rules/internal/dpi/lyflow/generated/"
+  },
+  "support": {
+    "level": "partial_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from LyFlow custom Suricata-like DPI rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.7,
+    "rationale": "Mapped from LyFlow custom DPI rule message."
+  },
+  "scoring": {
+    "base_score": 70,
+    "severity": "high",
+    "upstream_score": {
+      "sid": 9002202
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "domain"
+    ],
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "http"
+      }
+    ],
+    "suricata": {
+      "sid": 9002202,
+      "rev": 1,
+      "msg": "[LY-POSH-002] PowerShell Base64 Encoded Command",
+      "raw": "alert http any any -> any any (msg:\"[LY-POSH-002] PowerShell Base64 Encoded Command\"; http.request_line; content:\"POST\"; content:\"/news\"; content:\"/login\"; content:\"/admin\"; threshold:type threshold, track by_src, count 5, seconds 60; classtype:trojan-activity; sid:9002202; rev:1;)"
+    }
+  },
+  "provenance": [
+    {
+      "source": "rules/ly-custom/c2.rules",
+      "sid": 9002202,
+      "rev": 1,
+      "line": 103
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  }
+}

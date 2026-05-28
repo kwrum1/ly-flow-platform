@@ -1,0 +1,79 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-dpi-9006062",
+  "name": "[LY-LATERAL-018] Golden Ticket Suspicious Pattern",
+  "description": "[LY-LATERAL-018] Golden Ticket Suspicious Pattern",
+  "category": "dpi",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal/dpi",
+    "version": "2026.05",
+    "upstream_id": "9006062",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/ly-custom/lateral.rules",
+    "converted_path": "rules/internal/dpi/lyflow/generated/"
+  },
+  "support": {
+    "level": "partial_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from LyFlow custom Suricata-like DPI rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.7,
+    "rationale": "Mapped from LyFlow custom DPI rule message."
+  },
+  "scoring": {
+    "base_score": 70,
+    "severity": "high",
+    "upstream_score": {
+      "sid": 9006062
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "domain"
+    ],
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "tcp"
+      }
+    ],
+    "suricata": {
+      "sid": 9006062,
+      "rev": 1,
+      "msg": "[LY-LATERAL-018] Golden Ticket Suspicious Pattern",
+      "raw": "alert tcp any any -> any 88 (msg:\"[LY-LATERAL-018] Golden Ticket Suspicious Pattern\"; content:\"KRB-CRED\"; nocase; content:\"TGT\"; nocase; classtype:attempted-admin; sid:9006062; rev:1;)"
+    }
+  },
+  "provenance": [
+    {
+      "source": "rules/ly-custom/lateral.rules",
+      "sid": 9006062,
+      "rev": 1,
+      "line": 131
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  }
+}

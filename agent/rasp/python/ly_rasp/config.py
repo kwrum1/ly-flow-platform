@@ -4,6 +4,9 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 
+_current_config: Optional["RASPConfig"] = None
+
+
 @dataclass
 class RASPConfig:
     """RASP 配置类"""
@@ -14,6 +17,11 @@ class RASPConfig:
     file_enabled: bool = True
     deserialize_enabled: bool = True
     log_level: str = "INFO"
+    stream: str = "alerts:rasp"
+    language: str = "python"
+    app: str = "python-app"
+    mode: str = "monitor"
+    block_on_hit: bool = False
 
     # SQL 注入检测配置
     sql_block_patterns: list = field(default_factory=lambda: [
@@ -87,6 +95,37 @@ def load_config(
         file_enabled=os.environ.get('RASP_FILE_ENABLED', 'true').lower() == 'true',
         deserialize_enabled=os.environ.get('RASP_DESERIALIZE_ENABLED', 'true').lower() == 'true',
         log_level=os.environ.get('RASP_LOG_LEVEL', 'INFO'),
+        stream=os.environ.get('RASP_STREAM', 'alerts:rasp'),
+        language=os.environ.get('RASP_LANGUAGE', 'python'),
+        app=os.environ.get('RASP_APP', 'python-app'),
+        mode=normalize_mode(os.environ.get('RASP_MODE', 'monitor')),
+        block_on_hit=os.environ.get('RASP_BLOCK_ON_HIT', 'false').lower() == 'true',
     )
 
+    set_config(config)
     return config
+
+
+def set_config(config: Optional[RASPConfig]) -> None:
+    """设置当前 RASP 配置。"""
+    global _current_config
+    _current_config = config
+
+
+def get_config() -> Optional[RASPConfig]:
+    """获取当前 RASP 配置。"""
+    return _current_config
+
+
+def normalize_mode(mode: str) -> str:
+    """Normalize RASP policy mode with safe fallback."""
+    normalized = str(mode or 'monitor').lower()
+    if normalized in {'monitor', 'protect', 'off'}:
+        return normalized
+    return 'monitor'
+
+
+def should_block(config: Optional[RASPConfig] = None) -> bool:
+    """Return whether detections should block the protected operation."""
+    active = config or get_config()
+    return bool(active and active.mode == 'protect' and active.block_on_hit)

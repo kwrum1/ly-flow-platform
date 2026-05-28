@@ -1,0 +1,3785 @@
+{
+  "converted_count": 114,
+  "deduplicated_count": 2,
+  "mode": "sync_convert",
+  "report": {
+    "converted": 114,
+    "inserted": 0,
+    "duplicates": 2,
+    "unsupported": 0,
+    "support_counts": {
+      "full_supported": 116,
+      "partial_supported": 0,
+      "unsupported": 0
+    },
+    "dedup_groups": [
+      {
+        "dedup_key": "a18ef84935eb2f7fe1c1005cc0e77b7d2dfcb73492fea53adbb3068a32e89b8f",
+        "duplicate": "suricata-etopen-1000003",
+        "winner": "suricata-etopen-1000002"
+      },
+      {
+        "dedup_key": "a462904e1257156d02687353a663c7fe56d49952866a2b5197ec471c085b8f4f",
+        "duplicate": "suricata-etopen-1000041",
+        "winner": "suricata-etopen-1000040"
+      }
+    ]
+  },
+  "rule_count": 116,
+  "rules": [
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "domain",
+          "operator": "regex",
+          "regex": true,
+          "value": "(multipart/form-data|upload).*?(\\.php|\\.jsp|\\.jspx|\\.war|webshell|shell\\.php)"
+        }
+      ],
+      "dedup_key": "55ada14d1d24b0ed57f6c8d661c44034d283e2ef908c8450f0fb6c4d6bb3b645",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-81002",
+      "name": "LyFlow Suspicious Upload",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 76,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "initial_access",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-81002",
+      "value": "LyFlow Suspicious Upload",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "http_uri",
+          "operator": "regex",
+          "regex": true,
+          "value": "(/admin|/manager|/actuator|/wp-admin|/console)"
+        }
+      ],
+      "dedup_key": "df7a658469da337efb85784b834c42ffa919b5aab16a5c532d878df998d7afb2",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-81003",
+      "name": "LyFlow Admin Access From External Source",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 54,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "recon",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-81003",
+      "value": "LyFlow Admin Access From External Source",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "tcp"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "UNION SELECT"
+        }
+      ],
+      "dedup_key": "f9ce0b20c8085e4a8f394a78eee7a79a3fa4ad2cf60661cd205b60944c770b82",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-dpi-10001",
+      "name": "MySQL SQL Injection - UNION SELECT",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 71,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-dpi-10001",
+      "value": "MySQL SQL Injection - UNION SELECT",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "tcp"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "Access denied for user"
+        }
+      ],
+      "dedup_key": "525506ef1b98c74e6243c25bfd4299f5a1b28aaa76d21983cdba4047b8c0381c",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-dpi-10014",
+      "name": "MySQL Unauthorized - Empty Password Login",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 69,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "initial_access",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-dpi-10014",
+      "value": "MySQL Unauthorized - Empty Password Login",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "tls"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "a0e2f275c9c6f20c3d02f1e4e7c8e6e"
+        }
+      ],
+      "dedup_key": "c339c49fe2c3277a7190b8537ed31e98443bea0dd4ad101483a16f2ec3ac08bd",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-dpi-9002001",
+      "name": "[LY-CS-001] CobaltStrike JA3 Fingerprint Detected",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 71,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-dpi-9002001",
+      "value": "[LY-CS-001] CobaltStrike JA3 Fingerprint Detected",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "dns"
+        }
+      ],
+      "dedup_key": "1b8e3966f2c232a21f81160c5cc915397e5a331cc0532aa6a0e33f7043b20ffb",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-dpi-9002003",
+      "name": "[LY-CS-003] CobaltStrike DNS Beacon Long Subdomain",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 76,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "c2_exfiltration",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-dpi-9002003",
+      "value": "[LY-CS-003] CobaltStrike DNS Beacon Long Subdomain",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "http"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "/identity"
+        }
+      ],
+      "dedup_key": "63e684e9bcb7b054aa0dae978c595b4d11cef138e7bd470e6c945ecbb5279b2d",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-dpi-9002004",
+      "name": "[LY-CS-004] CobaltStrike /identity Endpoint",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 71,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-dpi-9002004",
+      "value": "[LY-CS-004] CobaltStrike /identity Endpoint",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "http"
+        }
+      ],
+      "dedup_key": "3ce99efc85f35de539fcf12448a1c14d285b34137d704542cc917624728429a8",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-dpi-9002005",
+      "name": "[LY-CS-005] CobaltStrike HTTP Beacon Checkin",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 76,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "c2_exfiltration",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-dpi-9002005",
+      "value": "[LY-CS-005] CobaltStrike HTTP Beacon Checkin",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "smb"
+        }
+      ],
+      "dedup_key": "afbdf572153cbc69abfec109de86451aea48d340c928de9f2792b2d26b091ff4",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-dpi-9002006",
+      "name": "[LY-CS-006] CobaltStrike SMB Beacon Pattern",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 76,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "c2_exfiltration",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-dpi-9002006",
+      "value": "[LY-CS-006] CobaltStrike SMB Beacon Pattern",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "tls"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "a0e2f275"
+        }
+      ],
+      "dedup_key": "560d711cd2c1ab35b14afd5db2b2430b5b7bfeb2e08f477d5eeffa825b379c0f",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-dpi-9002007",
+      "name": "[LY-CS-007] CobaltStrike HTTPS Beacon Long Duration",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 76,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "c2_exfiltration",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-dpi-9002007",
+      "value": "[LY-CS-007] CobaltStrike HTTPS Beacon Long Duration",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "dns"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "canary"
+        }
+      ],
+      "dedup_key": "441f5c5cc3328c0511bde10b8a9cce7a802175dc5a4459d8f1d1e4fce49c8970",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-dpi-9002302",
+      "name": "[LY-SLIVER-002] Sliver Canary Domain Pattern",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 71,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-dpi-9002302",
+      "value": "[LY-SLIVER-002] Sliver Canary Domain Pattern",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "icmp"
+        }
+      ],
+      "dedup_key": "bcc0b6f823a6c990ee95c3fed14598101788412246bbbd9df9ca6944046be203",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-dpi-9003004",
+      "name": "[LY-NMAP-004] Nmap ICMP Echo No Payload",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 71,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-dpi-9003004",
+      "value": "[LY-NMAP-004] Nmap ICMP Echo No Payload",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "udp"
+        }
+      ],
+      "dedup_key": "49d3fa95b6c2af02ffcc3f3328c44644197f644ae296f968a2088fcf7683ff12",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-dpi-9003023",
+      "name": "[LY-FSCAN-003] Fscan UDP Scan Pattern",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 71,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-dpi-9003023",
+      "value": "[LY-FSCAN-003] Fscan UDP Scan Pattern",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "http"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "sqlmap"
+        }
+      ],
+      "dedup_key": "e46cc6d6c3ae873d83deaaa2e538d2e0f0a72fcd3dda68c3c5ba8d08ee6db929",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-dpi-9003051",
+      "name": "[LY-BURP-001] Burp Suite Scanner Pattern",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 69,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "initial_access",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-dpi-9003051",
+      "value": "[LY-BURP-001] Burp Suite Scanner Pattern",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "smb"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "Tree Connect AndX"
+        }
+      ],
+      "dedup_key": "18342f1ae855f8f32c806a7031bba7ebe5103e41f6367c09a372cd5606fac251",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-dpi-9006001",
+      "name": "[LY-LATERAL-001] SMB Tree Connect Lateral Movement",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 71,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-dpi-9006001",
+      "value": "[LY-LATERAL-001] SMB Tree Connect Lateral Movement",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "rdp"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "CLIPBOARD"
+        }
+      ],
+      "dedup_key": "19000385430523c2d2f83dd1ffc10b33b623755a71c5a6d3daab7a65df60aaf1",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-dpi-9006012",
+      "name": "[LY-LATERAL-006] RDP Clipboard Redirection",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 71,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-dpi-9006012",
+      "value": "[LY-LATERAL-006] RDP Clipboard Redirection",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "ssh"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "root"
+        }
+      ],
+      "dedup_key": "d0d160e4890961a9046c7bd9108bb7be7096ee008751ee75797307875456a2a9",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-dpi-9006022",
+      "name": "[LY-LATERAL-009] SSH Root Login Attempt",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 71,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-dpi-9006022",
+      "value": "[LY-LATERAL-009] SSH Root Login Attempt",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "windows-security"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "lsass.exe"
+        }
+      ],
+      "dedup_key": "c1077616c32e684948222535d532f93a8ec5f319ca321801bd28763d1b6da1f4",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-dpi-9008001",
+      "name": "[LY-PRIV-001] Mimikatz LSASS Process Access",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 71,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-dpi-9008001",
+      "value": "[LY-PRIV-001] Mimikatz LSASS Process Access",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "ldap"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "krbtgt"
+        }
+      ],
+      "dedup_key": "fb4a94f4c99b3d8b345eb38763e54aab9c8574d5daea188e7cc69eedad50576b",
+      "field": "http_path",
+      "group_by": "",
+      "id": "lyflow-internal-dpi-9008025",
+      "name": "[LY-PRIV-025] Impacket Kerberoasting",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 71,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-dpi-9008025",
+      "value": "[LY-PRIV-025] Impacket Kerberoasting",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "dns"
+        },
+        {
+          "field": "dns_query",
+          "operator": "regex",
+          "regex": true,
+          "value": "[a-zA-Z0-9]{20,}"
+        }
+      ],
+      "dedup_key": "e669f3557a95ee90fe167142e8a0f96666ed4fd711b8b55e1e2c9cf2f3fe67f2",
+      "field": "http_path",
+      "group_by": "",
+      "id": "suricata-etopen-1000001",
+      "name": "ET TROJAN Possible DNS Tunnel",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 75,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "c2_exfiltration",
+      "support_level": "full_supported",
+      "upstream_id": "suricata-etopen-1000001",
+      "value": "ET TROJAN Possible DNS Tunnel",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "dns"
+        },
+        {
+          "field": "dns_query",
+          "operator": "contains",
+          "regex": false,
+          "value": "pool.btc.com"
+        }
+      ],
+      "dedup_key": "a18ef84935eb2f7fe1c1005cc0e77b7d2dfcb73492fea53adbb3068a32e89b8f",
+      "field": "http_path",
+      "group_by": "",
+      "id": "suricata-etopen-1000002",
+      "name": "ET MALWARE Known Mining Pool Domain",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 75,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "c2_exfiltration",
+      "support_level": "full_supported",
+      "upstream_id": "suricata-etopen-1000002",
+      "value": "ET MALWARE Known Mining Pool Domain",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "http"
+        },
+        {
+          "field": "http_host",
+          "operator": "contains",
+          "regex": false,
+          "value": "phishing"
+        }
+      ],
+      "dedup_key": "332fb2d91c00298ba886b9353d3ed10c133c632f800390cc1134162b8747c3dd",
+      "field": "http_path",
+      "group_by": "",
+      "id": "suricata-etopen-1000010",
+      "name": "ET FRAUD Suspected Phishing Site",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 68,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "initial_access",
+      "support_level": "full_supported",
+      "upstream_id": "suricata-etopen-1000010",
+      "value": "ET FRAUD Suspected Phishing Site",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "http"
+        },
+        {
+          "field": "http_host",
+          "operator": "contains",
+          "regex": false,
+          "value": "scam"
+        }
+      ],
+      "dedup_key": "b0c27669651c2cade2fa4d00ff1cd67bcf05c2583adc66bdf307a50989131576",
+      "field": "http_path",
+      "group_by": "",
+      "id": "suricata-etopen-1000011",
+      "name": "ET FRAUD Suspected Scam Site",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 68,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "initial_access",
+      "support_level": "full_supported",
+      "upstream_id": "suricata-etopen-1000011",
+      "value": "ET FRAUD Suspected Scam Site",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "tls"
+        },
+        {
+          "field": "tls_sni",
+          "operator": "regex",
+          "regex": true,
+          "value": "[a-z]{20,}\\.(xyz|tk|ml|ga|cf|gq)$"
+        }
+      ],
+      "dedup_key": "3a7939f55b055ea5aebc8849273bb2eff0d48d665a22c618d169c758cfe4aba5",
+      "field": "http_path",
+      "group_by": "",
+      "id": "suricata-etopen-1000020",
+      "name": "ET MALWARE Suspicious TLS SNI",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 70,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "suricata-etopen-1000020",
+      "value": "ET MALWARE Suspicious TLS SNI",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "dns"
+        },
+        {
+          "field": "dns_query",
+          "operator": "regex",
+          "regex": true,
+          "value": "^[a-z]+-[a-z]+-[a-z]+\\.(com|net|org)$"
+        }
+      ],
+      "dedup_key": "196956ac49634e30d334a0a7d537e8e4c6e2d6313d859d6ad9e95a5b72faeddf",
+      "field": "http_path",
+      "group_by": "",
+      "id": "suricata-etopen-1000030",
+      "name": "ET TROJAN Possible DGA Domain",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 75,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "c2_exfiltration",
+      "support_level": "full_supported",
+      "upstream_id": "suricata-etopen-1000030",
+      "value": "ET TROJAN Possible DGA Domain",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "http"
+        },
+        {
+          "field": "http_uri",
+          "operator": "contains",
+          "regex": false,
+          "value": "download"
+        },
+        {
+          "field": "http_uri",
+          "operator": "contains",
+          "regex": false,
+          "value": ".exe"
+        }
+      ],
+      "dedup_key": "a462904e1257156d02687353a663c7fe56d49952866a2b5197ec471c085b8f4f",
+      "field": "http_path",
+      "group_by": "",
+      "id": "suricata-etopen-1000040",
+      "name": "ET MALWARE Suspicious Download",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 70,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "suricata-etopen-1000040",
+      "value": "ET MALWARE Suspicious Download",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "traffic",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "dns"
+        },
+        {
+          "field": "dns_query",
+          "operator": "regex",
+          "regex": true,
+          "value": "[a-z]+\\.[a-z]{5,}\\.[a-z]{2,4}$"
+        }
+      ],
+      "dedup_key": "33040ccbf1c74ba89e5e0166f3fb0cfe0c107135c03a884c9f9b8c46a03ea91f",
+      "field": "http_path",
+      "group_by": "",
+      "id": "suricata-etopen-1000050",
+      "name": "ET TROJAN High DNS Query Count Possible Tunnel",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 75,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "c2_exfiltration",
+      "support_level": "full_supported",
+      "upstream_id": "suricata-etopen-1000050",
+      "value": "ET TROJAN High DNS Query Count Possible Tunnel",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "runtime",
+      "conditions": [
+        {
+          "field": "cmdline",
+          "operator": "regex",
+          "regex": true,
+          "value": "process.command_line: (*bash* and */dev/tcp*)"
+        }
+      ],
+      "dedup_key": "c13105d8b1bd459cb9ed737f331d08630e67c024f7fea9ca356129a516d06292",
+      "field": "cmdline",
+      "group_by": "",
+      "id": "elastic-linux-elastic-linux-reverse-shell-fixture",
+      "name": "Linux Reverse Shell Command",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 87,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "elastic-linux-elastic-linux-reverse-shell-fixture",
+      "value": "Linux Reverse Shell Command",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "cmdline",
+          "operator": "regex",
+          "regex": true,
+          "value": "process.name: useradd or process.command_line: *useradd*"
+        },
+        {
+          "field": "process_name",
+          "operator": "regex",
+          "regex": true,
+          "value": "process.name: useradd or process.command_line: *useradd*"
+        }
+      ],
+      "dedup_key": "288e93489d173dff6aa7b5673d0bfcf30f7ea8c3f37aa5705c67c45cd3448ec4",
+      "field": "message",
+      "group_by": "",
+      "id": "elastic-linux-elastic-linux-useradd-fixture",
+      "name": "Linux User Account Creation",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 63,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "persistence",
+      "support_level": "full_supported",
+      "upstream_id": "elastic-linux-elastic-linux-useradd-fixture",
+      "value": "Linux User Account Creation",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\.bash_history|\\\\.ssh\\\\/authorized_keys|\\\\/etc\\\\/cron)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(nc\\\\s+-l|ncat|\\\\/dev\\\\/tcp|\\\\/bin\\\\/sh.*-i)"
+        }
+      ],
+      "dedup_key": "dd81004452438530eb1973df8057ad367384ffc2c21fef0774221de34dfd2f1e",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1002",
+      "name": "Rootkit Detection",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "persistence",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1002",
+      "value": "Rootkit Detection",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(crontab.*\\\\*|cron\\\\.d|systemd.*timer|init\\\\.d)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(systemctl.*enable|update-rc\\\\.d|chkconfig)"
+        }
+      ],
+      "dedup_key": "89656d066d1ed2a8ec425aae4fed34d1ac0224ac81874605a2f9fb7631de992f",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1003",
+      "name": "Persistence Mechanism",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 97,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "persistence",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1003",
+      "value": "Persistence Mechanism",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(Failed\\\\s+password|authentication\\\\s+failure|incorrect)"
+        },
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "10"
+        }
+      ],
+      "dedup_key": "f687df83d2ebb8f387e42afadb3ee1db4d169cfb82f15e504c4056799ab473b2",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1004",
+      "name": "Bruteforce from single-source",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 69,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "initial_access",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1004",
+      "value": "Bruteforce from single-source",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "50"
+        }
+      ],
+      "dedup_key": "4c5eb1189e34200f13e9791f07fc6761597695d96cd4dc01820a8caef85eb1a3",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1005",
+      "name": "Bruteforce from multi-sources",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 69,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "initial_access",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1005",
+      "value": "Bruteforce from multi-sources",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(Accepted\\\\s+password|session\\\\s+opened|login\\\\s+successful)"
+        }
+      ],
+      "dedup_key": "28a289753fa206d78ebd30439d20bca90f35a902bec85e813f2ddf18b53ef425",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1006",
+      "name": "Bruteforce success",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "initial_access",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1006",
+      "value": "Bruteforce success",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(Did\\\\s+not\\\\s+receive|bad\\\\s+signature|signature)"
+        },
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "20"
+        }
+      ],
+      "dedup_key": "3e49ac5501ea0d1cf6ac0aa2a4f6af10379772c302405780851581ecb0819b4f",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1007",
+      "name": "SSH Key Auth Brute Force",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 93,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "initial_access",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1007",
+      "value": "SSH Key Auth Brute Force",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\/usr\\\\/bin|\\\\/bin|\\\\/sbin|\\\\/usr\\\\/sbin)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(chmod\\\\s+\\\\+x|wget.*http|curl.*-o|scp.*\\\\|)"
+        }
+      ],
+      "dedup_key": "18549dc961d687b615ec571954daf43531b728026cb3e4871748364badbd85e9",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1008",
+      "name": "Binary file hijack",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "persistence",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1008",
+      "value": "Binary file hijack",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\/usr\\\\/sbin\\\\/sshd|\\\\/usr\\\\/bin\\\\/ssh|\\\\/etc\\\\/ssh)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(modify.*timestamp|write.*binary|replace.*binary)"
+        }
+      ],
+      "dedup_key": "aeebb0c6c00c56de06c27031f4a61c189597e506a6dfbfcf590eb64e7f406688",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1009",
+      "name": "SSH Binary Replacement",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "persistence",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1009",
+      "value": "SSH Binary Replacement",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(LD_PRELOAD|LD_AUDIT|LD_LIBRARY_PATH)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\.so$|\\\\.so\\\\..|\\\\/usr\\\\/lib\\\\/security)"
+        }
+      ],
+      "dedup_key": "0f4621cca6e8fcd0b550cfad480179cfc7ca01f0ea28873fc41e1d88318adfd4",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1010",
+      "name": "Library Injection",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "persistence",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1010",
+      "value": "Library Injection",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(SYN.*SENT|SYN.*RECV|connect.*fail)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "50"
+        }
+      ],
+      "dedup_key": "228d729e68bc1b1311007712af2ffc8fe9345f0d88b0ab8260a04f8ba9daa98b",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1011",
+      "name": "Port Scan Detection",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 77,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "c2_exfiltration",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1011",
+      "value": "Port Scan Detection",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(external\\\\.ip|malicious\\\\.domain|c2\\\\.server|backdoor\\\\.connect)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(443-\u003e4444|80-\u003e8080|https-\u003ehttp)"
+        }
+      ],
+      "dedup_key": "c987a14f3081758e1bb8682b6cb406fa4fac77c0c8b06b9c011a6e558c4f2f73",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1012",
+      "name": "Suspicious Outbound Connection",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "c2_exfiltration",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1012",
+      "value": "Suspicious Outbound Connection",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\/dev\\\\/tcp|\\\\$\\\\(.*\\\\)|bash\\\\s+-i|/bin/sh\\\\s+-i)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(nc\\\\s+-[el]|ncat|mkfifo|python.*-c)"
+        }
+      ],
+      "dedup_key": "932e40cc97f4f53cc3b9a1239d65c0851eeff6485e765c21626842475bbc0162",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1013",
+      "name": "Reverse Shell Detection",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "c2_exfiltration",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1013",
+      "value": "Reverse Shell Detection",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(subdomain\\\\..*\\\\.length|base64.*\\\\.dns|tunnel\\\\.domain)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "100"
+        }
+      ],
+      "dedup_key": "6b41d2e3b2c85f02202ae2a8be025d3c70d077b31ace7ec6077d9d2cef9cd94b",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1014",
+      "name": "DNS Tunnel Detection",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "c2_exfiltration",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1014",
+      "value": "DNS Tunnel Detection",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "runtime",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(port\\\\s*\u003e\\\\s*65535|port\\\\s*\u003c\\\\s*1)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(4444|5555|6666|8888|31337)"
+        }
+      ],
+      "dedup_key": "7a82e6a271ecbe23dafd0bde538b3562d9bc2d2af6c440a7e6b9797dd307da5c",
+      "field": "cmdline",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1015",
+      "name": "Unusual Port Usage",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 77,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "c2_exfiltration",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1015",
+      "value": "Unusual Port Usage",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(-p\\\\s+.*\\\\$|exec\\\\s+suid|nohup.*\\\\\u0026)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(find.*-perm.*4000|\\\\.\\\\./.*root)"
+        }
+      ],
+      "dedup_key": "50aea32606a0c9329fa8224ac0648476d0a15cbb584b1a0f6cc6f283fdd77bc7",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1016",
+      "name": "SUID Binary Exploitation",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 99,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "privilege_escalation",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1016",
+      "value": "SUID Binary Exploitation",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(sudo\\\\s+-u|wheel.*group|sudoers)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(su\\\\s+root|sudo\\\\s+su|sudo\\\\s+-i)"
+        }
+      ],
+      "dedup_key": "f71b0c3491954c2ad520d214e9a4a28742f13a7b5998634fc943215e2cda96e6",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1017",
+      "name": "Sudo Privilege Escalation",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 99,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "privilege_escalation",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1017",
+      "value": "Sudo Privilege Escalation",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(CAP_SYS_ADMIN|CAP_NET_RAW|CAP_SYS_PTRACE)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(setcap.*\\\\+|capset|PR_SET_KEEPCAPS)"
+        }
+      ],
+      "dedup_key": "40523c369f9395d7e92e8a2f16c414ed1652ae56fe7aff6755ce364dcfab3aec",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1018",
+      "name": "Capability Exploitation",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "privilege_escalation",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1018",
+      "value": "Capability Exploitation",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(docker.sock|docker.sock:/var/run)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(--privileged|\\\\.dockerenv|\\\\/host)"
+        }
+      ],
+      "dedup_key": "e09ef79f51921416fb09e7e619d90967c3572b26397867d4cce9ef67620dee16",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1019",
+      "name": "Docker Privilege Escalation",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "privilege_escalation",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1019",
+      "value": "Docker Privilege Escalation",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(serviceaccount|system:serviceaccount)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(hostPath|hostNetwork|privileged)"
+        }
+      ],
+      "dedup_key": "79868c34c7a374043ed5902a810a9852a2e786ceb44a67e92927a752c909f754",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1020",
+      "name": "K8s Privilege Escalation",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "privilege_escalation",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1020",
+      "value": "K8s Privilege Escalation",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(ssh.*-o|scp.*\\\\:|rsync.*-e)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(known_hosts|known_hosts.*hash)"
+        }
+      ],
+      "dedup_key": "04de241cf39344760b68f32a15ad885dd5a395a97e420f5fed7a12c8967c3553",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1021",
+      "name": "SSH Lateral Movement",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 99,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "lateral_movement",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1021",
+      "value": "SSH Lateral Movement",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(wmic.*process|wmic.*call|wmiexec)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(psexec.*\\\\\\\\|at.*\\\\\\\\|schtasks.*\\\\\\\\)"
+        }
+      ],
+      "dedup_key": "2887193cc8822ca11cd9c2c3e638d4cbeb87430c1b81535b1341cbb2de0587e1",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1022",
+      "name": "WMI Lateral Movement",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "lateral_movement",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1022",
+      "value": "WMI Lateral Movement",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(ntlm|lm_hash|\\\\$NT\\\\$|passwd.*hash)"
+        }
+      ],
+      "dedup_key": "9afb23c7d34bbf83ddbe042210a70cb94cc456b0fad0fa4f9d90cc547619253f",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1023",
+      "name": "Pass-the-Hash Attack",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "lateral_movement",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1023",
+      "value": "Pass-the-Hash Attack",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "104857600"
+        }
+      ],
+      "dedup_key": "bf66aeb0feae23305358e835791223a5e60d5891b104e12c602f0e73d9d798c3",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1024",
+      "name": "Large Data Transfer",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 95,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1024",
+      "value": "Large Data Transfer",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\/etc\\\\/passwd|\\\\/etc\\\\/shadow|\\\\/etc\\\\/sudoers)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\.env|credentials\\\\.json|secrets\\\\.yaml)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\.ssh|\\\\.aws|\\\\.gcp|\\\\.azure)"
+        }
+      ],
+      "dedup_key": "fe6bc4d235db539c4bfda3c92a108c39679c2e83e956d09a8e2bebdef2d12ebd",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1025",
+      "name": "Sensitive File Access",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 95,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1025",
+      "value": "Sensitive File Access",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(mysqldump|pg_dump|mongoexport|redis-cli.*save)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\.sql$|\\\\.csv$|\\\\.dump$)"
+        }
+      ],
+      "dedup_key": "b4a123aca6fcf09a2714344ee60eb7b1406a3bf2780e0d4f506c90b43ea5ac15",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1026",
+      "name": "Database Export",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1026",
+      "value": "Database Export",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "runtime",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(strace|ltrace|ptrace|debugger)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\/tmp\\\\/.*|\\\\/var\\\\/tmp\\\\/.*|\\\\/dev\\\\/shm)"
+        }
+      ],
+      "dedup_key": "66896f93a0f65eb4b861f5df22d2e92d4c18b5aef70b0d84004383e6c4b21d60",
+      "field": "cmdline",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1027",
+      "name": "Suspicious Process Execution",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 71,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1027",
+      "value": "Suspicious Process Execution",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "runtime",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\/proc\\\\/.*\\\\/cmdline.*hidden|comm.*hidden)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\$0|\\\\/proc\\\\/self|\\\\/proc\\\\/$$)"
+        }
+      ],
+      "dedup_key": "b3c53fae4d8c444e1aa12926e88d6da5fb927c3811be431cd8627410f9499375",
+      "field": "cmdline",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1028",
+      "name": "Hidden Process",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1028",
+      "value": "Hidden Process",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\/proc\\\\/1\\\\/mount|\\\\/host\\\\/proc|\\\\/host\\\\/sys)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(nsenter|unshare|setns|cgroups)"
+        }
+      ],
+      "dedup_key": "8edb3fdc742a0b0f43444ab86ce4a61901c2f8aad7ef5ccc43f488c71381079a",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1029",
+      "name": "Container Escape Attempt",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1029",
+      "value": "Container Escape Attempt",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(security-opt.*seccomp|security-opt.*apparmor)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(cap-add.*ALL|privileged.*true)"
+        }
+      ],
+      "dedup_key": "e76bf6d67ed8d201b898f06f4230bf3f2cbdff500807e4919709fc41d696f597",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1030",
+      "name": "Privileged Container",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 95,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1030",
+      "value": "Privileged Container",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(eval\\\\s*\\\\(|assert\\\\s*\\\\(|create_function)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(system\\\\s*\\\\(|exec\\\\s*\\\\(|shell_exec\\\\s*\\\\()"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(base64_decode\\\\s*\\\\(|gzinflate\\\\s*\\\\(|str_rot13)"
+        }
+      ],
+      "dedup_key": "3a4bca9daa7737534cb1d077ac0d1efb77319d8f8830c77d86e459161333afff",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1031",
+      "name": "PHP WebShell Detection",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1031",
+      "value": "PHP WebShell Detection",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(Runtime\\\\.getRuntime|ProcessBuilder|java\\\\.lang\\\\.Process)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(request\\\\.getParameter|response\\\\.setHeader)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(ClassLoader.*defineClass|MethodHandle|INVOKEDYNAMIC)"
+        }
+      ],
+      "dedup_key": "8b61459276d967b9e1ab6f32a98fe6ff44cb7ae64ad615ac3b7f639f61d73e72",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1032",
+      "name": "JSP WebShell Detection",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1032",
+      "value": "JSP WebShell Detection",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(exec\\\\s*\\\\(|eval\\\\s*\\\\(|compile\\\\s*\\\\()"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(os\\\\.system|subprocess\\\\.Popen|pty\\\\.spawn)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(__import__|getattr|setattr)"
+        }
+      ],
+      "dedup_key": "6bc0c4eee7844c6bd3dc84cd33b4f8a6e3b6923d92dcdf3b0a6c292b8af1e5ad",
+      "field": "message",
+      "group_by": "",
+      "id": "elkeid-rebuilt-h1033",
+      "name": "Python WebShell Detection",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "elkeid-rebuilt-h1033",
+      "value": "Python WebShell Detection",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "runtime",
+      "conditions": [
+        {
+          "field": "cmdline",
+          "operator": "regex",
+          "regex": true,
+          "value": "proc.cmdline contains \"nc\" and proc.cmdline contains \"-e\""
+        }
+      ],
+      "dedup_key": "5257f459b2192558d608473da7090a08f4840d59aea89cc42c7554dc24ecc702",
+      "field": "cmdline",
+      "group_by": "",
+      "id": "falco-subset-netcat-reverse-shell",
+      "name": "Netcat Reverse Shell",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "falco-subset-netcat-reverse-shell",
+      "value": "Netcat Reverse Shell",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "process_name",
+          "operator": "regex",
+          "regex": true,
+          "value": "proc.name in (bash, sh, zsh) and user.name != root"
+        },
+        {
+          "field": "user_name",
+          "operator": "regex",
+          "regex": true,
+          "value": "proc.name in (bash, sh, zsh) and user.name != root"
+        }
+      ],
+      "dedup_key": "aedc81fea05e654971e3ef84d7888e1493be51214d55e8069ad4b36ea6867576",
+      "field": "message",
+      "group_by": "",
+      "id": "falco-subset-terminal-shell-in-container",
+      "name": "Terminal shell in container",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 69,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "falco-subset-terminal-shell-in-container",
+      "value": "Terminal shell in container",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Access denied for user"
+        }
+      ],
+      "dedup_key": "d991d9e46dfb018f1368a394bca570851d22386d99705dd9752bcb148bc2ed13",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-100110",
+      "name": "MySQL 访问拒绝",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 69,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-100110",
+      "value": "MySQL 访问拒绝",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": ""
+        }
+      ],
+      "dedup_key": "523bab6771977e6bdb69928f03d1a11e302a27b8c50e077c32af08952d05281c",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-100111",
+      "name": "MySQL 暴力破解",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 92,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-100111",
+      "value": "MySQL 暴力破解",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Got error"
+        }
+      ],
+      "dedup_key": "6788597ab9f64c15e879462f7651a6c46d1e9b9586f4037def810e34a8830353",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-100112",
+      "name": "MySQL 错误",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-100112",
+      "value": "MySQL 错误",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Slow query"
+        }
+      ],
+      "dedup_key": "52f2a743de75d5974fe858268e6645f414fb58f8ba9f3055cf1220891db8d618",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-100113",
+      "name": "MySQL 慢查询",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-100113",
+      "value": "MySQL 慢查询",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Too many connections"
+        }
+      ],
+      "dedup_key": "471f4cfae1112c0aaa093d9cd9de5e8f023cd5de85a43065e9193b19a74cc083",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-100114",
+      "name": "MySQL 连接数过多",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 69,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-100114",
+      "value": "MySQL 连接数过多",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Deadlock found"
+        }
+      ],
+      "dedup_key": "7a3a132971ca60263d56162db26e469550b83a0bf4dd3907c15f8f5557a07913",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-100115",
+      "name": "MySQL 死锁",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-100115",
+      "value": "MySQL 死锁",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Error in Log_event"
+        }
+      ],
+      "dedup_key": "b6bfc523aff155e4fdff288c31ca1d3008cd520f04ad8c99d770145340f18f8c",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-100116",
+      "name": "MySQL 二进制日志错误",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-100116",
+      "value": "MySQL 二进制日志错误",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "Table.*corrupt|can't open"
+        }
+      ],
+      "dedup_key": "bc9369bcfc10ab2783dd93eb34c874805eb1f9d7ae840fdf5d54360f189dfd91",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-100117",
+      "name": "MySQL 表损坏",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 69,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-100117",
+      "value": "MySQL 表损坏",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "command denied|privilege error"
+        }
+      ],
+      "dedup_key": "eb84c989a0662546c3dd8efd164e9524dd12c145a509406c163a38a2dfd4e176",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-100118",
+      "name": "MySQL 权限错误",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 69,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-100118",
+      "value": "MySQL 权限错误",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "replication error|Slave I/O|got fatal exception"
+        }
+      ],
+      "dedup_key": "4d4eedb3a041f2c21517a0b95ad740ddf76c731e2ba26322e2dd5cefcf23d177",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-100119",
+      "name": "MySQL 主从复制错误",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 69,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-100119",
+      "value": "MySQL 主从复制错误",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(union|select|insert|delete|drop|--|' OR '|' AND )"
+        }
+      ],
+      "dedup_key": "7b5e4a6207bc3d4a80260a2b08c43b755b5420a131bfd84ef990dbb2370eb18d",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-31101",
+      "name": "Nginx SQL 注入扫描",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 92,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-31101",
+      "value": "Nginx SQL 注入扫描",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(\u003cscript|javascript:|alert\\\\(|onerror=|onload=)"
+        }
+      ],
+      "dedup_key": "469667767b5760b6154b4618a9a7c085e526ab33c1625722a86870b78b6b81fa",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-31102",
+      "name": "Nginx XSS 攻击",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 92,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-31102",
+      "value": "Nginx XSS 攻击",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "runtime",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(;|\\\\||\\\\\u0026\\\\\u0026|\\\\`|\\\\$\\\\()"
+        }
+      ],
+      "dedup_key": "a024e6e14dbe962206e53e049d2dbf2ffe7a5ad80235b0f3d287d080d1db60f2",
+      "field": "cmdline",
+      "group_by": "",
+      "id": "lyflow-internal-31103",
+      "name": "Nginx 命令注入",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 92,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-31103",
+      "value": "Nginx 命令注入",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(nikto|sqlmap|acunetix|burp|nessus|nmap|masscan)"
+        }
+      ],
+      "dedup_key": "523a1cd09f3296196efb67b2d4e0acaeb3519bc91cef8c009f8caf28e456f0b8",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-31151",
+      "name": "Nginx Web 扫描器",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 69,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-31151",
+      "value": "Nginx Web 扫描器",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(\\\\.\\\\./|\\\\.\\\\.\\\\\\\\\\\\.|%2e%2e)"
+        }
+      ],
+      "dedup_key": "6139f09e0a68b8508d5f0458b64741a293b3ea35f6863423e335f37f9b601ce0",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-31152",
+      "name": "Nginx 目录遍历",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 69,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-31152",
+      "value": "Nginx 目录遍历",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "404"
+        }
+      ],
+      "dedup_key": "293a7b3bbca4b0491e555424f80710f7c0aec752517869d357c0852d9ad69c4d",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-31153",
+      "name": "Nginx 404 洪水",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 69,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-31153",
+      "value": "Nginx 404 洪水",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "500"
+        }
+      ],
+      "dedup_key": "78574ec8d6e446917fbebb970e3aeb230fef763f629a189407b3e4c644820aaf",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-31154",
+      "name": "Nginx 500 错误",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-31154",
+      "value": "Nginx 500 错误",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "502"
+        }
+      ],
+      "dedup_key": "cf3eafeae6edb87d24aa1b65801dd617fd13bfd874953b6d80f9329c9ecb1776",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-31155",
+      "name": "Nginx 502 错误",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-31155",
+      "value": "Nginx 502 错误",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "403"
+        }
+      ],
+      "dedup_key": "f340238b437b3a55bb73343ec39bd7ece93d78e7721f341d48462d5ea7ec05ea",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-31156",
+      "name": "Nginx 403 禁止",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-31156",
+      "value": "Nginx 403 禁止",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "401"
+        }
+      ],
+      "dedup_key": "5169ea0832a2afed5f091a6ae1f0c049ad6da974f2dd099f1689fb5e82848444",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-31157",
+      "name": "Nginx 认证失败",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-31157",
+      "value": "Nginx 认证失败",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(\\\\.php|\\.asp|\\.jsp|\\.exe|\\.sh|\\.cgi)"
+        }
+      ],
+      "dedup_key": "2a21ae39a596fb216e5614f9d1dd1d16194d6fac9062c0c5dcaced8de435f1f2",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-31158",
+      "name": "Nginx 恶意文件上传",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 92,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-31158",
+      "value": "Nginx 恶意文件上传",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(\u003c!DOCTYPE|\u003c!ENTITY|CDATA|xxe)"
+        }
+      ],
+      "dedup_key": "35188d8a06c2fac1fbf4e8629305d69160b1974064bd0d1787e18a4d2990d5b8",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-31159",
+      "name": "Nginx XML 外部实体注入",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 92,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-31159",
+      "value": "Nginx XML 外部实体注入",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(O:{|a:Serialization|java.io|ObjectInputStream)"
+        }
+      ],
+      "dedup_key": "0eb108936b950849f52f397614535596ff9a0622a951b47524ce2c36dd86dc53",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-31160",
+      "name": "Nginx 反序列化攻击",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 92,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-31160",
+      "value": "Nginx 反序列化攻击",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "illegal user|invalid user"
+        }
+      ],
+      "dedup_key": "c26369f62ac015a2289027634e13562b907dbd7d0ae165dc14dd3743f781c5aa",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-5710",
+      "name": "SSH 尝试使用不存在的用户登录",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-5710",
+      "value": "SSH 尝试使用不存在的用户登录",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Accepted"
+        }
+      ],
+      "dedup_key": "b65b78017ebcaae43a18840e921dac7ff5644dafb9a2d6bf77e34dadb52d7082",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-5711",
+      "name": "SSH 成功登录",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-5711",
+      "value": "SSH 成功登录",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "Failed password|^Failed|^error: PAM: Authentication"
+        }
+      ],
+      "dedup_key": "a6aa9fed693111b5d328211aeab5133f5a30f8a6f581df6d95dd549b31504d05",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-5713",
+      "name": "SSH 用户认证失败",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-5713",
+      "value": "SSH 用户认证失败",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Local: crc32 compensation attack"
+        }
+      ],
+      "dedup_key": "50c0af39cc00eab7426485b588aaa50061f2fceb33bc330abd14ef2bc5e12756",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-5714",
+      "name": "SSH CRC-32 补偿攻击",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 100,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-5714",
+      "value": "SSH CRC-32 补偿攻击",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "not allowed because"
+        }
+      ],
+      "dedup_key": "7a18300796fb68b82e76d51751be86031fbece6907a5d7480192cd8fe46c57c0",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-5715",
+      "name": "SSH 用户被拒绝",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-5715",
+      "value": "SSH 用户被拒绝",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "error: PAM: Authentication"
+        }
+      ],
+      "dedup_key": "7e44864c8fc210afe74a6cc74c0c82583d9e09817f3fd323159f33a7877e24d5",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-5716",
+      "name": "SSH 认证失败",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-5716",
+      "value": "SSH 认证失败",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Connection closed"
+        }
+      ],
+      "dedup_key": "4287b8a25cd25a0cb8b7ccf764006d77fc888b21f459b8143be9215668e53c4f",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-5717",
+      "name": "SSH 连接关闭",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-5717",
+      "value": "SSH 连接关闭",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "error: PAM:"
+        }
+      ],
+      "dedup_key": "90d2786eeadeb22c798c08536a4d935a7be9983328d252bf1dc103ab4635df68",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-5720",
+      "name": "SSH PAM 错误",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-5720",
+      "value": "SSH PAM 错误",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Timeout"
+        }
+      ],
+      "dedup_key": "0f17c0cc80997b82017baf6c8ffae2001175d0fa3ea7738f55e552ab01124776",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-5721",
+      "name": "SSH 超时",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-5721",
+      "value": "SSH 超时",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "key_regulate_before"
+        }
+      ],
+      "dedup_key": "d560332ef233e803898f41a4364c916a2ab47d3bfb2488066ce5bcc9e314dbb2",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-5722",
+      "name": "SSH 密钥不匹配",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-5722",
+      "value": "SSH 密钥不匹配",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "authentication failure"
+        }
+      ],
+      "dedup_key": "79573807a0bbbc7c0d8c4a4059ab8ccb3e24eaee114f3341a480b9ec77c2a36a",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-60101",
+      "name": "系统认证失败",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-60101",
+      "value": "系统认证失败",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "session opened"
+        }
+      ],
+      "dedup_key": "b8c0a8c765693d6c5031c0faa4cbf06e32d5e00f34af056d79dec1b177ff6a19",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-60102",
+      "name": "用户会话打开",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-60102",
+      "value": "用户会话打开",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "session closed"
+        }
+      ],
+      "dedup_key": "c433ba2e6a7e22cfbabe29f50eda5eb82dd67d4a05a239a73a19456e865c1f9d",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-60103",
+      "name": "用户会话关闭",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-60103",
+      "value": "用户会话关闭",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "runtime",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "sudo:"
+        }
+      ],
+      "dedup_key": "dfe53498e22bd8eb7e84543a9c0887c8325c6748e173ed61a9d00a2db96dd0ed",
+      "field": "cmdline",
+      "group_by": "",
+      "id": "lyflow-internal-60104",
+      "name": "Sudo 命令执行",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 48,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "privilege_escalation",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-60104",
+      "value": "Sudo 命令执行",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "sudo:.*authentication failure"
+        }
+      ],
+      "dedup_key": "f583479ab3cd06f902a09fb82b5b2187e32a738d4cf2730d7ac25dfe47ba4e75",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-60105",
+      "name": "Sudo 认证失败",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-60105",
+      "value": "Sudo 认证失败",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "CRON"
+        }
+      ],
+      "dedup_key": "a238efd9fcc88ca03339a9e7d1ad3014a0e2d5900ebbaf380ee7d1ca289b788f",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-60106",
+      "name": "Cron 任务执行",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-60106",
+      "value": "Cron 任务执行",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "systemd\\\\[1\\\\]:"
+        }
+      ],
+      "dedup_key": "b2876f22276d8eef9ea73b3aeb7e3e5936666b17f11f27a3af8da9a26468e2f1",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-60107",
+      "name": "系统启动",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-60107",
+      "value": "系统启动",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Failed to start"
+        }
+      ],
+      "dedup_key": "714bae62c6539dabbfbd4a7343ffc72180c166d6bbc4053b906f5b99172b309c",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-60108",
+      "name": "服务启动失败",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 69,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-60108",
+      "value": "服务启动失败",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "systemd\\\\[1\\\\]:.*reboot|shutdown"
+        }
+      ],
+      "dedup_key": "a289d06de239ad329721e57fb83eb89f3fa49704137a1a4404cd4c95f95f237a",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-60109",
+      "name": "系统重启",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-60109",
+      "value": "系统重启",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "password check failed"
+        }
+      ],
+      "dedup_key": "eed800d5e3e2263cc472327b849f2beae767c742bf2427893ae7ec94169e780f",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-60110",
+      "name": "PAM 密码检查失败",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 44,
+      "severity": "low",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-60110",
+      "value": "PAM 密码检查失败",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "No space left on device"
+        }
+      ],
+      "dedup_key": "947aa3fdc773c0f9e9270f685d52b82deeee0b96e17f9f61c7dc595bbc016ad6",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-60111",
+      "name": "系统磁盘空间不足",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 69,
+      "severity": "medium",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-60111",
+      "value": "系统磁盘空间不足",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "useradd.*sudo|sudo.*useradd"
+        }
+      ],
+      "dedup_key": "7f01467c2d8890dde4444eb00d997a8043a130b4c4c504ae7282bdb639baeaf1",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-60112",
+      "name": "用户被添加到 sudo 组",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 73,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "privilege_escalation",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-60112",
+      "value": "用户被添加到 sudo 组",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(invalid user|failed password|authentication failure|brute force)"
+        }
+      ],
+      "dedup_key": "dd3d9e4c900b7f6d39e115060abb21cf31e9564862a4b8ad7ec3286a4e5b9836",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-81001",
+      "name": "LyFlow SSH Login Anomaly",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 90,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "initial_access",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-81001",
+      "value": "LyFlow SSH Login Anomaly",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "runtime",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(suspicious_process|process_start).*?(curl|wget|nc|ncat|bash -i|/dev/tcp|chmod \\+x|base64 -d)"
+        }
+      ],
+      "dedup_key": "a95a57069c5c1ead417f731fb606a27b4d2570d4efbcece6642231a3adcdf3d1",
+      "field": "cmdline",
+      "group_by": "",
+      "id": "lyflow-internal-81004",
+      "name": "LyFlow Runtime Suspicious Process",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 92,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-81004",
+      "value": "LyFlow Runtime Suspicious Process",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(chain_id|attack_chain).*?(initial_access|execution|credential_access|impact)"
+        }
+      ],
+      "dedup_key": "6c844d976dcca75cbdda4cc4b73b3a61bcfca4603540ca6fb02cc66b149dd197",
+      "field": "message",
+      "group_by": "",
+      "id": "lyflow-internal-81008",
+      "name": "LyFlow Multi Stage Attack Chain",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 92,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "lyflow-internal-81008",
+      "value": "LyFlow Multi Stage Attack Chain",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Accepted password for root"
+        }
+      ],
+      "dedup_key": "c43c9841a5559314da5b7936927b2e89f3371c20b31533db6973df9b1917d2e7",
+      "field": "message",
+      "group_by": "",
+      "id": "wazuh-auditd-5901",
+      "name": "Root SSH login accepted",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 94,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "initial_access",
+      "support_level": "full_supported",
+      "upstream_id": "wazuh-auditd-5901",
+      "value": "Root SSH login accepted",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "sudo: pam_unix(sudo:auth): authentication failure"
+        }
+      ],
+      "dedup_key": "7467410ec23e5f0fbadd04fe00aba6a121ef44ea9d8ca674830be43943e9fd30",
+      "field": "message",
+      "group_by": "",
+      "id": "wazuh-auditd-5902",
+      "name": "Sudo authentication failure",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 76,
+      "severity": "high",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "privilege_escalation",
+      "support_level": "full_supported",
+      "upstream_id": "wazuh-auditd-5902",
+      "value": "Sudo authentication failure",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "useradd"
+        }
+      ],
+      "dedup_key": "c033e65bdc105bb712edaa5205fe9366f55efa486ac79879a31dd50130e22823",
+      "field": "message",
+      "group_by": "",
+      "id": "wazuh-auditd-5903",
+      "name": "Linux user account created",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 98,
+      "severity": "critical",
+      "source_id": "lyflow-compiled-local",
+      "source_license": "LyFlow-Internal",
+      "source_url": "lyflow://rules/compiled/live",
+      "source_version": "local-full-20260515-conditions",
+      "stage_hint": "persistence",
+      "support_level": "full_supported",
+      "upstream_id": "wazuh-auditd-5903",
+      "value": "Linux user account created",
+      "window": {}
+    }
+  ],
+  "source": {
+    "bundled": true,
+    "category": "all",
+    "connector": false,
+    "id": "lyflow-compiled-local",
+    "license": "LyFlow-Internal",
+    "name": "LyFlow Compiled Local Corpus",
+    "origin": "internal",
+    "restricted": false,
+    "updatable": true,
+    "updated_at": "2026-05-15T03:07:56Z",
+    "url": "lyflow://rules/compiled/live"
+  },
+  "synced_at": "2026-05-15T03:07:56Z",
+  "unsupported_count": 0,
+  "version": "local-full-20260515-conditions"
+}

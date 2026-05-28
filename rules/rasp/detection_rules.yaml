@@ -1,0 +1,623 @@
+# RASP 检测规则集
+# 基于 OpenRASP / OWASP CRS / Falco / Tetragon / Wazuh 规则
+# 支持语言: Java / PHP / Python / Node.js / .NET
+
+version: "1.0"
+source: "ly-flow-platform"
+updated: "2024-01-15"
+
+# ============ 规则分类 ============
+categories:
+  - id: injection
+    name: "注入攻击"
+    description: "SQL/XSS/命令/代码注入"
+  - id: file_ops
+    name: "文件操作"
+    description: "敏感文件读写/目录遍历"
+  - id: network
+    name: "网络请求"
+    description: "SSRF/恶意请求"
+  - id: deserialization
+    name: "反序列化"
+    description: "Java/Python反序列化漏洞"
+  - id: webshell
+    name: "WebShell 检测"
+    description: "命令执行/文件操作特征"
+  - id: ldap
+    name: "LDAP注入"
+    description: "LDAP注入攻击"
+  - id: nosql
+    name: "NoSQL注入"
+    description: "MongoDB/Redis NoSQL注入"
+
+# ============ 规则列表 ============
+rules:
+
+  # ============ SQL 注入 ============
+  - id: 10001
+    category: injection
+    name: "SQL注入攻击"
+    severity: critical
+    languages: [java, php, python, nodejs, dotnet]
+    hook_type: sql
+    patterns:
+      - type: regex
+        value: "(?i)(union\\s+select|select\\s+.*\\s+from|insert\\s+into|delete\\s+from|drop\\s+table|update\\s+.*\\s+set|exec\\s*\\(|execute\\s*\\(|xp_cmdshell)"
+        description: "基础SQL注入特征"
+      - type: regex
+        value: "(?i)(or\\s+1\\s*=\\s*1|and\\s+1\\s*=\\s*1|'\\s+or\\s+'1'\\s*=\\s*'1|--|\\/\\*|\\/\\*\\*)"
+        description: "SQL注入绕过尝试"
+      - type: regex
+        value: "(?i)(sleep\\s*\\(|benchmark\\s*\\(|waitfor\\s+delay|pg_sleep|dbms_pipe\\.receive_message)"
+        description: "SQL时间盲注"
+      - type: regex
+        value: "(?i)(chr\\s*\\(|char\\s*\\().{0,20}(?i)(union|select)"
+        description: "SQL注释混淆"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1190"
+    action: detect
+    enabled: true
+
+  - id: 10002
+    category: injection
+    name: "SQL注入-UNION注入"
+    severity: critical
+    languages: [java, php, python, nodejs, dotnet]
+    hook_type: sql
+    patterns:
+      - type: regex
+        value: "(?i)union\\s+(all\\s+)?select"
+        description: "UNION注入"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1190"
+    action: detect
+    enabled: true
+
+  - id: 10003
+    category: injection
+    name: "SQL注入-报错注入"
+    severity: high
+    languages: [java, php, python, nodejs]
+    hook_type: sql
+    patterns:
+      - type: regex
+        value: "(?i)(extractvalue|updatexml|floor|rand|exp)\\s*\\("
+        description: "MySQL报错注入函数"
+      - type: regex
+        value: "(?i)(ORA-\\d{5}|MSDalert|Microsoft\\s+OLE\\s+DB|SqlException)"
+        description: "数据库错误信息"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1190"
+    action: detect
+    enabled: true
+
+  - id: 10004
+    category: injection
+    name: "SQL注入-OR绕过"
+    severity: high
+    languages: [java, php, python, nodejs, dotnet]
+    hook_type: sql
+    patterns:
+      - type: regex
+        value: "'\\s*(or|and)\\s*('|\\d)"
+        description: "OR/AND 引号绕过"
+      - type: regex
+        value: "(?i)\\b(or|and)\\b\\s*(?i)\\b(true|false|null)\\b"
+        description: "逻辑值绕过"
+    action: detect
+    enabled: true
+
+  # ============ XSS 攻击 ============
+  - id: 10010
+    category: injection
+    name: "XSS攻击-script标签"
+    severity: critical
+    languages: [java, php, python, nodejs, dotnet]
+    hook_type: response
+    patterns:
+      - type: regex
+        value: "(?i)<script[^>]*>"
+        description: "Script标签"
+      - type: regex
+        value: "(?i)javascript:"
+        description: "JavaScript协议"
+      - type: regex
+        value: "(?i)on\\w+\\s*="
+        description: "事件处理器"
+      - type: regex
+        value: "(?i)<img[^>]+src\\s*=\\s*['\"]?javascript:"
+        description: "IMG javascript"
+    mitre:
+      tactic: "TA0010"
+      technique: "T1059.007"
+    action: detect
+    enabled: true
+
+  - id: 10011
+    category: injection
+    name: "XSS攻击-HTML注入"
+    severity: medium
+    languages: [java, php, python, nodejs, dotnet]
+    hook_type: response
+    patterns:
+      - type: regex
+        value: "(?i)<(iframe|object|embed|applet|svg|math|style|link|meta)\\b"
+        description: "危险HTML标签"
+      - type: regex
+        value: "(?i)data:text/html"
+        description: "Data URL XSS"
+    action: detect
+    enabled: true
+
+  - id: 10012
+    category: injection
+    name: "XSS攻击-编码绕过"
+    severity: high
+    languages: [java, php, python, nodejs]
+    hook_type: response
+    patterns:
+      - type: regex
+        value: "(?i)(%3C|%3E|%22|%27|%3D|%3B|&#)"
+        description: "HTML编码绕过"
+      - type: regex
+        value: "(?i)(\\x3c|\x3e|\x22|\x27)"
+        description: "十六进制编码"
+    action: detect
+    enabled: true
+
+  # ============ 命令注入 ============
+  - id: 10020
+    category: injection
+    name: "命令注入攻击"
+    severity: critical
+    languages: [java, php, python, nodejs, dotnet]
+    hook_type: command
+    patterns:
+      - type: regex
+        value: "(?i)(;|\\||&|&&|\\|\\|)\\s*(whoami|ls|cat|cd|wget|curl|ping|bash|sh|cmd|powershell|nc|netcat|mkfifo|rm)"
+        description: "命令注入常见命令"
+      - type: regex
+        value: "(?i)\\$\\(|\\$\\{|\\`"
+        description: "命令替换"
+      - type: regex
+        value: "(?i)&&\\s*\\w|;\\s*\\w|\\|\\|\\s*\\w"
+        description: "命令链"
+    mitre:
+      tactic: "TA0002"
+      technique: "T1059.004"
+    action: detect
+    enabled: true
+
+  - id: 10021
+    category: injection
+    name: "命令注入-危险命令"
+    severity: critical
+    languages: [java, php, python, nodejs, dotnet]
+    hook_type: command
+    patterns:
+      - type: regex
+        value: "(?i)(wget|curl)\\s+-o\\s+|\\|\\s*(bash|sh)|\\b(nc|netcat)\\s+-e"
+        description: "下载和后门连接"
+      - type: regex
+        value: "(?i)chmod\\s+777|chmod\\s+4755|/etc/passwd|/etc/shadow"
+        description: "权限修改和敏感文件"
+      - type: regex
+        value: "(?i)reboot|shutdown|init\\s+0|halt|poweroff"
+        description: "系统控制命令"
+    action: detect
+    enabled: true
+
+  - id: 10022
+    category: injection
+    name: "命令注入-管道注入"
+    severity: high
+    languages: [java, php, python, nodejs]
+    hook_type: command
+    patterns:
+      - type: regex
+        value: "(?i)\\||;|\\&|\\$|\\`"
+        description: "Shell特殊字符"
+    action: detect
+    enabled: true
+
+  # ============ 文件操作 ============
+  - id: 10030
+    category: file_ops
+    name: "敏感文件读取"
+    severity: high
+    languages: [java, php, python, nodejs]
+    hook_type: read_file
+    patterns:
+      - type: regex
+        value: "(?i)(/etc/passwd|/etc/shadow|/etc/hosts|/etc/sudoers|\\.ssh|/root/\\.ssh|\\.bash_history|/var/log/.*)"
+        description: "系统敏感文件"
+      - type: regex
+        value: "(?i)(wp-config\\.php|config\\.php|\\.env|\\.git/config|\\.git/credentials)"
+        description: "配置文件读取"
+    mitre:
+      tactic: "TA0006"
+      technique: "T1005"
+    action: detect
+    enabled: true
+
+  - id: 10031
+    category: file_ops
+    name: "目录遍历攻击"
+    severity: high
+    languages: [java, php, python, nodejs, dotnet]
+    hook_type: read_file
+    patterns:
+      - type: regex
+        value: "(?i)(\\.\\.\\/|\\.\\.\\\\|\\.\\.\\%2f|\\.\\.%5c|%2e%2e)"
+        description: "目录遍历序列"
+      - type: regex
+        value: "(?i)(/etc/..|/var/..|/home/\\.\\.|/root/\\.\\.)"
+        description: "多层目录遍历"
+    mitre:
+      tactic: "TA0005"
+      technique: "T1005"
+    action: detect
+    enabled: true
+
+  - id: 10032
+    category: file_ops
+    name: "危险文件写入"
+    severity: critical
+    languages: [java, php, python, nodejs]
+    hook_type: write_file
+    patterns:
+      - type: regex
+        value: "(?i)(\\.php[\\s]?|\\.jsp[\\s]?|\\.asp[\\s]?|\\.aspx|\\.exe|\\.phtml|\\.phar)"
+        description: "WebShell文件扩展名"
+      - type: regex
+        value: "(?i)(<\\?php|\\<%|<script|eval\\s*\\()"
+        description: "代码注入特征"
+    mitre:
+      tactic: "TA0002"
+      technique: "T1105"
+    action: detect
+    enabled: true
+
+  - id: 10033
+    category: file_ops
+    name: "配置文件写入"
+    severity: medium
+    languages: [java, php, python, nodejs]
+    hook_type: write_file
+    patterns:
+      - type: regex
+        value: "(?i)(crontab|ssh/authorized_keys|\\.bashrc|\\.bash_profile|profile|\\.profile)"
+        description: "持久化配置文件"
+    action: detect
+    enabled: true
+
+  # ============ SSRF ============
+  - id: 10040
+    category: network
+    name: "SSRF攻击-内网地址"
+    severity: critical
+    languages: [java, php, python, nodejs, dotnet]
+    hook_type: request
+    patterns:
+      - type: regex
+        value: "(?i)(127\\.\\d+\\.\\d+\\.\\d+|localhost|0\\.0\\.0\\.0|::1|::ffff:127\\.\\d+\\.\\d+\\.\\d+)"
+        description: "本地地址"
+      - type: regex
+        value: "(?i)(10\\.\\d{1,3}\\.\\d{1,3}\\.\\d{1,3}|172\\.(1[6-9]|2\\d|3[01])\\.\\d+\\.\\d+|192\\.168\\.\\d+\\.\\d+)"
+        description: "内网地址段"
+      - type: regex
+        value: "(?i)(169\\.254\\.\\d+\\.\\d+|192\\.0\\.2\\.\\d+|198\\.51\\.100\\.\\d+|203\\.0\\.113\\.\\d+)"
+        description: "保留地址"
+    mitre:
+      tactic: "TA0011"
+      technique: "T1106"
+    action: detect
+    enabled: true
+
+  - id: 10041
+    category: network
+    name: "SSRF攻击-云元数据"
+    severity: critical
+    languages: [java, php, python, nodejs]
+    hook_type: request
+    patterns:
+      - type: regex
+        value: "(?i)(169\\.254\\.169\\.254|metadata\\.google\\.|100\\.100\\.100\\.200)"
+        description: "云服务元数据地址"
+    mitre:
+      tactic: "TA0011"
+      technique: "T1106"
+    action: detect
+    enabled: true
+
+  - id: 10042
+    category: network
+    name: "SSRF攻击-DNS重绑定"
+    severity: high
+    languages: [java, php, python, nodejs]
+    hook_type: request
+    patterns:
+      - type: regex
+        value: "(?i)(127\\.0\\.0\\.1|0\\.0\\.0\\.0|0000::1)"
+        description: "本地host"
+    action: detect
+    enabled: true
+
+  # ============ XXE ============
+  - id: 10050
+    category: injection
+    name: "XXE攻击"
+    severity: critical
+    languages: [java, dotnet]
+    hook_type: xxe
+    patterns:
+      - type: regex
+        value: "(?i)<!DOCTYPE\\s+\\w+\\s+SYSTEM"
+        description: "外部实体声明"
+      - type: regex
+        value: "(?i)<!ENTITY\\s+\\w+\\s+SYSTEM"
+        description: "外部实体"
+      - type: regex
+        value: "(?i)(file://|php://|zip://|data://|expect://|http://|ftp://)"
+        description: "协议注入"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1190"
+    action: detect
+    enabled: true
+
+  - id: 10051
+    category: injection
+    name: "XXE攻击-SSRF"
+    severity: critical
+    languages: [java]
+    hook_type: xxe
+    patterns:
+      - type: regex
+        value: "(?i)(file://|http://|ftp://)"
+        description: "XXE协议"
+    action: detect
+    enabled: true
+
+  # ============ 反序列化 ============
+  - id: 10060
+    category: deserialization
+    name: "Java反序列化漏洞"
+    severity: critical
+    languages: [java]
+    hook_type: deserialize
+    patterns:
+      - type: regex
+        value: "(?i)(fastjson|jackson|gson)\\.parse|ObjectInputStream|readObject"
+        description: "反序列化入口"
+      - type: regex
+        value: "(?i)(com\\.sun\\.rowset|org\\.apache\\.commons|ysoserial|java\\.rmi|\\. InvocationHandler)"
+        description: "危险类名"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1055"
+    action: detect
+    enabled: true
+
+  - id: 10061
+    category: deserialization
+    name: "Python pickle反序列化"
+    severity: critical
+    languages: [python]
+    hook_type: deserialize
+    patterns:
+      - type: regex
+        value: "(?i)(pickle\\.loads|pickle\\.load|joblib\\.load|marshal\\.loads)"
+        description: "Python反序列化"
+    action: detect
+    enabled: true
+
+  # ============ WebShell 检测 ============
+  - id: 10070
+    category: webshell
+    name: "WebShell行为-命令执行"
+    severity: critical
+    languages: [php]
+    hook_type: command
+    patterns:
+      - type: regex
+        value: "(?i)(system\\s*\\(|exec\\s*\\(|shell_exec\\s*\\(|passthru\\s*\\(|popen\\s*\\(|proc_open\\s*\\("
+        description: "PHP命令执行函数"
+      - type: regex
+        value: "(?i)(assert\\s*\\(|preg_replace\\s*\\(|create_function\\s*\\(|call_user_func\\s*\\(|array_map\\s*\\()"
+        description: "PHP代码执行函数"
+    mitre:
+      tactic: "TA0002"
+      technique: "T1106"
+    action: detect
+    enabled: true
+
+  - id: 10071
+    category: webshell
+    name: "WebShell行为-文件操作"
+    severity: critical
+    languages: [php]
+    hook_type: file
+    patterns:
+      - type: regex
+        value: "(?i)(fopen\\s*\\(|file_put_contents\\s*\\(|file_get_contents\\s*\\(|copy\\s*\\(|unlink\\s*\\("
+        description: "PHP文件操作"
+      - type: regex
+        value: "(?i)base64_decode\\s*\\(\\s*['\"]"
+        description: "Base64解码特征"
+    action: detect
+    enabled: true
+
+  # ============ LDAP注入 ============
+  - id: 10080
+    category: ldap
+    name: "LDAP注入攻击"
+    severity: high
+    languages: [java, php, python, dotnet]
+    hook_type: ldap
+    patterns:
+      - type: regex
+        value: "(?i)(\\*|\\(|\\)|\\!|\\&|\\|)\\s*(objectClass|uid|sn|cn|mail|ou|dc)"
+        description: "LDAP特殊字符注入"
+      - type: regex
+        value: "(?i)(admin\\*|\\*admin|\\*\\*)"
+        description: "LDAP通配符注入"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1190"
+    action: detect
+    enabled: true
+
+  # ============ NoSQL注入 ============
+  - id: 10090
+    category: nosql
+    name: "MongoDB注入"
+    severity: high
+    languages: [nodejs, python]
+    hook_type: nosql
+    patterns:
+      - type: regex
+        value: "\\$\\w+\\s*\\{" description: "MongoDB操作符"
+      - type: regex
+        value: "(?i)(\\$ne|\$eq|\$gt|\$lt|\$in|\$or|\$where|\\$regex)"
+        description: "MongoDB注入特征"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1190"
+    action: detect
+    enabled: true
+
+  - id: 10091
+    category: nosql
+    name: "Redis注入"
+    severity: high
+    languages: [nodejs, python]
+    hook_type: nosql
+    patterns:
+      - type: regex
+        value: "(?i)(keys\\s*\\(|flushdb|flushall|config|slaveof)"
+        description: "Redis危险命令"
+    action: detect
+    enabled: true
+
+  # ============ Node.js 特定 ============
+  - id: 10100
+    category: injection
+    name: "Node.js命令注入"
+    severity: critical
+    languages: [nodejs]
+    hook_type: command
+    patterns:
+      - type: regex
+        value: "(?i)(child_process|exec\\s*\\(|execSync\\s*\\(|spawn\\s*\\(|execFile\\s*\\("
+        description: "Node.js子进程"
+    action: detect
+    enabled: true
+
+  - id: 10101
+    category: injection
+    name: "Node.js模板注入"
+    severity: critical
+    languages: [nodejs]
+    hook_type: template
+    patterns:
+      - type: regex
+        value: "(?i)(\\{.*\\}|\\$\\{.*\\})"
+        description: "模板表达式"
+      - type: regex
+        value: "(?i)(require\\s*\\(|process|global|__dirname|__filename)"
+        description: "Node.js危险对象"
+    action: detect
+    enabled: true
+
+  # ============ .NET 特定 ============
+  - id: 10110
+    category: deserialization
+    name: ".NET反序列化"
+    severity: critical
+    languages: [dotnet]
+    hook_type: deserialize
+    patterns:
+      - type: regex
+        value: "(?i)(BinaryFormatter|LosFormatter|DataContractSerializer|NetDataContractSerializer|JavaScriptSerializer|XmlSerializer)\\s*"
+        description: ".NET序列化类"
+      - type: regex
+        value: "(?i)(TypeDescriptor|ObjectStateFormatter|SoapFormatter)"
+        description: ".NET危险序列化"
+    action: detect
+    enabled: true
+
+  - id: 10111
+    category: injection
+    name: ".NET SQL注入"
+    severity: critical
+    languages: [dotnet]
+    hook_type: sql
+    patterns:
+      - type: regex
+        value: "(?i)(SqlDataSource|ObjectDataSource|LinqDataSource|EntityDataSource)\\s*"
+        description: "ASP.NET数据源"
+    action: detect
+    enabled: true
+
+  # ============ Python 特定 ============
+  - id: 10120
+    category: injection
+    name: "Python模板注入(Jinja2)"
+    severity: critical
+    languages: [python]
+    hook_type: template
+    patterns:
+      - type: regex
+        value: "(?i)(\\{\\{.*\\}\\}|\\{%.*%\\})"
+        description: "Jinja2模板语法"
+      - type: regex
+        value: "(?i)(__import__|exec\\s*\\(|eval\\s*\\(|getattr\\s*\\(|setattr\\s*\\(|os\\.|subprocess\\.)"
+        description: "Python危险函数"
+    action: detect
+    enabled: true
+
+  - id: 10121
+    category: file_ops
+    name: "Python危险路径"
+    severity: high
+    languages: [python]
+    hook_type: file
+    patterns:
+      - type: regex
+        value: "(?i)(os\\.path|open\\s*\\(|file\\s*\\(|\\bshutil\\.)"
+        description: "Python文件操作"
+    action: detect
+    enabled: true
+
+# ============ 防护配置 ============
+protection:
+  enabled: false
+  default_action: block
+  block_modes:
+    - sql: block
+    - command: block
+    - file_write: block
+  notify_agent: true
+  block_duration: 300
+
+# ============ 白名单配置 ============
+whitelist:
+  sources:
+    - name: "内部IP段"
+      value: "10.0.0.0/8"
+    - name: "localhost"
+      value: "127.0.0.1"
+
+  paths:
+    - name: "静态资源"
+      value: "/static/.*"
+    - name: "公共资源"
+      value: "/public/.*"
+
+  users:
+    - name: "系统用户"
+      value: "root|admin|administrator"

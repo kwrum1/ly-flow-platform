@@ -1,0 +1,82 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "elkeid-rebuilt-h1001",
+  "name": "Hidden kernel module",
+  "description": "Hidden Kernel Module Detected",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "rebuilt_internal",
+    "vendor": "ByteDance Elkeid",
+    "license": "Apache-2.0",
+    "url": "https://github.com/bytedance/Elkeid",
+    "version": "local-2024-01-15",
+    "upstream_id": "H1001",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/hids/elkeid_hids_rules.yaml",
+    "converted_path": "rules/internal/hids/elkeid-rebuilt/"
+  },
+  "support": {
+    "level": "unsupported",
+    "unsupported_fields": [
+      "evt.type"
+    ],
+    "notes": [
+      "Elkeid hook_type=kernel requires telemetry not exposed by current LyFlow HIDS"
+    ]
+  },
+  "classification": {
+    "stage": "persistence",
+    "mitre_tactics": [
+      "TA0003"
+    ],
+    "mitre_techniques": [
+      "T1014"
+    ],
+    "confidence": 0.25,
+    "rationale": "Mapped from Elkeid category backdoor."
+  },
+  "scoring": {
+    "base_score": 0,
+    "severity": "critical",
+    "source_reliability": 78
+  },
+  "match": {
+    "logic": "any",
+    "entities": [
+      "host.id",
+      "user.name",
+      "process.pid"
+    ],
+    "conditions": [
+      {
+        "field": "evt.type",
+        "operator": "regex",
+        "value": "(?i)(\\\\.ko$|\\\\.ko\\\\.xz|lkm|kernel_module|hidden_module)"
+      },
+      {
+        "field": "evt.type",
+        "operator": "regex",
+        "value": "(?i)(\\\\/proc\\\\/modules.*hidden|\\\\/sys\\\\/module\\\\/.*init_section)"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/hids/elkeid_hids_rules.yaml",
+      "rule_id": "H1001",
+      "category": "backdoor",
+      "hook_type": "kernel"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "collect_forensic_bundle",
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  }
+}

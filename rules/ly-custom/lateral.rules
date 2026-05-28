@@ -1,0 +1,134 @@
+# 流影自定义安全规则 - 内网横向检测
+# 版本: 1.0.0
+# 更新时间: 2026-05-09
+# 说明: 检测内网横向移动和异常行为
+
+# ============ SMB/Lateral Movement ============
+
+# SMB Tree Connect Lateral Movement
+alert smb any any -> any any (msg:"[LY-LATERAL-001] SMB Tree Connect Lateral Movement"; \
+    content:"Tree Connect AndX"; nocase; \
+    threshold:type threshold, track by_src, count 30, seconds 120; \
+    classtype:attempted-recon; sid:9006001; rev:1;)
+
+# SMB Named Pipe
+alert smb any any -> any any (msg:"[LY-LATERAL-002] SMB Named Pipe Access"; \
+    content:"named pipe"; nocase; \
+    content:"lsarpc"; nocase; \
+    content:"samr"; nocase; \
+    threshold:type threshold, track by_src, count 20, seconds 60; \
+    classtype:attempted-recon; sid:9006002; rev:1;)
+
+# Pass-the-Hash NTLM Authentication
+alert smb any any -> any any (msg:"[LY-LATERAL-003] Pass-the-Hash NTLM Authentication"; \
+    content:"NTLM"; nocase; \
+    content:"NTLMSSP"; \
+    threshold:type threshold, track by_src, count 50, seconds 300; \
+    classtype:attempted-recon; sid:9006003; rev:1;)
+
+# SMB Share Enumeration
+alert smb any any -> any any (msg:"[LY-LATERAL-004] SMB Share Enumeration"; \
+    content:"NetShareEnum"; nocase; \
+    content:"NetShareEnumAll"; nocase; \
+    threshold:type threshold, track by_src, count 20, seconds 60; \
+    classtype:attempted-recon; sid:9006004; rev:1;)
+
+# ============ RDP Lateral Movement ============
+
+# RDP Brute Force
+alert tcp any any -> any 3389 (msg:"[LY-LATERAL-005] RDP Brute Force Attack"; \
+    flags:S,12; \
+    threshold:type threshold, track by_src, count 20, seconds 60; \
+    classtype:brute-force; sid:9006011; rev:1;)
+
+# RDP Clipboard Redirection
+alert rdp any any -> any any (msg:"[LY-LATERAL-006] RDP Clipboard Redirection"; \
+    content:"CLIPBOARD"; nocase; \
+    classtype:attempted-recon; sid:9006012; rev:1;)
+
+# RDP Drive Redirection
+alert rdp any any -> any any (msg:"[LY-LATERAL-007] RDP Drive Redirection"; \
+    content:"DRIVE"; nocase; \
+    content:"RDPDR"; nocase; \
+    classtype:attempted-recon; sid:9006013; rev:1;)
+
+# ============ SSH Lateral Movement ============
+
+# SSH Brute Force
+alert tcp any any -> any 22 (msg:"[LY-LATERAL-008] SSH Brute Force Attack"; \
+    flags:S,12; \
+    threshold:type threshold, track by_src, count 30, seconds 120; \
+    classtype:brute-force; sid:9006021; rev:1;)
+
+# SSH Root Login Attempt
+alert ssh any any -> any any (msg:"[LY-LATERAL-009] SSH Root Login Attempt"; \
+    content:"root"; nocase; \
+    threshold:type threshold, track by_src, count 5, seconds 60; \
+    classtype:brute-force; sid:9006022; rev:1;)
+
+# SSH Multiple Failed Auth
+alert ssh any any -> any any (msg:"[LY-LATERAL-010] SSH Multiple Failed Authentications"; \
+    content:"Failed password"; nocase; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:brute-force; sid:9006023; rev:1;)
+
+# ============ WMI/Hybrid Attack ============
+
+# WMI Remote Command Execution
+alert tcp any any -> any any (msg:"[LY-LATERAL-011] WMI Remote Command Execution"; \
+    content:"CIM_Process"; nocase; \
+    content:"Create"; nocase; \
+    threshold:type threshold, track by_src, count 5, seconds 60; \
+    classtype:attempted-admin; sid:9006031; rev:1;)
+
+# PSExec Lateral Movement
+alert tcp any any -> any any (msg:"[LY-LATERAL-012] PSExec Lateral Movement Pattern"; \
+    content:"PSEXESVC"; nocase; \
+    content:"svc"; nocase; \
+    threshold:type threshold, track by_src, count 5, seconds 60; \
+    classtype:attempted-admin; sid:9006032; rev:1;)
+
+# ============ DCERPC ============
+
+# DCERPC Interface Enumeration
+alert tcp any any -> any 135 (msg:"[LY-LATERAL-013] DCERPC Interface Enumeration"; \
+    content:"epmapper"; nocase; \
+    content:"lsass"; nocase; \
+    threshold:type threshold, track by_src, count 20, seconds 60; \
+    classtype:attempted-recon; sid:9006041; rev:1;)
+
+# DCERPC Unknown UUID
+alert tcp any any -> any 135 (msg:"[LY-LATERAL-014] DCERPC Unknown UUID Pattern"; \
+    content:"00000000-0000-0000-0000"; nocase; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:attempted-recon; sid:9006042; rev:1;)
+
+# ============ LDAP ============
+
+# LDAP Search enumeration
+alert tcp any any -> any 389 (msg:"[LY-LATERAL-015] LDAP Search Enumeration"; \
+    content:"DC="; nocase; \
+    content:"CN="; nocase; \
+    threshold:type threshold, track by_src, count 30, seconds 60; \
+    classtype:attempted-recon; sid:9006051; rev:1;)
+
+# LDAP Bind Attempt
+alert tcp any any -> any 389 (msg:"[LY-LATERAL-016] LDAP Bind Attempt"; \
+    content:"bindRequest"; nocase; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:attempted-recon; sid:9006052; rev:1;)
+
+# ============ Kerberos ============
+
+# Kerberoasting Attack
+alert tcp any any -> any 88 (msg:"[LY-LATERAL-017] Kerberoasting Attack Pattern"; \
+    content:"KRB5"; nocase; \
+    content:"TGS-REQ"; nocase; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:attempted-recon; sid:9006061; rev:1;)
+
+# Golden Ticket Pattern
+alert tcp any any -> any 88 (msg:"[LY-LATERAL-018] Golden Ticket Suspicious Pattern"; \
+    content:"KRB-CRED"; nocase; \
+    content:"TGT"; nocase; \
+    classtype:attempted-admin; sid:9006062; rev:1;)

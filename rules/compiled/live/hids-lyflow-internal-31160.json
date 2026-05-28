@@ -1,0 +1,111 @@
+{
+  "category": "hids",
+  "classification": {
+    "confidence": 0.75,
+    "mitre_tactics": [],
+    "mitre_techniques": [
+      "T1190"
+    ],
+    "rationale": "kept existing valid stage",
+    "stage": "execution"
+  },
+  "dedup": {
+    "fingerprint": "1cbf573924f038a6",
+    "merged_rule_ids": [
+      "lyflow-internal-31160"
+    ],
+    "winner_reason": "source precedence then score"
+  },
+  "description": "检测到反序列化攻击尝试",
+  "enabled": true,
+  "id": "lyflow-internal-31160",
+  "kind": "single_event_rule",
+  "match": {
+    "conditions": [
+      {
+        "field": "metadata.line",
+        "operator": "regex",
+        "value": "(O:{|a:Serialization|java.io|ObjectInputStream)"
+      }
+    ],
+    "entities": [
+      "host.id",
+      "network.src_ip",
+      "user.name"
+    ],
+    "logic": "all"
+  },
+  "name": "Nginx 反序列化攻击",
+  "provenance": [
+    {
+      "groups": [
+        "deserialization",
+        "web_attack"
+      ],
+      "rule_id": 31160,
+      "source": "rules/xdr/nginx_rules.yaml"
+    },
+    {
+      "rule_id": "lyflow-internal-31160",
+      "source": "rules/internal/hids/lyflow/generated/lyflow-internal-31160.json",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ],
+    "candidate_only": true
+  },
+  "schema_version": "v1",
+  "scoring": {
+    "active_score": true,
+    "base_score": 78,
+    "normalized_score": 92,
+    "original_scoring": {
+      "base_score": 78,
+      "severity": "high",
+      "source_reliability": 92,
+      "upstream_score": {
+        "lyflow_level": 10
+      }
+    },
+    "score_detail": {
+      "active": true,
+      "components": {
+        "base": 78,
+        "confidence_component": 5,
+        "source_component": 3,
+        "stage_component": 6,
+        "support_factor": 1
+      },
+      "reason": "severity + source reliability + support + confidence + stage"
+    },
+    "severity": "critical",
+    "source_reliability": 92,
+    "upstream_score": {
+      "lyflow_level": 10
+    }
+  },
+  "source": {
+    "conversion_version": "v1",
+    "converted_path": "rules/internal/hids/lyflow/generated/",
+    "license": "Proprietary",
+    "origin": "internal",
+    "raw_path": "rules/xdr/nginx_rules.yaml",
+    "revision": "1",
+    "upstream_id": "31160",
+    "url": "lyflow://rules/internal",
+    "vendor": "LyFlow",
+    "version": "2026.05"
+  },
+  "support": {
+    "level": "full_supported",
+    "notes": [
+      "Migrated from existing LyFlow internal XDR rule"
+    ],
+    "unsupported_fields": []
+  }
+}

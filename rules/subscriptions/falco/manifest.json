@@ -1,0 +1,20 @@
+{
+  "schema_version": "v1",
+  "source_id": "falco-supported-subset",
+  "name": "Falco supported subset",
+  "category": "hids",
+  "source_type": "external_subscription",
+  "update_mode": "manual_fetch_then_convert",
+  "vendor": "Falco Project",
+  "license": "Apache-2.0",
+  "source_url": "https://github.com/falcosecurity/rules",
+  "raw_path": "rules/subscriptions/falco/raw/",
+  "converted_path": "rules/subscriptions/falco/converted/",
+  "compiled_path": "rules/compiled/hids/falco-supported-subset.json",
+  "enabled_by_default": false,
+  "conversion": {
+    "converter": "falco-supported-subset-converter",
+    "target_ir": "lyflow-rule-ir-v1",
+    "notes": "Only process/user fields supported by current LyFlow telemetry can become active. Syscall-only fields stay unsupported."
+  }
+}

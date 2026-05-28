@@ -1,0 +1,91 @@
+{
+  "converted_count": 2,
+  "deduplicated_count": 1,
+  "mode": "sync_convert",
+  "report": {
+    "converted": 2,
+    "inserted": 0,
+    "duplicates": 1,
+    "unsupported": 1,
+    "support_counts": {
+      "full_supported": 2,
+      "partial_supported": 0,
+      "unsupported": 1
+    },
+    "dedup_groups": [
+      {
+        "dedup_key": "655769abb19d55065e58e24400857fadcac818d2dfe85a65725a16893b5bc38c",
+        "duplicate": "ssh-failed-duplicate",
+        "winner": "ssh-failed-1"
+      }
+    ]
+  },
+  "rule_count": 3,
+  "rules": [
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": null,
+      "dedup_key": "655769abb19d55065e58e24400857fadcac818d2dfe85a65725a16893b5bc38c",
+      "field": "message",
+      "group_by": "",
+      "id": "ssh-failed-1",
+      "name": "SSH Failed Password A",
+      "operator": "regex",
+      "regex": true,
+      "score_hint": 55,
+      "severity": "medium",
+      "source_id": "sigma-connector",
+      "source_license": "Detection Rule License",
+      "source_url": "https://github.com/SigmaHQ/sigma",
+      "source_version": "p0-sigma",
+      "stage_hint": "initial_access",
+      "support_level": "full_supported",
+      "upstream_id": "ssh-failed-1",
+      "value": "(?i)failed password",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "log_audit",
+      "conditions": null,
+      "dedup_key": "035946f43bb2a31f75d40dc0c46469c70649f863a6b0dc45bcfcaf2694481f6a",
+      "field": "message",
+      "group_by": "",
+      "id": "unsupported-sequence",
+      "name": "Unsupported Sequence Rule",
+      "operator": "sequence",
+      "regex": false,
+      "score_hint": 75,
+      "severity": "high",
+      "source_id": "sigma-connector",
+      "source_license": "Detection Rule License",
+      "source_url": "https://github.com/SigmaHQ/sigma",
+      "source_version": "p0-sigma",
+      "stage_hint": "initial_access",
+      "support_level": "unsupported",
+      "support_notes": [
+        "unsupported_operator:sequence"
+      ],
+      "upstream_id": "unsupported-sequence",
+      "value": "a then b",
+      "window": {}
+    }
+  ],
+  "source": {
+    "bundled": false,
+    "category": "log_audit",
+    "connector": true,
+    "id": "sigma-connector",
+    "license": "Detection Rule License",
+    "name": "Sigma Rules Connector",
+    "origin": "external_subscription",
+    "restricted": false,
+    "updatable": true,
+    "updated_at": "2026-05-15T02:26:16Z",
+    "url": "https://github.com/SigmaHQ/sigma"
+  },
+  "synced_at": "2026-05-15T02:26:16Z",
+  "unsupported_count": 1,
+  "version": "p0-sigma"
+}

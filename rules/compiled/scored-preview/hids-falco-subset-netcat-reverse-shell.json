@@ -1,0 +1,111 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "falco-subset-netcat-reverse-shell",
+  "name": "Netcat Reverse Shell",
+  "description": "Netcat command line contains reverse shell flags",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "external_subscription",
+    "vendor": "Falco Project",
+    "license": "Apache-2.0",
+    "url": "https://github.com/falcosecurity/rules",
+    "version": "fixture",
+    "upstream_id": "Netcat Reverse Shell",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/subscriptions/falco/raw/falco-fixture.yaml",
+    "converted_path": "rules/subscriptions/falco/converted/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Converted from Falco supported subset fixture"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.74,
+    "rationale": "kept existing valid stage"
+  },
+  "scoring": {
+    "base_score": 90,
+    "severity": "critical",
+    "upstream_score": {
+      "falco_priority": "CRITICAL"
+    },
+    "source_reliability": 76,
+    "normalized_score": 100,
+    "active_score": true,
+    "score_detail": {
+      "reason": "severity + source reliability + support + confidence + stage",
+      "active": true,
+      "components": {
+        "base": 90,
+        "source_component": 0,
+        "confidence_component": 5,
+        "stage_component": 6,
+        "support_factor": 1.0
+      }
+    },
+    "original_scoring": {
+      "base_score": 90,
+      "severity": "critical",
+      "upstream_score": {
+        "falco_priority": "CRITICAL"
+      },
+      "source_reliability": 76
+    }
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "host.id",
+      "user.name",
+      "process.pid"
+    ],
+    "conditions": [
+      {
+        "field": "process.command_line",
+        "operator": "regex",
+        "value": "proc.cmdline contains \"nc\" and proc.cmdline contains \"-e\""
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/subscriptions/falco/raw/falco-fixture.yaml",
+      "rule": "Netcat Reverse Shell",
+      "condition": "proc.cmdline contains \"nc\" and proc.cmdline contains \"-e\"",
+      "output": "Netcat reverse shell command=%proc.cmdline",
+      "tags": [
+        "shell",
+        "execution"
+      ]
+    },
+    {
+      "source": "rules/subscriptions/falco/converted/falco-subset-netcat-reverse-shell.json",
+      "rule_id": "falco-subset-netcat-reverse-shell",
+      "vendor": "Falco Project"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "f70d47c596d7c2ca",
+    "merged_rule_ids": [
+      "falco-subset-netcat-reverse-shell"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

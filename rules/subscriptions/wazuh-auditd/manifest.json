@@ -1,0 +1,20 @@
+{
+  "schema_version": "v1",
+  "source_id": "wazuh-auditd",
+  "name": "Wazuh auditd Linux rules",
+  "category": "hids",
+  "source_type": "external_subscription",
+  "update_mode": "manual_fetch_then_convert",
+  "vendor": "Wazuh",
+  "license": "GPL-2.0",
+  "source_url": "https://github.com/wazuh/wazuh/tree/master/ruleset/rules",
+  "raw_path": "rules/subscriptions/wazuh-auditd/raw/",
+  "converted_path": "rules/subscriptions/wazuh-auditd/converted/",
+  "compiled_path": "rules/compiled/hids/wazuh-auditd.json",
+  "enabled_by_default": false,
+  "conversion": {
+    "converter": "wazuh-auditd-converter",
+    "target_ir": "lyflow-rule-ir-v1",
+    "notes": "Highest priority external HIDS source; unsupported audit fields must be quarantined."
+  }
+}

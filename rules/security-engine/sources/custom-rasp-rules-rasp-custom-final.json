@@ -1,0 +1,58 @@
+{
+  "converted_count": 1,
+  "deduplicated_count": 0,
+  "mode": "sync_convert",
+  "report": {
+    "converted": 1,
+    "inserted": 0,
+    "duplicates": 0,
+    "unsupported": 0,
+    "support_counts": {
+      "full_supported": 1,
+      "partial_supported": 0,
+      "unsupported": 0
+    }
+  },
+  "rule_count": 1,
+  "rules": [
+    {
+      "candidate": true,
+      "category": "rasp",
+      "conditions": null,
+      "dedup_key": "6dcb8ed23e2482236538a3de86e95b24c2a9638dd17a0bb5af3f21e8bc74ad83",
+      "field": "command",
+      "group_by": "",
+      "id": "custom-rce-cmd-param",
+      "name": "Custom RASP Command Parameter",
+      "operator": "regex",
+      "regex": true,
+      "score_hint": 75,
+      "severity": "high",
+      "source_id": "custom-rasp-rules",
+      "source_license": "User-Provided",
+      "source_url": "",
+      "source_version": "rasp-custom-final",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "custom-rce-cmd-param",
+      "value": "(?i)(/bin/sh|bash -i|cmd.exe|powershell)",
+      "window": {}
+    }
+  ],
+  "source": {
+    "bundled": false,
+    "category": "rasp",
+    "connector": false,
+    "id": "custom-rasp-rules",
+    "license": "User-Provided",
+    "name": "Custom RASP Rules",
+    "origin": "user_provided",
+    "restricted": false,
+    "updatable": true,
+    "updated_at": "2026-05-15T02:38:16Z",
+    "url": ""
+  },
+  "synced_at": "2026-05-15T02:38:16Z",
+  "unsupported_count": 0,
+  "version": "rasp-custom-final"
+}

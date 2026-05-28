@@ -1,0 +1,58 @@
+{
+  "converted_count": 1,
+  "deduplicated_count": 0,
+  "mode": "sync_convert",
+  "report": {
+    "converted": 1,
+    "inserted": 0,
+    "duplicates": 0,
+    "unsupported": 0,
+    "support_counts": {
+      "full_supported": 1,
+      "partial_supported": 0,
+      "unsupported": 0
+    }
+  },
+  "rule_count": 1,
+  "rules": [
+    {
+      "candidate": true,
+      "category": "runtime",
+      "conditions": null,
+      "dedup_key": "693f7e80dd96eb3671d7374df58702d71b7fff3ec078407626f010ab218e4e35",
+      "field": "cmdline",
+      "group_by": "",
+      "id": "falco-reverse-shell",
+      "name": "Falco Reverse Shell Command",
+      "operator": "contains",
+      "regex": false,
+      "score_hint": 75,
+      "severity": "high",
+      "source_id": "falco-connector",
+      "source_license": "Apache-2.0",
+      "source_url": "https://github.com/falcosecurity/rules",
+      "source_version": "p0-falco",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "falco-reverse-shell",
+      "value": "/dev/tcp",
+      "window": {}
+    }
+  ],
+  "source": {
+    "bundled": false,
+    "category": "runtime",
+    "connector": true,
+    "id": "falco-connector",
+    "license": "Apache-2.0",
+    "name": "Falco Rules Connector",
+    "origin": "external_subscription",
+    "restricted": false,
+    "updatable": true,
+    "updated_at": "2026-05-15T02:26:16Z",
+    "url": "https://github.com/falcosecurity/rules"
+  },
+  "synced_at": "2026-05-15T02:26:17Z",
+  "unsupported_count": 0,
+  "version": "p0-falco"
+}

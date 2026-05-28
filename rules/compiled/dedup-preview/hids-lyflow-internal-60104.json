@@ -1,0 +1,88 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-60104",
+  "name": "Sudo 命令执行",
+  "description": "Sudo 命令执行",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal",
+    "version": "2026.05",
+    "upstream_id": "60104",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/xdr/system_rules.yaml",
+    "converted_path": "rules/internal/hids/lyflow/generated/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from existing LyFlow internal XDR rule"
+    ]
+  },
+  "classification": {
+    "stage": "privilege_escalation",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.75,
+    "rationale": "Mapped from existing LyFlow groups and MITRE tags."
+  },
+  "scoring": {
+    "base_score": 30,
+    "severity": "low",
+    "upstream_score": {
+      "lyflow_level": 3
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "host.id",
+      "network.src_ip",
+      "user.name"
+    ],
+    "conditions": [
+      {
+        "field": "metadata.line",
+        "operator": "contains",
+        "value": "sudo:"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/xdr/system_rules.yaml",
+      "rule_id": 60104,
+      "groups": [
+        "sudo",
+        "privilege_escalation"
+      ]
+    },
+    {
+      "source": "rules/internal/hids/lyflow/generated/lyflow-internal-60104.json",
+      "rule_id": "lyflow-internal-60104",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "facda4fe78a9db51",
+    "merged_rule_ids": [
+      "lyflow-internal-60104"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

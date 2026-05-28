@@ -1,0 +1,79 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-dpi-9001005",
+  "name": "[LY-FRP-005] FRP TLS First Byte 0x17 Fixed Pattern",
+  "description": "[LY-FRP-005] FRP TLS First Byte 0x17 Fixed Pattern",
+  "category": "dpi",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal/dpi",
+    "version": "2026.05",
+    "upstream_id": "9001005",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/ly-custom/frp.rules",
+    "converted_path": "rules/internal/dpi/lyflow/generated/"
+  },
+  "support": {
+    "level": "partial_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from LyFlow custom Suricata-like DPI rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.7,
+    "rationale": "Mapped from LyFlow custom DPI rule message."
+  },
+  "scoring": {
+    "base_score": 70,
+    "severity": "high",
+    "upstream_score": {
+      "sid": 9001005
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "domain"
+    ],
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "tcp"
+      }
+    ],
+    "suricata": {
+      "sid": 9001005,
+      "rev": 1,
+      "msg": "[LY-FRP-005] FRP TLS First Byte 0x17 Fixed Pattern",
+      "raw": "alert tcp any any -> any any (msg:\"[LY-FRP-005] FRP TLS First Byte 0x17 Fixed Pattern\"; content:\"|17 03|\"; byte_test:1,=,0x17,2,relative; flow:established; classtype:protocol-violation; sid:9001005; rev:1;)"
+    }
+  },
+  "provenance": [
+    {
+      "source": "rules/ly-custom/frp.rules",
+      "sid": 9001005,
+      "rev": 1,
+      "line": 30
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-dpi-9006013",
+  "name": "[LY-LATERAL-007] RDP Drive Redirection",
+  "description": "[LY-LATERAL-007] RDP Drive Redirection",
+  "category": "dpi",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal/dpi",
+    "version": "2026.05",
+    "upstream_id": "9006013",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/ly-custom/lateral.rules",
+    "converted_path": "rules/internal/dpi/lyflow/generated/"
+  },
+  "support": {
+    "level": "partial_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from LyFlow custom Suricata-like DPI rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.7,
+    "rationale": "Mapped from LyFlow custom DPI rule message."
+  },
+  "scoring": {
+    "base_score": 70,
+    "severity": "high",
+    "upstream_score": {
+      "sid": 9006013
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "domain"
+    ],
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "rdp"
+      }
+    ],
+    "suricata": {
+      "sid": 9006013,
+      "rev": 1,
+      "msg": "[LY-LATERAL-007] RDP Drive Redirection",
+      "raw": "alert rdp any any -> any any (msg:\"[LY-LATERAL-007] RDP Drive Redirection\"; content:\"DRIVE\"; nocase; content:\"RDPDR\"; nocase; classtype:attempted-recon; sid:9006013; rev:1;)"
+    }
+  },
+  "provenance": [
+    {
+      "source": "rules/ly-custom/lateral.rules",
+      "sid": 9006013,
+      "rev": 1,
+      "line": 50
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  }
+}

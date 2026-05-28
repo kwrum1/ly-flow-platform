@@ -1,0 +1,88 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-31156",
+  "name": "Nginx 403 禁止",
+  "description": "Nginx 403 禁止访问",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal",
+    "version": "2026.05",
+    "upstream_id": "31156",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/xdr/nginx_rules.yaml",
+    "converted_path": "rules/internal/hids/lyflow/generated/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from existing LyFlow internal XDR rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.75,
+    "rationale": "Mapped from existing LyFlow groups and MITRE tags."
+  },
+  "scoring": {
+    "base_score": 30,
+    "severity": "low",
+    "upstream_score": {
+      "lyflow_level": 3
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "host.id",
+      "network.src_ip",
+      "user.name"
+    ],
+    "conditions": [
+      {
+        "field": "metadata.line",
+        "operator": "contains",
+        "value": "403"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/xdr/nginx_rules.yaml",
+      "rule_id": 31156,
+      "groups": [
+        "forbidden",
+        "access_denied"
+      ]
+    },
+    {
+      "source": "rules/internal/hids/lyflow/generated/lyflow-internal-31156.json",
+      "rule_id": "lyflow-internal-31156",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "793465caf9a46ab0",
+    "merged_rule_ids": [
+      "lyflow-internal-31156"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/redis/go-redis/v9"
+	"ly-flow-platform/dpi-engine/model"
 )
 
 const (
@@ -33,27 +34,36 @@ type Alert struct {
 	Status    string    `json:"status"`
 	SensorID  string    `json:"sensor_id"`
 	Domain    string    `json:"domain,omitempty"`
+	Data      string    `json:"data,omitempty"`
 }
 
 // Output handles alert output to Redis Stream
 type Output struct {
-	client    *redis.Client
-	stream    string
-	ctx       context.Context
-	mu        sync.Mutex
-	queue     []*Alert
-	wg        sync.WaitGroup
-	running   atomic.Bool
-	stats     struct{ Sent uint64; Errors uint64 }
+	client         *redis.Client
+	stream         string
+	semanticStream string
+	sessionStream  string
+	ctx            context.Context
+	mu             sync.Mutex
+	queue          []*Alert
+	wg             sync.WaitGroup
+	running        atomic.Bool
+	stats          struct{ Sent uint64; Errors uint64 }
 }
 
 // New creates a new output handler
 func New(client *redis.Client, stream string) *Output {
+	return NewWithStreams(client, stream, "flows:semantic", "sessions:semantic")
+}
+
+func NewWithStreams(client *redis.Client, alertStream, semanticStream, sessionStream string) *Output {
 	return &Output{
-		client: client,
-		stream: stream,
-		ctx:    context.Background(),
-		queue:  make([]*Alert, 0, batchSize),
+		client:         client,
+		stream:         alertStream,
+		semanticStream: semanticStream,
+		sessionStream:  sessionStream,
+		ctx:            context.Background(),
+		queue:          make([]*Alert, 0, batchSize),
 	}
 }
 
@@ -122,14 +132,41 @@ func (o *Output) flush() {
 		})
 	}
 
-	_, err := pipe.Exec(o.ctx)
-	if err != nil {
-		atomic.AddUint64(&o.stats.Errors, uint64(len(alerts)))
-		log.Printf("[output] Batch error: %v", err)
-		return
+	if _, err := pipe.Exec(o.ctx); err != nil {
+		atomic.AddUint64(&o.stats.Errors, 1)
+		log.Printf("[output] XAdd error: %v", err)
+	} else {
+		atomic.AddUint64(&o.stats.Sent, uint64(len(alerts)))
+	}
+}
+
+// SendAlert queues an alert for output (accepts model.Alert)
+func (o *Output) SendAlert(alert *model.Alert) {
+	o.mu.Lock()
+	defer o.mu.Unlock()
+
+	outAlert := &Alert{
+		ID:        uint64(alert.Timestamp.UnixNano()),
+		Timestamp: alert.Timestamp.Format(time.RFC3339),
+		Type:      alert.Type,
+		SrcIP:     alert.SrcIP,
+		DstIP:     alert.DstIP,
+		SrcPort:   alert.SrcPort,
+		DstPort:   alert.DstPort,
+		Protocol:  alert.Protocol,
+		Signature: alert.Signature,
+		Category:  alert.Category,
+		Severity:  alert.Severity,
+		Score:     alert.Score,
+		Status:    alert.Status,
+		SensorID:  alert.SensorID,
+		Domain:    alert.Domain,
 	}
 
-	atomic.AddUint64(&o.stats.Sent, uint64(len(alerts)))
+	o.queue = append(o.queue, outAlert)
+	if len(o.queue) >= batchSize {
+		go o.flush()
+	}
 }
 
 // Send queues an alert for output
@@ -146,22 +183,39 @@ func (o *Output) Send(alert *Alert) {
 
 // SendDirect sends an alert immediately (bypass queue)
 func (o *Output) SendDirect(alert *Alert) error {
-	data, err := json.Marshal(alert)
+	return o.sendJSONToStream(o.stream, "dpi_alert", alert)
+}
+
+func (o *Output) SendSemanticFlow(flow *model.SemanticFlow) error {
+	if flow == nil {
+		return nil
+	}
+	return o.sendJSONToStream(o.semanticStream, "semantic_flow", flow)
+}
+
+func (o *Output) SendSemanticSession(session *model.SemanticSession) error {
+	if session == nil {
+		return nil
+	}
+	return o.sendJSONToStream(o.sessionStream, "semantic_session", session)
+}
+
+func (o *Output) sendJSONToStream(stream, payloadType string, payload interface{}) error {
+	data, err := json.Marshal(payload)
 	if err != nil {
 		atomic.AddUint64(&o.stats.Errors, 1)
 		return err
 	}
 
 	err = o.client.XAdd(o.ctx, &redis.XAddArgs{
-		Stream: o.stream,
+		Stream: stream,
 		MaxLen: 10000,
 		Approx: true,
 		Values: map[string]interface{}{
-			"type": "dpi_alert",
+			"type": payloadType,
 			"data": string(data),
 		},
 	}).Err()
-
 	if err == nil {
 		atomic.AddUint64(&o.stats.Sent, 1)
 	} else {

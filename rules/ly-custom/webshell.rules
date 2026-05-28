@@ -1,0 +1,166 @@
+# 流影自定义安全规则 - WebShell检测
+# 版本: 1.0.0
+# 更新时间: 2026-05-09
+# 说明: 检测各类WebShell特征
+
+# ============ PHP WebShell ============
+
+# PHP eval base64_decode
+alert http any any -> any any (msg:"[LY-WSHELL-PHP-001] PHP eval base64_decode WebShell"; \
+    method:POST; \
+    content:"eval"; nocase; \
+    content:"base64_decode"; nocase; \
+    classtype:web-application-attack; sid:9004001; rev:1;)
+
+# PHP system exec
+alert http any any -> any any (msg:"[LY-WSHELL-PHP-002] PHP system exec WebShell"; \
+    method:POST; \
+    content:"system"; nocase; \
+    content:"exec"; nocase; \
+    content:"passthru"; nocase; \
+    classtype:web-application-attack; sid:9004003; rev:1;)
+
+# PHP assert function
+alert http any any -> any any (msg:"[LY-WSHELL-PHP-003] PHP assert WebShell"; \
+    method:POST; \
+    content:"assert"; nocase; \
+    content:"base64"; nocase; \
+    classtype:web-application-attack; sid:9004003; rev:1;)
+
+# PHP create_function
+alert http any any -> any any (msg:"[LY-WSHELL-PHP-004] PHP create_function Hook"; \
+    method:POST; \
+    content:"create_function"; nocase; \
+    classtype:web-application-attack; sid:9004004; rev:1;)
+
+# PHP preg_replace eval
+alert http any any -> any any (msg:"[LY-WSHELL-PHP-005] PHP preg_replace e modifier"; \
+    method:POST; \
+    content:"preg_replace"; nocase; \
+    content:"/.*/e"; nocase; \
+    classtype:web-application-attack; sid:9004005; rev:1;)
+
+# ============ JSP WebShell ============
+
+# JSP Runtime getRuntime
+alert http any any -> any any (msg:"[LY-WSHELL-JSP-001] JSP Runtime getRuntime Execution"; \
+    method:POST; \
+    content:"Runtime"; \
+    content:"getRuntime"; \
+    content:"exec"; \
+    classtype:web-application-attack; sid:9004101; rev:1;)
+
+# JSP ProcessBuilder
+alert http any any -> any any (msg:"[LY-WSHELL-JSP-002] JSP ProcessBuilder Execution"; \
+    method:POST; \
+    content:"ProcessBuilder"; \
+    classtype:web-application-attack; sid:9004102; rev:1;)
+
+# JSP Reverse Shell
+alert http any any -> any any (msg:"[LY-WSHELL-JSP-003] JSP Reverse Shell Pattern"; \
+    method:POST; \
+    content:"Socket"; \
+    content:"BufferedReader"; \
+    content:"InputStreamReader"; \
+    classtype:web-application-attack; sid:9004103; rev:1;)
+
+# ============ ASP WebShell ============
+
+# ASP eval Execute
+alert http any any -> any any (msg:"[LY-WSHELL-ASP-001] ASP eval Execute WebShell"; \
+    method:POST; \
+    content:"eval"; nocase; \
+    content:"Execute"; nocase; \
+    content:"Request"; nocase; \
+    classtype:web-application-attack; sid:9004201; rev:1;)
+
+# ASP cmd.exe
+alert http any any -> any any (msg:"[LY-WSHELL-ASP-002] ASP cmd.exe Execution"; \
+    method:POST; \
+    content:"cmd.exe"; nocase; \
+    content:"/c"; nocase; \
+    classtype:web-application-attack; sid:9004202; rev:1;)
+
+# ASP Shell.Application
+alert http any any -> any any (msg:"[LY-WSHELL-ASP-003] ASP Shell.Application Object"; \
+    method:POST; \
+    content:"Shell.Application"; nocase; \
+    classtype:web-application-attack; sid:9004203; rev:1;)
+
+# ============ Chinese WebShell Keywords ============
+
+# WScript.Shell
+alert http any any -> any any (msg:"[LY-WSHELL-CN-001] WScript.Shell Object"; \
+    content:"WScript.Shell"; nocase; \
+    classtype:web-application-attack; sid:9004301; rev:1;)
+
+# cmd.exe Shell
+alert http any any -> any any (msg:"[LY-WSHELL-CN-002] cmd.exe Shell Execution"; \
+    content:"cmd.exe"; nocase; \
+    content:"/c"; nocase; \
+    classtype:web-application-attack; sid:9004302; rev:1;)
+
+# Shell.Application
+alert http any any -> any any (msg:"[LY-WSHELL-CN-003] Shell.Application Object"; \
+    content:"Shell.Application"; nocase; \
+    classtype:web-application-attack; sid:9004303; rev:1;)
+
+# Chinese Encoder Keywords
+alert http any any -> any any (msg:"[LY-WSHELL-CN-004] Chinese Encoder Keywords"; \
+    content:"Chopper"; nocase; \
+    content:"aspxspy"; nocase; \
+    classtype:web-application-attack; sid:9004304; rev:1;)
+
+# ============ Encoding WebShell ============
+
+# Base64 Encoded Command POST
+alert http any any -> any any (msg:"[LY-WSHELL-ENC-001] Base64 Encoded Command POST"; \
+    method:POST; \
+    content:"Content-Type: application/x-www-form-urlencoded"; \
+    pcre:"/[A-Za-z0-9+\/]{50,}={0,2}$/"; \
+    threshold:type threshold, track by_src, count 5, seconds 60; \
+    classtype:web-application-attack; sid:9004401; rev:1;)
+
+# Rot13 Encoding Pattern
+alert http any any -> any any (msg:"[LY-WSHELL-ENC-002] Rot13 Encoding Pattern"; \
+    content:"str_rot13"; nocase; \
+    classtype:web-application-attack; sid:9004402; rev:1;)
+
+# ============ reGeorg/Neo-reGeorg ============
+
+# reGeorg WebSocket Tunnel
+alert http any any -> any any (msg:"[LY-WSHELL-RG-001] reGeorg WebSocket Tunnel"; \
+    content:"Upgrade"; nocase; \
+    content:"websocket"; nocase; \
+    content:"/~!frp"; nocase; \
+    flow:established,to_server; \
+    classtype:trojan-activity; sid:9004501; rev:1;)
+
+# Neo-reGeorg Session Pattern
+alert http any any -> any any (msg:"[LY-WSHELL-RG-002] Neo-reGeorg Session Pattern"; \
+    method:POST; \
+    content:"nance"; nocase; \
+    content:"sessionid"; nocase; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:trojan-activity; sid:9004502; rev:1;)
+
+# ============ Godzilla WebShell ============
+
+# Godzilla WebShell
+alert http any any -> any any (msg:"[LY-WSHELL-GZ-001] Godzilla WebShell Pattern"; \
+    content:"pass"; nocase; \
+    content:"key"; nocase; \
+    content:"AES"; nocase; \
+    threshold:type threshold, track by_src, count 5, seconds 60; \
+    classtype:web-application-attack; sid:9004601; rev:1;)
+
+# ============ Behinder WebShell ============
+
+# Behinder WebShell
+alert http any any -> any any (msg:"[LY-WSHELL-BH-001] Behinder WebShell Pattern"; \
+    method:POST; \
+    content:"pass"; nocase; \
+    content:"冰蝎"; nocase; \
+    content:"哥斯拉"; nocase; \
+    threshold:type threshold, track by_src, count 3, seconds 30; \
+    classtype:web-application-attack; sid:9004701; rev:1;)

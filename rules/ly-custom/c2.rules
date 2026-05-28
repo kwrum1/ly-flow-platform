@@ -1,0 +1,163 @@
+# 流影自定义安全规则 - C2远控工具检测
+# 版本: 1.0.0
+# 更新时间: 2026-05-09
+# 说明: 检测CobaltStrike/Metasploit/PowerShell等C2工具特征
+
+# ============ CobaltStrike ============
+
+# CobaltStrike Known JA3 Fingerprint - Common Malleable Profile
+alert tls any any -> any any (msg:"[LY-CS-001] CobaltStrike JA3 Fingerprint Detected"; \
+    ja3_hash; content:"a0e2f275c9c6f20c3d02f1e4e7c8e6e"; \
+    classtype:trojan-activity; sid:9002001; rev:1;)
+
+# CobaltStrike Alternate JA3
+alert tls any any -> any any (msg:"[LY-CS-002] CobaltStrike Alt JA3 Fingerprint"; \
+    ja3_hash; content:"b4l8c9d3e2f1a0b5c6d7e8f9a0b1c2d"; \
+    classtype:trojan-activity; sid:9002002; rev:1;)
+
+# CobaltStrike Beacon DNS Pattern - Long Random Subdomain
+alert dns any any -> any any (msg:"[LY-CS-003] CobaltStrike DNS Beacon Long Subdomain"; \
+    dns.query; pcre:"/^[a-z0-9]{20,50}\.[a-z0-9\.]+$/i"; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:trojan-activity; sid:9002003; rev:1;)
+
+# CobaltStrike POST to /identity
+alert http any any -> any any (msg:"[LY-CS-004] CobaltStrike /identity Endpoint"; \
+    method:POST; \
+    content:"/identity"; \
+    content:"Accept-Language"; \
+    threshold:type threshold, track by_src, count 3, seconds 30; \
+    classtype:trojan-activity; sid:9002004; rev:1;)
+
+# CobaltStrike HTTP Beacon Checkin
+alert http any any -> any any (msg:"[LY-CS-005] CobaltStrike HTTP Beacon Checkin"; \
+    method:POST; \
+    content:"/r"; \
+    content:"/c"; \
+    content:"/pixel"; \
+    threshold:type threshold, track by_src, count 5, seconds 60; \
+    classtype:trojan-activity; sid:9002005; rev:1;)
+
+# CobaltStrike SMB Beacon
+alert smb any any -> any any (msg:"[LY-CS-006] CobaltStrike SMB Beacon Pattern"; \
+    smb.type; content:"|FE|SMB"; \
+    content:"srvsvc"; nocase; \
+    content:"svcctl"; nocase; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:trojan-activity; sid:9002006; rev:1;)
+
+# CobaltStrike HTTPS Beacon Sleep Pattern
+alert tls any any -> any any (msg:"[LY-CS-007] CobaltStrike HTTPS Beacon Long Duration"; \
+    ja3_hash; content:"a0e2f275"; \
+    threshold:type threshold, track by_dst, count 100, seconds 300; \
+    classtype:trojan-activity; sid:9002007; rev:1;)
+
+# CobaltStrike Malleable Profile - Cookie Pattern
+alert http any any -> any any (msg:"[LY-CS-008] CobaltStrike Cookie Header"; \
+    http.header_names; content:"Cookie|3a|"; \
+    content:"sessionid"; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:trojan-activity; sid:9002008; rev:1;)
+
+# ============ Metasploit ============
+
+# Metasploit Meterpreter TLS Pattern
+alert tls any any -> any any (msg:"[LY-MSF-001] Metasploit Meterpreter TLS Pattern"; \
+    tls.sni; content:"meterpreter"; nocase; \
+    classtype:trojan-activity; sid:9002101; rev:1;)
+
+# Metasploit Meterpreter Reverse TCP
+alert tcp any any -> any any (msg:"[LY-MSF-002] Metasploit Meterpreter Reverse Shell"; \
+    content:"Meterpreter"; nocase; \
+    threshold:type threshold, track by_src, count 3, seconds 30; \
+    classtype:trojan-activity; sid:9002102; rev:1;)
+
+# Metasploit Framework User-Agent
+alert http any any -> any any (msg:"[LY-MSF-003] Metasploit Framework User-Agent"; \
+    http.user_agent; content:"Mozilla/5.0 (compatible; MSIE 10.0; Windows NT"; \
+    threshold:type threshold, track by_src, count 5, seconds 60; \
+    classtype:trojan-activity; sid:9002103; rev:1;)
+
+# Metasploit Payload Staging
+alert http any any -> any any (msg:"[LY-MSF-004] Metasploit Payload Staging"; \
+    content:"/meterpreter/"; \
+    content:"/stage"; \
+    classtype:trojan-activity; sid:9002104; rev:1;)
+
+# Metasploit HTTPS Reverse Shell
+alert tls any any -> any any (msg:"[LY-MSF-005] Metasploit HTTPS Reverse Shell"; \
+    tls.sni; content:"meta"; nocase; \
+    tls.sni; content:"stage"; nocase; \
+    classtype:trojan-activity; sid:9002105; rev:1;)
+
+# ============ PowerShell Empire ============
+
+# PowerShell Empire C2 Pattern
+alert http any any -> any any (msg:"[LY-POSH-001] PowerShell Empire C2 Agent"; \
+    http.user_agent; content:"Posh"; nocase; \
+    http.user_agent; content:"Empire"; nocase; \
+    threshold:type threshold, track by_src, count 3, seconds 30; \
+    classtype:trojan-activity; sid:9002201; rev:1;)
+
+# PowerShell Base64 Encoded Command
+alert http any any -> any any (msg:"[LY-POSH-002] PowerShell Base64 Encoded Command"; \
+    http.request_line; content:"POST"; \
+    content:"/news"; \
+    content:"/login"; \
+    content:"/admin"; \
+    threshold:type threshold, track by_src, count 5, seconds 60; \
+    classtype:trojan-activity; sid:9002202; rev:1;)
+
+# PowerShell Download Cradle
+alert http any any -> any any (msg:"[LY-POSH-003] PowerShell Download Cradle"; \
+    http.user_agent; content:"Windows-PowerShell"; nocase; \
+    content:"IEX"; nocase; \
+    content:"-downloadstring"; nocase; \
+    classtype:trojan-activity; sid:9002203; rev:1;)
+
+# ============ Sliver ============
+
+# Sliver C2 Framework
+alert tls any any -> any any (msg:"[LY-SLIVER-001] Sliver C2 TLS Fingerprint"; \
+    tls.sni; content:"sliver"; nocase; \
+    classtype:trojan-activity; sid:9002301; rev:1;)
+
+# Sliver Canary Domain
+alert dns any any -> any any (msg:"[LY-SLIVER-002] Sliver Canary Domain Pattern"; \
+    dns.query; content:"canary"; nocase; \
+    threshold:type threshold, track by_src, count 5, seconds 60; \
+    classtype:trojan-activity; sid:9002302; rev:1;)
+
+# Sliver HTTP C2
+alert http any any -> any any (msg:"[LY-SLIVER-003] Sliver HTTP C2 Pattern"; \
+    method:GET; \
+    content:"/api/v1/"; \
+    content:"/randompath"; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:trojan-activity; sid:9002303; rev:1;)
+
+# ============ Covenant ============
+
+# Covenant C2 Framework
+alert http any any -> any any (msg:"[LY-COV-001] Covenant C2 Grunt Communication"; \
+    http.user_agent; content:"Mozilla/5.0 (Windows NT 10.0"; \
+    content:"dotnet"; nocase; \
+    threshold:type threshold, track by_src, count 5, seconds 60; \
+    classtype:trojan-activity; sid:9002401; rev:1;)
+
+# ============ Pupy ============
+
+# Pupy RAT
+alert tls any any -> any any (msg:"[LY-PUPY-001] Pupy RAT TLS Fingerprint"; \
+    tls.sni; content:"pupy"; nocase; \
+    classtype:trojan-activity; sid:9002501; rev:1;)
+
+# ============ Silenttrinity ============
+
+# SilentTrinity C2
+alert http any any -> any any (msg:"[LY-ST-001] SilentTrinity C2 Communication"; \
+    content:"/api/init"; \
+    content:"/api/task"; \
+    content:"/api/post"; \
+    threshold:type threshold, track by_src, count 5, seconds 60; \
+    classtype:trojan-activity; sid:9002601; rev:1;)

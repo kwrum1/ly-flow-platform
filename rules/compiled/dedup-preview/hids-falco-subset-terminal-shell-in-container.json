@@ -1,0 +1,96 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "falco-subset-terminal-shell-in-container",
+  "name": "Terminal shell in container",
+  "description": "A shell was spawned in a container",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "external_subscription",
+    "vendor": "Falco Project",
+    "license": "Apache-2.0",
+    "url": "https://github.com/falcosecurity/rules",
+    "version": "fixture",
+    "upstream_id": "Terminal shell in container",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/subscriptions/falco/raw/falco-fixture.yaml",
+    "converted_path": "rules/subscriptions/falco/converted/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Converted from Falco supported subset fixture"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.74,
+    "rationale": "Mapped from Falco tags and supported fields."
+  },
+  "scoring": {
+    "base_score": 58,
+    "severity": "medium",
+    "upstream_score": {
+      "falco_priority": "WARNING"
+    },
+    "source_reliability": 76
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "host.id",
+      "user.name",
+      "process.pid"
+    ],
+    "conditions": [
+      {
+        "field": "process.name",
+        "operator": "regex",
+        "value": "proc.name in (bash, sh, zsh) and user.name != root"
+      },
+      {
+        "field": "user.name",
+        "operator": "regex",
+        "value": "proc.name in (bash, sh, zsh) and user.name != root"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/subscriptions/falco/raw/falco-fixture.yaml",
+      "rule": "Terminal shell in container",
+      "condition": "proc.name in (bash, sh, zsh) and user.name != root",
+      "output": "Shell spawned (user=%user.name command=%proc.cmdline)",
+      "tags": [
+        "container",
+        "shell",
+        "execution"
+      ]
+    },
+    {
+      "source": "rules/subscriptions/falco/converted/falco-subset-terminal-shell-in-container.json",
+      "rule_id": "falco-subset-terminal-shell-in-container",
+      "vendor": "Falco Project"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "016e2d9685c49347",
+    "merged_rule_ids": [
+      "falco-subset-terminal-shell-in-container"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

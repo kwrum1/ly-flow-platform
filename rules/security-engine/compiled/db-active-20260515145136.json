@@ -1,0 +1,3009 @@
+{
+  "version": "db-active-20260515145136",
+  "rules": [
+    {
+      "id": "log-ssh-failure-default",
+      "name": "SSH Authentication Failure Log",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 55,
+      "stage_hint": "initial_access",
+      "field": "message",
+      "value": "(?i)(failed password|invalid user|authentication failure)",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "elastic-linux-elastic-linux-useradd-fixture",
+      "name": "Linux User Account Creation",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 63,
+      "stage_hint": "persistence",
+      "field": "message",
+      "value": "Linux User Account Creation",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "cmdline",
+          "operator": "regex",
+          "regex": true,
+          "value": "process.name: useradd or process.command_line: *useradd*"
+        },
+        {
+          "field": "process_name",
+          "operator": "regex",
+          "regex": true,
+          "value": "process.name: useradd or process.command_line: *useradd*"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1002",
+      "name": "Rootkit Detection",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "persistence",
+      "field": "message",
+      "value": "Rootkit Detection",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\.bash_history|\\\\.ssh\\\\/authorized_keys|\\\\/etc\\\\/cron)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(nc\\\\s+-l|ncat|\\\\/dev\\\\/tcp|\\\\/bin\\\\/sh.*-i)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1003",
+      "name": "Persistence Mechanism",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 97,
+      "stage_hint": "persistence",
+      "field": "message",
+      "value": "Persistence Mechanism",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(crontab.*\\\\*|cron\\\\.d|systemd.*timer|init\\\\.d)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(systemctl.*enable|update-rc\\\\.d|chkconfig)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1004",
+      "name": "Bruteforce from single-source",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 69,
+      "stage_hint": "initial_access",
+      "field": "message",
+      "value": "Bruteforce from single-source",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(Failed\\\\s+password|authentication\\\\s+failure|incorrect)"
+        },
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "10"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1005",
+      "name": "Bruteforce from multi-sources",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 69,
+      "stage_hint": "initial_access",
+      "field": "message",
+      "value": "Bruteforce from multi-sources",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "50"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1006",
+      "name": "Bruteforce success",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "initial_access",
+      "field": "message",
+      "value": "Bruteforce success",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(Accepted\\\\s+password|session\\\\s+opened|login\\\\s+successful)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1007",
+      "name": "SSH Key Auth Brute Force",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 93,
+      "stage_hint": "initial_access",
+      "field": "message",
+      "value": "SSH Key Auth Brute Force",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(Did\\\\s+not\\\\s+receive|bad\\\\s+signature|signature)"
+        },
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "20"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1008",
+      "name": "Binary file hijack",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "persistence",
+      "field": "message",
+      "value": "Binary file hijack",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\/usr\\\\/bin|\\\\/bin|\\\\/sbin|\\\\/usr\\\\/sbin)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(chmod\\\\s+\\\\+x|wget.*http|curl.*-o|scp.*\\\\|)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1009",
+      "name": "SSH Binary Replacement",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "persistence",
+      "field": "message",
+      "value": "SSH Binary Replacement",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\/usr\\\\/sbin\\\\/sshd|\\\\/usr\\\\/bin\\\\/ssh|\\\\/etc\\\\/ssh)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(modify.*timestamp|write.*binary|replace.*binary)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1010",
+      "name": "Library Injection",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "persistence",
+      "field": "message",
+      "value": "Library Injection",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(LD_PRELOAD|LD_AUDIT|LD_LIBRARY_PATH)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\.so$|\\\\.so\\\\..|\\\\/usr\\\\/lib\\\\/security)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1011",
+      "name": "Port Scan Detection",
+      "category": "log_audit",
+      "severity": "high",
+      "score_hint": 77,
+      "stage_hint": "c2_exfiltration",
+      "field": "message",
+      "value": "Port Scan Detection",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(SYN.*SENT|SYN.*RECV|connect.*fail)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "50"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1012",
+      "name": "Suspicious Outbound Connection",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "c2_exfiltration",
+      "field": "message",
+      "value": "Suspicious Outbound Connection",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(external\\\\.ip|malicious\\\\.domain|c2\\\\.server|backdoor\\\\.connect)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(443->4444|80->8080|https->http)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1013",
+      "name": "Reverse Shell Detection",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "c2_exfiltration",
+      "field": "message",
+      "value": "Reverse Shell Detection",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\/dev\\\\/tcp|\\\\$\\\\(.*\\\\)|bash\\\\s+-i|/bin/sh\\\\s+-i)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(nc\\\\s+-[el]|ncat|mkfifo|python.*-c)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1014",
+      "name": "DNS Tunnel Detection",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "c2_exfiltration",
+      "field": "message",
+      "value": "DNS Tunnel Detection",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(subdomain\\\\..*\\\\.length|base64.*\\\\.dns|tunnel\\\\.domain)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "100"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1016",
+      "name": "SUID Binary Exploitation",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 99,
+      "stage_hint": "privilege_escalation",
+      "field": "message",
+      "value": "SUID Binary Exploitation",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(-p\\\\s+.*\\\\$|exec\\\\s+suid|nohup.*\\\\&)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(find.*-perm.*4000|\\\\.\\\\./.*root)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1017",
+      "name": "Sudo Privilege Escalation",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 99,
+      "stage_hint": "privilege_escalation",
+      "field": "message",
+      "value": "Sudo Privilege Escalation",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(sudo\\\\s+-u|wheel.*group|sudoers)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(su\\\\s+root|sudo\\\\s+su|sudo\\\\s+-i)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1018",
+      "name": "Capability Exploitation",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "privilege_escalation",
+      "field": "message",
+      "value": "Capability Exploitation",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(CAP_SYS_ADMIN|CAP_NET_RAW|CAP_SYS_PTRACE)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(setcap.*\\\\+|capset|PR_SET_KEEPCAPS)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1019",
+      "name": "Docker Privilege Escalation",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "privilege_escalation",
+      "field": "message",
+      "value": "Docker Privilege Escalation",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(docker.sock|docker.sock:/var/run)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(--privileged|\\\\.dockerenv|\\\\/host)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1020",
+      "name": "K8s Privilege Escalation",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "privilege_escalation",
+      "field": "message",
+      "value": "K8s Privilege Escalation",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(serviceaccount|system:serviceaccount)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(hostPath|hostNetwork|privileged)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1021",
+      "name": "SSH Lateral Movement",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 99,
+      "stage_hint": "lateral_movement",
+      "field": "message",
+      "value": "SSH Lateral Movement",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(ssh.*-o|scp.*\\\\:|rsync.*-e)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(known_hosts|known_hosts.*hash)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1022",
+      "name": "WMI Lateral Movement",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "lateral_movement",
+      "field": "message",
+      "value": "WMI Lateral Movement",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(wmic.*process|wmic.*call|wmiexec)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(psexec.*\\\\\\\\|at.*\\\\\\\\|schtasks.*\\\\\\\\)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1023",
+      "name": "Pass-the-Hash Attack",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "lateral_movement",
+      "field": "message",
+      "value": "Pass-the-Hash Attack",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(ntlm|lm_hash|\\\\$NT\\\\$|passwd.*hash)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1024",
+      "name": "Large Data Transfer",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 95,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Large Data Transfer",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "104857600"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1025",
+      "name": "Sensitive File Access",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 95,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Sensitive File Access",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\/etc\\\\/passwd|\\\\/etc\\\\/shadow|\\\\/etc\\\\/sudoers)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\.env|credentials\\\\.json|secrets\\\\.yaml)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\.ssh|\\\\.aws|\\\\.gcp|\\\\.azure)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1026",
+      "name": "Database Export",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Database Export",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(mysqldump|pg_dump|mongoexport|redis-cli.*save)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\.sql$|\\\\.csv$|\\\\.dump$)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1029",
+      "name": "Container Escape Attempt",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Container Escape Attempt",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\/proc\\\\/1\\\\/mount|\\\\/host\\\\/proc|\\\\/host\\\\/sys)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(nsenter|unshare|setns|cgroups)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1030",
+      "name": "Privileged Container",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 95,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Privileged Container",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(security-opt.*seccomp|security-opt.*apparmor)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(cap-add.*ALL|privileged.*true)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1032",
+      "name": "JSP WebShell Detection",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "JSP WebShell Detection",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(Runtime\\\\.getRuntime|ProcessBuilder|java\\\\.lang\\\\.Process)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(request\\\\.getParameter|response\\\\.setHeader)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(ClassLoader.*defineClass|MethodHandle|INVOKEDYNAMIC)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "falco-subset-terminal-shell-in-container",
+      "name": "Terminal shell in container",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 69,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Terminal shell in container",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "process_name",
+          "operator": "regex",
+          "regex": true,
+          "value": "proc.name in (bash, sh, zsh) and user.name != root"
+        },
+        {
+          "field": "user_name",
+          "operator": "regex",
+          "regex": true,
+          "value": "proc.name in (bash, sh, zsh) and user.name != root"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-100110",
+      "name": "MySQL 访问拒绝",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 69,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "MySQL 访问拒绝",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Access denied for user"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-100112",
+      "name": "MySQL 错误",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "MySQL 错误",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Got error"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-100113",
+      "name": "MySQL 慢查询",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "MySQL 慢查询",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Slow query"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-100114",
+      "name": "MySQL 连接数过多",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 69,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "MySQL 连接数过多",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Too many connections"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-100115",
+      "name": "MySQL 死锁",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "MySQL 死锁",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Deadlock found"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-100116",
+      "name": "MySQL 二进制日志错误",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "MySQL 二进制日志错误",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Error in Log_event"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-100117",
+      "name": "MySQL 表损坏",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 69,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "MySQL 表损坏",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "Table.*corrupt|can't open"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-100118",
+      "name": "MySQL 权限错误",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 69,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "MySQL 权限错误",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "command denied|privilege error"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-100119",
+      "name": "MySQL 主从复制错误",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 69,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "MySQL 主从复制错误",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "replication error|Slave I/O|got fatal exception"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-31101",
+      "name": "Nginx SQL 注入扫描",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 92,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Nginx SQL 注入扫描",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(union|select|insert|delete|drop|--|' OR '|' AND )"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-31151",
+      "name": "Nginx Web 扫描器",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 69,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Nginx Web 扫描器",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(nikto|sqlmap|acunetix|burp|nessus|nmap|masscan)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-31152",
+      "name": "Nginx 目录遍历",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 69,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Nginx 目录遍历",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(\\\\.\\\\./|\\\\.\\\\.\\\\\\\\\\\\.|%2e%2e)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-31153",
+      "name": "Nginx 404 洪水",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 69,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Nginx 404 洪水",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "404"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-31154",
+      "name": "Nginx 500 错误",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Nginx 500 错误",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "500"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-31155",
+      "name": "Nginx 502 错误",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Nginx 502 错误",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "502"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-31156",
+      "name": "Nginx 403 禁止",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Nginx 403 禁止",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "403"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-31157",
+      "name": "Nginx 认证失败",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Nginx 认证失败",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "401"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-31158",
+      "name": "Nginx 恶意文件上传",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 92,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Nginx 恶意文件上传",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(\\\\.php|\\.asp|\\.jsp|\\.exe|\\.sh|\\.cgi)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-31159",
+      "name": "Nginx XML 外部实体注入",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 92,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Nginx XML 外部实体注入",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(<!DOCTYPE|<!ENTITY|CDATA|xxe)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-31160",
+      "name": "Nginx 反序列化攻击",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 92,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Nginx 反序列化攻击",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(O:{|a:Serialization|java.io|ObjectInputStream)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-5710",
+      "name": "SSH 尝试使用不存在的用户登录",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "SSH 尝试使用不存在的用户登录",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "illegal user|invalid user"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-5711",
+      "name": "SSH 成功登录",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "SSH 成功登录",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Accepted"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-5713",
+      "name": "SSH 用户认证失败",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "SSH 用户认证失败",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "Failed password|^Failed|^error: PAM: Authentication"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-5714",
+      "name": "SSH CRC-32 补偿攻击",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "SSH CRC-32 补偿攻击",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Local: crc32 compensation attack"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-5715",
+      "name": "SSH 用户被拒绝",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "SSH 用户被拒绝",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "not allowed because"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-5716",
+      "name": "SSH 认证失败",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "SSH 认证失败",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "error: PAM: Authentication"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-5717",
+      "name": "SSH 连接关闭",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "SSH 连接关闭",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Connection closed"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-5720",
+      "name": "SSH PAM 错误",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "SSH PAM 错误",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "error: PAM:"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-5721",
+      "name": "SSH 超时",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "SSH 超时",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Timeout"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-5722",
+      "name": "SSH 密钥不匹配",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "SSH 密钥不匹配",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "key_regulate_before"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-60101",
+      "name": "系统认证失败",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "系统认证失败",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "authentication failure"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-60102",
+      "name": "用户会话打开",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "用户会话打开",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "session opened"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-60103",
+      "name": "用户会话关闭",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "用户会话关闭",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "session closed"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-60105",
+      "name": "Sudo 认证失败",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Sudo 认证失败",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "sudo:.*authentication failure"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-60106",
+      "name": "Cron 任务执行",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "Cron 任务执行",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "CRON"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-60107",
+      "name": "系统启动",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "系统启动",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "systemd\\\\[1\\\\]:"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-60108",
+      "name": "服务启动失败",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 69,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "服务启动失败",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Failed to start"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-60109",
+      "name": "系统重启",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "系统重启",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "systemd\\\\[1\\\\]:.*reboot|shutdown"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-60110",
+      "name": "PAM 密码检查失败",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 44,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "PAM 密码检查失败",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "password check failed"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-60111",
+      "name": "系统磁盘空间不足",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 69,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "系统磁盘空间不足",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "No space left on device"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-60112",
+      "name": "用户被添加到 sudo 组",
+      "category": "log_audit",
+      "severity": "high",
+      "score_hint": 73,
+      "stage_hint": "privilege_escalation",
+      "field": "message",
+      "value": "用户被添加到 sudo 组",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "useradd.*sudo|sudo.*useradd"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-81001",
+      "name": "LyFlow SSH Login Anomaly",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 90,
+      "stage_hint": "initial_access",
+      "field": "message",
+      "value": "LyFlow SSH Login Anomaly",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(invalid user|failed password|authentication failure|brute force)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-81008",
+      "name": "LyFlow Multi Stage Attack Chain",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 92,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "LyFlow Multi Stage Attack Chain",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(chain_id|attack_chain).*?(initial_access|execution|credential_access|impact)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "wazuh-auditd-5901",
+      "name": "Root SSH login accepted",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 94,
+      "stage_hint": "initial_access",
+      "field": "message",
+      "value": "Root SSH login accepted",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "Accepted password for root"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "wazuh-auditd-5902",
+      "name": "Sudo authentication failure",
+      "category": "log_audit",
+      "severity": "high",
+      "score_hint": 76,
+      "stage_hint": "privilege_escalation",
+      "field": "message",
+      "value": "Sudo authentication failure",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "sudo: pam_unix(sudo:auth): authentication failure"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "wazuh-auditd-5903",
+      "name": "Linux user account created",
+      "category": "log_audit",
+      "severity": "critical",
+      "score_hint": 98,
+      "stage_hint": "persistence",
+      "field": "message",
+      "value": "Linux user account created",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "useradd"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "sigma-e76b413a-83d0-4b94-8e4c-85db4a5b8bdc",
+      "name": "Suspicious OpenSSH Daemon Error",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 55,
+      "stage_hint": "initial_access",
+      "field": "message",
+      "value": "Suspicious OpenSSH Daemon Error",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(unexpected internal error|unknown or unsupported key type|invalid certificate signing key|invalid elliptic curve value|incorrect signature|error in libcrypto|unexpected bytes remain after decoding|fatal: buffer_get_string: bad string|Local: crc32 compensation attack|bad client public DH value|Corrupted MAC on input)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "ssh-failed-1",
+      "name": "SSH Failed Password A",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 55,
+      "stage_hint": "initial_access",
+      "field": "message",
+      "value": "(?i)failed password",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "custom-rce-cmd-param",
+      "name": "Custom RASP Command Parameter",
+      "category": "rasp",
+      "severity": "high",
+      "score_hint": 75,
+      "stage_hint": "execution",
+      "field": "command",
+      "value": "(?i)(/bin/sh|bash -i|cmd.exe|powershell)",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "openrasp-command-reflect",
+      "name": "OpenRASP command_reflect",
+      "category": "rasp",
+      "severity": "critical",
+      "score_hint": 90,
+      "stage_hint": "execution",
+      "field": "command",
+      "value": "(?i)(/bin/sh|bash\\s+-i|cmd\\.exe|powershell|/dev/tcp|;\\s*(id|whoami|cat))",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "openrasp-readfile-userinput",
+      "name": "OpenRASP readFile_userinput",
+      "category": "rasp",
+      "severity": "high",
+      "score_hint": 75,
+      "stage_hint": "credential_access",
+      "field": "path",
+      "value": "(?i)(\\.\\./|/etc/passwd|WEB-INF|id_rsa|\\.jsp$|\\.php$)",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "openrasp-rename-webshell",
+      "name": "OpenRASP rename_webshell",
+      "category": "rasp",
+      "severity": "critical",
+      "score_hint": 90,
+      "stage_hint": "persistence",
+      "field": "payload",
+      "value": "(?i)(eval\\s*\\(|assert\\s*\\(|base64_decode|Runtime\\.getRuntime|ProcessBuilder)",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "openrasp-sql-userinput",
+      "name": "OpenRASP sql_userinput",
+      "category": "rasp",
+      "severity": "high",
+      "score_hint": 75,
+      "stage_hint": "initial_access",
+      "field": "query",
+      "value": "(?i)(union\\s+select|or\\s+1=1|sleep\\s*\\(|benchmark\\s*\\()",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "openrasp-ssrf-userinput",
+      "name": "OpenRASP ssrf_userinput",
+      "category": "rasp",
+      "severity": "high",
+      "score_hint": 75,
+      "stage_hint": "initial_access",
+      "field": "url",
+      "value": "(?i)(127\\.0\\.0\\.1|169\\.254\\.169\\.254|localhost|file://|gopher://)",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "web-sqli-generic",
+      "name": "Generic SQL Injection Pattern",
+      "category": "rasp",
+      "severity": "critical",
+      "score_hint": 90,
+      "stage_hint": "initial_access",
+      "field": "query",
+      "value": "(?i)(union\\s+select|or\\s+1=1|sleep\\s*\\()",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "owasp-crs-942011",
+      "name": "OWASP CRS Rule 942011",
+      "category": "rasp",
+      "severity": "medium",
+      "score_hint": 55,
+      "stage_hint": "initial_access",
+      "field": "payload",
+      "value": "@lt 1",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "owasp-crs-942013",
+      "name": "OWASP CRS Rule 942013",
+      "category": "rasp",
+      "severity": "medium",
+      "score_hint": 55,
+      "stage_hint": "initial_access",
+      "field": "payload",
+      "value": "@lt 2",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "owasp-crs-942015",
+      "name": "OWASP CRS Rule 942015",
+      "category": "rasp",
+      "severity": "medium",
+      "score_hint": 55,
+      "stage_hint": "initial_access",
+      "field": "payload",
+      "value": "@lt 3",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "owasp-crs-942017",
+      "name": "OWASP CRS Rule 942017",
+      "category": "rasp",
+      "severity": "medium",
+      "score_hint": 55,
+      "stage_hint": "initial_access",
+      "field": "payload",
+      "value": "@lt 4",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "owasp-crs-942100",
+      "name": "SQL Injection Attack Detected via libinjection",
+      "category": "rasp",
+      "severity": "critical",
+      "score_hint": 90,
+      "stage_hint": "initial_access",
+      "field": "payload",
+      "value": "(?i)(union\\s+select|or\\s+1=1|sleep\\s*\\(|benchmark\\s*\\(|information_schema|extractvalue|updatexml)",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "owasp-crs-942120",
+      "name": "SQL Injection Attack: SQL Operator Detected",
+      "category": "rasp",
+      "severity": "critical",
+      "score_hint": 90,
+      "stage_hint": "initial_access",
+      "field": "payload",
+      "value": "(?i)[!=]=|&&|",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "owasp-crs-942140",
+      "name": "SQL Injection Attack: Common DB Names Detected",
+      "category": "rasp",
+      "severity": "critical",
+      "score_hint": 90,
+      "stage_hint": "initial_access",
+      "field": "payload",
+      "value": "(?i)",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "owasp-crs-942220",
+      "name": "Looking for integer overflow attacks, these are taken from skipfish, except 2.2.2250738585072011e-308 is the \\\"magic number\\\" crash",
+      "category": "rasp",
+      "severity": "critical",
+      "score_hint": 90,
+      "stage_hint": "initial_access",
+      "field": "payload",
+      "value": "(?i)^(?:429496729[56]|2(?:14748364[78]|.22507385850720(?:07|11)e-308)|-(?:214748364[89]|0000023456)|00000(?:12345|23456)|1e309)$",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "owasp-crs-942270",
+      "name": "Looking for basic sql injection. Common attack string for mysql, oracle and others",
+      "category": "rasp",
+      "severity": "critical",
+      "score_hint": 90,
+      "stage_hint": "initial_access",
+      "field": "payload",
+      "value": "(?i)union.*?select.*?from",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "owasp-crs-942440",
+      "name": "SQL Comment Sequence Detected",
+      "category": "rasp",
+      "severity": "critical",
+      "score_hint": 90,
+      "stage_hint": "initial_access",
+      "field": "payload",
+      "value": "/",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "owasp-crs-942460",
+      "name": "Meta-Character Anomaly Detection Alert - Repetitive Non-Word Characters",
+      "category": "rasp",
+      "severity": "medium",
+      "score_hint": 55,
+      "stage_hint": "initial_access",
+      "field": "payload",
+      "value": "\\W{4}",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "owasp-crs-942470",
+      "name": "SQL Injection Attack",
+      "category": "rasp",
+      "severity": "critical",
+      "score_hint": 90,
+      "stage_hint": "initial_access",
+      "field": "payload",
+      "value": "(?i)autonomous_transaction|(?:current_use|n?varcha|tbcreato)r|db(?:a_users|ms_java)|open(?:owa_util|query|rowset)|s(?:p_(?:(?:addextendedpro|sqlexe)c|execute(?:sql)?|help|is_srvrolemember|makewebtask|oacreate|p(?:assword|repare)|replwritetovarbin)|ql_(?:longvarchar|variant))|utl_(?:file|http)|xp_(?:availablemedia|(?:cmdshel|servicecontro)l|dirtree|e(?:numdsn|xecresultset)|filelist|loginconfig|makecab|ntsec(?:_enumdomains)?|reg(?:addmultistring|delete(?:key|value)|enum(?:key|value)s|re(?:ad|movemultistring)|write)|terminate(?:_process)?)",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "owasp-crs-942500",
+      "name": "MySQL in-line comment detected",
+      "category": "rasp",
+      "severity": "critical",
+      "score_hint": 90,
+      "stage_hint": "initial_access",
+      "field": "payload",
+      "value": "(?i)/",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "owasp-crs-942522",
+      "name": "Detects basic SQL authentication bypass attempts 4.1/4",
+      "category": "rasp",
+      "severity": "critical",
+      "score_hint": 90,
+      "stage_hint": "initial_access",
+      "field": "payload",
+      "value": "^.*?",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "owasp-crs-942530",
+      "name": "SQLi query termination detected",
+      "category": "rasp",
+      "severity": "critical",
+      "score_hint": 90,
+      "stage_hint": "initial_access",
+      "field": "payload",
+      "value": "';",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "owasp-crs-942560",
+      "name": "MySQL Scientific Notation payload detected",
+      "category": "rasp",
+      "severity": "critical",
+      "score_hint": 90,
+      "stage_hint": "initial_access",
+      "field": "payload",
+      "value": "(?i)1",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "rasp-sqli-default",
+      "name": "RASP SQL Injection Signal",
+      "category": "rasp",
+      "severity": "critical",
+      "score_hint": 90,
+      "stage_hint": "initial_access",
+      "field": "query",
+      "value": "(?i)(union\\s+select|or\\s+1=1|sleep\\s*\\(|information_schema)",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "falco-contact-k8s-api-server-from-container",
+      "name": "Contact K8S API Server From Container",
+      "category": "runtime",
+      "severity": "medium",
+      "score_hint": 55,
+      "stage_hint": "detection",
+      "field": "cmdline",
+      "value": "(?i)(/bin/sh|/bin/bash|bash\\s+-i|sh\\s+-i|/dev/tcp|nc\\s+-e)",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "falco-directory-traversal-monitored-file-read",
+      "name": "Directory traversal monitored file read",
+      "category": "runtime",
+      "severity": "high",
+      "score_hint": 75,
+      "stage_hint": "credential_access",
+      "field": "cmdline",
+      "value": "(?i)(/bin/sh|/bin/bash|bash\\s+-i|sh\\s+-i|/dev/tcp|nc\\s+-e)",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "falco-reverse-shell",
+      "name": "Falco Reverse Shell Command",
+      "category": "runtime",
+      "severity": "high",
+      "score_hint": 75,
+      "stage_hint": "execution",
+      "field": "cmdline",
+      "value": "/dev/tcp",
+      "operator": "contains",
+      "candidate": true
+    },
+    {
+      "id": "falco-run-shell-untrusted",
+      "name": "Run shell untrusted",
+      "category": "runtime",
+      "severity": "medium",
+      "score_hint": 55,
+      "stage_hint": "execution",
+      "field": "cmdline",
+      "value": "(?i)(/bin/sh|/bin/bash|bash\\s+-i|sh\\s+-i|/dev/tcp|nc\\s+-e)",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1015",
+      "name": "Unusual Port Usage",
+      "category": "runtime",
+      "severity": "high",
+      "score_hint": 77,
+      "stage_hint": "c2_exfiltration",
+      "field": "cmdline",
+      "value": "Unusual Port Usage",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(port\\\\s*>\\\\s*65535|port\\\\s*<\\\\s*1)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(4444|5555|6666|8888|31337)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1027",
+      "name": "Suspicious Process Execution",
+      "category": "runtime",
+      "severity": "high",
+      "score_hint": 71,
+      "stage_hint": "execution",
+      "field": "cmdline",
+      "value": "Suspicious Process Execution",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(strace|ltrace|ptrace|debugger)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\/tmp\\\\/.*|\\\\/var\\\\/tmp\\\\/.*|\\\\/dev\\\\/shm)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "elkeid-rebuilt-h1028",
+      "name": "Hidden Process",
+      "category": "runtime",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "execution",
+      "field": "cmdline",
+      "value": "Hidden Process",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\/proc\\\\/.*\\\\/cmdline.*hidden|comm.*hidden)"
+        },
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(?i)(\\\\$0|\\\\/proc\\\\/self|\\\\/proc\\\\/$$)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "falco-subset-netcat-reverse-shell",
+      "name": "Netcat Reverse Shell",
+      "category": "runtime",
+      "severity": "critical",
+      "score_hint": 100,
+      "stage_hint": "execution",
+      "field": "cmdline",
+      "value": "Netcat Reverse Shell",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "cmdline",
+          "operator": "regex",
+          "regex": true,
+          "value": "proc.cmdline contains \"nc\" and proc.cmdline contains \"-e\""
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-60104",
+      "name": "Sudo 命令执行",
+      "category": "runtime",
+      "severity": "medium",
+      "score_hint": 48,
+      "stage_hint": "privilege_escalation",
+      "field": "cmdline",
+      "value": "Sudo 命令执行",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "message",
+          "operator": "contains",
+          "regex": false,
+          "value": "sudo:"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-81004",
+      "name": "LyFlow Runtime Suspicious Process",
+      "category": "runtime",
+      "severity": "critical",
+      "score_hint": 92,
+      "stage_hint": "execution",
+      "field": "cmdline",
+      "value": "LyFlow Runtime Suspicious Process",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "metadata_command_line",
+          "operator": "regex",
+          "regex": true,
+          "value": "(suspicious_process|process_start).*?(curl|wget|nc|ncat|bash -i|/dev/tcp|chmod \\+x|base64 -d)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "runtime-reverse-shell-default",
+      "name": "Runtime Reverse Shell Signal",
+      "category": "runtime",
+      "severity": "high",
+      "score_hint": 80,
+      "stage_hint": "execution",
+      "field": "cmdline",
+      "value": "/dev/tcp",
+      "candidate": true
+    },
+    {
+      "id": "dpi-admin-access-default",
+      "name": "DPI Sensitive Admin Path",
+      "category": "traffic",
+      "severity": "medium",
+      "score_hint": 50,
+      "stage_hint": "recon",
+      "field": "http_path",
+      "value": "(?i)(/admin|/manager|/actuator|/wp-admin)",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "et-open-1000001",
+      "name": "ET TROJAN Possible DNS Tunnel",
+      "category": "traffic",
+      "severity": "info",
+      "score_hint": 0,
+      "stage_hint": "noise",
+      "field": "dns_query",
+      "value": "[a-zA-Z0-9]{20,}",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true,
+      "noise_policy": "suppress-noise",
+      "enabled": false
+    },
+    {
+      "id": "et-open-1000002",
+      "name": "ET MALWARE Known Mining Pool Domain",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 75,
+      "stage_hint": "detection",
+      "field": "dns_query",
+      "value": "pool.btc.com",
+      "operator": "contains",
+      "candidate": true
+    },
+    {
+      "id": "et-open-1000003",
+      "name": "ET MALWARE Known Mining Pool Domain",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 75,
+      "stage_hint": "detection",
+      "field": "dns_query",
+      "value": "ethermine.org",
+      "operator": "contains",
+      "candidate": true
+    },
+    {
+      "id": "et-open-1000010",
+      "name": "ET FRAUD Suspected Phishing Site",
+      "category": "traffic",
+      "severity": "medium",
+      "score_hint": 55,
+      "stage_hint": "detection",
+      "field": "http_host",
+      "value": "phishing",
+      "operator": "contains",
+      "candidate": true
+    },
+    {
+      "id": "et-open-1000011",
+      "name": "ET FRAUD Suspected Scam Site",
+      "category": "traffic",
+      "severity": "medium",
+      "score_hint": 55,
+      "stage_hint": "detection",
+      "field": "http_host",
+      "value": "scam",
+      "operator": "contains",
+      "candidate": true
+    },
+    {
+      "id": "et-open-1000020",
+      "name": "ET MALWARE Suspicious TLS SNI",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 75,
+      "stage_hint": "detection",
+      "field": "tls_sni",
+      "value": "[a-z]{20,}\\.(xyz|tk|ml|ga|cf|gq)$",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "et-open-1000030",
+      "name": "ET TROJAN Possible DGA Domain",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 75,
+      "stage_hint": "detection",
+      "field": "dns_query",
+      "value": "^[a-z]+-[a-z]+-[a-z]+\\.(com|net|org)$",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "et-open-1000040",
+      "name": "ET MALWARE Suspicious Download",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 75,
+      "stage_hint": "detection",
+      "field": "http_host",
+      "value": "download",
+      "operator": "contains",
+      "candidate": true
+    },
+    {
+      "id": "et-open-1000050",
+      "name": "ET TROJAN High DNS Query Count Possible Tunnel",
+      "category": "traffic",
+      "severity": "info",
+      "score_hint": 0,
+      "stage_hint": "noise",
+      "field": "dns_query",
+      "value": "[a-z]+\\.[a-z]{5,}\\.[a-z]{2,4}$",
+      "operator": "regex",
+      "regex": true,
+      "candidate": true,
+      "noise_policy": "suppress-noise",
+      "enabled": false
+    },
+    {
+      "id": "lyflow-internal-81002",
+      "name": "LyFlow Suspicious Upload",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 76,
+      "stage_hint": "initial_access",
+      "field": "http_path",
+      "value": "LyFlow Suspicious Upload",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "domain",
+          "operator": "regex",
+          "regex": true,
+          "value": "(multipart/form-data|upload).*?(\\.php|\\.jsp|\\.jspx|\\.war|webshell|shell\\.php)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-81003",
+      "name": "LyFlow Admin Access From External Source",
+      "category": "traffic",
+      "severity": "medium",
+      "score_hint": 54,
+      "stage_hint": "recon",
+      "field": "http_path",
+      "value": "LyFlow Admin Access From External Source",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "http_uri",
+          "operator": "regex",
+          "regex": true,
+          "value": "(/admin|/manager|/actuator|/wp-admin|/console)"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-dpi-10001",
+      "name": "MySQL SQL Injection - UNION SELECT",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 71,
+      "stage_hint": "execution",
+      "field": "http_path",
+      "value": "MySQL SQL Injection - UNION SELECT",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "tcp"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "UNION SELECT"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-dpi-10014",
+      "name": "MySQL Unauthorized - Empty Password Login",
+      "category": "traffic",
+      "severity": "medium",
+      "score_hint": 69,
+      "stage_hint": "initial_access",
+      "field": "http_path",
+      "value": "MySQL Unauthorized - Empty Password Login",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "tcp"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "Access denied for user"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-dpi-9002001",
+      "name": "[LY-CS-001] CobaltStrike JA3 Fingerprint Detected",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 71,
+      "stage_hint": "execution",
+      "field": "http_path",
+      "value": "[LY-CS-001] CobaltStrike JA3 Fingerprint Detected",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "tls"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "a0e2f275c9c6f20c3d02f1e4e7c8e6e"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-dpi-9002003",
+      "name": "[LY-CS-003] CobaltStrike DNS Beacon Long Subdomain",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 76,
+      "stage_hint": "c2_exfiltration",
+      "field": "http_path",
+      "value": "[LY-CS-003] CobaltStrike DNS Beacon Long Subdomain",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "dns"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-dpi-9002004",
+      "name": "[LY-CS-004] CobaltStrike /identity Endpoint",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 71,
+      "stage_hint": "execution",
+      "field": "http_path",
+      "value": "[LY-CS-004] CobaltStrike /identity Endpoint",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "http"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "/identity"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-dpi-9002005",
+      "name": "[LY-CS-005] CobaltStrike HTTP Beacon Checkin",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 76,
+      "stage_hint": "c2_exfiltration",
+      "field": "http_path",
+      "value": "[LY-CS-005] CobaltStrike HTTP Beacon Checkin",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "http"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-dpi-9002006",
+      "name": "[LY-CS-006] CobaltStrike SMB Beacon Pattern",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 76,
+      "stage_hint": "c2_exfiltration",
+      "field": "http_path",
+      "value": "[LY-CS-006] CobaltStrike SMB Beacon Pattern",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "smb"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-dpi-9002007",
+      "name": "[LY-CS-007] CobaltStrike HTTPS Beacon Long Duration",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 76,
+      "stage_hint": "c2_exfiltration",
+      "field": "http_path",
+      "value": "[LY-CS-007] CobaltStrike HTTPS Beacon Long Duration",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "tls"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "a0e2f275"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-dpi-9002302",
+      "name": "[LY-SLIVER-002] Sliver Canary Domain Pattern",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 71,
+      "stage_hint": "execution",
+      "field": "http_path",
+      "value": "[LY-SLIVER-002] Sliver Canary Domain Pattern",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "dns"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "canary"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-dpi-9003004",
+      "name": "[LY-NMAP-004] Nmap ICMP Echo No Payload",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 71,
+      "stage_hint": "execution",
+      "field": "http_path",
+      "value": "[LY-NMAP-004] Nmap ICMP Echo No Payload",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "icmp"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-dpi-9003023",
+      "name": "[LY-FSCAN-003] Fscan UDP Scan Pattern",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 71,
+      "stage_hint": "execution",
+      "field": "http_path",
+      "value": "[LY-FSCAN-003] Fscan UDP Scan Pattern",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "udp"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-dpi-9003051",
+      "name": "[LY-BURP-001] Burp Suite Scanner Pattern",
+      "category": "traffic",
+      "severity": "medium",
+      "score_hint": 69,
+      "stage_hint": "initial_access",
+      "field": "http_path",
+      "value": "[LY-BURP-001] Burp Suite Scanner Pattern",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "http"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "sqlmap"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-dpi-9006001",
+      "name": "[LY-LATERAL-001] SMB Tree Connect Lateral Movement",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 71,
+      "stage_hint": "execution",
+      "field": "http_path",
+      "value": "[LY-LATERAL-001] SMB Tree Connect Lateral Movement",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "smb"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "Tree Connect AndX"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-dpi-9006012",
+      "name": "[LY-LATERAL-006] RDP Clipboard Redirection",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 71,
+      "stage_hint": "execution",
+      "field": "http_path",
+      "value": "[LY-LATERAL-006] RDP Clipboard Redirection",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "rdp"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "CLIPBOARD"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-dpi-9006022",
+      "name": "[LY-LATERAL-009] SSH Root Login Attempt",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 71,
+      "stage_hint": "execution",
+      "field": "http_path",
+      "value": "[LY-LATERAL-009] SSH Root Login Attempt",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "ssh"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "root"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-dpi-9008001",
+      "name": "[LY-PRIV-001] Mimikatz LSASS Process Access",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 71,
+      "stage_hint": "execution",
+      "field": "http_path",
+      "value": "[LY-PRIV-001] Mimikatz LSASS Process Access",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "windows-security"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "lsass.exe"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "lyflow-internal-dpi-9008025",
+      "name": "[LY-PRIV-025] Impacket Kerberoasting",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 71,
+      "stage_hint": "execution",
+      "field": "http_path",
+      "value": "[LY-PRIV-025] Impacket Kerberoasting",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "ldap"
+        },
+        {
+          "field": "payload",
+          "operator": "contains",
+          "value": "krbtgt"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "suricata-etopen-1000001",
+      "name": "ET TROJAN Possible DNS Tunnel",
+      "category": "traffic",
+      "severity": "info",
+      "score_hint": 0,
+      "stage_hint": "noise",
+      "field": "http_path",
+      "value": "ET TROJAN Possible DNS Tunnel",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "dns"
+        },
+        {
+          "field": "dns_query",
+          "operator": "regex",
+          "regex": true,
+          "value": "[a-zA-Z0-9]{20,}"
+        }
+      ],
+      "candidate": true,
+      "noise_policy": "suppress-noise",
+      "enabled": false
+    },
+    {
+      "id": "suricata-etopen-1000002",
+      "name": "ET MALWARE Known Mining Pool Domain",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 75,
+      "stage_hint": "c2_exfiltration",
+      "field": "http_path",
+      "value": "ET MALWARE Known Mining Pool Domain",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "dns"
+        },
+        {
+          "field": "dns_query",
+          "operator": "contains",
+          "regex": false,
+          "value": "pool.btc.com"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "suricata-etopen-1000010",
+      "name": "ET FRAUD Suspected Phishing Site",
+      "category": "traffic",
+      "severity": "medium",
+      "score_hint": 68,
+      "stage_hint": "initial_access",
+      "field": "http_path",
+      "value": "ET FRAUD Suspected Phishing Site",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "http"
+        },
+        {
+          "field": "http_host",
+          "operator": "contains",
+          "regex": false,
+          "value": "phishing"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "suricata-etopen-1000011",
+      "name": "ET FRAUD Suspected Scam Site",
+      "category": "traffic",
+      "severity": "medium",
+      "score_hint": 68,
+      "stage_hint": "initial_access",
+      "field": "http_path",
+      "value": "ET FRAUD Suspected Scam Site",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "http"
+        },
+        {
+          "field": "http_host",
+          "operator": "contains",
+          "regex": false,
+          "value": "scam"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "suricata-etopen-1000020",
+      "name": "ET MALWARE Suspicious TLS SNI",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 70,
+      "stage_hint": "execution",
+      "field": "http_path",
+      "value": "ET MALWARE Suspicious TLS SNI",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "tls"
+        },
+        {
+          "field": "tls_sni",
+          "operator": "regex",
+          "regex": true,
+          "value": "[a-z]{20,}\\.(xyz|tk|ml|ga|cf|gq)$"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "suricata-etopen-1000030",
+      "name": "ET TROJAN Possible DGA Domain",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 75,
+      "stage_hint": "c2_exfiltration",
+      "field": "http_path",
+      "value": "ET TROJAN Possible DGA Domain",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "dns"
+        },
+        {
+          "field": "dns_query",
+          "operator": "regex",
+          "regex": true,
+          "value": "^[a-z]+-[a-z]+-[a-z]+\\.(com|net|org)$"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "suricata-etopen-1000040",
+      "name": "ET MALWARE Suspicious Download",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 70,
+      "stage_hint": "execution",
+      "field": "http_path",
+      "value": "ET MALWARE Suspicious Download",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "http"
+        },
+        {
+          "field": "http_uri",
+          "operator": "contains",
+          "regex": false,
+          "value": "download"
+        },
+        {
+          "field": "http_uri",
+          "operator": "contains",
+          "regex": false,
+          "value": ".exe"
+        }
+      ],
+      "candidate": true
+    },
+    {
+      "id": "suricata-etopen-1000050",
+      "name": "ET TROJAN High DNS Query Count Possible Tunnel",
+      "category": "traffic",
+      "severity": "info",
+      "score_hint": 0,
+      "stage_hint": "noise",
+      "field": "http_path",
+      "value": "ET TROJAN High DNS Query Count Possible Tunnel",
+      "operator": "contains",
+      "conditions": [
+        {
+          "field": "protocol",
+          "operator": "equals",
+          "regex": false,
+          "value": "dns"
+        },
+        {
+          "field": "dns_query",
+          "operator": "regex",
+          "regex": true,
+          "value": "[a-z]+\\.[a-z]{5,}\\.[a-z]{2,4}$"
+        }
+      ],
+      "candidate": true,
+      "noise_policy": "suppress-noise",
+      "enabled": false
+    }
+  ]
+}

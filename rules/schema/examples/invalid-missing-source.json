@@ -1,0 +1,33 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "invalid-missing-source",
+  "name": "Invalid rule missing license and vendor",
+  "category": "hids",
+  "enabled": true,
+  "source": {
+    "origin": "external_subscription",
+    "url": "https://example.invalid/rules",
+    "version": "v1"
+  },
+  "support": {
+    "level": "full_supported"
+  },
+  "classification": {
+    "stage": "execution"
+  },
+  "scoring": {
+    "base_score": 50,
+    "severity": "medium"
+  },
+  "match": {
+    "logic": "all",
+    "conditions": [
+      {
+        "field": "process.name",
+        "operator": "equals",
+        "value": "sh"
+      }
+    ]
+  }
+}

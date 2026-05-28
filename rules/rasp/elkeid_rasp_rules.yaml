@@ -1,0 +1,830 @@
+# Elkeid RASP 规则集
+# 来源: 字节跳动 Elkeid 官方策略
+# https://elkeid.bytedance.com/docs/ElkeidData/rasp_rule.html
+
+version: "1.0"
+source: "elkeid"
+updated: "2024-01-15"
+
+categories:
+  - id: webshell
+    name: "WebShell 检测"
+    description: "JSP/PHP WebShell 行为检测"
+  - id: command_exec
+    name: "命令执行"
+    description: "危险命令执行检测"
+  - id: deserialization
+    name: "反序列化"
+    description: "危险反序列化利用检测"
+  - id: exploit
+    name: "漏洞利用"
+    description: "已知漏洞利用检测"
+  - id: file_ops
+    name: "文件操作"
+    description: "敏感文件访问检测"
+
+rules:
+
+  # ============ JVM WebShell 检测 ============
+  - id: E1001
+    category: webshell
+    name: "JSP Command Execution"
+    severity: critical
+    languages: [java]
+    runtime: JVM
+    description: "Discover the behavior of command execution from java server pages"
+    hook_type: exec
+    patterns:
+      - type: regex
+        value: "(?i)(request\\.getParameter|runtime\\.getRuntime|processbuilder|exec\\s*\\()"
+        description: "JSP命令执行特征"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1190"
+    action: detect
+    enabled: true
+
+  - id: E1002
+    category: webshell
+    name: "BeHinder WebShell Detect"
+    severity: critical
+    languages: [php]
+    runtime: PHP
+    description: "BeHinder WebShell detect by PHP"
+    hook_type: webshell
+    patterns:
+      - type: regex
+        value: "(?i)(eval|assert|create_function|array_map)\\s*\\("
+        description: "BeHinder特征函数"
+      - type: regex
+        value: "(?i)(@eval|base64_decode|gzuncompress)\\s*\\("
+        description: "混淆特征"
+      - type: regex
+        value: "(?i)(pass504|pass605|key605|bsauce)"
+        description: "BeHinder连接特征"
+    mitre:
+      tactic: "TA0003"
+      technique: "T1505"
+    action: block
+    enabled: true
+
+  - id: E1003
+    category: webshell
+    name: "WebShell Behavior Detect"
+    severity: high
+    languages: [java]
+    runtime: JVM
+    description: "Suspected WebShell-like behavior found in JVM runtime"
+    hook_type: webshell
+    patterns:
+      - type: regex
+        value: "(?i)(classloader|defineclass|methodhandler|invokedynamic)"
+        description: "动态类加载特征"
+      - type: regex
+        value: "(?i)(scriptengine|javascript|groovy|bsh)"
+        description: "脚本引擎执行"
+    mitre:
+      tactic: "TA0003"
+      technique: "T1505"
+    action: detect
+    enabled: true
+
+  # ============ 命令执行检测 ============
+  - id: E1004
+    category: command_exec
+    name: "Command Execution Caused By FastJson Deserialization"
+    severity: critical
+    languages: [java]
+    runtime: JVM
+    description: "FastJson deserializes attacker-constructed data, resulting in command execution"
+    hook_type: exec
+    patterns:
+      - type: regex
+        value: "(?i)(fastjson|com\\.alibaba|json\\.parser|type.*autoType)"
+        description: "FastJson库使用"
+      - type: regex
+        value: "(?i)(templatesimpl|bcel|bytebuddy|aspectjweaver|jndi|ldap)"
+        description: "恶意类特征"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1055"
+    action: block
+    enabled: true
+
+  - id: E1005
+    category: command_exec
+    name: "Command Execution In preg_replace Function"
+    severity: critical
+    languages: [php]
+    runtime: PHP
+    description: "Unusual behavior of php preg_replace function for command execution"
+    hook_type: exec
+    patterns:
+      - type: regex
+        value: "(?i)preg_replace\\s*\\([^,]+,/e"
+        description: "preg_replace /e修饰符命令执行"
+      - type: regex
+        value: "(?i)preg_replace\\s*\\(.*\\$\\{"
+        description: "preg_replace变量执行"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1059"
+    action: block
+    enabled: true
+
+  - id: E1006
+    category: command_exec
+    name: "PHP Command Injection"
+    severity: critical
+    languages: [php]
+    runtime: PHP
+    description: "PHP command injection via system functions"
+    hook_type: exec
+    patterns:
+      - type: regex
+        value: "(?i)(system|exec|shell_exec|passthru|popen|proc_open)\\s*\\("
+        description: "PHP危险命令函数"
+      - type: regex
+        value: "(?i)`.*\\$\\{.*\\}`"
+        description: "反引号命令执行"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1059"
+    action: block
+    enabled: true
+
+  - id: E1007
+    category: command_exec
+    name: "Python Code Execution"
+    severity: critical
+    languages: [python]
+    runtime: Python
+    description: "Dangerous code execution in Python"
+    hook_type: exec
+    patterns:
+      - type: regex
+        value: "(?i)(eval|exec|compile)\\s*\\("
+        description: "Python动态执行"
+      - type: regex
+        value: "(?i)(subprocess|os\\.system|os\\.popen|pty\\.spawn)"
+        description: "Python命令执行"
+      - type: regex
+        value: "(?i)(pickle\\.loads|yaml\\.load|marshal\\.loads)"
+        description: "危险反序列化"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1059"
+    action: block
+    enabled: true
+
+  - id: E1008
+    category: command_exec
+    name: "Node.js Code Execution"
+    severity: critical
+    languages: [nodejs]
+    runtime: Node.js
+    description: "Dangerous code execution in Node.js"
+    hook_type: exec
+    patterns:
+      - type: regex
+        value: "(?i)(eval|Function\\(|vm\\.runIn)"
+        description: "JavaScript动态执行"
+      - type: regex
+        value: "(?i)(child_process|spawn|execSync)"
+        description: "Node命令执行"
+      - type: regex
+        value: "(?i)(vm2|n\\/a|deserialization)"
+        description: "危险模块"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1059"
+    action: block
+    enabled: true
+
+  - id: E1009
+    category: command_exec
+    name: ".NET Code Execution"
+    severity: critical
+    languages: [dotnet]
+    runtime: .NET
+    description: "Dangerous code execution in .NET"
+    hook_type: exec
+    patterns:
+      - type: regex
+        value: "(?i)(Dynamics\\.Linog|System\\.Reflection|Assembly\\.Load)"
+        description: ".NET动态加载"
+      - type: regex
+        value: "(?i)(ProcessStartInfo|Process\\.Start|Runtime\\.Exec)"
+        description: ".NET命令执行"
+      - type: regex
+        value: "(?i)(JavaScriptSerializer|BinaryFormatter|LosFormatter)"
+        description: ".NET危险反序列化"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1059"
+    action: block
+    enabled: true
+
+  # ============ 漏洞利用检测 ============
+  - id: E1010
+    category: exploit
+    name: "Log4j Exploit"
+    severity: critical
+    languages: [java]
+    runtime: JVM
+    description: "Detected exploit process for log4j (CVE-2021-44228)"
+    hook_type: JNDI
+    patterns:
+      - type: regex
+        value: "(?i)(\\$\\{jndi:|jndi:ldap|jndi:rmi|jndi:dns)"
+        description: "JNDI注入特征"
+      - type: regex
+        value: "(?i)(\\$\\{lower:|\\$\\{upper:|\\$\\{::-)"
+        description: "Log4j嵌套绕过"
+      - type: regex
+        value: "(?i)(base64|b64|rmi://|ldap://)"
+        description: "协议特征"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1190"
+    action: block
+    enabled: true
+
+  - id: E1011
+    category: exploit
+    name: "Log4j Exploit Version Check Bypass"
+    severity: critical
+    languages: [java]
+    runtime: JVM
+    description: "Log4j version check bypass attempt"
+    hook_type: JNDI
+    patterns:
+      - type: regex
+        value: "(?i)(\\$\\{env:|\\$\\{ctx:|\\$\\{::-)"
+        description: "Log4j环境变量注入"
+      - type: regex
+        value: "(?i)(\\$\\{main:-|\\$\\{ndc:-|\\$\\{ctx:-)"
+        description: "Log4j默认参数绕过"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1190"
+    action: block
+    enabled: true
+
+  - id: E1012
+    category: exploit
+    name: "Spring4Shell RCE"
+    severity: critical
+    languages: [java]
+    runtime: JVM
+    description: "Spring Framework RCE (CVE-2022-22965)"
+    hook_type: class
+    patterns:
+      - type: regex
+        value: "(?i)(class\\.module.*classloader|tomcat\\.jar.*war)"
+        description: "Spring4Shell特征"
+      - type: regex
+        value: "(?i)(parameterName|getPersistentParameter|class\\.getClassLoader)"
+        description: "Spring危险方法"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1190"
+    action: block
+    enabled: true
+
+  - id: E1013
+    category: exploit
+    name: "Jackson Databind RCE"
+    severity: critical
+    languages: [java]
+    runtime: JVM
+    description: "Jackson JSON deserialization RCE"
+    hook_type: deserialize
+    patterns:
+      - type: regex
+        value: "(?i)(enableDefaultTyping|defaulttyping|readValue)"
+        description: "Jackson危险配置"
+      - type: regex
+        value: "(?i)(c3p0|bonecp|weblogic|jboss|xmldecoder|snakeyaml)"
+        description: "第三方库利用"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1190"
+    action: block
+    enabled: true
+
+  - id: E1014
+    category: exploit
+    name: "ThinkPHP RCE"
+    severity: critical
+    languages: [php]
+    runtime: PHP
+    description: "ThinkPHP v5.x RCE vulnerability"
+    hook_type: exec
+    patterns:
+      - type: regex
+        value: "(?i)(think\\w+.*assert|\\$_GET\\[.*\\]\\(|\\$_POST\\[.*\\]\\()"
+        description: "ThinkPHP特征"
+      - type: regex
+        value: "(?i)(public/index\\.php|route.*=.*\\$)"
+        description: "路由特征"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1190"
+    action: block
+    enabled: true
+
+  - id: E1015
+    category: exploit
+    name: "Laravel Debug Mode RCE"
+    severity: critical
+    languages: [php]
+    runtime: PHP
+    description: "Laravel < 8.4.2 Debug mode RCE"
+    hook_type: exec
+    patterns:
+      - type: regex
+        value: "(?i)(_ignition|view\\s*::|make\\s*\\()"
+        description: "Laravel Debug特征"
+      - type: regex
+        value: "(?i)(phpinfo|system|exec|shell_exec)"
+        description: "命令执行函数"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1190"
+    action: block
+    enabled: true
+
+  - id: E1016
+    category: exploit
+    name: "CVE-2021-26855 Exchange RCE"
+    severity: critical
+    languages: [dotnet]
+    runtime: .NET
+    description: "Microsoft Exchange SSRF to RCE"
+    hook_type: request
+    patterns:
+      - type: regex
+        value: "(?i)(ecp|/mapi/|/powershell/)"
+        description: "Exchange端点"
+      - type: regex
+        value: "(?i)(X-BEResource|X-AnchorMailbox)"
+        description: "Exchange头特征"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1190"
+    action: detect
+    enabled: true
+
+  # ============ 文件操作检测 ============
+  - id: E1017
+    category: file_ops
+    name: "Sensitive File Read"
+    severity: high
+    languages: [php]
+    runtime: PHP
+    description: "Attempt to read sensitive system files"
+    hook_type: file
+    patterns:
+      - type: regex
+        value: "(?i)(\\/etc\\/passwd|\\/etc\\/shadow|\\/etc\\/hosts|\\/etc\\/group)"
+        description: "系统敏感文件"
+      - type: regex
+        value: "(?i)(\\/root\\/\\.ssh|\\/home\\/.*\\/.ssh|\\/var\\/www)"
+        description: "配置目录"
+      - type: regex
+        value: "(?i)(\\.env|config\\.php|wp-config\\.php|configuration\\.ini)"
+        description: "配置文件"
+    mitre:
+      tactic: "TA0005"
+      technique: "T1005"
+    action: detect
+    enabled: true
+
+  - id: E1018
+    category: file_ops
+    name: "Webshell File Write"
+    severity: critical
+    languages: [php]
+    runtime: PHP
+    description: "Webshell file creation detected"
+    hook_type: file_write
+    patterns:
+      - type: regex
+        value: "(?i)(eval\\s*\\(|assert\\s*\\(|base64_decode)"
+        description: "代码写入特征"
+      - type: regex
+        value: "(?i)(\\.php[0-9]?|\\.phtml|\\.phar)"
+        description: "PHP扩展名"
+      - type: regex
+        value: "(?i)(<?php|\\$\\w+\\s*=.*\\(|function\\s+\\w+\\s*\\()"
+        description: "PHP代码特征"
+    mitre:
+      tactic: "TA0003"
+      technique: "T1505"
+    action: block
+    enabled: true
+
+  - id: E1019
+    category: file_ops
+    name: "SSH Key Access"
+    severity: high
+    languages: [python, nodejs]
+    runtime: Python/Node.js
+    description: "Access to SSH private keys"
+    hook_type: file
+    patterns:
+      - type: regex
+        value: "(?i)(\\.ssh\\/id_rsa|\\.ssh\\/id_ed25519|\\.ssh\\/authorized_keys)"
+        description: "SSH密钥文件"
+    mitre:
+      tactic: "TA0006"
+      technique: "T1098"
+    action: detect
+    enabled: true
+
+  - id: E1020
+    category: file_ops
+    name: "Config File Read"
+    severity: medium
+    languages: [python, nodejs]
+    runtime: Python/Node.js
+    description: "Reading configuration files"
+    hook_type: file
+    patterns:
+      - type: regex
+        value: "(?i)(credentials|secrets|config|\\.env|settings)"
+        description: "配置文件关键词"
+      - type: regex
+        value: "(?i)(password|token|apikey|secret)"
+        description: "敏感配置项"
+    mitre:
+      tactic: "TA0006"
+      technique: "T1552"
+    action: detect
+    enabled: true
+
+  # ============ 反序列化检测 ============
+  - id: E1021
+    category: deserialization
+    name: "Java Deserialization Attack"
+    severity: critical
+    languages: [java]
+    runtime: JVM
+    description: "Java deserialization vulnerability exploitation"
+    hook_type: deserialize
+    patterns:
+      - type: regex
+        value: "(?i)(ObjectInputStream|readObject|readUnshared)"
+        description: "Java反序列化"
+      - type: regex
+        value: "(?i)(hex2binary|base64_decode|ysoserial|ROME|click1)"
+        description: "反序列化Payload"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1055"
+    action: block
+    enabled: true
+
+  - id: E1022
+    category: deserialization
+    name: "PHP Object Injection"
+    severity: critical
+    languages: [php]
+    runtime: PHP
+    description: "PHP unserialize vulnerability"
+    hook_type: deserialize
+    patterns:
+      - type: regex
+        value: "(?i)unserialize\\s*\\("
+        description: "PHP反序列化"
+      - type: regex
+        value: "(?i)(_wakeup|_destruct|__call|__invoke)"
+        description: "PHP魔术方法"
+      - type: regex
+        value: "(?i)(O:\\d+:|C:\\d+:)"
+        description: "PHP序列化对象"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1055"
+    action: block
+    enabled: true
+
+  - id: E1023
+    category: deserialization
+    name: "Python Pickle RCE"
+    severity: critical
+    languages: [python]
+    runtime: Python
+    description: "Python pickle deserialization RCE"
+    hook_type: deserialize
+    patterns:
+      - type: regex
+        value: "(?i)pickle\\.(loads|load)\\s*\\("
+        description: "Pickle反序列化"
+      - type: regex
+        value: "(?i)(__reduce__|__setstate__|__getstate__)"
+        description: "Python魔术方法"
+      - type: regex
+        value: "(?i)(ctypes|subprocess|pty|os\\.system)"
+        description: "命令执行模块"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1055"
+    action: block
+    enabled: true
+
+  - id: E1024
+    category: deserialization
+    name: "YAML Deserialization RCE"
+    severity: critical
+    languages: [python]
+    runtime: Python
+    description: "PyYAML yaml.unsafe_load RCE"
+    hook_type: deserialize
+    patterns:
+      - type: regex
+        value: "(?i)yaml\\.(load|unsafe_load| Loader)"
+        description: "YAML危险加载"
+      - type: regex
+        value: "(?i)!!python\\/object\\/apply"
+        description: "YAML Python对象"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1055"
+    action: block
+    enabled: true
+
+  - id: E1025
+    category: deserialization
+    name: "Node.js Deserialize RCE"
+    severity: critical
+    languages: [nodejs]
+    runtime: Node.js
+    description: "Node.js deserialization RCE via vm2 or util"
+    hook_type: deserialize
+    patterns:
+      - type: regex
+        value: "(?i)(vm2|deserialization|unserialize)"
+        description: "危险模块"
+      - type: regex
+        value: "(?i)(vm\\.run|Function\\(|eval\\(|new\\s+Function)"
+        description: "代码执行"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1055"
+    action: block
+    enabled: true
+
+  # ============ SQL 注入 ============
+  - id: E1026
+    category: injection
+    name: "SQL Injection via ORM"
+    severity: critical
+    languages: [python]
+    runtime: Python
+    description: "SQL injection through ORM queries"
+    hook_type: sql
+    patterns:
+      - type: regex
+        value: "(?i)(extra\\s*\\(|raw\\s*\\(|\\.execute\\s*\\()"
+        description: "Django ORM危险方法"
+      - type: regex
+        value: "(?i)(sqlalchemy|text\\s*\\()"
+        description: "SQLAlchemy原始SQL"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1190"
+    action: block
+    enabled: true
+
+  - id: E1027
+    category: injection
+    name: "SQL Injection via Sequelize"
+    severity: critical
+    languages: [nodejs]
+    runtime: Node.js
+    description: "SQL injection through Sequelize ORM"
+    hook_type: sql
+    patterns:
+      - type: regex
+        value: "(?i)(sequelize\\.query|\\.raw\\(|\\.plain\\()"
+        description: "Sequelize原始查询"
+      - type: regex
+        value: "(?i)(literal\\s*\\(|fn\\s*\\()"
+        description: "Sequelize危险函数"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1190"
+    action: block
+    enabled: true
+
+  - id: E1028
+    category: injection
+    name: "Entity Framework Raw SQL"
+    severity: critical
+    languages: [dotnet]
+    runtime: .NET
+    description: "EF raw SQL injection"
+    hook_type: sql
+    patterns:
+      - type: regex
+        value: "(?i)(FromSql|ExecuteSqlCommand|SqlQuery|ExecuteRaw)"
+        description: ".NET原始SQL"
+      - type: regex
+        value: "(?i)(string\\.Format.*SELECT|string\\.Format.*INSERT)"
+        description: "字符串拼接SQL"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1190"
+    action: block
+    enabled: true
+
+  # ============ LDAP 注入 ============
+  - id: E1029
+    category: ldap_injection
+    name: "LDAP Injection"
+    severity: high
+    languages: [java, python, dotnet]
+    runtime: JVM/Python/.NET
+    description: "LDAP injection attack"
+    hook_type: ldap
+    patterns:
+      - type: regex
+        value: "(?i)(\\*|\\(|&|\\||\\!)(admin|user|role)"
+        description: "LDAP注入元字符"
+      - type: regex
+        value: "(?i)(1=1|or\\s+1\\s*=\\s*1|and\\s+1\\s*=\\s*1)"
+        description: "LDAP SQL注入特征"
+      - type: regex
+        value: "(?i)(cn|uid|sn|mail|memberOf)"
+        description: "LDAP属性注入"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1190"
+    action: block
+    enabled: true
+
+  # ============ XSS 检测 ============
+  - id: E1030
+    category: xss
+    name: "Reflected XSS"
+    severity: high
+    languages: [php, nodejs]
+    runtime: PHP/Node.js
+    description: "Cross-site scripting detection"
+    hook_type: output
+    patterns:
+      - type: regex
+        value: "(?i)(<script|javascript:|onerror=|onload=|onclick=)"
+        description: "XSS特征标签"
+      - type: regex
+        value: "(?i)(<iframe|<embed|<object|<svg)"
+        description: "XSS外带标签"
+      - type: regex
+        value: "(?i)(alert\\s*\\(|document\\.cookie|prompt\\s*\\()"
+        description: "XSS危害脚本"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1190"
+    action: block
+    enabled: true
+
+  - id: E1031
+    category: xss
+    name: "Template Injection SSTI"
+    severity: critical
+    languages: [python]
+    runtime: Python
+    description: "Server-side template injection"
+    hook_type: template
+    patterns:
+      - type: regex
+        value: "(?i)(\\{\\{.*\\}\\}|\\{%.*%\\})"
+        description: "模板语法"
+      - type: regex
+        value: "(?i)(\\$\\{.*\\}|__import__|lipsum|cycler)"
+        description: "Jinja2危险对象"
+    mitre:
+      tactic: "TA0001"
+      technique: "T1190"
+    action: block
+    enabled: true
+
+  # ============ SSRF 检测 ============
+  - id: E1032
+    category: ssrf
+    name: "Server-Side Request Forgery"
+    severity: high
+    languages: [python, nodejs, java]
+    runtime: Python/Node.js/JVM
+    description: "SSRF attack detection"
+    hook_type: network
+    patterns:
+      - type: regex
+        value: "(?i)(file://|gopher://|dict://|http://localhost|http://127\\.0\\.0\\.1)"
+        description: "SSRF协议"
+      - type: regex
+        value: "(?i)(169\\.254\\.169\\.254|metadata\\.google|aws\\.169)"
+        description: "云元数据地址"
+      - type: regex
+        value: "(?i)(0\\.0\\.0\\.0|::|\\[0\\])"
+        description: "IPv6/IPv4绕过"
+    mitre:
+      tactic: "TA0011"
+      technique: "T1190"
+    action: detect
+    enabled: true
+
+  # ============ XXE 检测 ============
+  - id: E1033
+    category: xxe
+    name: "XML External Entity"
+    severity: critical
+    languages: [java, python, nodejs, dotnet]
+    runtime: JVM/Python/Node.js/.NET
+    description: "XXE vulnerability exploitation"
+    hook_type: xml
+    patterns:
+      - type: regex
+        value: "(?i)<!ENTITY|<!DOCTYPE.*\\["
+        description: "XXE特征"
+      - type: regex
+        value: "(?i)(SYSTEM|PUBLIC).*file://"
+        description: "外部实体"
+      - type: regex
+        value: "(?i)(php://|expect://|jar://|zip://)"
+        description: "PHP包装协议"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1190"
+    action: block
+    enabled: true
+
+  # ============ Path Traversal ============
+  - id: E1034
+    category: path_traversal
+    name: "Path Traversal Attack"
+    severity: high
+    languages: [php, python, nodejs, java]
+    runtime: PHP/Python/Node.js/JVM
+    description: "Directory traversal detection"
+    hook_type: file
+    patterns:
+      - type: regex
+        value: "(?i)(\\.\\.\\/|.+\\.\\.\\\\|\\.\\.%2f|\\.\\.%5c)"
+        description: "路径遍历特征"
+      - type: regex
+        value: "(?i)(\\/etc\\/passwd|\\/etc\\/shadow|\\\\windows\\\\|\\\\system32\\\\)"
+        description: "敏感路径"
+      - type: regex
+        value: "(?i)(\\%2e\\%2e|\\%c0\\%af|\\%c1\\%9c)"
+        description: "URL编码遍历"
+    mitre:
+      tactic: "TA0005"
+      technique: "T1005"
+    action: block
+    enabled: true
+
+  # ============ 沙箱逃逸 ============
+  - id: E1035
+    category: escape
+    name: "Sandbox Escape"
+    severity: critical
+    languages: [java]
+    runtime: JVM
+    description: "Java sandbox escape attempt"
+    hook_type: class
+    patterns:
+      - type: regex
+        value: "(?i)(sun\\.reflect|unsafe|sneakyThrow|getContext)"
+        description: "反射危险API"
+      - type: regex
+        value: "(?i)(class\\.forName|classloader.*loadClass)"
+        description: "动态类加载"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1611"
+    action: block
+    enabled: true
+
+  - id: E1036
+    category: escape
+    name: "Container Escape"
+    severity: critical
+    languages: [python]
+    runtime: Python
+    description: "Container escape detection"
+    hook_type: system
+    patterns:
+      - type: regex
+        value: "(?i)(\\/proc\\/1|\\/host|\\/sys\\/kernel\\/security)"
+        description: "容器敏感路径"
+      - type: regex
+        value: "(?i)(nsenter|unshare|cgroups|namespace)"
+        description: "Namespace操作"
+    mitre:
+      tactic: "TA0004"
+      technique: "T1611"
+    action: block
+    enabled: true

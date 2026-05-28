@@ -1,0 +1,20 @@
+{
+  "schema_version": "v1",
+  "source_id": "lyflow-internal-hids",
+  "name": "LyFlow internal HIDS rules",
+  "category": "hids",
+  "source_type": "internal",
+  "update_mode": "manual",
+  "vendor": "LyFlow",
+  "license": "Proprietary",
+  "source_url": "lyflow://rules/internal/hids/lyflow",
+  "raw_path": "rules/xdr/",
+  "converted_path": "rules/internal/hids/lyflow/",
+  "compiled_path": "rules/compiled/hids/lyflow.json",
+  "enabled_by_default": true,
+  "conversion": {
+    "converter": "internal-rule-migrator",
+    "target_ir": "lyflow-rule-ir-v1",
+    "notes": "Migrates existing LyFlow XDR/HIDS-like baseline rules into the new IR."
+  }
+}

@@ -1,0 +1,20 @@
+- rule: Terminal shell in container
+  desc: A shell was spawned in a container
+  condition: proc.name in (bash, sh, zsh) and user.name != root
+  output: Shell spawned (user=%user.name command=%proc.cmdline)
+  priority: WARNING
+  tags: [container, shell, execution]
+
+- rule: Write below etc
+  desc: File below /etc opened for writing
+  condition: evt.type in (open, openat) and fd.name startswith /etc
+  output: File write below etc (file=%fd.name)
+  priority: ERROR
+  tags: [filesystem, persistence]
+
+- rule: Netcat Reverse Shell
+  desc: Netcat command line contains reverse shell flags
+  condition: proc.cmdline contains "nc" and proc.cmdline contains "-e"
+  output: Netcat reverse shell command=%proc.cmdline
+  priority: CRITICAL
+  tags: [shell, execution]

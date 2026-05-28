@@ -1,0 +1,20 @@
+{
+  "schema_version": "v1",
+  "source_id": "elastic-linux-detection-rules",
+  "name": "Elastic Linux detection rules",
+  "category": "hids",
+  "source_type": "external_subscription",
+  "update_mode": "manual_fetch_then_convert",
+  "vendor": "Elastic",
+  "license": "Elastic License 2.0",
+  "source_url": "https://github.com/elastic/detection-rules",
+  "raw_path": "rules/subscriptions/elastic-linux/raw/",
+  "converted_path": "rules/subscriptions/elastic-linux/converted/",
+  "compiled_path": "rules/compiled/hids/elastic-linux.json",
+  "enabled_by_default": false,
+  "conversion": {
+    "converter": "elastic-linux-converter",
+    "target_ir": "lyflow-rule-ir-v1",
+    "notes": "ECS/KQL/EQL rules must be mapped through telemetry support levels."
+  }
+}

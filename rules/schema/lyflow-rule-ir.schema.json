@@ -1,0 +1,296 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lyflow.local/schemas/lyflow-rule-ir.schema.json",
+  "title": "LyFlow HIDS/DPI Rule IR",
+  "description": "Unified intermediate representation for LyFlow HIDS and DPI rules. This schema is the contract used by converters, support classifiers, scoring, behavior correlation, and rule inventory APIs.",
+  "type": "object",
+  "required": [
+    "kind",
+    "schema_version",
+    "id",
+    "name",
+    "category",
+    "enabled",
+    "source",
+    "support",
+    "classification",
+    "scoring",
+    "match"
+  ],
+  "properties": {
+    "kind": {
+      "type": "string",
+      "enum": [
+        "single_event_rule",
+        "behavior_rule",
+        "scoring_rule",
+        "subscription_manifest",
+        "support_report"
+      ]
+    },
+    "schema_version": {
+      "type": "string",
+      "pattern": "^v[0-9]+$"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 3
+    },
+    "name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string"
+    },
+    "category": {
+      "type": "string",
+      "enum": [
+        "hids",
+        "dpi",
+        "correlation",
+        "scoring",
+        "manifest",
+        "report"
+      ]
+    },
+    "enabled": {
+      "type": "boolean"
+    },
+    "source": {
+      "type": "object",
+      "required": [
+        "origin",
+        "vendor",
+        "license",
+        "url",
+        "version"
+      ],
+      "properties": {
+        "origin": {
+          "type": "string",
+          "enum": [
+            "internal",
+            "rebuilt_internal",
+            "external_subscription",
+            "external_import"
+          ]
+        },
+        "vendor": {
+          "type": "string",
+          "minLength": 1
+        },
+        "license": {
+          "type": "string",
+          "minLength": 1
+        },
+        "url": {
+          "type": "string",
+          "minLength": 1
+        },
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "upstream_id": {
+          "type": "string"
+        },
+        "revision": {
+          "type": "string"
+        },
+        "conversion_version": {
+          "type": "string"
+        },
+        "raw_path": {
+          "type": "string"
+        },
+        "converted_path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "support": {
+      "type": "object",
+      "required": [
+        "level"
+      ],
+      "properties": {
+        "level": {
+          "type": "string",
+          "enum": [
+            "full_supported",
+            "partial_supported",
+            "unsupported"
+          ]
+        },
+        "unsupported_fields": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    },
+    "classification": {
+      "type": "object",
+      "required": [
+        "stage"
+      ],
+      "properties": {
+        "stage": {
+          "type": "string",
+          "enum": [
+            "recon",
+            "initial_access",
+            "execution",
+            "persistence",
+            "privilege_escalation",
+            "lateral_movement",
+            "c2_exfiltration",
+            "uncategorized"
+          ]
+        },
+        "mitre_tactics": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "mitre_techniques": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "confidence": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "rationale": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "scoring": {
+      "type": "object",
+      "required": [
+        "base_score",
+        "severity"
+      ],
+      "properties": {
+        "base_score": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "severity": {
+          "type": "string",
+          "enum": [
+            "low",
+            "medium",
+            "high",
+            "critical"
+          ]
+        },
+        "upstream_score": {},
+        "source_reliability": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        }
+      },
+      "additionalProperties": true
+    },
+    "match": {
+      "type": "object",
+      "required": [
+        "logic"
+      ],
+      "properties": {
+        "logic": {
+          "type": "string",
+          "enum": [
+            "all",
+            "any",
+            "sequence"
+          ]
+        },
+        "conditions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "field",
+              "operator",
+              "value"
+            ],
+            "properties": {
+              "field": {
+                "type": "string"
+              },
+              "operator": {
+                "type": "string",
+                "enum": [
+                  "equals",
+                  "contains",
+                  "regex",
+                  "in",
+                  "exists",
+                  "gt",
+                  "gte",
+                  "lt",
+                  "lte"
+                ]
+              },
+              "value": {}
+            },
+            "additionalProperties": true
+          }
+        },
+        "entities": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "window": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "provenance": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "response": {
+      "type": "object",
+      "properties": {
+        "candidate_only": {
+          "type": "boolean",
+          "const": true
+        },
+        "allowed_candidate_types": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": true
+}

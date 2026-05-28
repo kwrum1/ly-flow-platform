@@ -1,0 +1,158 @@
+{
+  "version": "db-active-20260525122945",
+  "rules": [
+    {
+      "id": "artifact-yara-health-default",
+      "name": "YARA File Scanner Health Match",
+      "category": "artifact",
+      "severity": "low",
+      "score_hint": 25,
+      "stage_hint": "detection",
+      "field": "rule",
+      "value": "LyFlow.Agent.FileScanner.Health",
+      "candidate": true
+    },
+    {
+      "id": "artifact-yara-malware-default",
+      "name": "YARA Malware Family Match",
+      "category": "artifact",
+      "severity": "high",
+      "score_hint": 78,
+      "stage_hint": "execution",
+      "field": "rule",
+      "value": "(?i)(malware|trojan|webshell|miner|ransom)",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "log-collector-heartbeat-default",
+      "name": "Log Collector Heartbeat",
+      "category": "log_audit",
+      "severity": "low",
+      "score_hint": 20,
+      "stage_hint": "detection",
+      "field": "message",
+      "value": "lyflow log audit collector heartbeat",
+      "candidate": true
+    },
+    {
+      "id": "log-privilege-escalation-default",
+      "name": "Privilege Escalation Log Signal",
+      "category": "log_audit",
+      "severity": "high",
+      "score_hint": 74,
+      "stage_hint": "privilege_escalation",
+      "field": "message",
+      "value": "(?i)(sudo:.*COMMAND|pam_unix\\(sudo|useradd|usermod|newgrp)",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "log-ssh-failure-default",
+      "name": "SSH Authentication Failure Log",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 55,
+      "stage_hint": "initial_access",
+      "field": "message",
+      "value": "(?i)(failed password|invalid user|authentication failure)",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "rasp-command-exec-default",
+      "name": "RASP Command Execution Signal",
+      "category": "rasp",
+      "severity": "high",
+      "score_hint": 82,
+      "stage_hint": "execution",
+      "field": "command",
+      "value": "(?i)(/bin/sh|/bin/bash|cmd\\.exe|powershell|whoami|curl\\s+http)",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "rasp-sqli-default",
+      "name": "RASP SQL Injection Signal",
+      "category": "rasp",
+      "severity": "critical",
+      "score_hint": 90,
+      "stage_hint": "initial_access",
+      "field": "query",
+      "value": "(?i)(union\\s+select|or\\s+1=1|sleep\\s*\\(|information_schema)",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "runtime-credential-dump-default",
+      "name": "Runtime Credential Access Signal",
+      "category": "runtime",
+      "severity": "high",
+      "score_hint": 78,
+      "stage_hint": "credential_access",
+      "field": "cmdline",
+      "value": "(?i)(/etc/shadow|mimikatz|procdump|lsass|credential)",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "runtime-reverse-shell-default",
+      "name": "Runtime Reverse Shell Signal",
+      "category": "runtime",
+      "severity": "high",
+      "score_hint": 80,
+      "stage_hint": "execution",
+      "field": "cmdline",
+      "value": "/dev/tcp",
+      "candidate": true
+    },
+    {
+      "id": "runtime-suspicious-download-default",
+      "name": "Runtime Suspicious Downloader",
+      "category": "runtime",
+      "severity": "medium",
+      "score_hint": 62,
+      "stage_hint": "execution",
+      "field": "cmdline",
+      "value": "(?i)(curl|wget|python).*https?://",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "dpi-admin-access-default",
+      "name": "DPI Sensitive Admin Path",
+      "category": "traffic",
+      "severity": "medium",
+      "score_hint": 50,
+      "stage_hint": "recon",
+      "field": "http_path",
+      "value": "(?i)(/admin|/manager|/actuator|/wp-admin)",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "dpi-c2-domain-default",
+      "name": "DPI Suspicious C2 Domain",
+      "category": "traffic",
+      "severity": "high",
+      "score_hint": 76,
+      "stage_hint": "c2_exfiltration",
+      "field": "domain",
+      "value": "(?i)(malware|miner|callback|beacon|\\.xyz$)",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "dpi-scanner-user-agent-default",
+      "name": "DPI Scanner User Agent",
+      "category": "traffic",
+      "severity": "medium",
+      "score_hint": 56,
+      "stage_hint": "recon",
+      "field": "user_agent",
+      "value": "(?i)(sqlmap|nikto|nmap|masscan|zgrab)",
+      "regex": true,
+      "candidate": true
+    }
+  ]
+}

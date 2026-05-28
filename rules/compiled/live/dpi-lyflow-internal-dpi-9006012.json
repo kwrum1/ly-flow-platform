@@ -1,0 +1,124 @@
+{
+  "category": "dpi",
+  "classification": {
+    "confidence": 0.7,
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "rationale": "kept existing valid stage",
+    "stage": "execution"
+  },
+  "dedup": {
+    "fingerprint": "f88eda53e508f84f",
+    "merged_rule_ids": [
+      "lyflow-internal-dpi-9006012",
+      "lyflow-internal-dpi-9006013"
+    ],
+    "winner_reason": "source precedence then score"
+  },
+  "description": "[LY-LATERAL-006] RDP Clipboard Redirection",
+  "enabled": true,
+  "id": "lyflow-internal-dpi-9006012",
+  "kind": "single_event_rule",
+  "match": {
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "rdp"
+      }
+    ],
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "domain"
+    ],
+    "logic": "all",
+    "suricata": {
+      "msg": "[LY-LATERAL-006] RDP Clipboard Redirection",
+      "raw": "alert rdp any any -\u003e any any (msg:\"[LY-LATERAL-006] RDP Clipboard Redirection\"; content:\"CLIPBOARD\"; nocase; classtype:attempted-recon; sid:9006012; rev:1;)",
+      "rev": 1,
+      "sid": 9006012
+    }
+  },
+  "name": "[LY-LATERAL-006] RDP Clipboard Redirection",
+  "provenance": [
+    {
+      "line": 45,
+      "rev": 1,
+      "sid": 9006012,
+      "source": "rules/ly-custom/lateral.rules"
+    },
+    {
+      "rule_id": "lyflow-internal-dpi-9006012",
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9006012.json",
+      "vendor": "LyFlow"
+    },
+    {
+      "line": 50,
+      "rev": 1,
+      "sid": 9006013,
+      "source": "rules/ly-custom/lateral.rules"
+    },
+    {
+      "rule_id": "lyflow-internal-dpi-9006013",
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9006013.json",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "analyst_review"
+    ],
+    "candidate_only": true
+  },
+  "schema_version": "v1",
+  "scoring": {
+    "active_score": true,
+    "base_score": 70,
+    "normalized_score": 71,
+    "original_scoring": {
+      "base_score": 70,
+      "severity": "high",
+      "source_reliability": 92,
+      "upstream_score": {
+        "sid": 9006012
+      }
+    },
+    "score_detail": {
+      "active": true,
+      "components": {
+        "base": 70,
+        "confidence_component": 4,
+        "source_component": 3,
+        "stage_component": 6,
+        "support_factor": 0.85
+      },
+      "reason": "severity + source reliability + support + confidence + stage"
+    },
+    "severity": "high",
+    "source_reliability": 92,
+    "upstream_score": {
+      "sid": 9006012
+    }
+  },
+  "source": {
+    "conversion_version": "v1",
+    "converted_path": "rules/internal/dpi/lyflow/generated/",
+    "license": "Proprietary",
+    "origin": "internal",
+    "raw_path": "rules/ly-custom/lateral.rules",
+    "revision": "1",
+    "upstream_id": "9006012",
+    "url": "lyflow://rules/internal/dpi",
+    "vendor": "LyFlow",
+    "version": "2026.05"
+  },
+  "support": {
+    "level": "partial_supported",
+    "notes": [
+      "Migrated from LyFlow custom Suricata-like DPI rule"
+    ],
+    "unsupported_fields": []
+  }
+}

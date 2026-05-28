@@ -1,0 +1,34 @@
+{
+  "converted_count": 0,
+  "deduplicated_count": 0,
+  "mode": "sync_convert",
+  "report": {
+    "converted": 0,
+    "inserted": 0,
+    "duplicates": 0,
+    "unsupported": 0,
+    "support_counts": {
+      "full_supported": 0,
+      "partial_supported": 0,
+      "unsupported": 0
+    }
+  },
+  "rule_count": 0,
+  "rules": [],
+  "source": {
+    "bundled": false,
+    "category": "rasp",
+    "connector": true,
+    "id": "owasp-crs-connector",
+    "license": "Apache-2.0",
+    "name": "OWASP CRS Connector",
+    "origin": "external_subscription",
+    "restricted": false,
+    "updatable": true,
+    "updated_at": "2026-05-15T03:53:08Z",
+    "url": "https://raw.githubusercontent.com/coreruleset/coreruleset/main/rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"
+  },
+  "synced_at": "2026-05-15T03:53:08Z",
+  "unsupported_count": 0,
+  "version": "connector-qa-20260515"
+}

@@ -1,0 +1,132 @@
+source: lyflow
+enabled: true
+
+rules:
+  - id: 81001
+    name: "LyFlow SSH Login Anomaly"
+    level: 10
+    source: sshd
+    match: "(invalid user|failed password|authentication failure|brute force)"
+    regex: true
+    description: "Baseline detection for suspicious SSH login anomalies and brute-force activity."
+    mitre:
+      - TA0006
+      - T1110.001
+    groups:
+      - lyflow_baseline
+      - login_anomaly
+      - attack_chain:initial_access
+    enabled: true
+
+  - id: 81002
+    name: "LyFlow Suspicious Upload"
+    level: 9
+    source: dpi
+    match: '(multipart/form-data|upload).*?(\.php|\.jsp|\.jspx|\.war|webshell|shell\.php)'
+    regex: true
+    description: "Baseline detection for suspicious web upload attempts carrying executable payloads."
+    mitre:
+      - TA0001
+      - T1190
+    groups:
+      - lyflow_baseline
+      - suspicious_upload
+      - attack_chain:initial_access
+    enabled: true
+
+  - id: 81003
+    name: "LyFlow Admin Access From External Source"
+    level: 8
+    source: dpi
+    match: "(/admin|/manager|/actuator|/wp-admin|/console)"
+    regex: true
+    description: "Baseline detection for sensitive admin endpoint access."
+    mitre:
+      - TA0007
+      - T1087
+    groups:
+      - lyflow_baseline
+      - admin_access
+      - attack_chain:discovery
+    enabled: true
+
+  - id: 81004
+    name: "LyFlow Runtime Suspicious Process"
+    level: 10
+    source: runtime
+    match: '(suspicious_process|process_start).*?(curl|wget|nc|ncat|bash -i|/dev/tcp|chmod \+x|base64 -d)'
+    regex: true
+    description: "Baseline detection for suspicious runtime process execution patterns."
+    mitre:
+      - TA0002
+      - T1059
+    groups:
+      - lyflow_baseline
+      - runtime_suspicious_process
+      - attack_chain:execution
+    enabled: true
+
+  - id: 81005
+    name: "LyFlow RASP SQL Injection"
+    level: 10
+    source: rasp
+    match: '(sqli|sql injection|union select|or 1=1|information_schema|sleep\()'
+    regex: true
+    description: "Baseline detection for RASP SQL injection signals."
+    mitre:
+      - TA0001
+      - T1190
+    groups:
+      - lyflow_baseline
+      - rasp_sqli
+      - attack_chain:initial_access
+    enabled: true
+
+  - id: 81006
+    name: "LyFlow RASP Command Injection"
+    level: 12
+    source: rasp
+    match: '(command injection|cmdi|runtime\.exec|processbuilder|/bin/sh|bash -c|curl http|wget http)'
+    regex: true
+    description: "Baseline detection for RASP command injection and process-spawn signals."
+    mitre:
+      - TA0002
+      - T1059
+    groups:
+      - lyflow_baseline
+      - rasp_command_injection
+      - attack_chain:execution
+    enabled: true
+
+  - id: 81007
+    name: "LyFlow RASP Sensitive File Or Deserialization"
+    level: 9
+    source: rasp
+    match: "(deserialization|ysoserial|pickle|readobject|/etc/passwd|/proc/self/environ|sensitive file)"
+    regex: true
+    description: "Baseline detection for RASP unsafe deserialization and sensitive file access signals."
+    mitre:
+      - TA0006
+      - T1003
+    groups:
+      - lyflow_baseline
+      - rasp_file_deserialization
+      - attack_chain:credential_access
+    enabled: true
+
+  - id: 81008
+    name: "LyFlow Multi Stage Attack Chain"
+    level: 12
+    source: xdr
+    match: "(chain_id|attack_chain).*?(initial_access|execution|credential_access|impact)"
+    regex: true
+    description: "Baseline detection for correlated multi-stage attack-chain outputs."
+    mitre:
+      - TA0001
+      - TA0002
+      - TA0040
+    groups:
+      - lyflow_baseline
+      - multi_stage_correlation
+      - attack_chain:initial_access_execution_impact
+    enabled: true

@@ -1,0 +1,23 @@
+{
+  "mode": "connector_scaffold",
+  "notes": [
+    "connector scaffold recorded; actual remote download/conversion runs in a licensed connector job",
+    "restricted-license sources are not bundled unless RULE_SOURCE_SHOW_RESTRICTED=true"
+  ],
+  "rule_count": 0,
+  "source": {
+    "bundled": false,
+    "category": "rasp",
+    "connector": true,
+    "id": "owasp-crs-connector",
+    "license": "Apache-2.0",
+    "name": "OWASP CRS Connector",
+    "origin": "external_subscription",
+    "restricted": false,
+    "updatable": true,
+    "updated_at": "2026-05-15T01:07:16Z",
+    "url": "https://coreruleset.org/"
+  },
+  "synced_at": "2026-05-15T01:08:46Z",
+  "version": "final-qa"
+}

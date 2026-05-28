@@ -1,0 +1,20 @@
+{
+  "schema_version": "v1",
+  "source_id": "oisf-trafficid",
+  "name": "OISF Traffic ID",
+  "category": "dpi",
+  "source_type": "external_subscription",
+  "update_mode": "manual_fetch_then_convert",
+  "vendor": "Open Information Security Foundation",
+  "license": "MIT",
+  "source_url": "https://openinfosecfoundation.org/rules/trafficid/trafficid.rules",
+  "raw_path": "rules/subscriptions/trafficid/trafficid.rules",
+  "converted_path": "rules/subscriptions/trafficid/converted/",
+  "compiled_path": "rules/compiled/dpi/oisf-trafficid.json",
+  "enabled_by_default": false,
+  "conversion": {
+    "converter": "suricata-dpi-formatter",
+    "target_ir": "lyflow-rule-ir-v1",
+    "notes": "Traffic classification signatures only; preserve Suricata protocol/app identification options."
+  }
+}

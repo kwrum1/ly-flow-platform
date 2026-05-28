@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"encoding/json"
 	"log"
 	"sync"
 	"sync/atomic"
@@ -15,13 +16,13 @@ import (
 
 // Engine is the main DPI analysis engine
 type Engine struct {
-	consumer *redis.Consumer
-	auditor  *domain.Auditor
+	consumer   *redis.Consumer
+	auditor    *domain.Auditor
 	ruleEngine *rules.Engine
-	output   *output.Output
-	workers  int
-	running  atomic.Bool
-	stats    struct {
+	output     *output.Output
+	workers    int
+	running    atomic.Bool
+	stats      struct {
 		Flows   uint64
 		Alerts  uint64
 		Matched uint64
@@ -55,17 +56,24 @@ func (e *Engine) Start() error {
 
 		// Domain audit
 		domainResult := e.auditor.Audit(flow.GetDomain())
+
+		// Rule matching
+		matchedRules := e.ruleEngine.Match(flow)
+		if len(matchedRules) > 0 {
+			atomic.AddUint64(&e.stats.Matched, 1)
+		}
+
+		if err := e.output.SendSemanticFlow(buildSemanticFlow(flow, domainResult, matchedRules)); err != nil {
+			log.Printf("[engine] semantic flow output failed: %v", err)
+		}
+
 		if domainResult.Match {
 			e.emitDomainAlert(flow, domainResult)
 			atomic.AddUint64(&e.stats.Alerts, 1)
-			return
 		}
 
-		// Suricata rules matching
-		matchedRules := e.ruleEngine.Match(flow)
 		if len(matchedRules) > 0 {
 			e.emitRuleAlerts(flow, matchedRules)
-			atomic.AddUint64(&e.stats.Matched, 1)
 		}
 	})
 
@@ -108,92 +116,242 @@ func (e *Engine) OutputStats() (sent, errors uint64) {
 
 func (e *Engine) parseFlow(msg redis.XMessage) *model.FlowData {
 	flow := &model.FlowData{}
+	values := unwrapFlowValues(msg.Values)
 
-	if v, ok := msg.Values["id"].(string); ok {
+	if v, ok := values["id"].(string); ok {
 		flow.ID = v
 	}
-	if v, ok := msg.Values["timestamp"].(string); ok {
+	if v, ok := values["timestamp"].(string); ok {
 		// Parse timestamp
 		if t, err := time.Parse(time.RFC3339, v); err == nil {
 			flow.Timestamp = t.Unix()
 		}
-	} else if v, ok := msg.Values["timestamp"].(int64); ok {
+	} else if v, ok := values["timestamp"].(int64); ok {
 		flow.Timestamp = v
 	}
-	if v, ok := msg.Values["sensor_id"].(string); ok {
+	if v, ok := values["sensor_id"].(string); ok {
 		flow.SensorID = v
 	}
-	if v, ok := msg.Values["src_ip"].(string); ok {
+	if v, ok := values["src_ip"].(string); ok {
 		flow.SrcIP = v
 	}
-	if v, ok := msg.Values["dst_ip"].(string); ok {
+	if v, ok := values["dst_ip"].(string); ok {
 		flow.DstIP = v
 	}
-	if v, ok := msg.Values["src_port"].(string); ok {
+	if v, ok := values["src_port"].(string); ok {
 		if port, err := parsePort(v); err == nil {
 			flow.SrcPort = port
 		}
-	} else if v, ok := msg.Values["src_port"].(int64); ok {
+	} else if v, ok := values["src_port"].(int64); ok {
 		flow.SrcPort = uint16(v)
 	}
-	if v, ok := msg.Values["dst_port"].(string); ok {
+	if v, ok := values["dst_port"].(string); ok {
 		if port, err := parsePort(v); err == nil {
 			flow.DstPort = port
 		}
-	} else if v, ok := msg.Values["dst_port"].(int64); ok {
+	} else if v, ok := values["dst_port"].(int64); ok {
 		flow.DstPort = uint16(v)
 	}
-	if v, ok := msg.Values["protocol"].(string); ok {
+	if v, ok := values["protocol"].(string); ok {
 		flow.Protocol = v
 	}
-	if v, ok := msg.Values["app_protocol"].(string); ok {
+	if v, ok := values["app_protocol"].(string); ok {
 		flow.AppProtocol = v
 	}
-	if v, ok := msg.Values["dns_query"].(string); ok {
+	if v, ok := values["dns_query"].(string); ok {
 		flow.DNSQuery = v
 	}
-	if v, ok := msg.Values["http_host"].(string); ok {
+	if v, ok := values["http_host"].(string); ok {
 		flow.HTTPHost = v
 	}
-	if v, ok := msg.Values["tls_sni"].(string); ok {
+	if v, ok := values["tls_sni"].(string); ok {
 		flow.TLSSNI = v
 	}
-	if v, ok := msg.Values["ja3"].(string); ok {
+	if v, ok := values["ja3"].(string); ok {
 		flow.JA3 = v
 	}
-	if v, ok := msg.Values["bytes_in"].(string); ok {
+	if v, ok := values["bytes_in"].(string); ok {
 		if b, err := parseUint64(v); err == nil {
 			flow.BytesIn = b
 		}
-	} else if v, ok := msg.Values["bytes_in"].(int64); ok {
+	} else if v, ok := values["bytes_in"].(int64); ok {
 		flow.BytesIn = uint64(v)
 	}
-	if v, ok := msg.Values["bytes_out"].(string); ok {
+	if v, ok := values["bytes_out"].(string); ok {
 		if b, err := parseUint64(v); err == nil {
 			flow.BytesOut = b
 		}
-	} else if v, ok := msg.Values["bytes_out"].(int64); ok {
+	} else if v, ok := values["bytes_out"].(int64); ok {
 		flow.BytesOut = uint64(v)
 	}
-	if v, ok := msg.Values["packets"].(string); ok {
+	if v, ok := values["packets"].(string); ok {
 		if p, err := parseUint64(v); err == nil {
 			flow.Packets = p
 		}
-	} else if v, ok := msg.Values["packets"].(int64); ok {
+	} else if v, ok := values["packets"].(int64); ok {
 		flow.Packets = uint64(v)
 	}
-	if v, ok := msg.Values["duration_ms"].(string); ok {
+	if v, ok := values["duration_ms"].(string); ok {
 		if d, err := parseUint64(v); err == nil {
 			flow.DurationMs = d
 		}
-	} else if v, ok := msg.Values["duration_ms"].(int64); ok {
+	} else if v, ok := values["duration_ms"].(int64); ok {
 		flow.DurationMs = uint64(v)
 	}
-	if v, ok := msg.Values["direction"].(string); ok {
+	if v, ok := values["direction"].(string); ok {
 		flow.Direction = v
 	}
 
 	return flow
+}
+
+func unwrapFlowValues(values map[string]interface{}) map[string]interface{} {
+	if values == nil {
+		return map[string]interface{}{}
+	}
+
+	if raw, ok := values["data"]; ok {
+		switch v := raw.(type) {
+		case string:
+			var nested map[string]interface{}
+			if err := json.Unmarshal([]byte(v), &nested); err == nil && len(nested) > 0 {
+				merged := make(map[string]interface{}, len(values)+len(nested))
+				for k, val := range values {
+					merged[k] = val
+				}
+				for k, val := range nested {
+					merged[k] = val
+				}
+				return merged
+			}
+		case []byte:
+			var nested map[string]interface{}
+			if err := json.Unmarshal(v, &nested); err == nil && len(nested) > 0 {
+				merged := make(map[string]interface{}, len(values)+len(nested))
+				for k, val := range values {
+					merged[k] = val
+				}
+				for k, val := range nested {
+					merged[k] = val
+				}
+				return merged
+			}
+		}
+	}
+
+	return values
+}
+
+func buildSemanticFlow(flow *model.FlowData, domainResult *domain.AuditResult, matchedRules []*rules.Rule) *model.SemanticFlow {
+	riskScore := 0
+	threatType := "benign"
+	context := "no detection matched"
+
+	if domainResult != nil && domainResult.Match {
+		riskScore = domainResult.Score
+		threatType = "domain_" + domainResult.Label
+		context = domainResult.Details
+		if context == "" {
+			context = "domain reputation match"
+		}
+	}
+
+	for _, rule := range matchedRules {
+		ruleScore := scoreFromRule(rule)
+		if ruleScore > riskScore {
+			riskScore = ruleScore
+			threatType = string(rule.Category)
+			context = rule.Msg
+		}
+	}
+
+	return &model.SemanticFlow{
+		SchemaVersion: "lyflow.semantic.v1",
+		SourceStream:  "flows:raw",
+		FlowID:        flow.ID,
+		SessionID:     sessionID(flow),
+		Timestamp:     flow.Timestamp,
+		SensorID:      flow.SensorID,
+		SrcIP:         flow.SrcIP,
+		DstIP:         flow.DstIP,
+		SrcPort:       flow.SrcPort,
+		DstPort:       flow.DstPort,
+		Transport:     flow.Protocol,
+		AppProtocol:   flow.AppProtocol,
+		Domain:        flow.GetDomain(),
+		DNSQuery:      flow.DNSQuery,
+		DNSAnswer:     flow.DNSAnswer,
+		DNSDomain:     flow.DNSDomain,
+		HTTPHost:      flow.HTTPHost,
+		TLSSNI:        flow.TLSSNI,
+		JA3:           flow.JA3,
+		HTTPMethod:    flow.HTTPMethod,
+		HTTPPath:      flow.HTTPPath,
+		HTTPStatus:    flow.HTTPStatus,
+		RiskScore:     riskScore,
+		RiskLevel:     riskLevelFromScore(riskScore),
+		ThreatType:    threatType,
+		Context:       context,
+		BytesIn:       flow.BytesIn,
+		BytesOut:      flow.BytesOut,
+		Packets:       flow.Packets,
+		DurationMs:    flow.DurationMs,
+		Direction:     flow.Direction,
+	}
+}
+
+func scoreFromRule(rule *rules.Rule) int {
+	if rule == nil {
+		return 0
+	}
+	switch rule.Severity {
+	case rules.SeverityCritical:
+		return 95
+	case rules.SeverityHigh:
+		return 80
+	case rules.SeverityMedium:
+		return 55
+	case rules.SeverityLow:
+		return 30
+	default:
+		return 40
+	}
+}
+
+func riskLevelFromScore(score int) string {
+	switch {
+	case score >= 80:
+		return "critical"
+	case score >= 60:
+		return "high"
+	case score >= 40:
+		return "medium"
+	case score > 0:
+		return "low"
+	default:
+		return "none"
+	}
+}
+
+func sessionID(flow *model.FlowData) string {
+	if flow.ID != "" {
+		return flow.ID
+	}
+	return flow.SrcIP + ":" + stringPort(flow.SrcPort) + "->" + flow.DstIP + ":" + stringPort(flow.DstPort)
+}
+
+func stringPort(port uint16) string {
+	if port == 0 {
+		return "0"
+	}
+	buf := [5]byte{}
+	i := len(buf)
+	for port > 0 {
+		i--
+		buf[i] = byte('0' + port%10)
+		port /= 10
+	}
+	return string(buf[i:])
 }
 
 func (e *Engine) emitDomainAlert(flow *model.FlowData, result *domain.AuditResult) {

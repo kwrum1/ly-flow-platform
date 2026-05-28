@@ -1,0 +1,109 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-31154",
+  "name": "Nginx 500 错误",
+  "description": "Nginx 500 内部服务器错误",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal",
+    "version": "2026.05",
+    "upstream_id": "31154",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/xdr/nginx_rules.yaml",
+    "converted_path": "rules/internal/hids/lyflow/generated/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from existing LyFlow internal XDR rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.75,
+    "rationale": "kept existing valid stage"
+  },
+  "scoring": {
+    "base_score": 30,
+    "severity": "low",
+    "upstream_score": {
+      "lyflow_level": 5
+    },
+    "source_reliability": 92,
+    "normalized_score": 44,
+    "active_score": true,
+    "score_detail": {
+      "reason": "severity + source reliability + support + confidence + stage",
+      "active": true,
+      "components": {
+        "base": 30,
+        "source_component": 3,
+        "confidence_component": 5,
+        "stage_component": 6,
+        "support_factor": 1.0
+      }
+    },
+    "original_scoring": {
+      "base_score": 30,
+      "severity": "low",
+      "upstream_score": {
+        "lyflow_level": 5
+      },
+      "source_reliability": 92
+    }
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "host.id",
+      "network.src_ip",
+      "user.name"
+    ],
+    "conditions": [
+      {
+        "field": "metadata.line",
+        "operator": "contains",
+        "value": "500"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/xdr/nginx_rules.yaml",
+      "rule_id": 31154,
+      "groups": [
+        "error",
+        "server_error"
+      ]
+    },
+    {
+      "source": "rules/internal/hids/lyflow/generated/lyflow-internal-31154.json",
+      "rule_id": "lyflow-internal-31154",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "8d864235f69f122f",
+    "merged_rule_ids": [
+      "lyflow-internal-31154"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

@@ -1,0 +1,110 @@
+{
+  "category": "hids",
+  "classification": {
+    "confidence": 0.82,
+    "mitre_tactics": [
+      "TA0006"
+    ],
+    "mitre_techniques": [
+      "T1110"
+    ],
+    "rationale": "kept existing valid stage",
+    "stage": "initial_access"
+  },
+  "dedup": {
+    "fingerprint": "766a76a8d7761635",
+    "merged_rule_ids": [
+      "elkeid-rebuilt-h1004"
+    ],
+    "winner_reason": "source precedence then score"
+  },
+  "description": "Bruteforce from single source address",
+  "enabled": true,
+  "id": "elkeid-rebuilt-h1004",
+  "kind": "single_event_rule",
+  "match": {
+    "conditions": [
+      {
+        "field": "metadata.line",
+        "operator": "regex",
+        "value": "(?i)(Failed\\\\s+password|authentication\\\\s+failure|incorrect)"
+      },
+      {
+        "field": "metadata.line",
+        "operator": "regex",
+        "value": "10"
+      }
+    ],
+    "entities": [
+      "host.id",
+      "user.name",
+      "process.pid"
+    ],
+    "logic": "any"
+  },
+  "name": "Bruteforce from single-source",
+  "provenance": [
+    {
+      "category": "bruteforce",
+      "hook_type": "auth",
+      "rule_id": "H1004",
+      "source": "rules/hids/elkeid_hids_rules.yaml"
+    },
+    {
+      "rule_id": "elkeid-rebuilt-h1004",
+      "source": "rules/internal/hids/elkeid-rebuilt/generated/elkeid-rebuilt-h1004.json",
+      "vendor": "ByteDance Elkeid"
+    }
+  ],
+  "response": {
+    "allowed_candidate_types": [
+      "collect_forensic_bundle",
+      "increase_monitoring",
+      "analyst_review"
+    ],
+    "candidate_only": true
+  },
+  "schema_version": "v1",
+  "scoring": {
+    "active_score": true,
+    "base_score": 58,
+    "normalized_score": 69,
+    "original_scoring": {
+      "base_score": 58,
+      "severity": "medium",
+      "source_reliability": 78
+    },
+    "score_detail": {
+      "active": true,
+      "components": {
+        "base": 58,
+        "confidence_component": 6,
+        "source_component": 1,
+        "stage_component": 4,
+        "support_factor": 1
+      },
+      "reason": "severity + source reliability + support + confidence + stage"
+    },
+    "severity": "medium",
+    "source_reliability": 78
+  },
+  "source": {
+    "conversion_version": "v1",
+    "converted_path": "rules/internal/hids/elkeid-rebuilt/",
+    "license": "Apache-2.0",
+    "origin": "rebuilt_internal",
+    "raw_path": "rules/hids/elkeid_hids_rules.yaml",
+    "revision": "1",
+    "upstream_id": "H1004",
+    "url": "https://github.com/bytedance/Elkeid",
+    "vendor": "ByteDance Elkeid",
+    "version": "local-2024-01-15"
+  },
+  "support": {
+    "level": "full_supported",
+    "notes": [
+      "Converted from local Elkeid curated YAML patterns"
+    ],
+    "unsupported_fields": []
+  }
+}

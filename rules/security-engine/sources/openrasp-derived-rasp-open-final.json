@@ -1,0 +1,58 @@
+{
+  "converted_count": 1,
+  "deduplicated_count": 0,
+  "mode": "sync_convert",
+  "report": {
+    "converted": 1,
+    "inserted": 0,
+    "duplicates": 0,
+    "unsupported": 0,
+    "support_counts": {
+      "full_supported": 1,
+      "partial_supported": 0,
+      "unsupported": 0
+    }
+  },
+  "rule_count": 1,
+  "rules": [
+    {
+      "candidate": true,
+      "category": "rasp",
+      "conditions": null,
+      "dedup_key": "14e67fda0412408761aaaaef28bee1e7196a86564a3b837cec120a8fcda85fc3",
+      "field": "query",
+      "group_by": "",
+      "id": "web-sqli-generic",
+      "name": "Generic SQL Injection Pattern",
+      "operator": "regex",
+      "regex": true,
+      "score_hint": 90,
+      "severity": "critical",
+      "source_id": "openrasp-derived",
+      "source_license": "Apache-2.0",
+      "source_url": "https://github.com/baidu/openrasp",
+      "source_version": "rasp-open-final",
+      "stage_hint": "initial_access",
+      "support_level": "full_supported",
+      "upstream_id": "web-sqli-generic",
+      "value": "(?i)(union\\s+select|or\\s+1=1|sleep\\s*\\()",
+      "window": {}
+    }
+  ],
+  "source": {
+    "bundled": false,
+    "category": "rasp",
+    "connector": true,
+    "id": "openrasp-derived",
+    "license": "Apache-2.0",
+    "name": "OpenRASP-derived Application Rules",
+    "origin": "external_reference",
+    "restricted": false,
+    "updatable": true,
+    "updated_at": "2026-05-15T02:26:16Z",
+    "url": "https://github.com/baidu/openrasp"
+  },
+  "synced_at": "2026-05-15T02:38:16Z",
+  "unsupported_count": 0,
+  "version": "rasp-open-final"
+}

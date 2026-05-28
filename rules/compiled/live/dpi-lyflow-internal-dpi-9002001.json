@@ -1,0 +1,172 @@
+{
+  "category": "dpi",
+  "classification": {
+    "confidence": 0.7,
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "rationale": "kept existing valid stage",
+    "stage": "execution"
+  },
+  "dedup": {
+    "fingerprint": "45a94e1b30b60c87",
+    "merged_rule_ids": [
+      "lyflow-internal-dpi-9002001",
+      "lyflow-internal-dpi-9002002",
+      "lyflow-internal-dpi-9002101",
+      "lyflow-internal-dpi-9002105",
+      "lyflow-internal-dpi-9002501",
+      "lyflow-internal-dpi-9007041"
+    ],
+    "winner_reason": "source precedence then score"
+  },
+  "description": "[LY-CS-001] CobaltStrike JA3 Fingerprint Detected",
+  "enabled": true,
+  "id": "lyflow-internal-dpi-9002001",
+  "kind": "single_event_rule",
+  "match": {
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "tls"
+      }
+    ],
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "domain"
+    ],
+    "logic": "all",
+    "suricata": {
+      "msg": "[LY-CS-001] CobaltStrike JA3 Fingerprint Detected",
+      "raw": "alert tls any any -\u003e any any (msg:\"[LY-CS-001] CobaltStrike JA3 Fingerprint Detected\"; ja3_hash; content:\"a0e2f275c9c6f20c3d02f1e4e7c8e6e\"; classtype:trojan-activity; sid:9002001; rev:1;)",
+      "rev": 1,
+      "sid": 9002001
+    }
+  },
+  "name": "[LY-CS-001] CobaltStrike JA3 Fingerprint Detected",
+  "provenance": [
+    {
+      "line": 9,
+      "rev": 1,
+      "sid": 9002001,
+      "source": "rules/ly-custom/c2.rules"
+    },
+    {
+      "rule_id": "lyflow-internal-dpi-9002001",
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9002001.json",
+      "vendor": "LyFlow"
+    },
+    {
+      "line": 14,
+      "rev": 1,
+      "sid": 9002002,
+      "source": "rules/ly-custom/c2.rules"
+    },
+    {
+      "rule_id": "lyflow-internal-dpi-9002002",
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9002002.json",
+      "vendor": "LyFlow"
+    },
+    {
+      "line": 65,
+      "rev": 1,
+      "sid": 9002101,
+      "source": "rules/ly-custom/c2.rules"
+    },
+    {
+      "rule_id": "lyflow-internal-dpi-9002101",
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9002101.json",
+      "vendor": "LyFlow"
+    },
+    {
+      "line": 88,
+      "rev": 1,
+      "sid": 9002105,
+      "source": "rules/ly-custom/c2.rules"
+    },
+    {
+      "rule_id": "lyflow-internal-dpi-9002105",
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9002105.json",
+      "vendor": "LyFlow"
+    },
+    {
+      "line": 151,
+      "rev": 1,
+      "sid": 9002501,
+      "source": "rules/ly-custom/c2.rules"
+    },
+    {
+      "rule_id": "lyflow-internal-dpi-9002501",
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9002501.json",
+      "vendor": "LyFlow"
+    },
+    {
+      "line": 76,
+      "rev": 1,
+      "sid": 9007041,
+      "source": "rules/ly-custom/proxy.rules"
+    },
+    {
+      "rule_id": "lyflow-internal-dpi-9007041",
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9007041.json",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "analyst_review"
+    ],
+    "candidate_only": true
+  },
+  "schema_version": "v1",
+  "scoring": {
+    "active_score": true,
+    "base_score": 70,
+    "normalized_score": 71,
+    "original_scoring": {
+      "base_score": 70,
+      "severity": "high",
+      "source_reliability": 92,
+      "upstream_score": {
+        "sid": 9002001
+      }
+    },
+    "score_detail": {
+      "active": true,
+      "components": {
+        "base": 70,
+        "confidence_component": 4,
+        "source_component": 3,
+        "stage_component": 6,
+        "support_factor": 0.85
+      },
+      "reason": "severity + source reliability + support + confidence + stage"
+    },
+    "severity": "high",
+    "source_reliability": 92,
+    "upstream_score": {
+      "sid": 9002001
+    }
+  },
+  "source": {
+    "conversion_version": "v1",
+    "converted_path": "rules/internal/dpi/lyflow/generated/",
+    "license": "Proprietary",
+    "origin": "internal",
+    "raw_path": "rules/ly-custom/c2.rules",
+    "revision": "1",
+    "upstream_id": "9002001",
+    "url": "lyflow://rules/internal/dpi",
+    "vendor": "LyFlow",
+    "version": "2026.05"
+  },
+  "support": {
+    "level": "partial_supported",
+    "notes": [
+      "Migrated from LyFlow custom Suricata-like DPI rule"
+    ],
+    "unsupported_fields": []
+  }
+}

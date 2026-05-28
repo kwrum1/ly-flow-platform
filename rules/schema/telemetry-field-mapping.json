@@ -1,0 +1,141 @@
+{
+  "schema_version": "v1",
+  "contracts": {
+    "hids_process": {
+      "required_fields": [
+        "agent_id",
+        "hostname",
+        "ip",
+        "type",
+        "severity",
+        "strategy",
+        "backend",
+        "capability_status",
+        "source_evidence",
+        "mode",
+        "message",
+        "occurred_at",
+        "metadata.collector",
+        "metadata.user",
+        "metadata.process_name",
+        "metadata.command_line",
+        "metadata.signal"
+      ]
+    },
+    "hids_auth": {
+      "required_fields": [
+        "agent_id",
+        "hostname",
+        "ip",
+        "type",
+        "severity",
+        "strategy",
+        "backend",
+        "capability_status",
+        "source_evidence",
+        "mode",
+        "message",
+        "occurred_at",
+        "metadata.collector",
+        "metadata.path",
+        "metadata.line",
+        "metadata.signal"
+      ]
+    },
+    "hids_file": {
+      "required_fields": [
+        "agent_id",
+        "hostname",
+        "ip",
+        "type",
+        "severity",
+        "strategy",
+        "backend",
+        "capability_status",
+        "source_evidence",
+        "mode",
+        "message",
+        "occurred_at",
+        "metadata.collector",
+        "metadata.path",
+        "metadata.size",
+        "metadata.mod_unix_nano"
+      ]
+    },
+    "dpi_flow": {
+      "required_fields": [
+        "id",
+        "timestamp",
+        "sensor_id",
+        "src_ip",
+        "dst_ip",
+        "src_port",
+        "dst_port",
+        "protocol",
+        "app_protocol",
+        "bytes_in",
+        "bytes_out",
+        "packets",
+        "duration_ms",
+        "direction"
+      ]
+    },
+    "dpi_semantic_session": {
+      "required_fields": [
+        "schema_version",
+        "source_stream",
+        "session_id",
+        "flow_id",
+        "started_at",
+        "last_seen_at",
+        "sensor_id",
+        "src_ip",
+        "dst_ip",
+        "src_port",
+        "dst_port",
+        "transport",
+        "app_protocol",
+        "flow_count",
+        "bytes_in",
+        "bytes_out",
+        "packets",
+        "duration_ms",
+        "direction"
+      ]
+    }
+  },
+  "external_mappings": {
+    "ecs": {
+      "process.command_line": {"lyflow": "metadata.command_line", "support": "full_supported"},
+      "process.name": {"lyflow": "metadata.process_name", "support": "full_supported"},
+      "user.name": {"lyflow": "metadata.user", "support": "full_supported"},
+      "host.hostname": {"lyflow": "hostname", "support": "full_supported"},
+      "source.ip": {"lyflow": "src_ip", "support": "full_supported"},
+      "destination.ip": {"lyflow": "dst_ip", "support": "full_supported"},
+      "dns.question.name": {"lyflow": "dns_query", "support": "partial_supported"},
+      "url.domain": {"lyflow": "domain", "support": "partial_supported"}
+    },
+    "falco": {
+      "proc.name": {"lyflow": "metadata.process_name", "support": "full_supported"},
+      "proc.cmdline": {"lyflow": "metadata.command_line", "support": "full_supported"},
+      "user.name": {"lyflow": "metadata.user", "support": "full_supported"},
+      "evt.type": {"lyflow": null, "support": "unsupported", "reason": "current lightweight HIDS does not expose syscall event type"},
+      "fd.name": {"lyflow": null, "support": "unsupported", "reason": "current HIDS does not expose file descriptor metadata"}
+    },
+    "suricata": {
+      "dns.query": {"lyflow": "dns_query", "support": "partial_supported"},
+      "http.host": {"lyflow": "http_host", "support": "partial_supported"},
+      "http.uri": {"lyflow": "http_path", "support": "partial_supported"},
+      "tls.sni": {"lyflow": "tls_sni", "support": "partial_supported"},
+      "flow": {"lyflow": "direction", "support": "partial_supported"},
+      "content": {"lyflow": "protocol-specific string fields", "support": "partial_supported"},
+      "byte_extract": {"lyflow": null, "support": "unsupported", "reason": "current DPI contract does not expose packet payload offsets"}
+    },
+    "wazuh_auditd": {
+      "srcip": {"lyflow": "metadata.line", "support": "partial_supported"},
+      "user": {"lyflow": "metadata.line", "support": "partial_supported"},
+      "program_name": {"lyflow": "metadata.line", "support": "partial_supported"},
+      "audit.auid": {"lyflow": null, "support": "unsupported", "reason": "current auth collector keeps raw line but not parsed audit IDs"}
+    }
+  }
+}

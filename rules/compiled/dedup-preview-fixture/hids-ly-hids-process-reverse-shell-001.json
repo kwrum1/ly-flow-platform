@@ -1,0 +1,100 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "ly-hids-process-reverse-shell-001",
+  "name": "反弹 Shell 进程行为",
+  "description": "检测 bash/sh/nc 等进程参数中的交互式反弹 Shell 特征。",
+  "category": "hids",
+  "enabled": true,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal/hids",
+    "version": "2026.05",
+    "upstream_id": "ly-hids-process-reverse-shell-001",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/internal/hids/lyflow/",
+    "converted_path": "rules/compiled/hids/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Uses process command line fields emitted by the current LyFlow agent."
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [
+      "TA0002"
+    ],
+    "mitre_techniques": [
+      "T1059"
+    ],
+    "confidence": 0.9,
+    "rationale": "Interactive shell process patterns are execution-stage indicators."
+  },
+  "scoring": {
+    "base_score": 82,
+    "severity": "high",
+    "source_reliability": 95
+  },
+  "match": {
+    "logic": "any",
+    "entities": [
+      "host.id",
+      "process.pid",
+      "user.name"
+    ],
+    "conditions": [
+      {
+        "field": "process.command_line",
+        "operator": "regex",
+        "value": "(?i)(bash|sh).*(-i|/dev/tcp|/dev/udp)"
+      },
+      {
+        "field": "process.command_line",
+        "operator": "regex",
+        "value": "(?i)(nc|ncat|socat).*(-e|exec|/bin/sh|/bin/bash)"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "LyFlow self-developed HIDS baseline",
+      "rule_id": "ly-hids-process-reverse-shell-001"
+    },
+    {
+      "source": "rules/schema/examples/internal-hids-rule.json",
+      "rule_id": "ly-hids-process-reverse-shell-001",
+      "vendor": "LyFlow"
+    },
+    {
+      "source": "fixture",
+      "rule_id": "dup-1"
+    },
+    {
+      "source": "rules/schema/examples/duplicate-hids-rule.json",
+      "rule_id": "wazuh-like-duplicate-reverse-shell",
+      "vendor": "Wazuh"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "collect_forensic_bundle",
+      "increase_monitoring",
+      "suggest_host_isolation"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "dad6f6c5018f2616",
+    "merged_rule_ids": [
+      "ly-hids-process-reverse-shell-001",
+      "wazuh-like-duplicate-reverse-shell"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

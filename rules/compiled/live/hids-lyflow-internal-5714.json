@@ -1,0 +1,111 @@
+{
+  "category": "hids",
+  "classification": {
+    "confidence": 0.75,
+    "mitre_tactics": [],
+    "mitre_techniques": [
+      "T1212"
+    ],
+    "rationale": "kept existing valid stage",
+    "stage": "execution"
+  },
+  "dedup": {
+    "fingerprint": "c4b85a00ca1cbcab",
+    "merged_rule_ids": [
+      "lyflow-internal-5714"
+    ],
+    "winner_reason": "source precedence then score"
+  },
+  "description": "SSH CRC-32 补偿攻击漏洞",
+  "enabled": true,
+  "id": "lyflow-internal-5714",
+  "kind": "single_event_rule",
+  "match": {
+    "conditions": [
+      {
+        "field": "metadata.line",
+        "operator": "contains",
+        "value": "Local: crc32 compensation attack"
+      }
+    ],
+    "entities": [
+      "host.id",
+      "network.src_ip",
+      "user.name"
+    ],
+    "logic": "all"
+  },
+  "name": "SSH CRC-32 补偿攻击",
+  "provenance": [
+    {
+      "groups": [
+        "exploit_attempt",
+        "type: cve"
+      ],
+      "rule_id": 5714,
+      "source": "rules/xdr/ssh_rules.yaml"
+    },
+    {
+      "rule_id": "lyflow-internal-5714",
+      "source": "rules/internal/hids/lyflow/generated/lyflow-internal-5714.json",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ],
+    "candidate_only": true
+  },
+  "schema_version": "v1",
+  "scoring": {
+    "active_score": true,
+    "base_score": 95,
+    "normalized_score": 100,
+    "original_scoring": {
+      "base_score": 95,
+      "severity": "critical",
+      "source_reliability": 92,
+      "upstream_score": {
+        "lyflow_level": 14
+      }
+    },
+    "score_detail": {
+      "active": true,
+      "components": {
+        "base": 95,
+        "confidence_component": 5,
+        "source_component": 3,
+        "stage_component": 6,
+        "support_factor": 1
+      },
+      "reason": "severity + source reliability + support + confidence + stage"
+    },
+    "severity": "critical",
+    "source_reliability": 92,
+    "upstream_score": {
+      "lyflow_level": 14
+    }
+  },
+  "source": {
+    "conversion_version": "v1",
+    "converted_path": "rules/internal/hids/lyflow/generated/",
+    "license": "Proprietary",
+    "origin": "internal",
+    "raw_path": "rules/xdr/ssh_rules.yaml",
+    "revision": "1",
+    "upstream_id": "5714",
+    "url": "lyflow://rules/internal",
+    "vendor": "LyFlow",
+    "version": "2026.05"
+  },
+  "support": {
+    "level": "full_supported",
+    "notes": [
+      "Migrated from existing LyFlow internal XDR rule"
+    ],
+    "unsupported_fields": []
+  }
+}

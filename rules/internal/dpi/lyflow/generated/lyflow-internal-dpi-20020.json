@@ -1,0 +1,79 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-dpi-20020",
+  "name": "PostgreSQL Recon - List Databases",
+  "description": "PostgreSQL Recon - List Databases",
+  "category": "dpi",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal/dpi",
+    "version": "2026.05",
+    "upstream_id": "20020",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "dpi-engine/rules/database/postgres.rules",
+    "converted_path": "rules/internal/dpi/lyflow/generated/"
+  },
+  "support": {
+    "level": "partial_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from LyFlow custom Suricata-like DPI rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.7,
+    "rationale": "Mapped from LyFlow custom DPI rule message."
+  },
+  "scoring": {
+    "base_score": 70,
+    "severity": "high",
+    "upstream_score": {
+      "sid": 20020
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "domain"
+    ],
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "tcp"
+      }
+    ],
+    "suricata": {
+      "sid": 20020,
+      "rev": 1,
+      "msg": "PostgreSQL Recon - List Databases",
+      "raw": "alert tcp any any -> any 5432 (msg:\"PostgreSQL Recon - List Databases\"; content:\"datname|20FROM|20pg_database\"; nocase; sid:20020; rev:1;)"
+    }
+  },
+  "provenance": [
+    {
+      "source": "dpi-engine/rules/database/postgres.rules",
+      "sid": 20020,
+      "rev": 1,
+      "line": 33
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  }
+}

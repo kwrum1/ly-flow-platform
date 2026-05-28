@@ -1,0 +1,88 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-60103",
+  "name": "用户会话关闭",
+  "description": "用户会话关闭",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal",
+    "version": "2026.05",
+    "upstream_id": "60103",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/xdr/system_rules.yaml",
+    "converted_path": "rules/internal/hids/lyflow/generated/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from existing LyFlow internal XDR rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.75,
+    "rationale": "Mapped from existing LyFlow groups and MITRE tags."
+  },
+  "scoring": {
+    "base_score": 30,
+    "severity": "low",
+    "upstream_score": {
+      "lyflow_level": 3
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "host.id",
+      "network.src_ip",
+      "user.name"
+    ],
+    "conditions": [
+      {
+        "field": "metadata.line",
+        "operator": "contains",
+        "value": "session closed"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/xdr/system_rules.yaml",
+      "rule_id": 60103,
+      "groups": [
+        "session",
+        "logout"
+      ]
+    },
+    {
+      "source": "rules/internal/hids/lyflow/generated/lyflow-internal-60103.json",
+      "rule_id": "lyflow-internal-60103",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "d54e803b8670d7db",
+    "merged_rule_ids": [
+      "lyflow-internal-60103"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

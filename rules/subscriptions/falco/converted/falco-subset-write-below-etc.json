@@ -1,0 +1,81 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "falco-subset-write-below-etc",
+  "name": "Write below etc",
+  "description": "File below /etc opened for writing",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "external_subscription",
+    "vendor": "Falco Project",
+    "license": "Apache-2.0",
+    "url": "https://github.com/falcosecurity/rules",
+    "version": "fixture",
+    "upstream_id": "Write below etc",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/subscriptions/falco/raw/falco-fixture.yaml",
+    "converted_path": "rules/subscriptions/falco/converted/"
+  },
+  "support": {
+    "level": "unsupported",
+    "unsupported_fields": [
+      "evt.type",
+      "fd.name"
+    ],
+    "notes": [
+      "Falco syscall/file-descriptor fields are not exposed by current LyFlow HIDS"
+    ]
+  },
+  "classification": {
+    "stage": "uncategorized",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.2,
+    "rationale": "Mapped from Falco tags and supported fields."
+  },
+  "scoring": {
+    "base_score": 0,
+    "severity": "high",
+    "upstream_score": {
+      "falco_priority": "ERROR"
+    },
+    "source_reliability": 76
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "host.id",
+      "user.name",
+      "process.pid"
+    ],
+    "conditions": [
+      {
+        "field": "evt.type",
+        "operator": "regex",
+        "value": "evt.type in (open, openat) and fd.name startswith /etc"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/subscriptions/falco/raw/falco-fixture.yaml",
+      "rule": "Write below etc",
+      "condition": "evt.type in (open, openat) and fd.name startswith /etc",
+      "output": "File write below etc (file=%fd.name)",
+      "tags": [
+        "filesystem",
+        "persistence"
+      ]
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ]
+  }
+}

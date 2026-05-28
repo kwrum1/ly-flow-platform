@@ -1,0 +1,173 @@
+source: nginx
+enabled: true
+
+rules:
+  - id: 31101
+    name: "Nginx SQL 注入扫描"
+    level: 10
+    source: nginx
+    match: "(union|select|insert|delete|drop|--|' OR '|' AND )"
+    regex: true
+    description: "检测到 Nginx SQL 注入扫描尝试"
+    mitre:
+      - T1190
+      - TA0010
+    groups:
+      - sql_injection
+      - web_attack
+    enabled: true
+    
+  - id: 31102
+    name: "Nginx XSS 攻击"
+    level: 9
+    source: nginx
+    match: "(<script|javascript:|alert\\(|onerror=|onload=)"
+    regex: true
+    description: "检测到 Nginx XSS 攻击尝试"
+    mitre:
+      - T1190
+    groups:
+      - xss
+      - web_attack
+    enabled: true
+    
+  - id: 31103
+    name: "Nginx 命令注入"
+    level: 12
+    source: nginx
+    match: "(;|\\||\\&\\&|\\`|\\$\\()"
+    regex: true
+    description: "检测到 Nginx 命令注入尝试"
+    mitre:
+      - T1190
+    groups:
+      - command_injection
+      - web_attack
+    enabled: true
+    
+  - id: 31151
+    name: "Nginx Web 扫描器"
+    level: 7
+    source: nginx
+    match: "(nikto|sqlmap|acunetix|burp|nessus|nmap|masscan)"
+    regex: true
+    description: "检测到使用 Web 扫描器"
+    mitre:
+      - T1190
+    groups:
+      - scanner
+      - reconnaissance
+    enabled: true
+    
+  - id: 31152
+    name: "Nginx 目录遍历"
+    level: 8
+    source: nginx
+    match: "(\\.\\./|\\.\\.\\\\\\.|%2e%2e)"
+    regex: true
+    description: "检测到 Nginx 目录遍历尝试"
+    mitre:
+      - T1190
+    groups:
+      - path_traversal
+      - web_attack
+    enabled: true
+    
+  - id: 31153
+    name: "Nginx 404 洪水"
+    level: 6
+    source: nginx
+    match: "404"
+    frequency: 50
+    timeframe: 60
+    same_srcip: true
+    description: "检测到 Nginx 404 请求洪水"
+    groups:
+      - flood
+      - scanner
+    enabled: true
+    
+  - id: 31154
+    name: "Nginx 500 错误"
+    level: 5
+    source: nginx
+    match: "500"
+    description: "Nginx 500 内部服务器错误"
+    groups:
+      - error
+      - server_error
+    enabled: true
+    
+  - id: 31155
+    name: "Nginx 502 错误"
+    level: 5
+    source: nginx
+    match: "502"
+    description: "Nginx 502 错误网关"
+    groups:
+      - error
+      - server_error
+    enabled: true
+    
+  - id: 31156
+    name: "Nginx 403 禁止"
+    level: 3
+    source: nginx
+    match: "403"
+    description: "Nginx 403 禁止访问"
+    groups:
+      - forbidden
+      - access_denied
+    enabled: true
+    
+  - id: 31157
+    name: "Nginx 认证失败"
+    level: 5
+    source: nginx
+    match: "401"
+    description: "Nginx 认证失败"
+    groups:
+      - authentication_failed
+    enabled: true
+    
+  - id: 31158
+    name: "Nginx 恶意文件上传"
+    level: 10
+    source: nginx
+    match: '(\\.php|\.asp|\.jsp|\.exe|\.sh|\.cgi)'
+    regex: true
+    description: "检测到可能的恶意文件上传"
+    mitre:
+      - T1108
+    groups:
+      - file_upload
+      - web_attack
+    enabled: true
+    
+  - id: 31159
+    name: "Nginx XML 外部实体注入"
+    level: 10
+    source: nginx
+    match: "(<!DOCTYPE|<!ENTITY|CDATA|xxe)"
+    regex: true
+    description: "检测到 XXE 注入尝试"
+    mitre:
+      - T1190
+    groups:
+      - xxe
+      - web_attack
+    enabled: true
+    
+  - id: 31160
+    name: "Nginx 反序列化攻击"
+    level: 10
+    source: nginx
+    match: "(O:{|a:Serialization|java.io|ObjectInputStream)"
+    regex: true
+    description: "检测到反序列化攻击尝试"
+    mitre:
+      - T1190
+    groups:
+      - deserialization
+      - web_attack
+    enabled: true

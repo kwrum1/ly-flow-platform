@@ -1,0 +1,91 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-dpi-9002006",
+  "name": "[LY-CS-006] CobaltStrike SMB Beacon Pattern",
+  "description": "[LY-CS-006] CobaltStrike SMB Beacon Pattern",
+  "category": "dpi",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal/dpi",
+    "version": "2026.05",
+    "upstream_id": "9002006",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/ly-custom/c2.rules",
+    "converted_path": "rules/internal/dpi/lyflow/generated/"
+  },
+  "support": {
+    "level": "partial_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from LyFlow custom Suricata-like DPI rule"
+    ]
+  },
+  "classification": {
+    "stage": "c2_exfiltration",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.7,
+    "rationale": "Mapped from LyFlow custom DPI rule message."
+  },
+  "scoring": {
+    "base_score": 70,
+    "severity": "high",
+    "upstream_score": {
+      "sid": 9002006
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "domain"
+    ],
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "smb"
+      }
+    ],
+    "suricata": {
+      "sid": 9002006,
+      "rev": 1,
+      "msg": "[LY-CS-006] CobaltStrike SMB Beacon Pattern",
+      "raw": "alert smb any any -> any any (msg:\"[LY-CS-006] CobaltStrike SMB Beacon Pattern\"; smb.type; content:\"|FE|SMB\"; content:\"srvsvc\"; nocase; content:\"svcctl\"; nocase; threshold:type threshold, track by_src, count 10, seconds 60; classtype:trojan-activity; sid:9002006; rev:1;)"
+    }
+  },
+  "provenance": [
+    {
+      "source": "rules/ly-custom/c2.rules",
+      "sid": 9002006,
+      "rev": 1,
+      "line": 42
+    },
+    {
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9002006.json",
+      "rule_id": "lyflow-internal-dpi-9002006",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "153f4cd161284484",
+    "merged_rule_ids": [
+      "lyflow-internal-dpi-9002006"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

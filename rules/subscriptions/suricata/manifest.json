@@ -1,0 +1,20 @@
+{
+  "schema_version": "v1",
+  "source_id": "suricata-et-open",
+  "name": "Suricata ET Open rules for LyFlow DPI",
+  "category": "dpi",
+  "source_type": "external_subscription",
+  "update_mode": "manual_fetch_then_convert",
+  "vendor": "Proofpoint Emerging Threats Open",
+  "license": "ET Open Ruleset License",
+  "source_url": "https://rules.emergingthreats.net/open/suricata/",
+  "raw_path": "rules/suricata/et-open.rules",
+  "converted_path": "rules/subscriptions/suricata/converted/",
+  "compiled_path": "rules/compiled/dpi/suricata-et-open.json",
+  "enabled_by_default": false,
+  "conversion": {
+    "converter": "suricata-dpi-formatter",
+    "target_ir": "lyflow-rule-ir-v1",
+    "notes": "Preserve SID/rev/msg/classtype/priority/metadata/reference/content/pcre/flow and quarantine unsupported options."
+  }
+}

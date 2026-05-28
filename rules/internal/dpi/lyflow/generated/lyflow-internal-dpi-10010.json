@@ -1,0 +1,79 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-dpi-10010",
+  "name": "MySQL SQL Injection - INFORMATION_SCHEMA",
+  "description": "MySQL SQL Injection - INFORMATION_SCHEMA",
+  "category": "dpi",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal/dpi",
+    "version": "2026.05",
+    "upstream_id": "10010",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "dpi-engine/rules/database/mysql.rules",
+    "converted_path": "rules/internal/dpi/lyflow/generated/"
+  },
+  "support": {
+    "level": "partial_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from LyFlow custom Suricata-like DPI rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.7,
+    "rationale": "Mapped from LyFlow custom DPI rule message."
+  },
+  "scoring": {
+    "base_score": 70,
+    "severity": "high",
+    "upstream_score": {
+      "sid": 10010
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "domain"
+    ],
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "tcp"
+      }
+    ],
+    "suricata": {
+      "sid": 10010,
+      "rev": 1,
+      "msg": "MySQL SQL Injection - INFORMATION_SCHEMA",
+      "raw": "alert tcp any any -> any 3306 (msg:\"MySQL SQL Injection - INFORMATION_SCHEMA\"; content:\"INFORMATION_SCHEMA\"; nocase; sid:10010; rev:1;)"
+    }
+  },
+  "provenance": [
+    {
+      "source": "dpi-engine/rules/database/mysql.rules",
+      "sid": 10010,
+      "rev": 1,
+      "line": 15
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  }
+}

@@ -1,0 +1,79 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-dpi-9002303",
+  "name": "[LY-SLIVER-003] Sliver HTTP C2 Pattern",
+  "description": "[LY-SLIVER-003] Sliver HTTP C2 Pattern",
+  "category": "dpi",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal/dpi",
+    "version": "2026.05",
+    "upstream_id": "9002303",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/ly-custom/c2.rules",
+    "converted_path": "rules/internal/dpi/lyflow/generated/"
+  },
+  "support": {
+    "level": "partial_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from LyFlow custom Suricata-like DPI rule"
+    ]
+  },
+  "classification": {
+    "stage": "c2_exfiltration",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.7,
+    "rationale": "Mapped from LyFlow custom DPI rule message."
+  },
+  "scoring": {
+    "base_score": 70,
+    "severity": "high",
+    "upstream_score": {
+      "sid": 9002303
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "domain"
+    ],
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "http"
+      }
+    ],
+    "suricata": {
+      "sid": 9002303,
+      "rev": 1,
+      "msg": "[LY-SLIVER-003] Sliver HTTP C2 Pattern",
+      "raw": "alert http any any -> any any (msg:\"[LY-SLIVER-003] Sliver HTTP C2 Pattern\"; method:GET; content:\"/api/v1/\"; content:\"/randompath\"; threshold:type threshold, track by_src, count 10, seconds 60; classtype:trojan-activity; sid:9002303; rev:1;)"
+    }
+  },
+  "provenance": [
+    {
+      "source": "rules/ly-custom/c2.rules",
+      "sid": 9002303,
+      "rev": 1,
+      "line": 132
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  }
+}

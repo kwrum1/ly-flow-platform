@@ -1,0 +1,145 @@
+# 流影自定义安全规则 - 权限提升与凭据窃取检测
+# 版本: 1.0.0
+# 更新时间: 2026-05-09
+# 说明: 检测Mimikatz/凭据访问/权限提升工具
+
+# ============ Mimikatz ============
+
+# Mimikatz LSASS Access
+alert windows-security any any -> any any (msg:"[LY-PRIV-001] Mimikatz LSASS Process Access"; \
+    content:"lsass.exe"; \
+    content:"SeDebugPrivilege"; \
+    content:"SamSam"; \
+    classtype:attempted-admin; sid:9008001; rev:1;)
+
+# Mimikatz Credential Dumping
+alert windows-security any any -> any any (msg:"[LY-PRIV-002] Mimikatz Credential Dumping"; \
+    content:"sekurlsa"; nocase; \
+    content:"logonpasswords"; nocase; \
+    classtype:credential-theft; sid:9008002; rev:1;)
+
+# Mimikatz Kerberos Module
+alert windows-security any any -> any any (msg:"[LY-PRIV-003] Mimikatz Kerberos Credential Access"; \
+    content:"kerberos"; nocase; \
+    content:"golden"; nocase; \
+    content:"silver"; nocase; \
+    classtype:credential-theft; sid:9008003; rev:1;)
+
+# Mimikatz RPC Call
+alert windows-security any any -> any any (msg:"[LY-PRIV-004] Mimikatz RPC Call Pattern"; \
+    content:"RpcCall"; \
+    content:"MSV1_0"; nocase; \
+    classtype:attempted-admin; sid:9008004; rev:1;)
+
+# ============ Responder ============
+
+# Responder LLMNR Poisoning
+alert dns any any -> any any (msg:"[LY-PRIV-011] Responder LLMNR Poisoning"; \
+    dns.query; content:"<03>"; \
+    threshold:type threshold, track by_src, count 20, seconds 30; \
+    classtype:attempted-recon; sid:9008011; rev:1;)
+
+# Responder NBT-NS Poisoning
+alert tcp any any -> any 137 (msg:"[LY-PRIV-012] Responder NBT-NS Poisoning"; \
+    content:"<00><ff>"; \
+    threshold:type threshold, track by_src, count 20, seconds 30; \
+    classtype:attempted-recon; sid:9008012; rev:1;)
+
+# Responder WPAD Proxy
+alert http any any -> any any (msg:"[LY-PRIV-013] Responder WPAD Proxy Auto-Config"; \
+    content:"wpad"; nocase; \
+    content:"PAC"; nocase; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:attempted-recon; sid:9008013; rev:1;)
+
+# Responder SMB Relay
+alert smb any any -> any any (msg:"[LY-PRIV-014] Responder SMB Relay Pattern"; \
+    content:"NTLM"; nocase; \
+    content:"NTLMv2"; nocase; \
+    threshold:type threshold, track by_src, count 20, seconds 60; \
+    classtype:attempted-recon; sid:9008014; rev:1;)
+
+# ============ Impacket ============
+
+# Impacket WMIexec
+alert smb any any -> any any (msg:"[LY-PRIV-021] Impacket WMIexec Pattern"; \
+    content:"CIM_Process"; nocase; \
+    content:"Create"; nocase; \
+    threshold:type threshold, track by_src, count 5, seconds 30; \
+    classtype:attempted-admin; sid:9008021; rev:1;)
+
+# Impacket SMBexec
+alert smb any any -> any any (msg:"[LY-PRIV-022] Impacket SMBexec Pattern"; \
+    content:"BTOBTO"; nocase; \
+    content:"cmd.exe"; nocase; \
+    classtype:attempted-admin; sid:9008022; rev:1;)
+
+# Impacket ATEXEC
+alert smb any any -> any any (msg:"[LY-PRIV-023] Impacket ATEXEC Schedule Task"; \
+    content:"AT"; nocase; \
+    content:"schtasks"; nocase; \
+    threshold:type threshold, track by_src, count 5, seconds 30; \
+    classtype:attempted-admin; sid:9008023; rev:1;)
+
+# Impacket Secrets Dump
+alert smb any any -> any any (msg:"[LY-PRIV-024] Impacket Secrets Dump Pattern"; \
+    content:"SAM"; nocase; \
+    content:"LSA"; nocase; \
+    content:"Secrets"; nocase; \
+    classtype:credential-theft; sid:9008024; rev:1;)
+
+# Impacket Kerberoasting
+alert ldap any any -> any 389 (msg:"[LY-PRIV-025] Impacket Kerberoasting"; \
+    content:"krbtgt"; nocase; \
+    content:"TGS-REQ"; nocase; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:credential-theft; sid:9008025; rev:1;)
+
+# ============ BloodHound ============
+
+# BloodHound LDAP Enumeration
+alert ldap any any -> any 389 (msg:"[LY-PRIV-031] BloodHound LDAP Enumeration"; \
+    content:"BloodHound"; nocase; \
+    content:"fetchxml"; nocase; \
+    threshold:type threshold, track by_src, count 20, seconds 60; \
+    classtype:attempted-recon; sid:9008031; rev:1;)
+
+# BloodHound Computer Enumeration
+alert ldap any any -> any 389 (msg:"[LY-PRIV-032] BloodHound Computer Enumeration"; \
+    content:"computer"; nocase; \
+    content:"user"; nocase; \
+    content:"group"; nocase; \
+    threshold:type threshold, track by_src, count 30, seconds 60; \
+    classtype:attempted-recon; sid:9008032; rev:1;)
+
+# ============ LaZagne ============
+
+# LaZagne Credential Recovery
+alert http any any -> any any (msg:"[LY-PRIV-041] LaZagne Credential Recovery Tool"; \
+    http.user_agent; content:"LaZagne"; nocase; \
+    content:"password"; nocase; \
+    classtype:credential-theft; sid:9008041; rev:1;)
+
+# ============ Credentials Fletcher ============
+
+# Credentials Dumping Tool
+alert windows-security any any -> any any (msg:"[LY-PRIV-051] Credential Dumping Tool Detected"; \
+    content:"lsass"; nocase; \
+    content:"NTDS"; nocase; \
+    content:"SAM"; nocase; \
+    classtype:credential-theft; sid:9008051; rev:1;)
+
+# ============ Token Manipulation ============
+
+# Token Manipulation - Enable Duplicate
+alert windows-security any any -> any any (msg:"[LY-PRIV-061] Token Manipulation Enable Duplicate"; \
+    content:"SeSecurityPrivilege"; nocase; \
+    content:"SeAssignPrimaryTokenPrivilege"; nocase; \
+    threshold:type threshold, track by_src, count 5, seconds 30; \
+    classtype:attempted-admin; sid:9008061; rev:1;)
+
+# Token Impersonation
+alert windows-security any any -> any any (msg:"[LY-PRIV-062] Token Impersonation Pattern"; \
+    content:"Impersonate"; nocase; \
+    content:"ImpersonateToken"; nocase; \
+    classtype:attempted-admin; sid:9008062; rev:1;)

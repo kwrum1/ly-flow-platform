@@ -1,0 +1,147 @@
+source: systemd
+enabled: true
+
+rules:
+  - id: 60101
+    name: "系统认证失败"
+    level: 5
+    source: systemd
+    match: "authentication failure"
+    description: "系统认证失败"
+    mitre:
+      - T1110.001
+    groups:
+      - authentication_failed
+      - pam
+    enabled: true
+    
+  - id: 60102
+    name: "用户会话打开"
+    level: 3
+    source: systemd
+    match: "session opened"
+    description: "用户会话打开"
+    groups:
+      - session
+      - login_success
+    enabled: true
+    
+  - id: 60103
+    name: "用户会话关闭"
+    level: 3
+    source: systemd
+    match: "session closed"
+    description: "用户会话关闭"
+    groups:
+      - session
+      - logout
+    enabled: true
+    
+  - id: 60104
+    name: "Sudo 命令执行"
+    level: 3
+    source: systemd
+    match: "sudo:"
+    description: "Sudo 命令执行"
+    groups:
+      - sudo
+      - privilege_escalation
+    enabled: true
+    
+  - id: 60105
+    name: "Sudo 认证失败"
+    level: 5
+    source: systemd
+    match: "sudo:.*authentication failure"
+    regex: true
+    description: "Sudo 认证失败"
+    mitre:
+      - T1110.001
+    groups:
+      - sudo
+      - authentication_failed
+    enabled: true
+    
+  - id: 60106
+    name: "Cron 任务执行"
+    level: 3
+    source: systemd
+    match: "CRON"
+    description: "Cron 定时任务执行"
+    groups:
+      - cron
+      - scheduled_task
+    enabled: true
+    
+  - id: 60107
+    name: "系统启动"
+    level: 2
+    source: systemd
+    match: "systemd\\[1\\]:"
+    regex: true
+    description: "系统启动"
+    groups:
+      - boot
+      - system
+    enabled: true
+    
+  - id: 60108
+    name: "服务启动失败"
+    level: 6
+    source: systemd
+    match: "Failed to start"
+    description: "服务启动失败"
+    groups:
+      - service
+      - error
+    enabled: true
+    
+  - id: 60109
+    name: "系统重启"
+    level: 4
+    source: systemd
+    match: "systemd\\[1\\]:.*reboot|shutdown"
+    regex: true
+    description: "系统重启或关闭"
+    groups:
+      - system
+      - shutdown
+    enabled: true
+    
+  - id: 60110
+    name: "PAM 密码检查失败"
+    level: 5
+    source: systemd
+    match: "password check failed"
+    description: "PAM 密码检查失败"
+    mitre:
+      - T1110.001
+    groups:
+      - pam
+      - authentication_failed
+    enabled: true
+    
+  - id: 60111
+    name: "系统磁盘空间不足"
+    level: 7
+    source: systemd
+    match: "No space left on device"
+    description: "系统磁盘空间不足"
+    groups:
+      - disk
+      - resource_exhaustion
+    enabled: true
+    
+  - id: 60112
+    name: "用户被添加到 sudo 组"
+    level: 6
+    source: systemd
+    match: "useradd.*sudo|sudo.*useradd"
+    regex: true
+    description: "用户被添加到 sudo 组"
+    mitre:
+      - T1098
+    groups:
+      - privilege_escalation
+      - group_modification
+    enabled: true

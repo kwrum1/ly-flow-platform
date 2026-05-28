@@ -1,0 +1,88 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-100116",
+  "name": "MySQL 二进制日志错误",
+  "description": "MySQL 二进制日志错误",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal",
+    "version": "2026.05",
+    "upstream_id": "100116",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/xdr/mysql_rules.yaml",
+    "converted_path": "rules/internal/hids/lyflow/generated/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from existing LyFlow internal XDR rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.75,
+    "rationale": "kept existing valid stage"
+  },
+  "scoring": {
+    "base_score": 30,
+    "severity": "low",
+    "upstream_score": {
+      "lyflow_level": 5
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "host.id",
+      "network.src_ip",
+      "user.name"
+    ],
+    "conditions": [
+      {
+        "field": "metadata.line",
+        "operator": "contains",
+        "value": "Error in Log_event"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/xdr/mysql_rules.yaml",
+      "rule_id": 100116,
+      "groups": [
+        "error",
+        "binary_log"
+      ]
+    },
+    {
+      "source": "rules/internal/hids/lyflow/generated/lyflow-internal-100116.json",
+      "rule_id": "lyflow-internal-100116",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "4d405dd593b5c369",
+    "merged_rule_ids": [
+      "lyflow-internal-100116"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

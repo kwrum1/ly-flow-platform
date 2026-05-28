@@ -1,0 +1,16 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "wazuh-like-duplicate-reverse-shell",
+  "name": "Duplicate reverse shell fixture",
+  "description": "Duplicate condition for deduplication testing.",
+  "category": "hids",
+  "enabled": false,
+  "source": {"origin": "external_subscription", "vendor": "Wazuh", "license": "GPL-2.0", "url": "https://github.com/wazuh/wazuh", "version": "fixture", "upstream_id": "dup-1", "revision": "1", "conversion_version": "v1", "raw_path": "fixture", "converted_path": "fixture"},
+  "support": {"level": "full_supported", "unsupported_fields": [], "notes": ["duplicate fixture"]},
+  "classification": {"stage": "execution", "mitre_tactics": ["TA0002"], "mitre_techniques": ["T1059"], "confidence": 0.7, "rationale": "fixture"},
+  "scoring": {"base_score": 70, "severity": "high", "source_reliability": 80},
+  "match": {"logic": "any", "entities": ["host.id"], "conditions": [{"field": "process.command_line", "operator": "regex", "value": "(?i)(bash|sh).*(-i|/dev/tcp|/dev/udp)"}, {"field": "process.command_line", "operator": "regex", "value": "(?i)(nc|ncat|socat).*(-e|exec|/bin/sh|/bin/bash)"}]},
+  "provenance": [{"source": "fixture", "rule_id": "dup-1"}],
+  "response": {"candidate_only": true, "allowed_candidate_types": ["analyst_review"]}
+}

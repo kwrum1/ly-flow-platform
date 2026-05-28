@@ -1,0 +1,48 @@
+{
+  "version": "db-active-20260514190508",
+  "rules": [
+    {
+      "id": "log-ssh-failure-default",
+      "name": "SSH Authentication Failure Log",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 50,
+      "field": "message",
+      "value": "(?i)(failed password|invalid user|authentication failure)",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "rasp-sqli-default",
+      "name": "RASP SQL Injection Signal",
+      "category": "rasp",
+      "severity": "critical",
+      "score_hint": 50,
+      "field": "query",
+      "value": "(?i)(union\\s+select|or\\s+1=1|sleep\\s*\\(|information_schema)",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "runtime-reverse-shell-default",
+      "name": "Runtime Reverse Shell Signal",
+      "category": "runtime",
+      "severity": "high",
+      "score_hint": 50,
+      "field": "cmdline",
+      "value": "/dev/tcp",
+      "candidate": true
+    },
+    {
+      "id": "dpi-admin-access-default",
+      "name": "DPI Sensitive Admin Path",
+      "category": "traffic",
+      "severity": "medium",
+      "score_hint": 50,
+      "field": "http_path",
+      "value": "(?i)(/admin|/manager|/actuator|/wp-admin)",
+      "regex": true,
+      "candidate": true
+    }
+  ]
+}

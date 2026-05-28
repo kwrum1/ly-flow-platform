@@ -1,0 +1,173 @@
+# 流影自定义安全规则 - 数据库攻击检测
+# 版本: 1.0.0
+# 更新时间: 2026-05-09
+# 说明: 检测MySQL/PostgreSQL/Redis/MSSQL等数据库攻击
+
+# ============ MySQL ============
+
+# MySQL Login Brute Force
+alert tcp any any -> any 3306 (msg:"[LY-DB-MYSQL-001] MySQL Login Brute Force"; \
+    content:"SELECT"; nocase; \
+    threshold:type threshold, track by_src, count 20, seconds 60; \
+    classtype:brute-force; sid:9005001; rev:1;)
+
+# MySQL Native Password
+alert tcp any any -> any 3306 (msg:"[LY-DB-MYSQL-002] MySQL Native Password Access"; \
+    content:"mysql_native_password"; \
+    flow:established,to_server; \
+    classtype:attempted-recon; sid:9005002; rev:1;)
+
+# MySQL SQL Injection
+alert tcp any any -> any 3306 (msg:"[LY-DB-MYSQL-003] MySQL SQL Injection Attempt"; \
+    content:"union"; nocase; \
+    content:"select"; nocase; \
+    content:"from"; nocase; \
+    classtype:sql-injection; sid:9005003; rev:1;)
+
+# MySQL LOAD_FILE
+alert tcp any any -> any 3306 (msg:"[LY-DB-MYSQL-004] MySQL LOAD_FILE Exploitation"; \
+    content:"LOAD_FILE"; nocase; \
+    content:"/etc/passwd"; \
+    classtype:attempted-recon; sid:9005004; rev:1;)
+
+# MySQL INTO OUTFILE
+alert tcp any any -> any 3306 (msg:"[LY-DB-MYSQL-005] MySQL INTO OUTFILE Write"; \
+    content:"INTO OUTFILE"; nocase; \
+    content:"SELECT"; nocase; \
+    classtype:attempted-recon; sid:9005005; rev:1;)
+
+# MySQL Root Login Attempt
+alert tcp any any -> any 3306 (msg:"[LY-DB-MYSQL-006] MySQL Root Login Attempt"; \
+    content:"root"; nocase; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:brute-force; sid:9005006; rev:1;)
+
+# ============ PostgreSQL ============
+
+# PostgreSQL Login Brute Force
+alert tcp any any -> any 5432 (msg:"[LY-DB-PGSQL-001] PostgreSQL Login Brute Force"; \
+    content:"postgresql"; nocase; \
+    content:"password"; nocase; \
+    threshold:type threshold, track by_src, count 15, seconds 60; \
+    classtype:brute-force; sid:9005101; rev:1;)
+
+# PostgreSQL COPY Command
+alert tcp any any -> any 5432 (msg:"[LY-DB-PGSQL-002] PostgreSQL COPY Command Exploitation"; \
+    content:"COPY"; nocase; \
+    content:"TO"; nocase; \
+    content:"pg_ls_dir"; nocase; \
+    classtype:attempted-recon; sid:9005102; rev:1;)
+
+# PostgreSQL SQL Injection
+alert tcp any any -> any 5432 (msg:"[LY-DB-PGSQL-003] PostgreSQL SQL Injection Attempt"; \
+    content:"pg_sleep"; nocase; \
+    content:"WAITFOR"; nocase; \
+    content:"benchmark"; nocase; \
+    classtype:sql-injection; sid:9005103; rev:1;)
+
+# PostgreSQL System Catalog Access
+alert tcp any any -> any 5432 (msg:"[LY-DB-PGSQL-004] PostgreSQL System Catalog Access"; \
+    content:"pg_catalog"; nocase; \
+    content:"pg_read_file"; nocase; \
+    classtype:attempted-recon; sid:9005104; rev:1;)
+
+# ============ Redis ============
+
+# Redis AUTH Command
+alert tcp any any -> any 6379 (msg:"[LY-DB-REDIS-001] Redis AUTH Attempt"; \
+    content:"AUTH"; \
+    threshold:type threshold, track by_src, count 5, seconds 30; \
+    classtype:brute-force; sid:9005201; rev:1;)
+
+# Redis CONFIG Command
+alert tcp any any -> any 6379 (msg:"[LY-DB-REDIS-002] Redis CONFIG Command Exploitation"; \
+    content:"CONFIG SET"; nocase; \
+    content:"dir"; nocase; \
+    content:"dbfilename"; nocase; \
+    classtype:attempted-recon; sid:9005202; rev:1;)
+
+# Redis FLUSHALL Command
+alert tcp any any -> any 6379 (msg:"[LY-DB-REDIS-003] Redis FLUSHALL Command"; \
+    content:"FLUSHALL"; nocase; \
+    classtype:attempted-admin; sid:9005203; rev:1;)
+
+# Redis EVAL Command (Lua Script Injection)
+alert tcp any any -> any 6379 (msg:"[LY-DB-REDIS-004] Redis EVAL Lua Script Injection"; \
+    content:"EVAL"; nocase; \
+    content:"SCRIPT LOAD"; nocase; \
+    classtype:attempted-admin; sid:9005204; rev:1;)
+
+# Redis SLAVEOF Command
+alert tcp any any -> any 6379 (msg:"[LY-DB-REDIS-005] Redis SLAVEOF Replication"; \
+    content:"SLAVEOF"; nocase; \
+    classtype:attempted-admin; sid:9005205; rev:1;)
+
+# Redis Keyspace Notification
+alert tcp any any -> any 6379 (msg:"[LY-DB-REDIS-006] Redis Keyspace Notification Exploitation"; \
+    content:"CONFIG SET notify-keyspace-events"; nocase; \
+    classtype:attempted-admin; sid:9005206; rev:1;)
+
+# ============ MSSQL ============
+
+# MSSQL Login Brute Force
+alert tcp any any -> any 1433 (msg:"[LY-DB-MSSQL-001] MSSQL Login Brute Force"; \
+    content:"SELECT"; nocase; \
+    threshold:type threshold, track by_src, count 20, seconds 60; \
+    classtype:brute-force; sid:9005301; rev:1;)
+
+# MSSQL xp_cmdshell
+alert tcp any any -> any 1433 (msg:"[LY-DB-MSSQL-002] MSSQL xp_cmdshell Exploitation"; \
+    content:"xp_cmdshell"; nocase; \
+    classtype:attempted-admin; sid:9005302; rev:1;)
+
+# MSSQL SQL Injection
+alert tcp any any -> any 1433 (msg:"[LY-DB-MSSQL-003] MSSQL SQL Injection Attempt"; \
+    content:"exec"; nocase; \
+    content:"sp_executesql"; nocase; \
+    classtype:sql-injection; sid:9005303; rev:1;)
+
+# MSSQL Openrowset
+alert tcp any any -> any 1433 (msg:"[LY-DB-MSSQL-004] MSSQL Openrowset Exploitation"; \
+    content:"OPENROWSET"; nocase; \
+    content:"OPENDATASOURCE"; nocase; \
+    classtype:attempted-admin; sid:9005304; rev:1;)
+
+# ============ MongoDB ============
+
+# MongoDB No Auth Access
+alert tcp any any -> any 27017 (msg:"[LY-DB-MONGO-001] MongoDB No Authentication Access"; \
+    content:"ismaster"; nocase; \
+    content:"{\"listDatabases\""; \
+    classtype:attempted-admin; sid:9005401; rev:1;)
+
+# MongoDB Unauthorized Command
+alert tcp any any -> any 27017 (msg:"[LY-DB-MONGO-002] MongoDB Unauthorized Command"; \
+    content:"db.adminCommand"; nocase; \
+    content:"shutdown"; nocase; \
+    classtype:attempted-admin; sid:9005402; rev:1;)
+
+# MongoDB User Enumeration
+alert tcp any any -> any 27017 (msg:"[LY-DB-MONGO-003] MongoDB User Enumeration"; \
+    content:"system.users"; nocase; \
+    content:"find"; nocase; \
+    classtype:attempted-recon; sid:9005403; rev:1;)
+
+# ============ Oracle ============
+
+# Oracle TNS Listener
+alert tcp any any -> any 1521 (msg:"[LY-DB-ORACLE-001] Oracle TNS Listener Brute Force"; \
+    content:"(CONNECT_DATA="; \
+    threshold:type threshold, track by_src, count 15, seconds 60; \
+    classtype:brute-force; sid:9005501; rev:1;)
+
+# Oracle SQL Injection
+alert tcp any any -> any 1521 (msg:"[LY-DB-ORACLE-002] Oracle SQL Injection Attempt"; \
+    content:"UTL_HTTP"; nocase; \
+    content:"UTL_TCP"; nocase; \
+    classtype:sql-injection; sid:9005502; rev:1;)
+
+# Oracle Command Execution
+alert tcp any any -> any 1521 (msg:"[LY-DB-ORACLE-003] Oracle Command Execution"; \
+    content:"DBMS_SCHEDULER"; nocase; \
+    content:"CREATE JOB"; nocase; \
+    classtype:attempted-admin; sid:9005503; rev:1;)

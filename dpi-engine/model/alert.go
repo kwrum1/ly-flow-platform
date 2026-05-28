@@ -3,21 +3,27 @@ package model
 import "time"
 
 type Alert struct {
-	ID        uint64    `json:"id"`
-	Timestamp time.Time `json:"timestamp"`
-	Type      string    `json:"type"`
-	SrcIP     string    `json:"src_ip"`
-	DstIP     string    `json:"dst_ip"`
-	SrcPort   uint16    `json:"src_port"`
-	DstPort   uint16    `json:"dst_port"`
-	Protocol  string    `json:"protocol"`
-	Signature string    `json:"signature"`
-	Category  string    `json:"category"`
-	Severity  uint8     `json:"severity"`
-	Score     int       `json:"risk_score"`
-	Status    string    `json:"status"`
-	SensorID  string    `json:"sensor_id"`
-	Domain    string    `json:"domain,omitempty"`
+	ID                  uint64    `json:"id"`
+	Timestamp           time.Time `json:"timestamp"`
+	Type                string    `json:"type"`
+	SrcIP               string    `json:"src_ip"`
+	DstIP               string    `json:"dst_ip"`
+	SrcPort             uint16    `json:"src_port"`
+	DstPort             uint16    `json:"dst_port"`
+	Protocol            string    `json:"protocol"`
+	Signature           string    `json:"signature"`
+	Category            string    `json:"category"`
+	Severity            uint8     `json:"severity"`
+	Score               int       `json:"risk_score"`
+	Status              string    `json:"status"`
+	SensorID            string    `json:"sensor_id"`
+	Domain              string    `json:"domain,omitempty"`
+	SemanticFlowID      string    `json:"semantic_flow_id,omitempty"`
+	SemanticSessionID   string    `json:"semantic_session_id,omitempty"`
+	SemanticRiskScore   int       `json:"semantic_risk_score,omitempty"`
+	SemanticRiskLevel   string    `json:"semantic_risk_level,omitempty"`
+	SemanticContext     string    `json:"semantic_context,omitempty"`
+	SemanticThreatType  string    `json:"semantic_threat_type,omitempty"`
 }
 
 const (

@@ -1,0 +1,64 @@
+# 流影自定义安全规则 - FRP内网穿透检测
+# 版本: 1.0.0
+# 更新时间: 2026-05-09
+# 说明: 检测FRP内网穿透工具特征
+
+# FRP Control Port Access - JSON Version Info
+alert tcp any any -> any 7000 (msg:"[LY-FRP-001] FRP Control Port JSON Version Detection"; \
+    content:"{\"version\":"; nocase; \
+    content:"\"os\":"; nocase; \
+    content:"\"arch\":"; nocase; \
+    classtype:trojan-activity; sid:9001001; rev:1;)
+
+# FRP Authentication Token
+alert tcp any any -> any 7000 (msg:"[LY-FRP-002] FRP Authentication Token Detection"; \
+    content:"privilege_key"; nocase; \
+    classtype:trojan-activity; sid:9001002; rev:1;)
+
+# FRP Run ID
+alert tcp any any -> any 7000 (msg:"[LY-FRP-003] FRP Run ID Detection"; \
+    content:"\"run_id\":"; nocase; \
+    classtype:trojan-activity; sid:9001003; rev:1;)
+
+# FRP WebSocket Tunnel Path
+alert tcp any any -> any any (msg:"[LY-FRP-004] FRP WebSocket Path /~!frp"; \
+    content:"/~!frp"; \
+    flow:established,to_server; \
+    classtype:trojan-activity; sid:9001004; rev:1;)
+
+# FRP TLS First Byte Fixed Pattern (v0.25.0+)
+alert tcp any any -> any any (msg:"[LY-FRP-005] FRP TLS First Byte 0x17 Fixed Pattern"; \
+    content:"|17 03|"; \
+    byte_test:1,=,0x17,2,relative; \
+    flow:established; \
+    classtype:protocol-violation; sid:9001005; rev:1;)
+
+# FRP Pool Count
+alert tcp any any -> any 7000 (msg:"[LY-FRP-006] FRP Pool Count Field"; \
+    content:"\"pool_count\":"; nocase; \
+    classtype:trojan-activity; sid:9001006; rev:1;)
+
+# FRP Enable TLS Configuration
+alert tcp any any -> any any (msg:"[LY-FRP-007] FRP TLS Enable Configuration"; \
+    content:"tls_enable"; nocase; \
+    content:"true"; nocase; \
+    classtype:trojan-activity; sid:9001007; rev:1;)
+
+# FRP Version 0.48.x Specific Pattern
+alert tcp any any -> any 7000 (msg:"[LY-FRP-008] FRP Version 0.48 Detection"; \
+    content:"0.48"; \
+    content:"windows"; nocase; \
+    classtype:trojan-activity; sid:9001008; rev:1;)
+
+# FRP HTTP Basic Auth
+alert tcp any any -> any any (msg:"[LY-FRP-009] FRP HTTP Basic Auth Header"; \
+    content:"proxy-authorization"; nocase; \
+    content:"Basic"; \
+    flow:established; \
+    classtype:trojan-activity; sid:9001009; rev:1;)
+
+# FRP Custom Subdomain
+alert tcp any any -> any any (msg:"[LY-FRP-010] FRP Custom Subdomain Pattern"; \
+    content:"\"subdomain\":"; nocase; \
+    content:"custom_domains"; nocase; \
+    classtype:trojan-activity; sid:9001010; rev:1;)

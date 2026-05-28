@@ -1,0 +1,84 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "elastic-linux-elastic-linux-eql-sequence-fixture",
+  "name": "Unsupported EQL Sequence Fixture",
+  "description": "Unsupported EQL Sequence Fixture",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "external_subscription",
+    "vendor": "Elastic",
+    "license": "Elastic License 2.0",
+    "url": "https://github.com/elastic/detection-rules",
+    "version": "fixture",
+    "upstream_id": "elastic-linux-eql-sequence-fixture",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/subscriptions/elastic-linux/raw/linux-fixture.json",
+    "converted_path": "rules/subscriptions/elastic-linux/converted/"
+  },
+  "support": {
+    "level": "unsupported",
+    "unsupported_fields": [
+      "elastic.eql.sequence"
+    ],
+    "notes": [
+      "EQL sequence requires behavior correlation conversion and is not a single-event rule"
+    ]
+  },
+  "classification": {
+    "stage": "uncategorized",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.2,
+    "rationale": "Mapped from Elastic threat metadata and tags."
+  },
+  "scoring": {
+    "base_score": 0,
+    "severity": "low",
+    "upstream_score": {
+      "elastic_risk_score": 21
+    },
+    "source_reliability": 84
+  },
+  "match": {
+    "logic": "any",
+    "entities": [
+      "host.id",
+      "user.name",
+      "process.pid"
+    ],
+    "conditions": [
+      {
+        "field": "process.name",
+        "operator": "regex",
+        "value": "sequence by host.id [process where process.name == \"ssh\"] [network where destination.port == 22]"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/subscriptions/elastic-linux/raw/linux-fixture.json",
+      "rule_id": "elastic-linux-eql-sequence-fixture",
+      "language": "eql",
+      "query": "sequence by host.id [process where process.name == \"ssh\"] [network where destination.port == 22]",
+      "tags": [
+        "Linux",
+        "Sequence",
+        "Elastic"
+      ],
+      "references": [
+        "https://github.com/elastic/detection-rules"
+      ]
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ]
+  }
+}

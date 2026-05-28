@@ -25,31 +25,36 @@ var (
 
 func main() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
-	log.Printf("ly-dpi-engine %s (%s) starting...", version, commit)
+	log.Printf("ly-dpi-engine %s (%s) 正在启动...", version, commit)
 
 	cfg := config.Load()
 
-	// Initialize domain auditor
+	// 初始化域名审计器
 	auditor := domain.New()
 	if err := auditor.LoadMiningList(cfg.Domain.MiningPath); err != nil {
-		log.Printf("[config] Warning: failed to load mining list: %v", err)
+		log.Printf("[配置] 警告: 加载挖矿列表失败: %v", err)
 	}
 	if err := auditor.LoadFraudList(cfg.Domain.FraudPath); err != nil {
-		log.Printf("[config] Warning: failed to load fraud list: %v", err)
+		log.Printf("[配置] 警告: 加载欺诈列表失败: %v", err)
 	}
 	if err := auditor.LoadCustomList(cfg.Domain.CustomPath); err != nil {
-		log.Printf("[config] Warning: failed to load custom list: %v", err)
+		log.Printf("[配置] 警告: 加载自定义列表失败: %v", err)
 	}
-	log.Printf("[domain] Auditor initialized")
+	log.Printf("[域名] 审计器已初始化")
 
-	// Initialize rules engine
+	// 初始化规则引擎
 	ruleEngine := rules.New()
 	if err := ruleEngine.LoadRulesFile(cfg.Rules.Path); err != nil {
-		log.Printf("[config] Warning: failed to load rules: %v", err)
+		log.Printf("[配置] 警告: 加载主规则失败: %v", err)
 	}
-	log.Printf("[rules] Loaded %d rules", ruleEngine.RuleCount())
 
-	// Initialize Redis consumer
+	mainRuleCount := ruleEngine.RuleCount()
+	if err := ruleEngine.LoadDatabaseRules(cfg.Rules.DatabaseDir); err != nil {
+		log.Fatalf("[配置] 加载数据库规则失败: %v", err)
+	}
+	log.Printf("[规则] 已加载 %d 条规则 (主规则 %d 条, 数据库规则 %d 条)", ruleEngine.RuleCount(), mainRuleCount, ruleEngine.RuleCount()-mainRuleCount)
+
+	// 初始化 Redis 消费者
 	consumer := redis.NewConsumer(
 		cfg.Redis.Addr,
 		cfg.Redis.Password,
@@ -62,13 +67,13 @@ func main() {
 		cfg.Engine.BlockSeconds,
 	)
 
-	// Initialize output
-	out := output.New(consumer.GetClient(), cfg.Output.Stream)
+	// 初始化输出
+	out := output.NewWithStreams(consumer.GetClient(), cfg.Output.Stream, cfg.Output.SemanticStream, cfg.Output.SessionStream)
 
-	// Initialize engine
+	// 初始化引擎
 	eng := engine.New(consumer, auditor, ruleEngine, out)
 
-	// Start HTTP server for health and metrics
+	// 启动 HTTP 服务器用于健康检查和指标
 	mux := http.NewServeMux()
 	setupRoutes(mux, eng)
 
@@ -78,48 +83,48 @@ func main() {
 	}
 
 	go func() {
-		log.Printf("[http] Starting server on %s", cfg.HTTP.Addr)
+		log.Printf("[http] 在 %s 上启动服务", cfg.HTTP.Addr)
 		if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Printf("[http] Server error: %v", err)
+			log.Printf("[http] 服务器错误: %v", err)
 		}
 	}()
 
-	// Start engine
+	// 启动引擎
 	if err := eng.Start(); err != nil {
-		log.Fatalf("[engine] Failed to start: %v", err)
+		log.Fatalf("[引擎] 启动失败: %v", err)
 	}
 
-	// Wait for shutdown signal
+	// 等待关闭信号
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
 	<-sigCh
 
-	log.Println("[main] Shutdown signal received")
+	log.Println("[主程序] 收到关闭信号")
 
-	// Graceful shutdown
+	// 优雅关闭
 	eng.Stop()
 
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer shutdownCancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("[http] Shutdown error: %v", err)
+		log.Printf("[http] 关闭错误: %v", err)
 	}
 
 	flows, alerts, matched := eng.Stats()
-	log.Printf("[main] Shutdown complete (flows: %d, alerts: %d, matched: %d)",
+	log.Printf("[主程序] 关闭完成 (flows: %d, alerts: %d, matched: %d)",
 		flows, alerts, matched)
 }
 
 func setupRoutes(mux *http.ServeMux, eng *engine.Engine) {
-	// Health check
+	// 健康检查
 	mux.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		w.Write([]byte(`{"status":"ok","service":"ly-dpi-engine"}`))
 	})
 
-	// Stats endpoint
+	// 统计端点
 	mux.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		flows, alerts, matched := eng.Stats()
@@ -127,40 +132,34 @@ func setupRoutes(mux *http.ServeMux, eng *engine.Engine) {
 			flows, alerts, matched, version)
 	})
 
-	// Prometheus metrics endpoint
+	// Prometheus 指标端点
 	mux.HandleFunc("/metrics", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
 		flows, alerts, matched := eng.Stats()
 		proc, alrt, err := eng.ConsumerStats()
 		sent, outErr := eng.OutputStats()
 
-		fmt.Fprintf(w, "# HELP dpi_engine_flows_total Total flows processed\n")
+		fmt.Fprintf(w, "# HELP dpi_engine_flows_total 已处理的总流量数\n")
 		fmt.Fprintf(w, "# TYPE dpi_engine_flows_total counter\n")
 		fmt.Fprintf(w, "dpi_engine_flows_total %d\n", flows)
-		fmt.Fprintf(w, "# HELP dpi_engine_alerts_total Total alerts generated\n")
+		fmt.Fprintf(w, "# HELP dpi_engine_alerts_total 生成的告警总数\n")
 		fmt.Fprintf(w, "# TYPE dpi_engine_alerts_total counter\n")
 		fmt.Fprintf(w, "dpi_engine_alerts_total %d\n", alerts)
-		fmt.Fprintf(w, "# HELP dpi_engine_matched_total Total rules matched\n")
+		fmt.Fprintf(w, "# HELP dpi_engine_matched_total 匹配的规则总数\n")
 		fmt.Fprintf(w, "# TYPE dpi_engine_matched_total counter\n")
 		fmt.Fprintf(w, "dpi_engine_matched_total %d\n", matched)
-		fmt.Fprintf(w, "# HELP dpi_engine_processed_total Total messages processed\n")
+		fmt.Fprintf(w, "# HELP dpi_engine_processed_total 已处理的消息总数\n")
 		fmt.Fprintf(w, "# TYPE dpi_engine_processed_total counter\n")
 		fmt.Fprintf(w, "dpi_engine_processed_total %d\n", proc)
-		fmt.Fprintf(w, "# HELP dpi_engine_errors_total Total errors\n")
+		fmt.Fprintf(w, "# HELP dpi_engine_errors_total 错误总数\n")
 		fmt.Fprintf(w, "# TYPE dpi_engine_errors_total counter\n")
 		fmt.Fprintf(w, "dpi_engine_redis_errors_total %d\n", err)
-		fmt.Fprintf(w, "# HELP dpi_engine_sent_total Total alerts sent\n")
+		fmt.Fprintf(w, "# HELP dpi_engine_sent_total 已发送的告警总数\n")
 		fmt.Fprintf(w, "# TYPE dpi_engine_sent_total counter\n")
 		fmt.Fprintf(w, "dpi_engine_sent_total %d\n", sent)
-		fmt.Fprintf(w, "# HELP dpi_engine_output_errors_total Total output errors\n")
+		fmt.Fprintf(w, "# HELP dpi_engine_output_errors_total 输出错误总数\n")
 		fmt.Fprintf(w, "# TYPE dpi_engine_output_errors_total counter\n")
 		fmt.Fprintf(w, "dpi_engine_output_errors_total %d\n", outErr)
 		_ = alrt
-	})
-
-	// Version endpoint
-	mux.HandleFunc("/version", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		fmt.Fprintf(w, `{"version":"%s","commit":"%s"}`, version, commit)
 	})
 }

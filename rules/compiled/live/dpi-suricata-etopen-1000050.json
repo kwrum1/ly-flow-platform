@@ -1,0 +1,142 @@
+{
+  "category": "dpi",
+  "classification": {
+    "confidence": 0.72,
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "rationale": "kept existing valid stage",
+    "stage": "c2_exfiltration"
+  },
+  "dedup": {
+    "fingerprint": "62b5b57ea49abf37",
+    "merged_rule_ids": [
+      "suricata-etopen-1000050"
+    ],
+    "winner_reason": "source precedence then score"
+  },
+  "description": "ET TROJAN High DNS Query Count Possible Tunnel",
+  "enabled": true,
+  "id": "suricata-etopen-1000050",
+  "kind": "single_event_rule",
+  "match": {
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "dns"
+      },
+      {
+        "field": "dns.query",
+        "operator": "regex",
+        "value": "[a-z]+\\.[a-z]{5,}\\.[a-z]{2,4}$"
+      }
+    ],
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "dns.query",
+      "http.host",
+      "tls.sni"
+    ],
+    "logic": "all",
+    "suricata": {
+      "action": "alert",
+      "classtype": [],
+      "content": [],
+      "direction": "-\u003e",
+      "dst": "$EXTERNAL_NET any",
+      "flow": [],
+      "metadata": [],
+      "msg": "ET TROJAN High DNS Query Count Possible Tunnel",
+      "pcre": [
+        "/[a-z]+\\.[a-z]{5,}\\.[a-z]{2,4}$/"
+      ],
+      "priority": null,
+      "protocol": "dns",
+      "raw_options": [
+        "msg:\"ET TROJAN High DNS Query Count Possible Tunnel\"",
+        "dns.query",
+        "pcre:\"/[a-z]+\\.[a-z]{5,}\\.[a-z]{2,4}$/\"",
+        "threshold: type threshold, track by_src, count 50, seconds 60",
+        "sid:1000050",
+        "rev:1"
+      ],
+      "reference": [],
+      "rev": 1,
+      "sid": 1000050,
+      "src": "$HOME_NET any"
+    }
+  },
+  "name": "ET TROJAN High DNS Query Count Possible Tunnel",
+  "provenance": [
+    {
+      "line": 27,
+      "rev": 1,
+      "sid": 1000050,
+      "source": "rules/suricata/et-open.rules"
+    },
+    {
+      "rule_id": "suricata-etopen-1000050",
+      "source": "rules/subscriptions/suricata/converted/suricata-etopen-1000050.json",
+      "vendor": "Proofpoint Emerging Threats Open"
+    }
+  ],
+  "response": {
+    "allowed_candidate_types": [
+      "suggest_ip_block",
+      "increase_monitoring",
+      "analyst_review"
+    ],
+    "candidate_only": true
+  },
+  "schema_version": "v1",
+  "scoring": {
+    "active_score": true,
+    "base_score": 71,
+    "normalized_score": 75,
+    "original_scoring": {
+      "base_score": 71,
+      "severity": "high",
+      "source_reliability": 80,
+      "upstream_score": {
+        "suricata_priority": 2
+      }
+    },
+    "score_detail": {
+      "active": true,
+      "components": {
+        "base": 71,
+        "confidence_component": 4,
+        "source_component": 1,
+        "stage_component": 12,
+        "support_factor": 0.85
+      },
+      "reason": "severity + source reliability + support + confidence + stage"
+    },
+    "severity": "high",
+    "source_reliability": 80,
+    "upstream_score": {
+      "suricata_priority": 2
+    }
+  },
+  "source": {
+    "conversion_version": "v1",
+    "converted_path": "rules/subscriptions/suricata/converted/",
+    "license": "ET Open Ruleset License",
+    "origin": "external_subscription",
+    "raw_path": "rules/suricata/et-open.rules",
+    "revision": "1",
+    "upstream_id": "1000050",
+    "url": "rules/suricata/et-open.rules",
+    "vendor": "Proofpoint Emerging Threats Open",
+    "version": "v1.0.0"
+  },
+  "support": {
+    "level": "partial_supported",
+    "notes": [
+      "Converted from Suricata/ET Open rule",
+      "Partially supported option: threshold"
+    ],
+    "unsupported_fields": []
+  }
+}

@@ -1,0 +1,38 @@
+[
+  {
+    "rule_id": "elastic-linux-reverse-shell-fixture",
+    "name": "Linux Reverse Shell Command",
+    "risk_score": 73,
+    "severity": "high",
+    "type": "query",
+    "language": "kuery",
+    "query": "process.command_line: (*bash* and */dev/tcp*)",
+    "tags": ["Linux", "Execution", "Elastic"],
+    "references": ["https://github.com/elastic/detection-rules"],
+    "threat": [{"framework": "MITRE ATT&CK", "tactic": {"id": "TA0002", "name": "Execution"}, "technique": [{"id": "T1059", "name": "Command and Scripting Interpreter"}]}]
+  },
+  {
+    "rule_id": "elastic-linux-useradd-fixture",
+    "name": "Linux User Account Creation",
+    "risk_score": 47,
+    "severity": "medium",
+    "type": "query",
+    "language": "kuery",
+    "query": "process.name: useradd or process.command_line: *useradd*",
+    "tags": ["Linux", "Persistence", "Elastic"],
+    "references": ["https://github.com/elastic/detection-rules"],
+    "threat": [{"framework": "MITRE ATT&CK", "tactic": {"id": "TA0003", "name": "Persistence"}, "technique": [{"id": "T1136", "name": "Create Account"}]}]
+  },
+  {
+    "rule_id": "elastic-linux-eql-sequence-fixture",
+    "name": "Unsupported EQL Sequence Fixture",
+    "risk_score": 21,
+    "severity": "low",
+    "type": "eql",
+    "language": "eql",
+    "query": "sequence by host.id [process where process.name == \"ssh\"] [network where destination.port == 22]",
+    "tags": ["Linux", "Sequence", "Elastic"],
+    "references": ["https://github.com/elastic/detection-rules"],
+    "threat": []
+  }
+]

@@ -1,0 +1,186 @@
+source: wazuh
+enabled: true
+
+rules:
+  - id: 5700
+    name: "SSHD messages grouped"
+    level: 0
+    source: sshd
+    program: sshd
+    description: "SSH 日志事件"
+    enabled: true
+    
+  - id: 5710
+    name: "SSH 尝试使用不存在的用户登录"
+    level: 5
+    source: sshd
+    match: "illegal user|invalid user"
+    description: "SSH 尝试使用不存在的用户登录"
+    mitre:
+      - T1110.001
+      - T1021.004
+    groups:
+      - invalid_login
+      - authentication_failed
+    enabled: true
+    
+  - id: 5711
+    name: "SSH 成功登录"
+    level: 3
+    source: sshd
+    match: "Accepted"
+    description: "SSH 成功登录"
+    mitre:
+      - T1021.004
+    groups:
+      - authentication_success
+    enabled: true
+    
+  - id: 5712
+    name: "SSH 暴力破解尝试"
+    level: 10
+    source: sshd
+    if_sid: 5710
+    frequency: 8
+    timeframe: 120
+    same_srcip: true
+    description: "SSH 暴力破解尝试攻击"
+    mitre:
+      - T1110.001
+    groups:
+      - authentication_failures
+      - brute_force
+    enabled: true
+    
+  - id: 5713
+    name: "SSH 用户认证失败"
+    level: 5
+    source: sshd
+    match: "Failed password|^Failed|^error: PAM: Authentication"
+    description: "SSH 用户认证失败"
+    mitre:
+      - T1110.001
+    groups:
+      - authentication_failed
+    enabled: true
+
+  - id: 5723
+    name: "SSH 密码暴力破解"
+    level: 10
+    source: sshd
+    if_sid: 5713
+    frequency: 5
+    timeframe: 120
+    same_srcip: true
+    description: "同一源 IP 短时间多次 SSH 密码认证失败"
+    mitre:
+      - T1110.001
+    groups:
+      - brute_force
+      - authentication_failures
+    enabled: true
+     
+  - id: 5714
+    name: "SSH CRC-32 补偿攻击"
+    level: 14
+    source: sshd
+    if_sid: 5713
+    match: "Local: crc32 compensation attack"
+    frequency: 3
+    timeframe: 120
+    description: "SSH CRC-32 补偿攻击漏洞"
+    mitre:
+      - T1212
+    groups:
+      - exploit_attempt
+    info:
+      - type: cve
+        value: "2001-0144"
+    enabled: true
+    
+  - id: 5715
+    name: "SSH 用户被拒绝"
+    level: 5
+    source: sshd
+    match: "not allowed because"
+    description: "SSH 用户被拒绝登录"
+    groups:
+      - invalid_login
+    enabled: true
+    
+  - id: 5716
+    name: "SSH 认证失败"
+    level: 5
+    source: sshd
+    match: "error: PAM: Authentication"
+    description: "SSH PAM 认证失败"
+    groups:
+      - authentication_failed
+    enabled: true
+    
+  - id: 5717
+    name: "SSH 连接关闭"
+    level: 3
+    source: sshd
+    match: "Connection closed"
+    description: "SSH 连接关闭"
+    groups:
+      - connection_closed
+    enabled: true
+    
+  - id: 5718
+    name: "SSH 用户不允许登录"
+    level: 5
+    source: sshd
+    match: "not allowed because"
+    description: "SSH 用户不允许登录"
+    groups:
+      - invalid_login
+      - authentication_failed
+    enabled: true
+    
+  - id: 5719
+    name: "SSH 多次不允许用户访问"
+    level: 10
+    source: sshd
+    if_sid: 5718
+    frequency: 8
+    timeframe: 120
+    same_srcip: true
+    description: "SSH 多次尝试使用不允许的用户登录"
+    mitre:
+      - T1110.001
+    groups:
+      - brute_force
+      - authentication_failures
+    enabled: true
+    
+  - id: 5720
+    name: "SSH PAM 错误"
+    level: 5
+    source: sshd
+    match: "error: PAM:"
+    description: "SSH PAM 错误"
+    groups:
+      - authentication_failed
+    enabled: true
+    
+  - id: 5721
+    name: "SSH 超时"
+    level: 3
+    source: sshd
+    match: "Timeout"
+    description: "SSH 连接超时"
+    groups:
+      - connection_closed
+    enabled: true
+    
+  - id: 5722
+    name: "SSH 密钥不匹配"
+    level: 5
+    source: sshd
+    match: "key_regulate_before"
+    description: "SSH 密钥不匹配"
+    groups:
+      - authentication_failed
+    enabled: true

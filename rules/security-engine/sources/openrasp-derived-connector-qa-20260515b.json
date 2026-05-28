@@ -1,0 +1,342 @@
+{
+  "converted_count": 5,
+  "deduplicated_count": 38,
+  "mode": "sync_convert",
+  "report": {
+    "converted": 5,
+    "inserted": 0,
+    "duplicates": 38,
+    "unsupported": 0,
+    "support_counts": {
+      "full_supported": 43,
+      "partial_supported": 0,
+      "unsupported": 0
+    },
+    "dedup_groups": [
+      {
+        "dedup_key": "d4c9bd04247da5b75c5b083518cc8e1819c77fe158357711f487ff56c3a254be",
+        "duplicate": "openrasp-sql-policy",
+        "winner": "openrasp-sql-userinput"
+      },
+      {
+        "dedup_key": "d4c9bd04247da5b75c5b083518cc8e1819c77fe158357711f487ff56c3a254be",
+        "duplicate": "openrasp-sql-exception",
+        "winner": "openrasp-sql-userinput"
+      },
+      {
+        "dedup_key": "d4c9bd04247da5b75c5b083518cc8e1819c77fe158357711f487ff56c3a254be",
+        "duplicate": "openrasp-mysql",
+        "winner": "openrasp-sql-userinput"
+      },
+      {
+        "dedup_key": "d4c9bd04247da5b75c5b083518cc8e1819c77fe158357711f487ff56c3a254be",
+        "duplicate": "openrasp-pgsql",
+        "winner": "openrasp-sql-userinput"
+      },
+      {
+        "dedup_key": "d4c9bd04247da5b75c5b083518cc8e1819c77fe158357711f487ff56c3a254be",
+        "duplicate": "openrasp-sqlite",
+        "winner": "openrasp-sql-userinput"
+      },
+      {
+        "dedup_key": "d4c9bd04247da5b75c5b083518cc8e1819c77fe158357711f487ff56c3a254be",
+        "duplicate": "openrasp-hsql",
+        "winner": "openrasp-sql-userinput"
+      },
+      {
+        "dedup_key": "d4c9bd04247da5b75c5b083518cc8e1819c77fe158357711f487ff56c3a254be",
+        "duplicate": "openrasp-mssql",
+        "winner": "openrasp-sql-userinput"
+      },
+      {
+        "dedup_key": "d4c9bd04247da5b75c5b083518cc8e1819c77fe158357711f487ff56c3a254be",
+        "duplicate": "openrasp-sql-regex",
+        "winner": "openrasp-sql-userinput"
+      },
+      {
+        "dedup_key": "9e33c6bb9fef936b91d61199a196f3d443b4170660e248fcc371a86916be11fb",
+        "duplicate": "openrasp-ssrf-aws",
+        "winner": "openrasp-ssrf-userinput"
+      },
+      {
+        "dedup_key": "9e33c6bb9fef936b91d61199a196f3d443b4170660e248fcc371a86916be11fb",
+        "duplicate": "openrasp-ssrf-common",
+        "winner": "openrasp-ssrf-userinput"
+      },
+      {
+        "dedup_key": "9e33c6bb9fef936b91d61199a196f3d443b4170660e248fcc371a86916be11fb",
+        "duplicate": "openrasp-ssrf-obfuscate",
+        "winner": "openrasp-ssrf-userinput"
+      },
+      {
+        "dedup_key": "9e33c6bb9fef936b91d61199a196f3d443b4170660e248fcc371a86916be11fb",
+        "duplicate": "openrasp-ssrf-protocol",
+        "winner": "openrasp-ssrf-userinput"
+      },
+      {
+        "dedup_key": "954c25ec777722580721b471b7e401361cdd712a1445c671671fda1e39d64d4f",
+        "duplicate": "openrasp-readfile-userinput-http",
+        "winner": "openrasp-readfile-userinput"
+      },
+      {
+        "dedup_key": "954c25ec777722580721b471b7e401361cdd712a1445c671671fda1e39d64d4f",
+        "duplicate": "openrasp-readfile-userinput-unwanted",
+        "winner": "openrasp-readfile-userinput"
+      },
+      {
+        "dedup_key": "954c25ec777722580721b471b7e401361cdd712a1445c671671fda1e39d64d4f",
+        "duplicate": "openrasp-readfile-outsidewebroot",
+        "winner": "openrasp-readfile-userinput"
+      },
+      {
+        "dedup_key": "954c25ec777722580721b471b7e401361cdd712a1445c671671fda1e39d64d4f",
+        "duplicate": "openrasp-readfile-unwanted",
+        "winner": "openrasp-readfile-userinput"
+      },
+      {
+        "dedup_key": "954c25ec777722580721b471b7e401361cdd712a1445c671671fda1e39d64d4f",
+        "duplicate": "openrasp-writefile-ntfs",
+        "winner": "openrasp-readfile-userinput"
+      },
+      {
+        "dedup_key": "954c25ec777722580721b471b7e401361cdd712a1445c671671fda1e39d64d4f",
+        "duplicate": "openrasp-writefile-script",
+        "winner": "openrasp-readfile-userinput"
+      },
+      {
+        "dedup_key": "954c25ec777722580721b471b7e401361cdd712a1445c671671fda1e39d64d4f",
+        "duplicate": "openrasp-writefile-reflect",
+        "winner": "openrasp-readfile-userinput"
+      },
+      {
+        "dedup_key": "954c25ec777722580721b471b7e401361cdd712a1445c671671fda1e39d64d4f",
+        "duplicate": "openrasp-deletefile-userinput",
+        "winner": "openrasp-readfile-userinput"
+      },
+      {
+        "dedup_key": "fe0875c9f36728501b07c26d197eb0c07d9e80f9e3bee2204848121fa2b7e4c9",
+        "duplicate": "openrasp-link-webshell",
+        "winner": "openrasp-rename-webshell"
+      },
+      {
+        "dedup_key": "d4c9bd04247da5b75c5b083518cc8e1819c77fe158357711f487ff56c3a254be",
+        "duplicate": "openrasp-xxe-disable-entity",
+        "winner": "openrasp-sql-userinput"
+      },
+      {
+        "dedup_key": "d4c9bd04247da5b75c5b083518cc8e1819c77fe158357711f487ff56c3a254be",
+        "duplicate": "openrasp-xxe-protocol",
+        "winner": "openrasp-sql-userinput"
+      },
+      {
+        "dedup_key": "954c25ec777722580721b471b7e401361cdd712a1445c671671fda1e39d64d4f",
+        "duplicate": "openrasp-xxe-file",
+        "winner": "openrasp-readfile-userinput"
+      },
+      {
+        "dedup_key": "954c25ec777722580721b471b7e401361cdd712a1445c671671fda1e39d64d4f",
+        "duplicate": "openrasp-fileupload-webdav",
+        "winner": "openrasp-readfile-userinput"
+      },
+      {
+        "dedup_key": "954c25ec777722580721b471b7e401361cdd712a1445c671671fda1e39d64d4f",
+        "duplicate": "openrasp-fileupload-multipart-script",
+        "winner": "openrasp-readfile-userinput"
+      },
+      {
+        "dedup_key": "954c25ec777722580721b471b7e401361cdd712a1445c671671fda1e39d64d4f",
+        "duplicate": "openrasp-fileupload-multipart-html",
+        "winner": "openrasp-readfile-userinput"
+      },
+      {
+        "dedup_key": "954c25ec777722580721b471b7e401361cdd712a1445c671671fda1e39d64d4f",
+        "duplicate": "openrasp-fileupload-multipart-exe",
+        "winner": "openrasp-readfile-userinput"
+      },
+      {
+        "dedup_key": "592cb467f8d292921a3a976d82b105f57f5a2210140286801613171132d1d230",
+        "duplicate": "openrasp-command-userinput",
+        "winner": "openrasp-command-reflect"
+      },
+      {
+        "dedup_key": "592cb467f8d292921a3a976d82b105f57f5a2210140286801613171132d1d230",
+        "duplicate": "openrasp-command-common",
+        "winner": "openrasp-command-reflect"
+      },
+      {
+        "dedup_key": "592cb467f8d292921a3a976d82b105f57f5a2210140286801613171132d1d230",
+        "duplicate": "openrasp-command-error",
+        "winner": "openrasp-command-reflect"
+      },
+      {
+        "dedup_key": "592cb467f8d292921a3a976d82b105f57f5a2210140286801613171132d1d230",
+        "duplicate": "openrasp-command-other",
+        "winner": "openrasp-command-reflect"
+      },
+      {
+        "dedup_key": "592cb467f8d292921a3a976d82b105f57f5a2210140286801613171132d1d230",
+        "duplicate": "openrasp-command-dnslog",
+        "winner": "openrasp-command-reflect"
+      },
+      {
+        "dedup_key": "fe0875c9f36728501b07c26d197eb0c07d9e80f9e3bee2204848121fa2b7e4c9",
+        "duplicate": "openrasp-webshell-eval",
+        "winner": "openrasp-rename-webshell"
+      },
+      {
+        "dedup_key": "592cb467f8d292921a3a976d82b105f57f5a2210140286801613171132d1d230",
+        "duplicate": "openrasp-webshell-command",
+        "winner": "openrasp-command-reflect"
+      },
+      {
+        "dedup_key": "fe0875c9f36728501b07c26d197eb0c07d9e80f9e3bee2204848121fa2b7e4c9",
+        "duplicate": "openrasp-webshell-file-put-contents",
+        "winner": "openrasp-rename-webshell"
+      },
+      {
+        "dedup_key": "fe0875c9f36728501b07c26d197eb0c07d9e80f9e3bee2204848121fa2b7e4c9",
+        "duplicate": "openrasp-webshell-callable",
+        "winner": "openrasp-rename-webshell"
+      },
+      {
+        "dedup_key": "fe0875c9f36728501b07c26d197eb0c07d9e80f9e3bee2204848121fa2b7e4c9",
+        "duplicate": "openrasp-webshell-ld-preload",
+        "winner": "openrasp-rename-webshell"
+      }
+    ]
+  },
+  "rule_count": 43,
+  "rules": [
+    {
+      "candidate": true,
+      "category": "rasp",
+      "conditions": null,
+      "dedup_key": "d4c9bd04247da5b75c5b083518cc8e1819c77fe158357711f487ff56c3a254be",
+      "field": "query",
+      "group_by": "",
+      "id": "openrasp-sql-userinput",
+      "name": "OpenRASP sql_userinput",
+      "operator": "regex",
+      "regex": true,
+      "score_hint": 75,
+      "severity": "high",
+      "source_id": "openrasp-derived",
+      "source_license": "Apache-2.0",
+      "source_url": "https://raw.githubusercontent.com/baidu/openrasp/master/plugins/official/plugin.js",
+      "source_version": "connector-qa-20260515b",
+      "stage_hint": "initial_access",
+      "support_level": "full_supported",
+      "upstream_id": "openrasp-sql-userinput",
+      "value": "(?i)(union\\s+select|or\\s+1=1|sleep\\s*\\(|benchmark\\s*\\()",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "rasp",
+      "conditions": null,
+      "dedup_key": "9e33c6bb9fef936b91d61199a196f3d443b4170660e248fcc371a86916be11fb",
+      "field": "url",
+      "group_by": "",
+      "id": "openrasp-ssrf-userinput",
+      "name": "OpenRASP ssrf_userinput",
+      "operator": "regex",
+      "regex": true,
+      "score_hint": 75,
+      "severity": "high",
+      "source_id": "openrasp-derived",
+      "source_license": "Apache-2.0",
+      "source_url": "https://raw.githubusercontent.com/baidu/openrasp/master/plugins/official/plugin.js",
+      "source_version": "connector-qa-20260515b",
+      "stage_hint": "initial_access",
+      "support_level": "full_supported",
+      "upstream_id": "openrasp-ssrf-userinput",
+      "value": "(?i)(127\\.0\\.0\\.1|169\\.254\\.169\\.254|localhost|file://|gopher://)",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "rasp",
+      "conditions": null,
+      "dedup_key": "954c25ec777722580721b471b7e401361cdd712a1445c671671fda1e39d64d4f",
+      "field": "path",
+      "group_by": "",
+      "id": "openrasp-readfile-userinput",
+      "name": "OpenRASP readFile_userinput",
+      "operator": "regex",
+      "regex": true,
+      "score_hint": 75,
+      "severity": "high",
+      "source_id": "openrasp-derived",
+      "source_license": "Apache-2.0",
+      "source_url": "https://raw.githubusercontent.com/baidu/openrasp/master/plugins/official/plugin.js",
+      "source_version": "connector-qa-20260515b",
+      "stage_hint": "credential_access",
+      "support_level": "full_supported",
+      "upstream_id": "openrasp-readfile-userinput",
+      "value": "(?i)(\\.\\./|/etc/passwd|WEB-INF|id_rsa|\\.jsp$|\\.php$)",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "rasp",
+      "conditions": null,
+      "dedup_key": "fe0875c9f36728501b07c26d197eb0c07d9e80f9e3bee2204848121fa2b7e4c9",
+      "field": "payload",
+      "group_by": "",
+      "id": "openrasp-rename-webshell",
+      "name": "OpenRASP rename_webshell",
+      "operator": "regex",
+      "regex": true,
+      "score_hint": 90,
+      "severity": "critical",
+      "source_id": "openrasp-derived",
+      "source_license": "Apache-2.0",
+      "source_url": "https://raw.githubusercontent.com/baidu/openrasp/master/plugins/official/plugin.js",
+      "source_version": "connector-qa-20260515b",
+      "stage_hint": "persistence",
+      "support_level": "full_supported",
+      "upstream_id": "openrasp-rename-webshell",
+      "value": "(?i)(eval\\s*\\(|assert\\s*\\(|base64_decode|Runtime\\.getRuntime|ProcessBuilder)",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "rasp",
+      "conditions": null,
+      "dedup_key": "592cb467f8d292921a3a976d82b105f57f5a2210140286801613171132d1d230",
+      "field": "command",
+      "group_by": "",
+      "id": "openrasp-command-reflect",
+      "name": "OpenRASP command_reflect",
+      "operator": "regex",
+      "regex": true,
+      "score_hint": 90,
+      "severity": "critical",
+      "source_id": "openrasp-derived",
+      "source_license": "Apache-2.0",
+      "source_url": "https://raw.githubusercontent.com/baidu/openrasp/master/plugins/official/plugin.js",
+      "source_version": "connector-qa-20260515b",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "openrasp-command-reflect",
+      "value": "(?i)(/bin/sh|bash\\s+-i|cmd\\.exe|powershell|/dev/tcp|;\\s*(id|whoami|cat))",
+      "window": {}
+    }
+  ],
+  "source": {
+    "bundled": false,
+    "category": "rasp",
+    "connector": true,
+    "id": "openrasp-derived",
+    "license": "Apache-2.0",
+    "name": "OpenRASP-derived Application Rules",
+    "origin": "external_reference",
+    "restricted": false,
+    "updatable": true,
+    "updated_at": "2026-05-15T03:56:40Z",
+    "url": "https://raw.githubusercontent.com/baidu/openrasp/master/plugins/official/plugin.js"
+  },
+  "synced_at": "2026-05-15T03:56:40Z",
+  "unsupported_count": 0,
+  "version": "connector-qa-20260515b"
+}

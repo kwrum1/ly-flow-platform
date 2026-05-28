@@ -1,0 +1,150 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-100111",
+  "name": "MySQL 暴力破解",
+  "description": "MySQL 数据库暴力破解攻击",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal",
+    "version": "2026.05",
+    "upstream_id": "100111",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/xdr/mysql_rules.yaml",
+    "converted_path": "rules/internal/hids/lyflow/generated/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from existing LyFlow internal XDR rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [
+      "T1110.001"
+    ],
+    "confidence": 0.75,
+    "rationale": "kept existing valid stage"
+  },
+  "scoring": {
+    "base_score": 78,
+    "severity": "critical",
+    "upstream_score": {
+      "lyflow_level": 10
+    },
+    "source_reliability": 92,
+    "normalized_score": 92,
+    "active_score": true,
+    "score_detail": {
+      "reason": "severity + source reliability + support + confidence + stage",
+      "active": true,
+      "components": {
+        "base": 78,
+        "source_component": 3,
+        "confidence_component": 5,
+        "stage_component": 6,
+        "support_factor": 1.0
+      }
+    },
+    "original_scoring": {
+      "base_score": 78,
+      "severity": "high",
+      "upstream_score": {
+        "lyflow_level": 10
+      },
+      "source_reliability": 92
+    }
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "host.id",
+      "network.src_ip",
+      "user.name"
+    ],
+    "conditions": [
+      {
+        "field": "metadata.line",
+        "operator": "contains",
+        "value": ""
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/xdr/mysql_rules.yaml",
+      "rule_id": 100111,
+      "groups": [
+        "brute_force",
+        "authentication_failures"
+      ]
+    },
+    {
+      "source": "rules/internal/hids/lyflow/generated/lyflow-internal-100111.json",
+      "rule_id": "lyflow-internal-100111",
+      "vendor": "LyFlow"
+    },
+    {
+      "source": "rules/xdr/ssh_rules.yaml",
+      "rule_id": 5712,
+      "groups": [
+        "authentication_failures",
+        "brute_force"
+      ]
+    },
+    {
+      "source": "rules/internal/hids/lyflow/generated/lyflow-internal-5712.json",
+      "rule_id": "lyflow-internal-5712",
+      "vendor": "LyFlow"
+    },
+    {
+      "source": "rules/xdr/ssh_rules.yaml",
+      "rule_id": 5719,
+      "groups": [
+        "brute_force",
+        "authentication_failures"
+      ]
+    },
+    {
+      "source": "rules/internal/hids/lyflow/generated/lyflow-internal-5719.json",
+      "rule_id": "lyflow-internal-5719",
+      "vendor": "LyFlow"
+    },
+    {
+      "source": "rules/xdr/ssh_rules.yaml",
+      "rule_id": 5700,
+      "groups": []
+    },
+    {
+      "source": "rules/internal/hids/lyflow/generated/lyflow-internal-5700.json",
+      "rule_id": "lyflow-internal-5700",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "90c89461223977aa",
+    "merged_rule_ids": [
+      "lyflow-internal-100111",
+      "lyflow-internal-5712",
+      "lyflow-internal-5719",
+      "lyflow-internal-5700"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

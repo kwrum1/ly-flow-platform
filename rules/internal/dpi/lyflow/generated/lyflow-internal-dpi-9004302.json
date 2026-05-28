@@ -1,0 +1,79 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-dpi-9004302",
+  "name": "[LY-WSHELL-CN-002] cmd.exe Shell Execution",
+  "description": "[LY-WSHELL-CN-002] cmd.exe Shell Execution",
+  "category": "dpi",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal/dpi",
+    "version": "2026.05",
+    "upstream_id": "9004302",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/ly-custom/webshell.rules",
+    "converted_path": "rules/internal/dpi/lyflow/generated/"
+  },
+  "support": {
+    "level": "partial_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from LyFlow custom Suricata-like DPI rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.7,
+    "rationale": "Mapped from LyFlow custom DPI rule message."
+  },
+  "scoring": {
+    "base_score": 70,
+    "severity": "high",
+    "upstream_score": {
+      "sid": 9004302
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "domain"
+    ],
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "http"
+      }
+    ],
+    "suricata": {
+      "sid": 9004302,
+      "rev": 1,
+      "msg": "[LY-WSHELL-CN-002] cmd.exe Shell Execution",
+      "raw": "alert http any any -> any any (msg:\"[LY-WSHELL-CN-002] cmd.exe Shell Execution\"; content:\"cmd.exe\"; nocase; content:\"/c\"; nocase; classtype:web-application-attack; sid:9004302; rev:1;)"
+    }
+  },
+  "provenance": [
+    {
+      "source": "rules/ly-custom/webshell.rules",
+      "sid": 9004302,
+      "rev": 1,
+      "line": 98
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  }
+}

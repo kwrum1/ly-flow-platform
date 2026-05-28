@@ -1,0 +1,14 @@
+{
+  "schema_version": "v1",
+  "id": "behavior-basic-attack-chain",
+  "name": "基础攻击链行为关联",
+  "description": "按同一实体在时间窗口内串联初始入侵、执行、持久化、提权、横向移动、C2/外联等阶段。",
+  "window_seconds": 3600,
+  "entities": ["src_ip", "host_id", "user", "process", "domain"],
+  "min_events": 2,
+  "min_total_score": 120,
+  "stage_order": ["recon", "initial_access", "execution", "persistence", "privilege_escalation", "lateral_movement", "c2_exfiltration"],
+  "required_any_stage": ["execution", "privilege_escalation", "c2_exfiltration"],
+  "suppression_seconds": 900,
+  "response": {"candidate_only": true}
+}

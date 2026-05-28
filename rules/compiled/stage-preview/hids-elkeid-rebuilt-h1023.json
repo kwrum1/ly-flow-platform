@@ -1,0 +1,87 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "elkeid-rebuilt-h1023",
+  "name": "Pass-the-Hash Attack",
+  "description": "Pass-the-hash attack detected",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "rebuilt_internal",
+    "vendor": "ByteDance Elkeid",
+    "license": "Apache-2.0",
+    "url": "https://github.com/bytedance/Elkeid",
+    "version": "local-2024-01-15",
+    "upstream_id": "H1023",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/hids/elkeid_hids_rules.yaml",
+    "converted_path": "rules/internal/hids/elkeid-rebuilt/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Converted from local Elkeid curated YAML patterns"
+    ]
+  },
+  "classification": {
+    "stage": "lateral_movement",
+    "mitre_tactics": [
+      "TA0006"
+    ],
+    "mitre_techniques": [
+      "T1550"
+    ],
+    "confidence": 0.82,
+    "rationale": "kept existing valid stage"
+  },
+  "scoring": {
+    "base_score": 95,
+    "severity": "critical",
+    "source_reliability": 78
+  },
+  "match": {
+    "logic": "any",
+    "entities": [
+      "host.id",
+      "user.name",
+      "process.pid"
+    ],
+    "conditions": [
+      {
+        "field": "metadata.command_line",
+        "operator": "regex",
+        "value": "(?i)(ntlm|lm_hash|\\\\$NT\\\\$|passwd.*hash)"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/hids/elkeid_hids_rules.yaml",
+      "rule_id": "H1023",
+      "category": "lateral_movement",
+      "hook_type": "auth"
+    },
+    {
+      "source": "rules/internal/hids/elkeid-rebuilt/generated/elkeid-rebuilt-h1023.json",
+      "rule_id": "elkeid-rebuilt-h1023",
+      "vendor": "ByteDance Elkeid"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "collect_forensic_bundle",
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "f51d90612514fbde",
+    "merged_rule_ids": [
+      "elkeid-rebuilt-h1023"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

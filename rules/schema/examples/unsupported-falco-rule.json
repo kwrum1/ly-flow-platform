@@ -1,0 +1,61 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "falco-unsupported-syscall-open",
+  "name": "Falco syscall-only open event",
+  "description": "Fixture demonstrating unsupported syscall-only Falco conditions.",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "external_subscription",
+    "vendor": "Falco Project",
+    "license": "Apache-2.0",
+    "url": "https://github.com/falcosecurity/rules",
+    "version": "fixture",
+    "upstream_id": "falco-syscall-open-fixture",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/subscriptions/falco/raw/",
+    "converted_path": "rules/subscriptions/falco/converted/"
+  },
+  "support": {
+    "level": "unsupported",
+    "unsupported_fields": [
+      "evt.type"
+    ],
+    "notes": [
+      "Current LyFlow HIDS does not expose syscall event fields."
+    ]
+  },
+  "classification": {
+    "stage": "uncategorized",
+    "confidence": 0.2,
+    "rationale": "Unsupported fixture for support classifier testing."
+  },
+  "scoring": {
+    "base_score": 0,
+    "severity": "low"
+  },
+  "match": {
+    "logic": "all",
+    "conditions": [
+      {
+        "field": "evt.type",
+        "operator": "equals",
+        "value": "open"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "Falco fixture",
+      "rule_id": "falco-syscall-open-fixture"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "analyst_review"
+    ]
+  }
+}

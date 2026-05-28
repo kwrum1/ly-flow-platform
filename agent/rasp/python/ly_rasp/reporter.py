@@ -70,14 +70,12 @@ class Reporter:
         Returns:
             bool: 上报是否成功
         """
-        # 添加元数据
-        event['agent_id'] = self.config.agent_id
-        event['timestamp'] = time.time()
+        event = self.normalize_event(event)
 
         # 尝试通过 Redis 上报
         if self.redis_client:
             try:
-                self.redis_client.xadd('alerts:endpoint', {
+                self.redis_client.xadd(self.config.stream, {
                     'type': 'rasp',
                     'data': json.dumps(event, default=str)
                 })
@@ -89,6 +87,38 @@ class Reporter:
         # 回退到本地日志输出
         logger.warning(f"Event detected (Redis unavailable): {json.dumps(event, default=str)}")
         return False
+
+    def normalize_event(self, event: Dict[str, Any]) -> Dict[str, Any]:
+        """Normalize detector output to the shared alerts:rasp contract."""
+        normalized = dict(event)
+        details = normalized.get('details')
+        if isinstance(details, dict):
+            for key in ('rule_id', 'severity', 'evidence', 'matched_pattern'):
+                if key in details and key not in normalized:
+                    normalized[key] = details[key]
+
+        attack_type = normalized.get('attack_type') or normalized.get('type') or 'unknown'
+        if attack_type == 'sensitive_file_access':
+            attack_type = 'path_traversal'
+        if attack_type == 'deserialize_injection':
+            attack_type = 'deserialization'
+
+        blocked = bool(normalized.get('blocked', False))
+        normalized.update({
+            'type': 'rasp.attack',
+            'agent_id': self.config.agent_id,
+            'language': normalized.get('language') or self.config.language,
+            'app': normalized.get('app') or self.config.app,
+            'attack_type': attack_type,
+            'blocked': blocked,
+            'action': normalized.get('action') or ('block' if blocked else 'log'),
+            'mode': normalized.get('mode') or ('protect' if blocked else 'monitor'),
+            'severity': normalized.get('severity') or 'medium',
+            'rule_id': normalized.get('rule_id') or f'python-{attack_type}',
+            'occurred_at': normalized.get('occurred_at') or time.strftime('%Y-%m-%dT%H:%M:%SZ', time.gmtime()),
+            'timestamp': normalized.get('timestamp') or time.time(),
+        })
+        return normalized
 
     def report_sql_injection(self, details: Dict[str, Any]) -> bool:
         """上报 SQL 注入事件"""

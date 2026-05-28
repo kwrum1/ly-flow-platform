@@ -1,0 +1,34 @@
+{
+  "converted_count": 0,
+  "deduplicated_count": 0,
+  "mode": "sync_convert",
+  "report": {
+    "converted": 0,
+    "inserted": 0,
+    "duplicates": 0,
+    "unsupported": 0,
+    "support_counts": {
+      "full_supported": 0,
+      "partial_supported": 0,
+      "unsupported": 0
+    }
+  },
+  "rule_count": 0,
+  "rules": [],
+  "source": {
+    "bundled": false,
+    "category": "traffic",
+    "connector": true,
+    "id": "stamus-lateral",
+    "license": "GPL-3.0-or-later",
+    "name": "Stamus Lateral Movement Rules",
+    "origin": "external_subscription",
+    "restricted": false,
+    "updatable": true,
+    "updated_at": "2026-05-25T04:45:48Z",
+    "url": "https://ti.stamus-networks.io/open/stamus-lateral-rules.tar.gz"
+  },
+  "synced_at": "2026-05-25T04:45:49Z",
+  "unsupported_count": 0,
+  "version": "20260525044548"
+}

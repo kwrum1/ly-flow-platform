@@ -1,0 +1,107 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "suricata-etopen-1000003",
+  "name": "ET MALWARE Known Mining Pool Domain",
+  "description": "ET MALWARE Known Mining Pool Domain",
+  "category": "dpi",
+  "enabled": false,
+  "source": {
+    "origin": "external_subscription",
+    "vendor": "Proofpoint Emerging Threats Open",
+    "license": "ET Open Ruleset License",
+    "url": "rules/suricata/et-open.rules",
+    "version": "v1.0.0",
+    "upstream_id": "1000003",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/suricata/et-open.rules",
+    "converted_path": "rules/subscriptions/suricata/converted/"
+  },
+  "support": {
+    "level": "partial_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Converted from Suricata/ET Open rule"
+    ]
+  },
+  "classification": {
+    "stage": "c2_exfiltration",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.72,
+    "rationale": "Mapped from Suricata protocol/msg/classtype."
+  },
+  "scoring": {
+    "base_score": 71,
+    "severity": "high",
+    "upstream_score": {
+      "suricata_priority": 2
+    },
+    "source_reliability": 80
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "dns.query",
+      "http.host",
+      "tls.sni"
+    ],
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "dns"
+      },
+      {
+        "field": "dns.query",
+        "operator": "contains",
+        "value": "ethermine.org"
+      }
+    ],
+    "suricata": {
+      "action": "alert",
+      "protocol": "dns",
+      "src": "any any",
+      "direction": "->",
+      "dst": "any any",
+      "msg": "ET MALWARE Known Mining Pool Domain",
+      "sid": 1000003,
+      "rev": 1,
+      "classtype": [],
+      "priority": null,
+      "metadata": [],
+      "reference": [],
+      "content": [
+        "ethermine.org"
+      ],
+      "pcre": [],
+      "flow": [],
+      "raw_options": [
+        "msg:\"ET MALWARE Known Mining Pool Domain\"",
+        "dns.query",
+        "content:\"ethermine.org\"",
+        "sid:1000003",
+        "rev:1"
+      ]
+    }
+  },
+  "provenance": [
+    {
+      "source": "rules/suricata/et-open.rules",
+      "sid": 1000003,
+      "rev": 1,
+      "line": 10
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "suggest_ip_block",
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  }
+}

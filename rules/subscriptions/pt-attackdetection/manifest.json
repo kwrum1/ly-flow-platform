@@ -1,0 +1,20 @@
+{
+  "schema_version": "v1",
+  "source_id": "ptresearch-attackdetection",
+  "name": "Positive Technologies AttackDetection",
+  "category": "dpi",
+  "source_type": "external_subscription",
+  "update_mode": "manual_fetch_then_convert",
+  "vendor": "Positive Technologies",
+  "license": "Positive Technologies Custom",
+  "source_url": "https://rules.ptsecurity.com/files/ptopen.rules.tar.gz",
+  "raw_path": "rules/subscriptions/pt-attackdetection/ptopen.rules.tar.gz",
+  "converted_path": "rules/subscriptions/pt-attackdetection/converted/",
+  "compiled_path": "rules/compiled/dpi/ptresearch-attackdetection.json",
+  "enabled_by_default": false,
+  "conversion": {
+    "converter": "suricata-dpi-formatter",
+    "target_ir": "lyflow-rule-ir-v1",
+    "notes": "PT Open attack-detection traffic signatures; user-authorized source, review custom license before redistribution."
+  }
+}

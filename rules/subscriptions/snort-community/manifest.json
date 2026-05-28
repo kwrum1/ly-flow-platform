@@ -1,0 +1,20 @@
+{
+  "schema_version": "v1",
+  "source_id": "snort-community",
+  "name": "Snort Community Rules",
+  "category": "dpi",
+  "source_type": "external_subscription",
+  "update_mode": "manual_fetch_then_convert",
+  "vendor": "Cisco Talos / Snort",
+  "license": "GPL-2.0",
+  "source_url": "https://www.snort.org/downloads/community/community-rules.tar.gz",
+  "raw_path": "rules/subscriptions/snort-community/community-rules.tar.gz",
+  "converted_path": "rules/subscriptions/snort-community/converted/",
+  "compiled_path": "rules/compiled/dpi/snort-community.json",
+  "enabled_by_default": false,
+  "conversion": {
+    "converter": "snort-suricata-compat-dpi-formatter",
+    "target_ir": "lyflow-rule-ir-v1",
+    "notes": "Snort signatures; validate Suricata syntax compatibility and SID conflicts before enabling."
+  }
+}

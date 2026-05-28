@@ -1,0 +1,22 @@
+{
+  "agent_id": "agent-ubuntu-489394",
+  "hostname": "ubuntu",
+  "ip": "127.0.0.1",
+  "type": "runtime.auth.root_login",
+  "severity": "high",
+  "strategy": "ebpf",
+  "backend": "ebpf-fallback",
+  "capability_status": "fallback",
+  "source_evidence": "/var/log/auth.log",
+  "mode": "monitor",
+  "message": "Authentication signal detected: root-login",
+  "occurred_at": "2026-05-14T00:00:00Z",
+  "metadata": {
+    "collector": "auth-log-fallback",
+    "path": "/var/log/auth.log",
+    "line": "sshd[1]: Accepted password for root from 203.0.113.10 port 22 ssh2",
+    "signal": "root-login",
+    "runtime_enabled": true,
+    "source": "agent-runtime-monitor"
+  }
+}

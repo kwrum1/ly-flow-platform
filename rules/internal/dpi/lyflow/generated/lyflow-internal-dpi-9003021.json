@@ -1,0 +1,79 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-dpi-9003021",
+  "name": "[LY-FSCAN-001] Fscan ICMP Ping No Payload",
+  "description": "[LY-FSCAN-001] Fscan ICMP Ping No Payload",
+  "category": "dpi",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal/dpi",
+    "version": "2026.05",
+    "upstream_id": "9003021",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/ly-custom/scanner.rules",
+    "converted_path": "rules/internal/dpi/lyflow/generated/"
+  },
+  "support": {
+    "level": "partial_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from LyFlow custom Suricata-like DPI rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.7,
+    "rationale": "Mapped from LyFlow custom DPI rule message."
+  },
+  "scoring": {
+    "base_score": 70,
+    "severity": "high",
+    "upstream_score": {
+      "sid": 9003021
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "domain"
+    ],
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "icmp"
+      }
+    ],
+    "suricata": {
+      "sid": 9003021,
+      "rev": 1,
+      "msg": "[LY-FSCAN-001] Fscan ICMP Ping No Payload",
+      "raw": "alert icmp any any -> any any (msg:\"[LY-FSCAN-001] Fscan ICMP Ping No Payload\"; icmp.icmp_type:8; icmp.icmp_code:0; byte_test:4,=,0,0; threshold:type threshold, track by_src, count 20, seconds 30; classtype:attempted-recon; sid:9003021; rev:1;)"
+    }
+  },
+  "provenance": [
+    {
+      "source": "rules/ly-custom/scanner.rules",
+      "sid": 9003021,
+      "rev": 1,
+      "line": 79
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  }
+}

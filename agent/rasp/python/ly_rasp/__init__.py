@@ -4,7 +4,7 @@ import os
 import atexit
 from typing import Optional
 
-from .config import RASPConfig, load_config
+from .config import RASPConfig, get_config, load_config, set_config
 from .tracer import rasp_trace
 from .reporter import Reporter
 

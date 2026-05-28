@@ -1,0 +1,159 @@
+# 流影自定义安全规则 - 扫描工具检测
+# 版本: 1.0.0
+# 更新时间: 2026-05-09
+# 说明: 检测Nmap/Masscan/Fscan等扫描工具特征
+
+# ============ Nmap ============
+
+# Nmap SYN Scan - TCP Options 02 04 05 b4 (Shortest Options)
+alert tcp any any -> any any (msg:"[LY-NMAP-001] Nmap SYN Scan TCP Options Pattern"; \
+    flags:S; \
+    tcp.options; content:"|02 04 05 b4|"; \
+    endswith; \
+    threshold:type threshold, track by_src, count 20, seconds 60; \
+    classtype:attempted-recon; sid:9003001; rev:1;)
+
+# Nmap TCP Window Size 1024
+alert tcp any any -> any any (msg:"[LY-NMAP-002] Nmap TCP Window Size 1024"; \
+    flags:S; \
+    byte_test:2,=,1024,20; \
+    tcp.options; content:"|02 04 05 b4|"; \
+    threshold:type threshold, track by_src, count 20, seconds 60; \
+    classtype:attempted-recon; sid:9003002; rev:1;)
+
+# Nmap SYN Scan - Packet Length 44 (20+20+4)
+alert tcp any any -> any any (msg:"[LY-NMAP-003] Nmap SYN Scan Packet Length 44"; \
+    flags:S; \
+    byte_test:2,=,44,0; \
+    threshold:type threshold, track by_src, count 30, seconds 60; \
+    classtype:attempted-recon; sid:9003003; rev:1;)
+
+# Nmap ICMP Echo Without Data
+alert icmp any any -> any any (msg:"[LY-NMAP-004] Nmap ICMP Echo No Payload"; \
+    icmp.icmp_type:8; \
+    icmp.icmp_code:0; \
+    byte_test:4,=,0,0; \
+    threshold:type threshold, track by_src, count 30, seconds 60; \
+    classtype:attempted-recon; sid:9003004; rev:1;)
+
+# Nmap ICMP Timestamp Request
+alert icmp any any -> any any (msg:"[LY-NMAP-005] Nmap ICMP Timestamp Request"; \
+    icmp.icmp_type:13; \
+    icmp.icmp_code:0; \
+    threshold:type threshold, track by_src, count 20, seconds 60; \
+    classtype:attempted-recon; sid:9003005; rev:1;)
+
+# Nmap ACK Scan
+alert tcp any any -> any any (msg:"[LY-NMAP-006] Nmap ACK Scan Pattern"; \
+    flags:A,12; \
+    threshold:type threshold, track by_src, count 50, seconds 120; \
+    classtype:attempted-recon; sid:9003006; rev:1;)
+
+# Nmap Version Detection
+alert tcp any any -> any any (msg:"[LY-NMAP-007] Nmap Version Detection Probe"; \
+    content:"Nmap"; \
+    content:"script"; \
+    content:"version"; \
+    threshold:type threshold, track by_src, count 5, seconds 30; \
+    classtype:attempted-recon; sid:9003007; rev:1;)
+
+# ============ Masscan ============
+
+# Masscan SYN Scan Pattern
+alert tcp any any -> any any (msg:"[LY-MASSCAN-001] Masscan SYN Scan Pattern"; \
+    flags:S; \
+    tcp.options; content:"|02 04 05 b4|"; \
+    byte_test:2,>,0,20; \
+    threshold:type threshold, track by_src, count 50, seconds 120; \
+    classtype:attempted-recon; sid:9003011; rev:1;)
+
+# Masscan Rate Pattern
+alert tcp any any -> any any (msg:"[LY-MASSCAN-002] Masscan High Rate Scan"; \
+    flags:S; \
+    threshold:type threshold, track by_src, count 200, seconds 60; \
+    classtype:attempted-recon; sid:9003012; rev:1;)
+
+# ============ Fscan ============
+
+# Fscan ICMP Ping No Payload
+alert icmp any any -> any any (msg:"[LY-FSCAN-001] Fscan ICMP Ping No Payload"; \
+    icmp.icmp_type:8; \
+    icmp.icmp_code:0; \
+    byte_test:4,=,0,0; \
+    threshold:type threshold, track by_src, count 20, seconds 30; \
+    classtype:attempted-recon; sid:9003021; rev:1;)
+
+# Fscan TCP Full Connect Scan
+alert tcp any any -> any any (msg:"[LY-FSCAN-002] Fscan TCP Full Connect Scan"; \
+    flags:S,12; \
+    threshold:type threshold, track by_src, count 50, seconds 60; \
+    classtype:attempted-recon; sid:9003022; rev:1;)
+
+# Fscan UDP Scan Pattern
+alert udp any any -> any any (msg:"[LY-FSCAN-003] Fscan UDP Scan Pattern"; \
+    threshold:type threshold, track by_src, count 30, seconds 60; \
+    classtype:attempted-recon; sid:9003023; rev:1;)
+
+# ============ Goby ============
+
+# Goby SYN Scan
+alert tcp any any -> any any (msg:"[LY-GOBY-001] Goby SYN Scan Pattern"; \
+    flags:S; \
+    tcp.options; content:"|02 04 05 b4|"; \
+    threshold:type threshold, track by_src, count 30, seconds 60; \
+    classtype:attempted-recon; sid:9003031; rev:1;)
+
+# Goby UDP Probe
+alert udp any any -> any any (msg:"[LY-GOBY-002] Goby UDP Service Probe"; \
+    threshold:type threshold, track by_src, count 20, seconds 60; \
+    classtype:attempted-recon; sid:9003032; rev:1;)
+
+# ============ Yakit ============
+
+# Yakit SYN Scan
+alert tcp any any -> any any (msg:"[LY-YAKIT-001] Yakit SYN Scan Pattern"; \
+    flags:S; \
+    byte_test:2,=,44,0; \
+    threshold:type threshold, track by_src, count 30, seconds 60; \
+    classtype:attempted-recon; sid:9003041; rev:1;)
+
+# Yakit ICMP Scan
+alert icmp any any -> any any (msg:"[LY-YAKIT-002] Yakit ICMP Ping Sweep"; \
+    icmp.icmp_type:8; \
+    icmp.icmp_code:0; \
+    threshold:type threshold, track by_src, count 30, seconds 60; \
+    classtype:attempted-recon; sid:9003042; rev:1;)
+
+# ============ Portswigger Burp Suite ============
+
+# Burp Suite Scanner
+alert http any any -> any any (msg:"[LY-BURP-001] Burp Suite Scanner Pattern"; \
+    http.user_agent; content:"sqlmap"; nocase; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:attempted-recon; sid:9003051; rev:1;)
+
+# ============ SQLMap ============
+
+# SQLMap SQL Injection Scanner
+alert http any any -> any any (msg:"[LY-SQLMAP-001] SQLMap SQL Injection Scanner"; \
+    http.user_agent; content:"sqlmap"; nocase; \
+    classtype:web-application-attack; sid:9003061; rev:1;)
+
+# SQLMap Cookie Pattern
+alert http any any -> any any (msg:"[LY-SQLMAP-002] SQLMap Cookie Pattern"; \
+    http.cookie; content:"sqlmap"; nocase; \
+    classtype:web-application-attack; sid:9003062; rev:1;)
+
+# ============ Nikto ============
+
+# Nikto Web Scanner
+alert http any any -> any any (msg:"[LY-NIKTO-001] Nikto Web Scanner"; \
+    http.user_agent; content:"nikto"; nocase; \
+    content:" nikto"; \
+    classtype:attempted-recon; sid:9003071; rev:1;)
+
+# Nikto Scan Multiple 404
+alert http any any -> any any (msg:"[LY-NIKTO-002] Nikto Scan Multiple 404 Responses"; \
+    http.user_agent; content:"nikto"; nocase; \
+    threshold:type threshold, track by_src, count 30, seconds 120; \
+    classtype:attempted-recon; sid:9003072; rev:1;)

@@ -1,0 +1,125 @@
+source: mysql
+enabled: true
+
+rules:
+  - id: 100110
+    name: "MySQL 访问拒绝"
+    level: 8
+    source: mysql
+    match: "Access denied for user"
+    description: "MySQL 用户访问被拒绝"
+    mitre:
+      - T1110.001
+    groups:
+      - authentication_failed
+      - brute_force
+    enabled: true
+    
+  - id: 100111
+    name: "MySQL 暴力破解"
+    level: 10
+    source: mysql
+    if_sid: 100110
+    frequency: 10
+    timeframe: 120
+    same_srcip: true
+    description: "MySQL 数据库暴力破解攻击"
+    mitre:
+      - T1110.001
+    groups:
+      - brute_force
+      - authentication_failures
+    enabled: true
+    
+  - id: 100112
+    name: "MySQL 错误"
+    level: 5
+    source: mysql
+    match: "Got error"
+    description: "MySQL 数据库错误"
+    groups:
+      - error
+      - database_error
+    enabled: true
+    
+  - id: 100113
+    name: "MySQL 慢查询"
+    level: 3
+    source: mysql
+    match: "Slow query"
+    description: "MySQL 慢查询日志"
+    groups:
+      - performance
+      - slow_query
+    enabled: true
+    
+  - id: 100114
+    name: "MySQL 连接数过多"
+    level: 6
+    source: mysql
+    match: "Too many connections"
+    description: "MySQL 连接数过多"
+    groups:
+      - resource
+      - connection_limit
+    enabled: true
+    
+  - id: 100115
+    name: "MySQL 死锁"
+    level: 5
+    source: mysql
+    match: "Deadlock found"
+    description: "MySQL 数据库死锁"
+    groups:
+      - error
+      - deadlock
+    enabled: true
+    
+  - id: 100116
+    name: "MySQL 二进制日志错误"
+    level: 5
+    source: mysql
+    match: "Error in Log_event"
+    description: "MySQL 二进制日志错误"
+    groups:
+      - error
+      - binary_log
+    enabled: true
+    
+  - id: 100117
+    name: "MySQL 表损坏"
+    level: 7
+    source: mysql
+    match: "Table.*corrupt|can't open"
+    regex: true
+    description: "MySQL 表损坏错误"
+    groups:
+      - error
+      - corruption
+    enabled: true
+    
+  - id: 100118
+    name: "MySQL 权限错误"
+    level: 6
+    source: mysql
+    match: "command denied|privilege error"
+    regex: true
+    description: "MySQL 权限错误"
+    mitre:
+      - T1190
+    groups:
+      - privilege
+      - access_denied
+    enabled: true
+    
+  - id: 100119
+    name: "MySQL 主从复制错误"
+    level: 7
+    source: mysql
+    match: "replication error|Slave I/O|got fatal exception"
+    regex: true
+    description: "MySQL 主从复制错误"
+    groups:
+      - replication
+      - error
+    enabled: true

@@ -1,0 +1,78 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "wazuh-auditd-5902",
+  "name": "Sudo authentication failure",
+  "description": "Sudo authentication failure",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "external_subscription",
+    "vendor": "Wazuh",
+    "license": "GPL-2.0",
+    "url": "https://github.com/wazuh/wazuh/tree/master/ruleset/rules",
+    "version": "fixture",
+    "upstream_id": "5902",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/subscriptions/wazuh-auditd/raw/auditd-fixture.xml",
+    "converted_path": "rules/subscriptions/wazuh-auditd/converted/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Converted from Wazuh auditd XML fixture"
+    ]
+  },
+  "classification": {
+    "stage": "privilege_escalation",
+    "mitre_tactics": [],
+    "mitre_techniques": [
+      "T1548"
+    ],
+    "confidence": 0.78,
+    "rationale": "Mapped from Wazuh groups and MITRE metadata."
+  },
+  "scoring": {
+    "base_score": 58,
+    "severity": "medium",
+    "upstream_score": {
+      "wazuh_level": 7
+    },
+    "source_reliability": 86
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "host.id",
+      "user.name",
+      "network.src_ip"
+    ],
+    "conditions": [
+      {
+        "field": "metadata.line",
+        "operator": "contains",
+        "value": "sudo: pam_unix(sudo:auth): authentication failure"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/subscriptions/wazuh-auditd/raw/auditd-fixture.xml",
+      "rule_id": "5902",
+      "groups": [
+        "authentication_failed",
+        "privilege_escalation"
+      ]
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ]
+  }
+}

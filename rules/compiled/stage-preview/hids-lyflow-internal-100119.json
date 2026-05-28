@@ -1,0 +1,88 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-100119",
+  "name": "MySQL 主从复制错误",
+  "description": "MySQL 主从复制错误",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal",
+    "version": "2026.05",
+    "upstream_id": "100119",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/xdr/mysql_rules.yaml",
+    "converted_path": "rules/internal/hids/lyflow/generated/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from existing LyFlow internal XDR rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.75,
+    "rationale": "kept existing valid stage"
+  },
+  "scoring": {
+    "base_score": 55,
+    "severity": "medium",
+    "upstream_score": {
+      "lyflow_level": 7
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "host.id",
+      "network.src_ip",
+      "user.name"
+    ],
+    "conditions": [
+      {
+        "field": "metadata.line",
+        "operator": "regex",
+        "value": "replication error|Slave I/O|got fatal exception"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/xdr/mysql_rules.yaml",
+      "rule_id": 100119,
+      "groups": [
+        "replication",
+        "error"
+      ]
+    },
+    {
+      "source": "rules/internal/hids/lyflow/generated/lyflow-internal-100119.json",
+      "rule_id": "lyflow-internal-100119",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "35955ad82ef27eb7",
+    "merged_rule_ids": [
+      "lyflow-internal-100119"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

@@ -1,0 +1,127 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "suricata-etopen-1000041",
+  "name": "ET MALWARE Suspicious Download",
+  "description": "ET MALWARE Suspicious Download",
+  "category": "dpi",
+  "enabled": false,
+  "source": {
+    "origin": "external_subscription",
+    "vendor": "Proofpoint Emerging Threats Open",
+    "license": "ET Open Ruleset License",
+    "url": "rules/suricata/et-open.rules",
+    "version": "v1.0.0",
+    "upstream_id": "1000041",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/suricata/et-open.rules",
+    "converted_path": "rules/subscriptions/suricata/converted/"
+  },
+  "support": {
+    "level": "partial_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Converted from Suricata/ET Open rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.72,
+    "rationale": "kept existing valid stage"
+  },
+  "scoring": {
+    "base_score": 71,
+    "severity": "high",
+    "upstream_score": {
+      "suricata_priority": 2
+    },
+    "source_reliability": 80
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "dns.query",
+      "http.host",
+      "tls.sni"
+    ],
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "http"
+      },
+      {
+        "field": "http.uri",
+        "operator": "contains",
+        "value": "download"
+      },
+      {
+        "field": "http.uri",
+        "operator": "contains",
+        "value": ".zip"
+      }
+    ],
+    "suricata": {
+      "action": "alert",
+      "protocol": "http",
+      "src": "$HOME_NET any",
+      "direction": "->",
+      "dst": "$EXTERNAL_NET any",
+      "msg": "ET MALWARE Suspicious Download",
+      "sid": 1000041,
+      "rev": 1,
+      "classtype": [],
+      "priority": null,
+      "metadata": [],
+      "reference": [],
+      "content": [
+        "download",
+        ".zip"
+      ],
+      "pcre": [],
+      "flow": [],
+      "raw_options": [
+        "msg:\"ET MALWARE Suspicious Download\"",
+        "http.host",
+        "content:\"download\"",
+        "http.uri",
+        "content:\".zip\"",
+        "sid:1000041",
+        "rev:1"
+      ]
+    }
+  },
+  "provenance": [
+    {
+      "source": "rules/suricata/et-open.rules",
+      "sid": 1000041,
+      "rev": 1,
+      "line": 24
+    },
+    {
+      "source": "rules/subscriptions/suricata/converted/suricata-etopen-1000041.json",
+      "rule_id": "suricata-etopen-1000041",
+      "vendor": "Proofpoint Emerging Threats Open"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "suggest_ip_block",
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "9f0b5341ceb491ec",
+    "merged_rule_ids": [
+      "suricata-etopen-1000041"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

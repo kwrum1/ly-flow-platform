@@ -1,0 +1,5 @@
+[
+  {"event_id": "evt-1", "timestamp": 1778716800, "src_ip": "10.0.0.10", "host_id": "host-1", "stage": "initial_access", "score": 76, "rule_id": "lyflow-internal-81002"},
+  {"event_id": "evt-2", "timestamp": 1778716900, "src_ip": "10.0.0.10", "host_id": "host-1", "stage": "execution", "score": 87, "rule_id": "elastic-linux-reverse-shell-fixture"},
+  {"event_id": "evt-3", "timestamp": 1778717000, "src_ip": "10.0.0.10", "host_id": "host-1", "stage": "c2_exfiltration", "score": 83, "rule_id": "suricata-etopen-1000001"}
+]

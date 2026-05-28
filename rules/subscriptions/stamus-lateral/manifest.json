@@ -1,0 +1,20 @@
+{
+  "schema_version": "v1",
+  "source_id": "stamus-lateral",
+  "name": "Stamus Lateral Movement Rules",
+  "category": "dpi",
+  "source_type": "external_subscription",
+  "update_mode": "manual_fetch_then_convert",
+  "vendor": "Stamus Networks",
+  "license": "GPL-3.0-or-later",
+  "source_url": "https://ti.stamus-networks.io/open/stamus-lateral-rules.tar.gz",
+  "raw_path": "rules/subscriptions/stamus-lateral/stamus-lateral-rules.tar.gz",
+  "converted_path": "rules/subscriptions/stamus-lateral/converted/",
+  "compiled_path": "rules/compiled/dpi/stamus-lateral.json",
+  "enabled_by_default": false,
+  "conversion": {
+    "converter": "suricata-dpi-formatter",
+    "target_ir": "lyflow-rule-ir-v1",
+    "notes": "SMB/DCERPC lateral-movement traffic signatures; requires Suricata compatibility validation before enabling."
+  }
+}

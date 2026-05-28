@@ -1,0 +1,115 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-dpi-9008025",
+  "name": "[LY-PRIV-025] Impacket Kerberoasting",
+  "description": "[LY-PRIV-025] Impacket Kerberoasting",
+  "category": "dpi",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal/dpi",
+    "version": "2026.05",
+    "upstream_id": "9008025",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/ly-custom/privilege.rules",
+    "converted_path": "rules/internal/dpi/lyflow/generated/"
+  },
+  "support": {
+    "level": "partial_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from LyFlow custom Suricata-like DPI rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.7,
+    "rationale": "Mapped from LyFlow custom DPI rule message."
+  },
+  "scoring": {
+    "base_score": 70,
+    "severity": "high",
+    "upstream_score": {
+      "sid": 9008025
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "domain"
+    ],
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "ldap"
+      }
+    ],
+    "suricata": {
+      "sid": 9008025,
+      "rev": 1,
+      "msg": "[LY-PRIV-025] Impacket Kerberoasting",
+      "raw": "alert ldap any any -> any 389 (msg:\"[LY-PRIV-025] Impacket Kerberoasting\"; content:\"krbtgt\"; nocase; content:\"TGS-REQ\"; nocase; threshold:type threshold, track by_src, count 10, seconds 60; classtype:credential-theft; sid:9008025; rev:1;)"
+    }
+  },
+  "provenance": [
+    {
+      "source": "rules/ly-custom/privilege.rules",
+      "sid": 9008025,
+      "rev": 1,
+      "line": 92
+    },
+    {
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9008025.json",
+      "rule_id": "lyflow-internal-dpi-9008025",
+      "vendor": "LyFlow"
+    },
+    {
+      "source": "rules/ly-custom/privilege.rules",
+      "sid": 9008031,
+      "rev": 1,
+      "line": 101
+    },
+    {
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9008031.json",
+      "rule_id": "lyflow-internal-dpi-9008031",
+      "vendor": "LyFlow"
+    },
+    {
+      "source": "rules/ly-custom/privilege.rules",
+      "sid": 9008032,
+      "rev": 1,
+      "line": 108
+    },
+    {
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9008032.json",
+      "rule_id": "lyflow-internal-dpi-9008032",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "34eba77d3a0a60d5",
+    "merged_rule_ids": [
+      "lyflow-internal-dpi-9008025",
+      "lyflow-internal-dpi-9008031",
+      "lyflow-internal-dpi-9008032"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

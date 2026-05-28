@@ -1,0 +1,90 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "wazuh-auditd-5903",
+  "name": "Linux user account created",
+  "description": "Linux user account created",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "external_subscription",
+    "vendor": "Wazuh",
+    "license": "GPL-2.0",
+    "url": "https://github.com/wazuh/wazuh/tree/master/ruleset/rules",
+    "version": "fixture",
+    "upstream_id": "5903",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/subscriptions/wazuh-auditd/raw/auditd-fixture.xml",
+    "converted_path": "rules/subscriptions/wazuh-auditd/converted/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Converted from Wazuh auditd XML fixture"
+    ]
+  },
+  "classification": {
+    "stage": "persistence",
+    "mitre_tactics": [],
+    "mitre_techniques": [
+      "T1136"
+    ],
+    "confidence": 0.78,
+    "rationale": "kept existing valid stage"
+  },
+  "scoring": {
+    "base_score": 82,
+    "severity": "high",
+    "upstream_score": {
+      "wazuh_level": 10
+    },
+    "source_reliability": 86
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "host.id",
+      "user.name",
+      "network.src_ip"
+    ],
+    "conditions": [
+      {
+        "field": "metadata.line",
+        "operator": "contains",
+        "value": "useradd"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/subscriptions/wazuh-auditd/raw/auditd-fixture.xml",
+      "rule_id": "5903",
+      "groups": [
+        "account_changed",
+        "persistence"
+      ]
+    },
+    {
+      "source": "rules/subscriptions/wazuh-auditd/converted/wazuh-auditd-5903.json",
+      "rule_id": "wazuh-auditd-5903",
+      "vendor": "Wazuh"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "d9d2793d34aa8ab3",
+    "merged_rule_ids": [
+      "wazuh-auditd-5903"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

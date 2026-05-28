@@ -1,0 +1,79 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-dpi-9005006",
+  "name": "[LY-DB-MYSQL-006] MySQL Root Login Attempt",
+  "description": "[LY-DB-MYSQL-006] MySQL Root Login Attempt",
+  "category": "dpi",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal/dpi",
+    "version": "2026.05",
+    "upstream_id": "9005006",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/ly-custom/database.rules",
+    "converted_path": "rules/internal/dpi/lyflow/generated/"
+  },
+  "support": {
+    "level": "partial_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from LyFlow custom Suricata-like DPI rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.7,
+    "rationale": "Mapped from LyFlow custom DPI rule message."
+  },
+  "scoring": {
+    "base_score": 70,
+    "severity": "high",
+    "upstream_score": {
+      "sid": 9005006
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "domain"
+    ],
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "tcp"
+      }
+    ],
+    "suricata": {
+      "sid": 9005006,
+      "rev": 1,
+      "msg": "[LY-DB-MYSQL-006] MySQL Root Login Attempt",
+      "raw": "alert tcp any any -> any 3306 (msg:\"[LY-DB-MYSQL-006] MySQL Root Login Attempt\"; content:\"root\"; nocase; threshold:type threshold, track by_src, count 10, seconds 60; classtype:brute-force; sid:9005006; rev:1;)"
+    }
+  },
+  "provenance": [
+    {
+      "source": "rules/ly-custom/database.rules",
+      "sid": 9005006,
+      "rev": 1,
+      "line": 40
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  }
+}

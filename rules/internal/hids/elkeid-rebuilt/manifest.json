@@ -1,0 +1,20 @@
+{
+  "schema_version": "v1",
+  "source_id": "elkeid-hids-rebuilt-internal",
+  "name": "Elkeid HIDS rebuilt as LyFlow internal rules",
+  "category": "hids",
+  "source_type": "rebuilt_internal",
+  "update_mode": "one_time_import",
+  "vendor": "ByteDance Elkeid",
+  "license": "Apache-2.0",
+  "source_url": "https://github.com/bytedance/Elkeid",
+  "raw_path": "rules/hids/elkeid_hids_rules.yaml",
+  "converted_path": "rules/internal/hids/elkeid-rebuilt/",
+  "compiled_path": "rules/compiled/hids/elkeid-rebuilt.json",
+  "enabled_by_default": false,
+  "conversion": {
+    "converter": "elkeid-one-time-rebuilder",
+    "target_ir": "lyflow-rule-ir-v1",
+    "notes": "Elkeid is imported once and maintained as internal LyFlow rules after review."
+  }
+}

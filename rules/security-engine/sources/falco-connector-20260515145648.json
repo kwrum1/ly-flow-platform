@@ -1,0 +1,216 @@
+{
+  "converted_count": 3,
+  "deduplicated_count": 22,
+  "mode": "sync_convert",
+  "report": {
+    "converted": 3,
+    "inserted": 0,
+    "duplicates": 22,
+    "unsupported": 0,
+    "support_counts": {
+      "full_supported": 25,
+      "partial_supported": 0,
+      "unsupported": 0
+    },
+    "dedup_groups": [
+      {
+        "dedup_key": "b3d95a8221f11443d0b24367dd56826be0306b08341cf8f068c3c22986da94ba",
+        "duplicate": "falco-read-sensitive-file-trusted-after-startup",
+        "winner": "falco-directory-traversal-monitored-file-read"
+      },
+      {
+        "dedup_key": "b3d95a8221f11443d0b24367dd56826be0306b08341cf8f068c3c22986da94ba",
+        "duplicate": "falco-read-sensitive-file-untrusted",
+        "winner": "falco-directory-traversal-monitored-file-read"
+      },
+      {
+        "dedup_key": "b4f9ad5c03858b2ffa94e41186d4388440addc80497994aee44b455de8a6529d",
+        "duplicate": "falco-system-user-interactive",
+        "winner": "falco-run-shell-untrusted"
+      },
+      {
+        "dedup_key": "b4f9ad5c03858b2ffa94e41186d4388440addc80497994aee44b455de8a6529d",
+        "duplicate": "falco-terminal-shell-in-container",
+        "winner": "falco-run-shell-untrusted"
+      },
+      {
+        "dedup_key": "b4f9ad5c03858b2ffa94e41186d4388440addc80497994aee44b455de8a6529d",
+        "duplicate": "falco-netcat-remote-code-execution-in-container",
+        "winner": "falco-run-shell-untrusted"
+      },
+      {
+        "dedup_key": "b3d95a8221f11443d0b24367dd56826be0306b08341cf8f068c3c22986da94ba",
+        "duplicate": "falco-search-private-keys-or-passwords",
+        "winner": "falco-directory-traversal-monitored-file-read"
+      },
+      {
+        "dedup_key": "6c4e45d666136f34811666827d78b711580cbe97f6e4371a62f301d729541584",
+        "duplicate": "falco-clear-log-activities",
+        "winner": "falco-contact-k8s-api-server-from-container"
+      },
+      {
+        "dedup_key": "6c4e45d666136f34811666827d78b711580cbe97f6e4371a62f301d729541584",
+        "duplicate": "falco-remove-bulk-data-from-disk",
+        "winner": "falco-contact-k8s-api-server-from-container"
+      },
+      {
+        "dedup_key": "b3d95a8221f11443d0b24367dd56826be0306b08341cf8f068c3c22986da94ba",
+        "duplicate": "falco-create-symlink-over-sensitive-files",
+        "winner": "falco-directory-traversal-monitored-file-read"
+      },
+      {
+        "dedup_key": "b3d95a8221f11443d0b24367dd56826be0306b08341cf8f068c3c22986da94ba",
+        "duplicate": "falco-create-hardlink-over-sensitive-files",
+        "winner": "falco-directory-traversal-monitored-file-read"
+      },
+      {
+        "dedup_key": "b3d95a8221f11443d0b24367dd56826be0306b08341cf8f068c3c22986da94ba",
+        "duplicate": "falco-packet-socket-created-in-container",
+        "winner": "falco-directory-traversal-monitored-file-read"
+      },
+      {
+        "dedup_key": "b4f9ad5c03858b2ffa94e41186d4388440addc80497994aee44b455de8a6529d",
+        "duplicate": "falco-redirect-stdout-stdin-to-network-connection-in-container",
+        "winner": "falco-run-shell-untrusted"
+      },
+      {
+        "dedup_key": "6c4e45d666136f34811666827d78b711580cbe97f6e4371a62f301d729541584",
+        "duplicate": "falco-linux-kernel-module-injection-detected",
+        "winner": "falco-contact-k8s-api-server-from-container"
+      },
+      {
+        "dedup_key": "6c4e45d666136f34811666827d78b711580cbe97f6e4371a62f301d729541584",
+        "duplicate": "falco-debugfs-launched-in-privileged-container",
+        "winner": "falco-contact-k8s-api-server-from-container"
+      },
+      {
+        "dedup_key": "6c4e45d666136f34811666827d78b711580cbe97f6e4371a62f301d729541584",
+        "duplicate": "falco-detect-release-agent-file-container-escapes",
+        "winner": "falco-contact-k8s-api-server-from-container"
+      },
+      {
+        "dedup_key": "6c4e45d666136f34811666827d78b711580cbe97f6e4371a62f301d729541584",
+        "duplicate": "falco-ptrace-attached-to-process",
+        "winner": "falco-contact-k8s-api-server-from-container"
+      },
+      {
+        "dedup_key": "6c4e45d666136f34811666827d78b711580cbe97f6e4371a62f301d729541584",
+        "duplicate": "falco-ptrace-anti-debug-attempt",
+        "winner": "falco-contact-k8s-api-server-from-container"
+      },
+      {
+        "dedup_key": "b3d95a8221f11443d0b24367dd56826be0306b08341cf8f068c3c22986da94ba",
+        "duplicate": "falco-find-aws-credentials",
+        "winner": "falco-directory-traversal-monitored-file-read"
+      },
+      {
+        "dedup_key": "b4f9ad5c03858b2ffa94e41186d4388440addc80497994aee44b455de8a6529d",
+        "duplicate": "falco-execution-from--dev-shm",
+        "winner": "falco-run-shell-untrusted"
+      },
+      {
+        "dedup_key": "6c4e45d666136f34811666827d78b711580cbe97f6e4371a62f301d729541584",
+        "duplicate": "falco-drop-and-execute-new-binary-in-container",
+        "winner": "falco-contact-k8s-api-server-from-container"
+      },
+      {
+        "dedup_key": "b4f9ad5c03858b2ffa94e41186d4388440addc80497994aee44b455de8a6529d",
+        "duplicate": "falco-disallowed-ssh-connection-non-standard-port",
+        "winner": "falco-run-shell-untrusted"
+      },
+      {
+        "dedup_key": "6c4e45d666136f34811666827d78b711580cbe97f6e4371a62f301d729541584",
+        "duplicate": "falco-fileless-execution-via-memfd-create",
+        "winner": "falco-contact-k8s-api-server-from-container"
+      }
+    ]
+  },
+  "rule_count": 25,
+  "rules": [
+    {
+      "candidate": true,
+      "category": "runtime",
+      "conditions": null,
+      "dedup_key": "b3d95a8221f11443d0b24367dd56826be0306b08341cf8f068c3c22986da94ba",
+      "field": "cmdline",
+      "group_by": "",
+      "id": "falco-directory-traversal-monitored-file-read",
+      "name": "Directory traversal monitored file read",
+      "operator": "regex",
+      "regex": true,
+      "score_hint": 75,
+      "severity": "high",
+      "source_id": "falco-connector",
+      "source_license": "Apache-2.0",
+      "source_url": "https://raw.githubusercontent.com/falcosecurity/rules/main/rules/falco_rules.yaml",
+      "source_version": "20260515145648",
+      "stage_hint": "credential_access",
+      "support_level": "full_supported",
+      "upstream_id": "falco-directory-traversal-monitored-file-read",
+      "value": "(?i)(/bin/sh|/bin/bash|bash\\s+-i|sh\\s+-i|/dev/tcp|nc\\s+-e)",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "runtime",
+      "conditions": null,
+      "dedup_key": "b4f9ad5c03858b2ffa94e41186d4388440addc80497994aee44b455de8a6529d",
+      "field": "cmdline",
+      "group_by": "",
+      "id": "falco-run-shell-untrusted",
+      "name": "Run shell untrusted",
+      "operator": "regex",
+      "regex": true,
+      "score_hint": 55,
+      "severity": "medium",
+      "source_id": "falco-connector",
+      "source_license": "Apache-2.0",
+      "source_url": "https://raw.githubusercontent.com/falcosecurity/rules/main/rules/falco_rules.yaml",
+      "source_version": "20260515145648",
+      "stage_hint": "execution",
+      "support_level": "full_supported",
+      "upstream_id": "falco-run-shell-untrusted",
+      "value": "(?i)(/bin/sh|/bin/bash|bash\\s+-i|sh\\s+-i|/dev/tcp|nc\\s+-e)",
+      "window": {}
+    },
+    {
+      "candidate": true,
+      "category": "runtime",
+      "conditions": null,
+      "dedup_key": "6c4e45d666136f34811666827d78b711580cbe97f6e4371a62f301d729541584",
+      "field": "cmdline",
+      "group_by": "",
+      "id": "falco-contact-k8s-api-server-from-container",
+      "name": "Contact K8S API Server From Container",
+      "operator": "regex",
+      "regex": true,
+      "score_hint": 55,
+      "severity": "medium",
+      "source_id": "falco-connector",
+      "source_license": "Apache-2.0",
+      "source_url": "https://raw.githubusercontent.com/falcosecurity/rules/main/rules/falco_rules.yaml",
+      "source_version": "20260515145648",
+      "stage_hint": "detection",
+      "support_level": "full_supported",
+      "upstream_id": "falco-contact-k8s-api-server-from-container",
+      "value": "(?i)(/bin/sh|/bin/bash|bash\\s+-i|sh\\s+-i|/dev/tcp|nc\\s+-e)",
+      "window": {}
+    }
+  ],
+  "source": {
+    "bundled": false,
+    "category": "runtime",
+    "connector": true,
+    "id": "falco-connector",
+    "license": "Apache-2.0",
+    "name": "Falco Rules Connector",
+    "origin": "external_subscription",
+    "restricted": false,
+    "updatable": true,
+    "updated_at": "2026-05-15T14:56:48Z",
+    "url": "https://raw.githubusercontent.com/falcosecurity/rules/main/rules/falco_rules.yaml"
+  },
+  "synced_at": "2026-05-15T14:56:54Z",
+  "unsupported_count": 0,
+  "version": "20260515145648"
+}

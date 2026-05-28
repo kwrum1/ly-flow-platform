@@ -1,0 +1,108 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "suricata-etopen-1000001",
+  "name": "ET TROJAN Possible DNS Tunnel",
+  "description": "Suricata/ET Open DNS tunnel signature formatted for LyFlow DPI analysis.",
+  "category": "dpi",
+  "enabled": true,
+  "source": {
+    "origin": "external_subscription",
+    "vendor": "Proofpoint Emerging Threats Open",
+    "license": "ET Open Ruleset License",
+    "url": "rules/suricata/et-open.rules",
+    "version": "v1.0.0",
+    "upstream_id": "1000001",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/suricata/et-open.rules",
+    "converted_path": "rules/compiled/dpi/suricata-et-open.json"
+  },
+  "support": {
+    "level": "partial_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Suricata metadata is preserved; packet-engine-only options must be checked by the DPI converter before activation."
+    ]
+  },
+  "classification": {
+    "stage": "c2_exfiltration",
+    "mitre_tactics": [
+      "TA0011"
+    ],
+    "mitre_techniques": [
+      "T1071.004"
+    ],
+    "confidence": 0.75,
+    "rationale": "Long high-entropy DNS queries are commonly associated with DNS tunneling and C2/exfiltration."
+  },
+  "scoring": {
+    "base_score": 78,
+    "severity": "high",
+    "upstream_score": {
+      "suricata_priority": 2
+    },
+    "source_reliability": 80
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "network.src_ip",
+      "dns.query"
+    ],
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "dns"
+      },
+      {
+        "field": "dns.query",
+        "operator": "regex",
+        "value": "[a-zA-Z0-9]{20,}"
+      }
+    ],
+    "suricata": {
+      "action": "alert",
+      "protocol": "dns",
+      "src": "$HOME_NET any",
+      "direction": "->",
+      "dst": "$EXTERNAL_NET any",
+      "msg": "ET TROJAN Possible DNS Tunnel",
+      "sid": 1000001,
+      "rev": 1,
+      "raw_options": [
+        "dns.query",
+        "pcre:\"/[a-zA-Z0-9]{20,}/\""
+      ]
+    }
+  },
+  "provenance": [
+    {
+      "source": "rules/suricata/et-open.rules",
+      "sid": 1000001,
+      "rev": 1,
+      "line": 6
+    },
+    {
+      "source": "rules/schema/examples/suricata-dpi-rule.json",
+      "rule_id": "suricata-etopen-1000001",
+      "vendor": "Proofpoint Emerging Threats Open"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "suggest_ip_block",
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "699d6b7e376d978e",
+    "merged_rule_ids": [
+      "suricata-etopen-1000001"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

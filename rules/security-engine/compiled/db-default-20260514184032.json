@@ -1,0 +1,53 @@
+{
+  "version": "default-dev-bundle-v1",
+  "rules": [
+    {
+      "ID": "rasp-sqli-default",
+      "Name": "RASP SQL Injection Signal",
+      "Category": "rasp",
+      "Severity": "critical",
+      "ScoreHint": 90,
+      "StageHint": "initial_access",
+      "Field": "query",
+      "Value": "(?i)(union\\s+select|or\\s+1=1|sleep\\s*\\(|information_schema)",
+      "Regex": true,
+      "Candidate": true
+    },
+    {
+      "ID": "runtime-reverse-shell-default",
+      "Name": "Runtime Reverse Shell Signal",
+      "Category": "runtime",
+      "Severity": "high",
+      "ScoreHint": 80,
+      "StageHint": "execution",
+      "Field": "cmdline",
+      "Value": "/dev/tcp",
+      "Regex": false,
+      "Candidate": true
+    },
+    {
+      "ID": "log-ssh-failure-default",
+      "Name": "SSH Authentication Failure Log",
+      "Category": "log_audit",
+      "Severity": "medium",
+      "ScoreHint": 55,
+      "StageHint": "initial_access",
+      "Field": "message",
+      "Value": "(?i)(failed password|invalid user|authentication failure)",
+      "Regex": true,
+      "Candidate": true
+    },
+    {
+      "ID": "dpi-admin-access-default",
+      "Name": "DPI Sensitive Admin Path",
+      "Category": "traffic",
+      "Severity": "medium",
+      "ScoreHint": 50,
+      "StageHint": "recon",
+      "Field": "http_path",
+      "Value": "(?i)(/admin|/manager|/actuator|/wp-admin)",
+      "Regex": true,
+      "Candidate": true
+    }
+  ]
+}

@@ -1,0 +1,112 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-5710",
+  "name": "SSH 尝试使用不存在的用户登录",
+  "description": "SSH 尝试使用不存在的用户登录",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal",
+    "version": "2026.05",
+    "upstream_id": "5710",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/xdr/ssh_rules.yaml",
+    "converted_path": "rules/internal/hids/lyflow/generated/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from existing LyFlow internal XDR rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [
+      "T1110.001",
+      "T1021.004"
+    ],
+    "confidence": 0.75,
+    "rationale": "kept existing valid stage"
+  },
+  "scoring": {
+    "base_score": 30,
+    "severity": "low",
+    "upstream_score": {
+      "lyflow_level": 5
+    },
+    "source_reliability": 92,
+    "normalized_score": 44,
+    "active_score": true,
+    "score_detail": {
+      "reason": "severity + source reliability + support + confidence + stage",
+      "active": true,
+      "components": {
+        "base": 30,
+        "source_component": 3,
+        "confidence_component": 5,
+        "stage_component": 6,
+        "support_factor": 1.0
+      }
+    },
+    "original_scoring": {
+      "base_score": 30,
+      "severity": "low",
+      "upstream_score": {
+        "lyflow_level": 5
+      },
+      "source_reliability": 92
+    }
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "host.id",
+      "network.src_ip",
+      "user.name"
+    ],
+    "conditions": [
+      {
+        "field": "metadata.line",
+        "operator": "contains",
+        "value": "illegal user|invalid user"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/xdr/ssh_rules.yaml",
+      "rule_id": 5710,
+      "groups": [
+        "invalid_login",
+        "authentication_failed"
+      ]
+    },
+    {
+      "source": "rules/internal/hids/lyflow/generated/lyflow-internal-5710.json",
+      "rule_id": "lyflow-internal-5710",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "dd25178539bc1e98",
+    "merged_rule_ids": [
+      "lyflow-internal-5710"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

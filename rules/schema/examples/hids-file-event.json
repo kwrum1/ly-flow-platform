@@ -1,0 +1,22 @@
+{
+  "agent_id": "agent-ubuntu-489394",
+  "hostname": "ubuntu",
+  "ip": "127.0.0.1",
+  "type": "runtime.file.changed",
+  "severity": "high",
+  "strategy": "ebpf",
+  "backend": "ebpf-fallback",
+  "capability_status": "fallback",
+  "source_evidence": "/etc/ld.so.preload",
+  "mode": "monitor",
+  "message": "Sensitive file changed: /etc/ld.so.preload",
+  "occurred_at": "2026-05-14T00:00:00Z",
+  "metadata": {
+    "collector": "file-metadata-fallback",
+    "path": "/etc/ld.so.preload",
+    "size": 128,
+    "mod_unix_nano": 1778716800000000000,
+    "runtime_enabled": true,
+    "source": "agent-runtime-monitor"
+  }
+}

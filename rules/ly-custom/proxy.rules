@@ -1,0 +1,168 @@
+# 流影自定义安全规则 - 代理穿透工具检测
+# 版本: 1.0.0
+# 更新时间: 2026-05-09
+# 说明: 检测各类代理穿透工具特征
+
+# ============ reGeorg ============
+
+# reGeorg WebSocket Tunnel
+alert http any any -> any any (msg:"[LY-PROXY-001] reGeorg WebSocket Tunnel Connection"; \
+    content:"Upgrade"; nocase; \
+    content:"websocket"; nocase; \
+    content:"/~!frp"; nocase; \
+    flow:established,to_server; \
+    classtype:trojan-activity; sid:9007001; rev:1;)
+
+# reGeorg Session Pattern
+alert http any any -> any any (msg:"[LY-PROXY-002] reGeorg Session Cookie Pattern"; \
+    method:POST; \
+    content:"session="; \
+    content:"cmd"; nocase; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:trojan-activity; sid:9007002; rev:1;)
+
+# Neo-reGeorg Encryption Pattern
+alert http any any -> any any (msg:"[LY-PROXY-003] Neo-reGeorg Encrypted Tunnel"; \
+    content:"neoreGeorg"; nocase; \
+    content:"template"; nocase; \
+    classtype:trojan-activity; sid:9007003; rev:1;)
+
+# ============ EarthWorm (EW) ============
+
+# EarthWorm SOCKS Proxy
+alert tcp any any -> any 1080 (msg:"[LY-PROXY-011] EarthWorm SOCKS Proxy Access"; \
+    content:"ew"; nocase; \
+    flow:established; \
+    classtype:trojan-activity; sid:9007011; rev:1;)
+
+# EarthWorm Reverse Proxy
+alert tcp any any -> any any (msg:"[LY-PROXY-012] EarthWorm Reverse Proxy Pattern"; \
+    content:"SOCKS5"; \
+    content:"ew"; nocase; \
+    threshold:type threshold, track by_src, count 5, seconds 30; \
+    classtype:trojan-activity; sid:9007012; rev:1;)
+
+# ============ Venom ============
+
+# Venom Multi-level Proxy
+alert tcp any any -> any any (msg:"[LY-PROXY-021] Venom Multi-level Proxy Pattern"; \
+    content:"venom"; nocase; \
+    content:"agent"; nocase; \
+    threshold:type threshold, track by_src, count 5, seconds 30; \
+    classtype:trojan-activity; sid:9007021; rev:1;)
+
+# Venom Admin Port
+alert tcp any any -> any 65010 (msg:"[LY-PROXY-022] Venom Admin Port Access"; \
+    flow:established; \
+    classtype:trojan-activity; sid:9007022; rev:1;)
+
+# ============ Chisel ============
+
+# Chisel Reverse Proxy
+alert http any any -> any any (msg:"[LY-PROXY-031] Chisel Reverse Proxy Pattern"; \
+    content:"X-Chisel"; nocase; \
+    http.header_names; content:"X-Chisel"; \
+    classtype:trojan-activity; sid:9007031; rev:1;)
+
+# Chisel HTTP Tunnel
+alert http any any -> any any (msg:"[LY-PROXY-032] Chisel HTTP Tunnel"; \
+    http.user_agent; content:"chisel"; nocase; \
+    threshold:type threshold, track by_src, count 5, seconds 30; \
+    classtype:trojan-activity; sid:9007032; rev:1;)
+
+# ============ GOST ============
+
+# GOST Proxy Tool
+alert tls any any -> any any (msg:"[LY-PROXY-041] GOST Proxy TLS Pattern"; \
+    tls.sni; content:"gost"; nocase; \
+    classtype:trojan-activity; sid:9007041; rev:1;)
+
+# GOST HTTP Proxy
+alert http any any -> any any (msg:"[LY-PROXY-042] GOST HTTP Proxy"; \
+    http.user_agent; content:"Go-http-client"; nocase; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:trojan-activity; sid:9007042; rev:1;)
+
+# ============ SSF ============
+
+# SecureSocketFunnel (SSF)
+alert tcp any any -> any any (msg:"[LY-PROXY-051] SSF Encrypted Tunnel Pattern"; \
+    content:"ssf"; nocase; \
+    content:"secure"; nocase; \
+    flow:established; \
+    threshold:type threshold, track by_src, count 5, seconds 30; \
+    classtype:trojan-activity; sid:9007051; rev:1;)
+
+# ============ ProxyChains ============
+
+# ProxyChains SOCKS Proxy
+alert tcp any any -> any 1080 (msg:"[LY-PROXY-061] ProxyChains SOCKS4 Proxy"; \
+    content:"SOCKS4"; \
+    flow:established; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:attempted-recon; sid:9007061; rev:1;)
+
+# ProxyChains SOCKS5
+alert tcp any any -> any 1080 (msg:"[LY-PROXY-062] ProxyChains SOCKS5 Proxy"; \
+    content:"SOCKS5"; \
+    flow:established; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:attempted-recon; sid:9007062; rev:1;)
+
+# ============ DNS2TCP ============
+
+# DNS2TCP DNS Tunnel
+alert dns any any -> any any (msg:"[LY-PROXY-071] DNS2TCP DNS Tunnel Pattern"; \
+    dns.query; content:"dns2tcp"; nocase; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:covert-channel; sid:9007071; rev:1;)
+
+# DNS2TCP TXT Record Pattern
+alert dns any any -> any any (msg:"[LY-PROXY-072] DNS2TCP TXT Record Tunnel"; \
+    dns.query; pcre:"/^[a-z0-9]{50,}\.dns2tcp/i"; \
+    threshold:type threshold, track by_src, count 20, seconds 60; \
+    classtype:covert-channel; sid:9007072; rev:1;)
+
+# ============ Iodine ============
+
+# Iodine DNS Tunnel
+alert dns any any -> any any (msg:"[LY-PROXY-081] Iodine DNS Tunnel Pattern"; \
+    dns.query; content:"iodine"; nocase; \
+    threshold:type threshold, track by_src, count 10, seconds 60; \
+    classtype:covert-channel; sid:9007081; rev:1;)
+
+# ============ PingTunnel ============
+
+# PingTunnel ICMP Tunnel
+alert icmp any any -> any any (msg:"[LY-PROXY-091] PingTunnel ICMP Tunnel Pattern"; \
+    icmp.icmp_type:8; \
+    icmp.icmp_code:0; \
+    byte_test:4,>,0,0; \
+    threshold:type threshold, track by_src, count 100, seconds 60; \
+    classtype:covert-channel; sid:9007091; rev:1;)
+
+# ============ ptunnel ============
+
+# ptunnel ICMP Tunnel
+alert icmp any any -> any any (msg:"[LY-PROXY-101] ptunnel ICMP Proxy Pattern"; \
+    icmp.icmp_type:0; \
+    content:"ptunnel"; nocase; \
+    threshold:type threshold, track by_src, count 50, seconds 60; \
+    classtype:covert-channel; sid:9007101; rev:1;)
+
+# ============ Oport ============
+
+# Oport Tunnel Tool
+alert tcp any any -> any any (msg:"[LY-PROXY-111] Oport Tunnel Tool Pattern"; \
+    content:"oport"; nocase; \
+    content:"connect"; nocase; \
+    threshold:type threshold, track by_src, count 5, seconds 30; \
+    classtype:trojan-activity; sid:9007111; rev:1;)
+
+# ============ Frpng ============
+
+# frpng (FRP Nginx variant)
+alert http any any -> any any (msg:"[LY-PROXY-121] frpng HTTP Tunnel Variant"; \
+    content:"frpng"; nocase; \
+    content:"nginx"; nocase; \
+    classtype:trojan-activity; sid:9007121; rev:1;)

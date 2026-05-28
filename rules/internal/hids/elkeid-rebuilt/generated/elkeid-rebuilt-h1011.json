@@ -1,0 +1,80 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "elkeid-rebuilt-h1011",
+  "name": "Port Scan Detection",
+  "description": "Network port scan detected",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "rebuilt_internal",
+    "vendor": "ByteDance Elkeid",
+    "license": "Apache-2.0",
+    "url": "https://github.com/bytedance/Elkeid",
+    "version": "local-2024-01-15",
+    "upstream_id": "H1011",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/hids/elkeid_hids_rules.yaml",
+    "converted_path": "rules/internal/hids/elkeid-rebuilt/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Converted from local Elkeid curated YAML patterns"
+    ]
+  },
+  "classification": {
+    "stage": "c2_exfiltration",
+    "mitre_tactics": [
+      "TA0007"
+    ],
+    "mitre_techniques": [
+      "T1046"
+    ],
+    "confidence": 0.82,
+    "rationale": "Mapped from Elkeid category network_anomaly."
+  },
+  "scoring": {
+    "base_score": 58,
+    "severity": "medium",
+    "source_reliability": 78
+  },
+  "match": {
+    "logic": "any",
+    "entities": [
+      "host.id",
+      "user.name",
+      "process.pid"
+    ],
+    "conditions": [
+      {
+        "field": "metadata.command_line",
+        "operator": "regex",
+        "value": "(?i)(SYN.*SENT|SYN.*RECV|connect.*fail)"
+      },
+      {
+        "field": "metadata.command_line",
+        "operator": "regex",
+        "value": "50"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/hids/elkeid_hids_rules.yaml",
+      "rule_id": "H1011",
+      "category": "network_anomaly",
+      "hook_type": "network"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "collect_forensic_bundle",
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  }
+}

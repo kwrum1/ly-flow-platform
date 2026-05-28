@@ -1,0 +1,114 @@
+{
+  "category": "hids",
+  "classification": {
+    "confidence": 0.75,
+    "mitre_tactics": [
+      "TA0002"
+    ],
+    "mitre_techniques": [
+      "T1059"
+    ],
+    "rationale": "kept existing valid stage",
+    "stage": "execution"
+  },
+  "dedup": {
+    "fingerprint": "27e40b876c30e6a4",
+    "merged_rule_ids": [
+      "lyflow-internal-81004"
+    ],
+    "winner_reason": "source precedence then score"
+  },
+  "description": "Baseline detection for suspicious runtime process execution patterns.",
+  "enabled": true,
+  "id": "lyflow-internal-81004",
+  "kind": "single_event_rule",
+  "match": {
+    "conditions": [
+      {
+        "field": "metadata.command_line",
+        "operator": "regex",
+        "value": "(suspicious_process|process_start).*?(curl|wget|nc|ncat|bash -i|/dev/tcp|chmod \\+x|base64 -d)"
+      }
+    ],
+    "entities": [
+      "host.id",
+      "network.src_ip",
+      "user.name"
+    ],
+    "logic": "all"
+  },
+  "name": "LyFlow Runtime Suspicious Process",
+  "provenance": [
+    {
+      "groups": [
+        "lyflow_baseline",
+        "runtime_suspicious_process",
+        "attack_chain:execution"
+      ],
+      "rule_id": 81004,
+      "source": "rules/xdr/lyflow_baseline_rules.yaml"
+    },
+    {
+      "rule_id": "lyflow-internal-81004",
+      "source": "rules/internal/hids/lyflow/generated/lyflow-internal-81004.json",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ],
+    "candidate_only": true
+  },
+  "schema_version": "v1",
+  "scoring": {
+    "active_score": true,
+    "base_score": 78,
+    "normalized_score": 92,
+    "original_scoring": {
+      "base_score": 78,
+      "severity": "high",
+      "source_reliability": 92,
+      "upstream_score": {
+        "lyflow_level": 10
+      }
+    },
+    "score_detail": {
+      "active": true,
+      "components": {
+        "base": 78,
+        "confidence_component": 5,
+        "source_component": 3,
+        "stage_component": 6,
+        "support_factor": 1
+      },
+      "reason": "severity + source reliability + support + confidence + stage"
+    },
+    "severity": "critical",
+    "source_reliability": 92,
+    "upstream_score": {
+      "lyflow_level": 10
+    }
+  },
+  "source": {
+    "conversion_version": "v1",
+    "converted_path": "rules/internal/hids/lyflow/generated/",
+    "license": "Proprietary",
+    "origin": "internal",
+    "raw_path": "rules/xdr/lyflow_baseline_rules.yaml",
+    "revision": "1",
+    "upstream_id": "81004",
+    "url": "lyflow://rules/internal",
+    "vendor": "LyFlow",
+    "version": "2026.05"
+  },
+  "support": {
+    "level": "full_supported",
+    "notes": [
+      "Migrated from existing LyFlow internal XDR rule"
+    ],
+    "unsupported_fields": []
+  }
+}

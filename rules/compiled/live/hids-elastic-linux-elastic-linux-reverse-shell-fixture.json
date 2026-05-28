@@ -1,0 +1,119 @@
+{
+  "category": "hids",
+  "classification": {
+    "confidence": 0.78,
+    "mitre_tactics": [
+      "TA0002"
+    ],
+    "mitre_techniques": [
+      "T1059"
+    ],
+    "rationale": "kept existing valid stage",
+    "stage": "execution"
+  },
+  "dedup": {
+    "fingerprint": "a654f1a5d9803c95",
+    "merged_rule_ids": [
+      "elastic-linux-elastic-linux-reverse-shell-fixture"
+    ],
+    "winner_reason": "source precedence then score"
+  },
+  "description": "Linux Reverse Shell Command",
+  "enabled": true,
+  "id": "elastic-linux-elastic-linux-reverse-shell-fixture",
+  "kind": "single_event_rule",
+  "match": {
+    "conditions": [
+      {
+        "field": "process.command_line",
+        "operator": "regex",
+        "value": "process.command_line: (*bash* and */dev/tcp*)"
+      }
+    ],
+    "entities": [
+      "host.id",
+      "user.name",
+      "process.pid"
+    ],
+    "logic": "any"
+  },
+  "name": "Linux Reverse Shell Command",
+  "provenance": [
+    {
+      "language": "kuery",
+      "query": "process.command_line: (*bash* and */dev/tcp*)",
+      "references": [
+        "https://github.com/elastic/detection-rules"
+      ],
+      "rule_id": "elastic-linux-reverse-shell-fixture",
+      "source": "rules/subscriptions/elastic-linux/raw/linux-fixture.json",
+      "tags": [
+        "Linux",
+        "Execution",
+        "Elastic"
+      ]
+    },
+    {
+      "rule_id": "elastic-linux-elastic-linux-reverse-shell-fixture",
+      "source": "rules/subscriptions/elastic-linux/converted/elastic-linux-elastic-linux-reverse-shell-fixture.json",
+      "vendor": "Elastic"
+    }
+  ],
+  "response": {
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ],
+    "candidate_only": true
+  },
+  "schema_version": "v1",
+  "scoring": {
+    "active_score": true,
+    "base_score": 73,
+    "normalized_score": 87,
+    "original_scoring": {
+      "base_score": 73,
+      "severity": "high",
+      "source_reliability": 84,
+      "upstream_score": {
+        "elastic_risk_score": 73
+      }
+    },
+    "score_detail": {
+      "active": true,
+      "components": {
+        "base": 73,
+        "confidence_component": 6,
+        "source_component": 2,
+        "stage_component": 6,
+        "support_factor": 1
+      },
+      "reason": "severity + source reliability + support + confidence + stage"
+    },
+    "severity": "critical",
+    "source_reliability": 84,
+    "upstream_score": {
+      "elastic_risk_score": 73
+    }
+  },
+  "source": {
+    "conversion_version": "v1",
+    "converted_path": "rules/subscriptions/elastic-linux/converted/",
+    "license": "Elastic License 2.0",
+    "origin": "external_subscription",
+    "raw_path": "rules/subscriptions/elastic-linux/raw/linux-fixture.json",
+    "revision": "1",
+    "upstream_id": "elastic-linux-reverse-shell-fixture",
+    "url": "https://github.com/elastic/detection-rules",
+    "vendor": "Elastic",
+    "version": "fixture"
+  },
+  "support": {
+    "level": "full_supported",
+    "notes": [
+      "Converted from Elastic Linux fixture"
+    ],
+    "unsupported_fields": []
+  }
+}

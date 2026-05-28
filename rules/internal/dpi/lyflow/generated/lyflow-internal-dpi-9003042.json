@@ -1,0 +1,79 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-dpi-9003042",
+  "name": "[LY-YAKIT-002] Yakit ICMP Ping Sweep",
+  "description": "[LY-YAKIT-002] Yakit ICMP Ping Sweep",
+  "category": "dpi",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal/dpi",
+    "version": "2026.05",
+    "upstream_id": "9003042",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/ly-custom/scanner.rules",
+    "converted_path": "rules/internal/dpi/lyflow/generated/"
+  },
+  "support": {
+    "level": "partial_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from LyFlow custom Suricata-like DPI rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.7,
+    "rationale": "Mapped from LyFlow custom DPI rule message."
+  },
+  "scoring": {
+    "base_score": 70,
+    "severity": "high",
+    "upstream_score": {
+      "sid": 9003042
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "domain"
+    ],
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "icmp"
+      }
+    ],
+    "suricata": {
+      "sid": 9003042,
+      "rev": 1,
+      "msg": "[LY-YAKIT-002] Yakit ICMP Ping Sweep",
+      "raw": "alert icmp any any -> any any (msg:\"[LY-YAKIT-002] Yakit ICMP Ping Sweep\"; icmp.icmp_type:8; icmp.icmp_code:0; threshold:type threshold, track by_src, count 30, seconds 60; classtype:attempted-recon; sid:9003042; rev:1;)"
+    }
+  },
+  "provenance": [
+    {
+      "source": "rules/ly-custom/scanner.rules",
+      "sid": 9003042,
+      "rev": 1,
+      "line": 121
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  }
+}

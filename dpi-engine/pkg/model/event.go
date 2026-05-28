@@ -37,10 +37,10 @@ const (
 
 // Severity levels
 const (
-	SeverityCritical = "critical"
-	SeverityHigh     = "high"
-	SeverityMedium   = "medium"
-	SeverityLow      = "low"
+	EventSeverityCritical = "critical"
+	EventSeverityHigh     = "high"
+	EventSeverityMedium   = "medium"
+	EventSeverityLow      = "low"
 )
 
 // FromAlert converts an Alert to Event
@@ -63,12 +63,12 @@ func (e *Event) FromAlert(alert *Alert) {
 func SeverityFromUint8(s uint8) string {
 	switch s {
 	case SeverityCritical:
-		return SeverityCritical
+		return EventSeverityCritical
 	case SeverityHigh:
-		return SeverityHigh
+		return EventSeverityHigh
 	case SeverityMedium:
-		return SeverityMedium
+		return EventSeverityMedium
 	default:
-		return SeverityLow
+		return EventSeverityLow
 	}
 }

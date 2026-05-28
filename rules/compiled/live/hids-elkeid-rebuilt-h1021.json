@@ -1,0 +1,110 @@
+{
+  "category": "hids",
+  "classification": {
+    "confidence": 0.82,
+    "mitre_tactics": [
+      "TA0008"
+    ],
+    "mitre_techniques": [
+      "T1021"
+    ],
+    "rationale": "kept existing valid stage",
+    "stage": "lateral_movement"
+  },
+  "dedup": {
+    "fingerprint": "e0fe5cd3d500eef1",
+    "merged_rule_ids": [
+      "elkeid-rebuilt-h1021"
+    ],
+    "winner_reason": "source precedence then score"
+  },
+  "description": "SSH lateral movement detected",
+  "enabled": true,
+  "id": "elkeid-rebuilt-h1021",
+  "kind": "single_event_rule",
+  "match": {
+    "conditions": [
+      {
+        "field": "metadata.command_line",
+        "operator": "regex",
+        "value": "(?i)(ssh.*-o|scp.*\\\\:|rsync.*-e)"
+      },
+      {
+        "field": "metadata.command_line",
+        "operator": "regex",
+        "value": "(?i)(known_hosts|known_hosts.*hash)"
+      }
+    ],
+    "entities": [
+      "host.id",
+      "user.name",
+      "process.pid"
+    ],
+    "logic": "any"
+  },
+  "name": "SSH Lateral Movement",
+  "provenance": [
+    {
+      "category": "lateral_movement",
+      "hook_type": "network",
+      "rule_id": "H1021",
+      "source": "rules/hids/elkeid_hids_rules.yaml"
+    },
+    {
+      "rule_id": "elkeid-rebuilt-h1021",
+      "source": "rules/internal/hids/elkeid-rebuilt/generated/elkeid-rebuilt-h1021.json",
+      "vendor": "ByteDance Elkeid"
+    }
+  ],
+  "response": {
+    "allowed_candidate_types": [
+      "collect_forensic_bundle",
+      "increase_monitoring",
+      "analyst_review"
+    ],
+    "candidate_only": true
+  },
+  "schema_version": "v1",
+  "scoring": {
+    "active_score": true,
+    "base_score": 82,
+    "normalized_score": 99,
+    "original_scoring": {
+      "base_score": 82,
+      "severity": "high",
+      "source_reliability": 78
+    },
+    "score_detail": {
+      "active": true,
+      "components": {
+        "base": 82,
+        "confidence_component": 6,
+        "source_component": 1,
+        "stage_component": 10,
+        "support_factor": 1
+      },
+      "reason": "severity + source reliability + support + confidence + stage"
+    },
+    "severity": "critical",
+    "source_reliability": 78
+  },
+  "source": {
+    "conversion_version": "v1",
+    "converted_path": "rules/internal/hids/elkeid-rebuilt/",
+    "license": "Apache-2.0",
+    "origin": "rebuilt_internal",
+    "raw_path": "rules/hids/elkeid_hids_rules.yaml",
+    "revision": "1",
+    "upstream_id": "H1021",
+    "url": "https://github.com/bytedance/Elkeid",
+    "vendor": "ByteDance Elkeid",
+    "version": "local-2024-01-15"
+  },
+  "support": {
+    "level": "full_supported",
+    "notes": [
+      "Converted from local Elkeid curated YAML patterns"
+    ],
+    "unsupported_fields": []
+  }
+}

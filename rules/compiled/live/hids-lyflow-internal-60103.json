@@ -1,0 +1,109 @@
+{
+  "category": "hids",
+  "classification": {
+    "confidence": 0.75,
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "rationale": "kept existing valid stage",
+    "stage": "execution"
+  },
+  "dedup": {
+    "fingerprint": "d54e803b8670d7db",
+    "merged_rule_ids": [
+      "lyflow-internal-60103"
+    ],
+    "winner_reason": "source precedence then score"
+  },
+  "description": "用户会话关闭",
+  "enabled": true,
+  "id": "lyflow-internal-60103",
+  "kind": "single_event_rule",
+  "match": {
+    "conditions": [
+      {
+        "field": "metadata.line",
+        "operator": "contains",
+        "value": "session closed"
+      }
+    ],
+    "entities": [
+      "host.id",
+      "network.src_ip",
+      "user.name"
+    ],
+    "logic": "all"
+  },
+  "name": "用户会话关闭",
+  "provenance": [
+    {
+      "groups": [
+        "session",
+        "logout"
+      ],
+      "rule_id": 60103,
+      "source": "rules/xdr/system_rules.yaml"
+    },
+    {
+      "rule_id": "lyflow-internal-60103",
+      "source": "rules/internal/hids/lyflow/generated/lyflow-internal-60103.json",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ],
+    "candidate_only": true
+  },
+  "schema_version": "v1",
+  "scoring": {
+    "active_score": true,
+    "base_score": 30,
+    "normalized_score": 44,
+    "original_scoring": {
+      "base_score": 30,
+      "severity": "low",
+      "source_reliability": 92,
+      "upstream_score": {
+        "lyflow_level": 3
+      }
+    },
+    "score_detail": {
+      "active": true,
+      "components": {
+        "base": 30,
+        "confidence_component": 5,
+        "source_component": 3,
+        "stage_component": 6,
+        "support_factor": 1
+      },
+      "reason": "severity + source reliability + support + confidence + stage"
+    },
+    "severity": "low",
+    "source_reliability": 92,
+    "upstream_score": {
+      "lyflow_level": 3
+    }
+  },
+  "source": {
+    "conversion_version": "v1",
+    "converted_path": "rules/internal/hids/lyflow/generated/",
+    "license": "Proprietary",
+    "origin": "internal",
+    "raw_path": "rules/xdr/system_rules.yaml",
+    "revision": "1",
+    "upstream_id": "60103",
+    "url": "lyflow://rules/internal",
+    "vendor": "LyFlow",
+    "version": "2026.05"
+  },
+  "support": {
+    "level": "full_supported",
+    "notes": [
+      "Migrated from existing LyFlow internal XDR rule"
+    ],
+    "unsupported_fields": []
+  }
+}

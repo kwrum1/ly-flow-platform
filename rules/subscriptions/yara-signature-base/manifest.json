@@ -1,0 +1,20 @@
+{
+  "schema_version": "v1",
+  "source_id": "yara-signature-base",
+  "name": "YARA Signature-Base rules",
+  "category": "file",
+  "source_type": "external_subscription",
+  "update_mode": "manual_fetch_then_convert",
+  "vendor": "Neo23x0 Signature-Base",
+  "license": "Detection Rule License 1.1",
+  "source_url": "https://github.com/Neo23x0/signature-base/tree/master/yara",
+  "raw_path": "rules/yara",
+  "converted_path": "rules/subscriptions/yara-signature-base/converted/",
+  "compiled_path": "rules/compiled/file/yara-signature-base.json",
+  "enabled_by_default": false,
+  "conversion": {
+    "converter": "yara-file-formatter",
+    "target_ir": "lyflow-rule-ir-v1",
+    "notes": "Use public Signature-Base YARA rules as the default upstream address; external-variable rules may need filtering before runtime use."
+  }
+}

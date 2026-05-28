@@ -1,0 +1,187 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-dpi-9006001",
+  "name": "[LY-LATERAL-001] SMB Tree Connect Lateral Movement",
+  "description": "[LY-LATERAL-001] SMB Tree Connect Lateral Movement",
+  "category": "dpi",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal/dpi",
+    "version": "2026.05",
+    "upstream_id": "9006001",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/ly-custom/lateral.rules",
+    "converted_path": "rules/internal/dpi/lyflow/generated/"
+  },
+  "support": {
+    "level": "partial_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from LyFlow custom Suricata-like DPI rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.7,
+    "rationale": "kept existing valid stage"
+  },
+  "scoring": {
+    "base_score": 70,
+    "severity": "high",
+    "upstream_score": {
+      "sid": 9006001
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "domain"
+    ],
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "smb"
+      }
+    ],
+    "suricata": {
+      "sid": 9006001,
+      "rev": 1,
+      "msg": "[LY-LATERAL-001] SMB Tree Connect Lateral Movement",
+      "raw": "alert smb any any -> any any (msg:\"[LY-LATERAL-001] SMB Tree Connect Lateral Movement\"; content:\"Tree Connect AndX\"; nocase; threshold:type threshold, track by_src, count 30, seconds 120; classtype:attempted-recon; sid:9006001; rev:1;)"
+    }
+  },
+  "provenance": [
+    {
+      "source": "rules/ly-custom/lateral.rules",
+      "sid": 9006001,
+      "rev": 1,
+      "line": 9
+    },
+    {
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9006001.json",
+      "rule_id": "lyflow-internal-dpi-9006001",
+      "vendor": "LyFlow"
+    },
+    {
+      "source": "rules/ly-custom/lateral.rules",
+      "sid": 9006002,
+      "rev": 1,
+      "line": 15
+    },
+    {
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9006002.json",
+      "rule_id": "lyflow-internal-dpi-9006002",
+      "vendor": "LyFlow"
+    },
+    {
+      "source": "rules/ly-custom/lateral.rules",
+      "sid": 9006003,
+      "rev": 1,
+      "line": 23
+    },
+    {
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9006003.json",
+      "rule_id": "lyflow-internal-dpi-9006003",
+      "vendor": "LyFlow"
+    },
+    {
+      "source": "rules/ly-custom/lateral.rules",
+      "sid": 9006004,
+      "rev": 1,
+      "line": 30
+    },
+    {
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9006004.json",
+      "rule_id": "lyflow-internal-dpi-9006004",
+      "vendor": "LyFlow"
+    },
+    {
+      "source": "rules/ly-custom/privilege.rules",
+      "sid": 9008014,
+      "rev": 1,
+      "line": 56
+    },
+    {
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9008014.json",
+      "rule_id": "lyflow-internal-dpi-9008014",
+      "vendor": "LyFlow"
+    },
+    {
+      "source": "rules/ly-custom/privilege.rules",
+      "sid": 9008021,
+      "rev": 1,
+      "line": 65
+    },
+    {
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9008021.json",
+      "rule_id": "lyflow-internal-dpi-9008021",
+      "vendor": "LyFlow"
+    },
+    {
+      "source": "rules/ly-custom/privilege.rules",
+      "sid": 9008022,
+      "rev": 1,
+      "line": 72
+    },
+    {
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9008022.json",
+      "rule_id": "lyflow-internal-dpi-9008022",
+      "vendor": "LyFlow"
+    },
+    {
+      "source": "rules/ly-custom/privilege.rules",
+      "sid": 9008023,
+      "rev": 1,
+      "line": 78
+    },
+    {
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9008023.json",
+      "rule_id": "lyflow-internal-dpi-9008023",
+      "vendor": "LyFlow"
+    },
+    {
+      "source": "rules/ly-custom/privilege.rules",
+      "sid": 9008024,
+      "rev": 1,
+      "line": 85
+    },
+    {
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9008024.json",
+      "rule_id": "lyflow-internal-dpi-9008024",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "225e198b4c13b3d9",
+    "merged_rule_ids": [
+      "lyflow-internal-dpi-9006001",
+      "lyflow-internal-dpi-9006002",
+      "lyflow-internal-dpi-9006003",
+      "lyflow-internal-dpi-9006004",
+      "lyflow-internal-dpi-9008014",
+      "lyflow-internal-dpi-9008021",
+      "lyflow-internal-dpi-9008022",
+      "lyflow-internal-dpi-9008023",
+      "lyflow-internal-dpi-9008024"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

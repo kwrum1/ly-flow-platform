@@ -1,0 +1,101 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "lyflow-internal-5715",
+  "name": "SSH 用户被拒绝",
+  "description": "SSH 用户被拒绝登录",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "internal",
+    "vendor": "LyFlow",
+    "license": "Proprietary",
+    "url": "lyflow://rules/internal",
+    "version": "2026.05",
+    "upstream_id": "5715",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/xdr/ssh_rules.yaml",
+    "converted_path": "rules/internal/hids/lyflow/generated/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Migrated from existing LyFlow internal XDR rule"
+    ]
+  },
+  "classification": {
+    "stage": "execution",
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "confidence": 0.75,
+    "rationale": "kept existing valid stage"
+  },
+  "scoring": {
+    "base_score": 30,
+    "severity": "low",
+    "upstream_score": {
+      "lyflow_level": 5
+    },
+    "source_reliability": 92
+  },
+  "match": {
+    "logic": "all",
+    "entities": [
+      "host.id",
+      "network.src_ip",
+      "user.name"
+    ],
+    "conditions": [
+      {
+        "field": "metadata.line",
+        "operator": "contains",
+        "value": "not allowed because"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/xdr/ssh_rules.yaml",
+      "rule_id": 5715,
+      "groups": [
+        "invalid_login"
+      ]
+    },
+    {
+      "source": "rules/internal/hids/lyflow/generated/lyflow-internal-5715.json",
+      "rule_id": "lyflow-internal-5715",
+      "vendor": "LyFlow"
+    },
+    {
+      "source": "rules/xdr/ssh_rules.yaml",
+      "rule_id": 5718,
+      "groups": [
+        "invalid_login",
+        "authentication_failed"
+      ]
+    },
+    {
+      "source": "rules/internal/hids/lyflow/generated/lyflow-internal-5718.json",
+      "rule_id": "lyflow-internal-5718",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ]
+  },
+  "dedup": {
+    "fingerprint": "ffedb056a296445e",
+    "merged_rule_ids": [
+      "lyflow-internal-5715",
+      "lyflow-internal-5718"
+    ],
+    "winner_reason": "source precedence then score"
+  }
+}

@@ -1,0 +1,91 @@
+{
+  "kind": "single_event_rule",
+  "schema_version": "v1",
+  "id": "elastic-linux-elastic-linux-useradd-fixture",
+  "name": "Linux User Account Creation",
+  "description": "Linux User Account Creation",
+  "category": "hids",
+  "enabled": false,
+  "source": {
+    "origin": "external_subscription",
+    "vendor": "Elastic",
+    "license": "Elastic License 2.0",
+    "url": "https://github.com/elastic/detection-rules",
+    "version": "fixture",
+    "upstream_id": "elastic-linux-useradd-fixture",
+    "revision": "1",
+    "conversion_version": "v1",
+    "raw_path": "rules/subscriptions/elastic-linux/raw/linux-fixture.json",
+    "converted_path": "rules/subscriptions/elastic-linux/converted/"
+  },
+  "support": {
+    "level": "full_supported",
+    "unsupported_fields": [],
+    "notes": [
+      "Converted from Elastic Linux fixture"
+    ]
+  },
+  "classification": {
+    "stage": "persistence",
+    "mitre_tactics": [
+      "TA0003"
+    ],
+    "mitre_techniques": [
+      "T1136"
+    ],
+    "confidence": 0.78,
+    "rationale": "Mapped from Elastic threat metadata and tags."
+  },
+  "scoring": {
+    "base_score": 47,
+    "severity": "medium",
+    "upstream_score": {
+      "elastic_risk_score": 47
+    },
+    "source_reliability": 84
+  },
+  "match": {
+    "logic": "any",
+    "entities": [
+      "host.id",
+      "user.name",
+      "process.pid"
+    ],
+    "conditions": [
+      {
+        "field": "process.command_line",
+        "operator": "regex",
+        "value": "process.name: useradd or process.command_line: *useradd*"
+      },
+      {
+        "field": "process.name",
+        "operator": "regex",
+        "value": "process.name: useradd or process.command_line: *useradd*"
+      }
+    ]
+  },
+  "provenance": [
+    {
+      "source": "rules/subscriptions/elastic-linux/raw/linux-fixture.json",
+      "rule_id": "elastic-linux-useradd-fixture",
+      "language": "kuery",
+      "query": "process.name: useradd or process.command_line: *useradd*",
+      "tags": [
+        "Linux",
+        "Persistence",
+        "Elastic"
+      ],
+      "references": [
+        "https://github.com/elastic/detection-rules"
+      ]
+    }
+  ],
+  "response": {
+    "candidate_only": true,
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ]
+  }
+}

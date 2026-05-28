@@ -1,0 +1,124 @@
+{
+  "category": "hids",
+  "classification": {
+    "confidence": 0.78,
+    "mitre_tactics": [
+      "TA0003"
+    ],
+    "mitre_techniques": [
+      "T1136"
+    ],
+    "rationale": "kept existing valid stage",
+    "stage": "persistence"
+  },
+  "dedup": {
+    "fingerprint": "b978a6babf7e3de4",
+    "merged_rule_ids": [
+      "elastic-linux-elastic-linux-useradd-fixture"
+    ],
+    "winner_reason": "source precedence then score"
+  },
+  "description": "Linux User Account Creation",
+  "enabled": true,
+  "id": "elastic-linux-elastic-linux-useradd-fixture",
+  "kind": "single_event_rule",
+  "match": {
+    "conditions": [
+      {
+        "field": "process.command_line",
+        "operator": "regex",
+        "value": "process.name: useradd or process.command_line: *useradd*"
+      },
+      {
+        "field": "process.name",
+        "operator": "regex",
+        "value": "process.name: useradd or process.command_line: *useradd*"
+      }
+    ],
+    "entities": [
+      "host.id",
+      "user.name",
+      "process.pid"
+    ],
+    "logic": "any"
+  },
+  "name": "Linux User Account Creation",
+  "provenance": [
+    {
+      "language": "kuery",
+      "query": "process.name: useradd or process.command_line: *useradd*",
+      "references": [
+        "https://github.com/elastic/detection-rules"
+      ],
+      "rule_id": "elastic-linux-useradd-fixture",
+      "source": "rules/subscriptions/elastic-linux/raw/linux-fixture.json",
+      "tags": [
+        "Linux",
+        "Persistence",
+        "Elastic"
+      ]
+    },
+    {
+      "rule_id": "elastic-linux-elastic-linux-useradd-fixture",
+      "source": "rules/subscriptions/elastic-linux/converted/elastic-linux-elastic-linux-useradd-fixture.json",
+      "vendor": "Elastic"
+    }
+  ],
+  "response": {
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "collect_forensic_bundle",
+      "analyst_review"
+    ],
+    "candidate_only": true
+  },
+  "schema_version": "v1",
+  "scoring": {
+    "active_score": true,
+    "base_score": 47,
+    "normalized_score": 63,
+    "original_scoring": {
+      "base_score": 47,
+      "severity": "medium",
+      "source_reliability": 84,
+      "upstream_score": {
+        "elastic_risk_score": 47
+      }
+    },
+    "score_detail": {
+      "active": true,
+      "components": {
+        "base": 47,
+        "confidence_component": 6,
+        "source_component": 2,
+        "stage_component": 8,
+        "support_factor": 1
+      },
+      "reason": "severity + source reliability + support + confidence + stage"
+    },
+    "severity": "medium",
+    "source_reliability": 84,
+    "upstream_score": {
+      "elastic_risk_score": 47
+    }
+  },
+  "source": {
+    "conversion_version": "v1",
+    "converted_path": "rules/subscriptions/elastic-linux/converted/",
+    "license": "Elastic License 2.0",
+    "origin": "external_subscription",
+    "raw_path": "rules/subscriptions/elastic-linux/raw/linux-fixture.json",
+    "revision": "1",
+    "upstream_id": "elastic-linux-useradd-fixture",
+    "url": "https://github.com/elastic/detection-rules",
+    "vendor": "Elastic",
+    "version": "fixture"
+  },
+  "support": {
+    "level": "full_supported",
+    "notes": [
+      "Converted from Elastic Linux fixture"
+    ],
+    "unsupported_fields": []
+  }
+}

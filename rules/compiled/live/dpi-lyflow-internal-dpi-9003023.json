@@ -1,0 +1,124 @@
+{
+  "category": "dpi",
+  "classification": {
+    "confidence": 0.7,
+    "mitre_tactics": [],
+    "mitre_techniques": [],
+    "rationale": "kept existing valid stage",
+    "stage": "execution"
+  },
+  "dedup": {
+    "fingerprint": "97116bc1d889632b",
+    "merged_rule_ids": [
+      "lyflow-internal-dpi-9003023",
+      "lyflow-internal-dpi-9003032"
+    ],
+    "winner_reason": "source precedence then score"
+  },
+  "description": "[LY-FSCAN-003] Fscan UDP Scan Pattern",
+  "enabled": true,
+  "id": "lyflow-internal-dpi-9003023",
+  "kind": "single_event_rule",
+  "match": {
+    "conditions": [
+      {
+        "field": "network.protocol",
+        "operator": "equals",
+        "value": "udp"
+      }
+    ],
+    "entities": [
+      "network.src_ip",
+      "network.dst_ip",
+      "domain"
+    ],
+    "logic": "all",
+    "suricata": {
+      "msg": "[LY-FSCAN-003] Fscan UDP Scan Pattern",
+      "raw": "alert udp any any -\u003e any any (msg:\"[LY-FSCAN-003] Fscan UDP Scan Pattern\"; threshold:type threshold, track by_src, count 30, seconds 60; classtype:attempted-recon; sid:9003023; rev:1;)",
+      "rev": 1,
+      "sid": 9003023
+    }
+  },
+  "name": "[LY-FSCAN-003] Fscan UDP Scan Pattern",
+  "provenance": [
+    {
+      "line": 93,
+      "rev": 1,
+      "sid": 9003023,
+      "source": "rules/ly-custom/scanner.rules"
+    },
+    {
+      "rule_id": "lyflow-internal-dpi-9003023",
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9003023.json",
+      "vendor": "LyFlow"
+    },
+    {
+      "line": 107,
+      "rev": 1,
+      "sid": 9003032,
+      "source": "rules/ly-custom/scanner.rules"
+    },
+    {
+      "rule_id": "lyflow-internal-dpi-9003032",
+      "source": "rules/internal/dpi/lyflow/generated/lyflow-internal-dpi-9003032.json",
+      "vendor": "LyFlow"
+    }
+  ],
+  "response": {
+    "allowed_candidate_types": [
+      "increase_monitoring",
+      "analyst_review"
+    ],
+    "candidate_only": true
+  },
+  "schema_version": "v1",
+  "scoring": {
+    "active_score": true,
+    "base_score": 70,
+    "normalized_score": 71,
+    "original_scoring": {
+      "base_score": 70,
+      "severity": "high",
+      "source_reliability": 92,
+      "upstream_score": {
+        "sid": 9003023
+      }
+    },
+    "score_detail": {
+      "active": true,
+      "components": {
+        "base": 70,
+        "confidence_component": 4,
+        "source_component": 3,
+        "stage_component": 6,
+        "support_factor": 0.85
+      },
+      "reason": "severity + source reliability + support + confidence + stage"
+    },
+    "severity": "high",
+    "source_reliability": 92,
+    "upstream_score": {
+      "sid": 9003023
+    }
+  },
+  "source": {
+    "conversion_version": "v1",
+    "converted_path": "rules/internal/dpi/lyflow/generated/",
+    "license": "Proprietary",
+    "origin": "internal",
+    "raw_path": "rules/ly-custom/scanner.rules",
+    "revision": "1",
+    "upstream_id": "9003023",
+    "url": "lyflow://rules/internal/dpi",
+    "vendor": "LyFlow",
+    "version": "2026.05"
+  },
+  "support": {
+    "level": "partial_supported",
+    "notes": [
+      "Migrated from LyFlow custom Suricata-like DPI rule"
+    ],
+    "unsupported_fields": []
+  }
+}
