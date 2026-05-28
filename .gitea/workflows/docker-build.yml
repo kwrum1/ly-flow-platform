@@ -13,22 +13,20 @@ jobs:
   release-amd64:
     name: Build amd64 offline package
     runs-on: docker
-    container:
-      image: debian:bookworm-slim
-      options: --privileged
     env:
       CI: "true"
       DEBIAN_FRONTEND: noninteractive
       GIT_TERMINAL_PROMPT: "0"
       GOTOOLCHAIN: auto
     steps:
-      - name: Install build dependencies
+      - name: Checkout repository
         run: |
           set -euo pipefail
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            ca-certificates curl git wget docker.io docker-compose-plugin \
-            golang-go nodejs npm build-essential libpcap-dev
+          if [ ! -f scripts/build-offline-release.sh ]; then
+            rm -rf /tmp/lyflow-actions-workspace
+            git clone --depth 1 http://127.0.0.1:10000/ly-flow-platform/ly-flow-platform.git /tmp/lyflow-actions-workspace
+            cp -a /tmp/lyflow-actions-workspace/. .
+          fi
 
       - name: Check workspace and tools
         run: |
@@ -39,6 +37,9 @@ jobs:
           command -v npm
           docker version
           docker compose version
+          go version
+          node --version
+          npm --version
 
       - name: Run targeted tests
         run: |
@@ -71,23 +72,12 @@ jobs:
   release-arm64:
     name: Build arm64 offline package
     runs-on: docker
-    container:
-      image: debian:bookworm-slim
-      options: --privileged
     env:
       CI: "true"
       DEBIAN_FRONTEND: noninteractive
       GIT_TERMINAL_PROMPT: "0"
       GOTOOLCHAIN: auto
     steps:
-      - name: Install build dependencies
-        run: |
-          set -euo pipefail
-          apt-get update
-          apt-get install -y --no-install-recommends \
-            ca-certificates curl git wget docker.io docker-compose-plugin \
-            golang-go nodejs npm build-essential libpcap-dev
-
       - name: Enable arm64 binfmt
         run: |
           set -euo pipefail
@@ -103,6 +93,9 @@ jobs:
           command -v npm
           docker version
           docker compose version
+          go version
+          node --version
+          npm --version
 
       - name: Run targeted tests
         run: |
@@ -110,14 +103,21 @@ jobs:
           (cd agent && GOWORK=off go test ./cmd)
           (cd server && GOWORK=off go test ./cmd)
 
-      - name: Build arm64 agent with libpcap
+      - name: Prepare arm64 agent binary
         run: |
           set -euo pipefail
-          docker run --rm --platform linux/arm64 \
-            -v "$PWD":/workspace \
-            -w /workspace/agent \
-            golang:1.25-bookworm \
-            bash -lc 'apt-get update && apt-get install -y --no-install-recommends libpcap-dev build-essential ca-certificates && GOWORK=off GOOS=linux GOARCH=arm64 CGO_ENABLED=1 go build -o ly-agent-arm64 ./cmd'
+          if [ -f agent/ly-agent-arm64 ]; then
+            echo "Using existing ARM64 agent binary from workspace"
+          elif [ -f /root/ly-flow-platform/agent/ly-agent-arm64 ]; then
+            echo "Using existing ARM64 agent binary from host release workspace"
+            cp /root/ly-flow-platform/agent/ly-agent-arm64 agent/ly-agent-arm64
+          else
+            docker run --rm --platform linux/arm64 \
+              -v "$PWD":/workspace \
+              -w /workspace/agent \
+              golang:1.25-bookworm \
+              bash -lc 'apt-get update && apt-get install -y --no-install-recommends libpcap-dev build-essential ca-certificates && GOWORK=off GOOS=linux GOARCH=arm64 CGO_ENABLED=1 go build -o ly-agent-arm64 ./cmd'
+          fi
           file agent/ly-agent-arm64 | grep -E 'ARM aarch64|aarch64'
 
       - name: Build arm64 release package
