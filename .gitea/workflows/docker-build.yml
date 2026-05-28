@@ -1,4 +1,4 @@
-name: Docker 构建
+name: Offline Release Packages
 
 on:
   push:
@@ -7,42 +7,138 @@ on:
   pull_request:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
-  构建:
+  release-amd64:
+    name: Build amd64 offline package
     runs-on: docker
     container:
       image: debian:bookworm-slim
-
+      options: --privileged
+    env:
+      CI: "true"
+      DEBIAN_FRONTEND: noninteractive
+      GIT_TERMINAL_PROMPT: "0"
+      GOTOOLCHAIN: auto
     steps:
-      - name: 安装依赖
+      - name: Install build dependencies
         run: |
-          apt-get update && apt-get install -y git curl wget docker.io
+          set -euo pipefail
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl git wget docker.io docker-compose-plugin \
+            golang-go nodejs npm build-essential libpcap-dev
 
-      - name: 配置 Git
+      - name: Check workspace and tools
         run: |
-          git config --global user.email "ci@ly-flow.local"
-          git config --global user.name "CI Bot"
-
-      - name: 克隆仓库
-        run: |
-          rm -rf /workspace 2>/dev/null || true
-          git clone --depth 1 http://localhost:10000/ly-flow-platform/ly-flow-platform.git /workspace
-
-      - name: 配置 Docker
-        run: |
-          curl -fsSL https://get.docker.com -o get-docker.sh
-          sh get-docker.sh
+          set -euo pipefail
+          test -f scripts/build-offline-release.sh
+          command -v go
+          command -v node
+          command -v npm
           docker version
+          docker compose version
 
-      - name: 构建所有镜像
+      - name: Run targeted tests
         run: |
-          cd /workspace
-          docker build -f probe/Dockerfile -t ly-flow/probe:latest probe/
-          docker build -f dpi-engine/Dockerfile -t ly-flow/dpi-engine:latest dpi-engine/
-          docker build -f server/Dockerfile -t ly-flow/server:latest server/
-          docker build -f frontend/Dockerfile -t ly-flow/frontend:latest frontend/
-          docker build -f agent/Dockerfile -t ly-flow/agent:latest agent/
+          set -euo pipefail
+          (cd agent && GOWORK=off go test ./cmd)
+          (cd server && GOWORK=off go test ./cmd)
 
-      - name: 列出镜像
-        run: docker images | grep ly-flow || true
+      - name: Build amd64 release package
+        run: |
+          set -euo pipefail
+          TARGET_ARCH=amd64 bash scripts/build-offline-release.sh
+
+      - name: Verify amd64 artifact
+        run: |
+          set -euo pipefail
+          package=$(ls -1 release/lyflow-offline-install-amd64-*.tar.gz | tail -n 1)
+          tar -tzf "$package" | grep -E '(^|/)ARCH$|docker-compose.yml|images/lyflow-images.tar.gz'
+          rm -rf /tmp/lyflow-amd64-artifact
+          mkdir -p /tmp/lyflow-amd64-artifact
+          tar -xzf "$package" -C /tmp/lyflow-amd64-artifact --strip-components=1
+          grep -qx 'amd64' /tmp/lyflow-amd64-artifact/ARCH
+
+      - name: Upload amd64 package
+        uses: actions/upload-artifact@v3
+        with:
+          name: lyflow-offline-install-amd64
+          path: release/lyflow-offline-install-amd64-*.tar.gz
+          if-no-files-found: error
+
+  release-arm64:
+    name: Build arm64 offline package
+    runs-on: docker
+    container:
+      image: debian:bookworm-slim
+      options: --privileged
+    env:
+      CI: "true"
+      DEBIAN_FRONTEND: noninteractive
+      GIT_TERMINAL_PROMPT: "0"
+      GOTOOLCHAIN: auto
+    steps:
+      - name: Install build dependencies
+        run: |
+          set -euo pipefail
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl git wget docker.io docker-compose-plugin \
+            golang-go nodejs npm build-essential libpcap-dev
+
+      - name: Enable arm64 binfmt
+        run: |
+          set -euo pipefail
+          docker run --privileged --rm tonistiigi/binfmt --install arm64
+          docker buildx version
+
+      - name: Check workspace and tools
+        run: |
+          set -euo pipefail
+          test -f scripts/build-offline-release.sh
+          command -v go
+          command -v node
+          command -v npm
+          docker version
+          docker compose version
+
+      - name: Run targeted tests
+        run: |
+          set -euo pipefail
+          (cd agent && GOWORK=off go test ./cmd)
+          (cd server && GOWORK=off go test ./cmd)
+
+      - name: Build arm64 agent with libpcap
+        run: |
+          set -euo pipefail
+          docker run --rm --platform linux/arm64 \
+            -v "$PWD":/workspace \
+            -w /workspace/agent \
+            golang:1.25-bookworm \
+            bash -lc 'apt-get update && apt-get install -y --no-install-recommends libpcap-dev build-essential ca-certificates && GOWORK=off GOOS=linux GOARCH=arm64 CGO_ENABLED=1 go build -o ly-agent-arm64 ./cmd'
+          file agent/ly-agent-arm64 | grep -E 'ARM aarch64|aarch64'
+
+      - name: Build arm64 release package
+        run: |
+          set -euo pipefail
+          TARGET_ARCH=arm64 ARM64_AGENT_BINARY="$PWD/agent/ly-agent-arm64" bash scripts/build-offline-release.sh
+
+      - name: Verify arm64 artifact
+        run: |
+          set -euo pipefail
+          package=$(ls -1 release/lyflow-offline-install-arm64-*.tar.gz | tail -n 1)
+          tar -tzf "$package" | grep -E '(^|/)ARCH$|docker-compose.yml|images/lyflow-images.tar.gz'
+          rm -rf /tmp/lyflow-arm64-artifact
+          mkdir -p /tmp/lyflow-arm64-artifact
+          tar -xzf "$package" -C /tmp/lyflow-arm64-artifact --strip-components=1
+          grep -qx 'arm64' /tmp/lyflow-arm64-artifact/ARCH
+          grep -q 'latest-arm64' /tmp/lyflow-arm64-artifact/docker-compose.yml
+
+      - name: Upload arm64 package
+        uses: actions/upload-artifact@v3
+        with:
+          name: lyflow-offline-install-arm64
+          path: release/lyflow-offline-install-arm64-*.tar.gz
+          if-no-files-found: error
