@@ -39,9 +39,6 @@ chmod +x act_runner
 printf 'Getting registration token...\n'
 response=$(curl -fsS \
   -H "Authorization: token ${GITEA_TOKEN}" \
-  -H "Content-Type: application/json" \
-  -X POST \
-  -d "{\"name\":\"${RUNNER_NAME}\",\"labels\":[\"${RUNNER_LABELS}\"]}" \
   "${GITEA_URL}/api/v1/repos/${REPO}/actions/runners/registration-tokens")
 
 token_value=$(printf '%s' "$response" | grep -o '"token":"[^"]*"' | cut -d'"' -f4)
@@ -55,7 +52,7 @@ printf 'Registering runner...\n'
   --instance "$GITEA_URL" \
   --repo "$REPO" \
   --token "$token_value" \
-  --runner-name "$RUNNER_NAME" \
+  --name "$RUNNER_NAME" \
   --labels "$RUNNER_LABELS" \
   --no-interactive
 
