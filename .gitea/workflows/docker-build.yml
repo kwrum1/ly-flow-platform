@@ -80,8 +80,8 @@ jobs:
             echo "LYFLOW_GITEA_TOKEN or GITHUB_TOKEN is required for release upload" >&2
             exit 1
           fi
-          release_json=$(curl -fsS -H "Authorization: token $token" "$api/releases/tags/$tag" || true)
-          if [ -z "$release_json" ]; then
+          release_json=$(curl -fsS -H "Authorization: token $token" "$api/releases/tags/$tag" 2>/dev/null || true)
+          if ! printf '%s' "$release_json" | python3 -c 'import json, sys; data=sys.stdin.read(); sys.exit(0 if data and "id" in json.loads(data) else 1)' 2>/dev/null; then
             payload=$(TAG="$tag" TARGET="${GITHUB_SHA:-main}" python3 -c 'import json, os; print(json.dumps({"tag_name": os.environ["TAG"], "target_commitish": os.environ["TARGET"], "name": "Offline packages " + os.environ["TAG"], "body": "Automated amd64 and arm64 offline release packages.", "draft": False, "prerelease": False}))')
             release_json=$(curl -fsS -X POST -H "Authorization: token $token" -H "Content-Type: application/json" \
               -d "$payload" \
@@ -184,8 +184,8 @@ jobs:
             echo "LYFLOW_GITEA_TOKEN or GITHUB_TOKEN is required for release upload" >&2
             exit 1
           fi
-          release_json=$(curl -fsS -H "Authorization: token $token" "$api/releases/tags/$tag" || true)
-          if [ -z "$release_json" ]; then
+          release_json=$(curl -fsS -H "Authorization: token $token" "$api/releases/tags/$tag" 2>/dev/null || true)
+          if ! printf '%s' "$release_json" | python3 -c 'import json, sys; data=sys.stdin.read(); sys.exit(0 if data and "id" in json.loads(data) else 1)' 2>/dev/null; then
             payload=$(TAG="$tag" TARGET="${GITHUB_SHA:-main}" python3 -c 'import json, os; print(json.dumps({"tag_name": os.environ["TAG"], "target_commitish": os.environ["TARGET"], "name": "Offline packages " + os.environ["TAG"], "body": "Automated amd64 and arm64 offline release packages.", "draft": False, "prerelease": False}))')
             release_json=$(curl -fsS -X POST -H "Authorization: token $token" -H "Content-Type: application/json" \
               -d "$payload" \
