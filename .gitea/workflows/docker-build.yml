@@ -57,7 +57,7 @@ jobs:
       - name: Build amd64 release package
         run: |
           set -euo pipefail
-          TARGET_ARCH=amd64 bash scripts/build-offline-release.sh
+          LYFLOW_CI_LOCAL_CACHE=1 TARGET_ARCH=amd64 bash scripts/build-offline-release.sh
 
       - name: Verify amd64 artifact
         run: |
@@ -160,7 +160,7 @@ jobs:
       - name: Build arm64 release package
         run: |
           set -euo pipefail
-          TARGET_ARCH=arm64 ARM64_AGENT_BINARY="$PWD/agent/ly-agent-arm64" bash scripts/build-offline-release.sh
+          LYFLOW_CI_LOCAL_CACHE=1 TARGET_ARCH=arm64 ARM64_AGENT_BINARY="$PWD/agent/ly-agent-arm64" bash scripts/build-offline-release.sh
 
       - name: Verify arm64 artifact
         run: |
