@@ -6,7 +6,7 @@ REPO="${REPO:-ly-flow-platform/ly-flow-platform}"
 RUNNER_DIR="${RUNNER_DIR:-/opt/gitea-runner}"
 RUNNER_NAME="${RUNNER_NAME:-docker-runner}"
 RUNNER_LABELS="${RUNNER_LABELS:-docker}"
-ACT_RUNNER_VERSION="${ACT_RUNNER_VERSION:-v0.2.5}"
+ACT_RUNNER_VERSION="${ACT_RUNNER_VERSION:-v1.0.6}"
 ACT_RUNNER_ARCH="${ACT_RUNNER_ARCH:-amd64}"
 
 if [[ -z "${GITEA_TOKEN:-}" ]]; then
@@ -23,8 +23,8 @@ printf 'Labels: %s\n' "$RUNNER_LABELS"
 mkdir -p "$RUNNER_DIR"
 cd "$RUNNER_DIR"
 
-printf 'Downloading act_runner...\n'
-ACT_RUNNER_URL="https://gitea.com/gitea/act_runner/releases/download/${ACT_RUNNER_VERSION}/act_runner-linux-${ACT_RUNNER_ARCH}"
+printf 'Downloading gitea-runner...\n'
+ACT_RUNNER_URL="https://gitea.com/gitea/runner/releases/download/${ACT_RUNNER_VERSION}/gitea-runner-${ACT_RUNNER_VERSION#v}-linux-${ACT_RUNNER_ARCH}"
 if command -v wget >/dev/null 2>&1; then
   wget -O act_runner "$ACT_RUNNER_URL"
 elif command -v curl >/dev/null 2>&1; then
