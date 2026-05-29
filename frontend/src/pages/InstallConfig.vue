@@ -7,13 +7,14 @@
     <section class="guide-card">
       <div class="guide-title">
         <strong>客户端安装指引</strong>
-        <span>操作系统：Linux 地域：default HTTPS 自签证书：已忽略校验</span>
+        <span>Linux 自动识别架构一键安装 / Windows 手动下载安装</span>
       </div>
 
       <div class="step-row">
         <div class="step-index">1</div>
         <div class="step-main">
-          <h3>复制客户端安装命令</h3>
+          <h3>Linux：复制一键安装命令</h3>
+          <p>脚本会自动判断 x86_64 / arm64 架构，下载对应 Linux Agent；Linux 版本保留 AF_PACKET 与 PF_RING 策略。</p>
           <div class="command-box">
             <code>{{ installCommand }}</code>
           </div>
@@ -52,6 +53,20 @@
           </div>
         </div>
       </div>
+
+      <div class="step-row">
+        <div class="step-index">5</div>
+        <div class="step-main">
+          <h3>Windows：下载安装包后手动安装</h3>
+          <p>Windows Agent 独立使用 Npcap/WinPcap 兼容 PCAP 抓包分析，不启用 Linux 的 AF_PACKET / PF_RING。</p>
+          <div class="download-actions">
+            <a class="download-link" :href="windowsAmd64Url" download>下载 Windows x86_64 Agent</a>
+          </div>
+          <div class="command-box small">
+            <code>{{ windowsInstallNote }}</code>
+          </div>
+        </div>
+      </div>
     </section>
 
 
@@ -64,12 +79,14 @@ import { computed } from 'vue'
 const origin = typeof window === 'undefined' ? '' : window.location.origin
 const installUrl = computed(() => `${origin}/api/v1/agent/install.sh`)
 const uninstallUrl = computed(() => `${origin}/api/v1/agent/uninstall.sh`)
+const windowsAmd64Url = computed(() => `${origin}/api/v1/agent/download?os=windows&arch=amd64`)
 const installCommand = computed(() => `bash -c "if (command -v curl); then (curl -kfsSL ${installUrl.value} | bash); else (wget --no-check-certificate -q -O - ${installUrl.value} | bash); fi"`)
 const uninstallCommand = computed(() => `bash -c "if (command -v curl); then (curl -kfsSL ${uninstallUrl.value} | bash); else (wget --no-check-certificate -q -O - ${uninstallUrl.value} | bash); fi"`)
 const statusCommand = 'systemctl status ly-agent --no-pager'
 const logCommand = 'journalctl -u ly-agent -n 80 --no-pager'
+const windowsInstallNote = '先安装 Npcap，再以管理员权限运行下载的 ly-agent-windows-*.exe，并使用与 Linux 相同的 agent.yaml 配置连接控制台。'
 </script>
 
 <style scoped>
-.install-page{position:relative;height:100%;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:12px;padding:14px;color:var(--text-primary);box-sizing:border-box}.install-header,.guide-card{border:1px solid var(--border-color);border-radius:var(--card-radius);background:var(--bg-card);box-shadow:var(--shadow-card)}.install-header{height:44px;display:flex;align-items:center;padding:0 16px}.install-header h2{margin:0;color:var(--text-primary);font-size:16px}.guide-card{min-height:0;overflow:auto}.guide-title{height:44px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 16px;border-bottom:1px solid var(--border-light);background:rgba(4,12,24,.38)}.guide-title strong{color:var(--text-primary);font-size:14px}.guide-title span{color:var(--text-muted);font-size:12px}.step-row{display:grid;grid-template-columns:38px minmax(0,1fr);gap:14px;padding:16px 18px;border-bottom:1px solid var(--border-light)}.step-row:last-child{border-bottom:0}.step-index{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--primary-color),var(--risk-low));color:var(--text-inverse);font-size:12px;font-weight:950;box-shadow:0 10px 28px rgba(56,189,248,.18)}.step-main h3{margin:0 0 8px;color:var(--text-primary);font-size:15px}.step-main p{margin:0 0 10px;color:var(--text-secondary);font-size:12px;line-height:1.7}.step-main b{color:var(--primary-light)}.command-box{padding:12px;border:1px solid var(--border-light);border-radius:var(--card-radius-sm);background:rgba(2,8,23,.24);margin-top:8px}.command-box code{white-space:pre-wrap;word-break:break-all;color:#bfe7ff;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.55}@media(max-width:980px){.guide-title{height:auto;align-items:flex-start;flex-direction:column;padding:14px}.install-page{padding:10px}.step-row{grid-template-columns:1fr}}
+.install-page{position:relative;height:100%;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:12px;padding:14px;color:var(--text-primary);box-sizing:border-box}.install-header,.guide-card{border:1px solid var(--border-color);border-radius:var(--card-radius);background:var(--bg-card);box-shadow:var(--shadow-card)}.install-header{height:44px;display:flex;align-items:center;padding:0 16px}.install-header h2{margin:0;color:var(--text-primary);font-size:16px}.guide-card{min-height:0;overflow:auto}.guide-title{height:44px;display:flex;align-items:center;justify-content:space-between;gap:16px;padding:0 16px;border-bottom:1px solid var(--border-light);background:rgba(4,12,24,.38)}.guide-title strong{color:var(--text-primary);font-size:14px}.guide-title span{color:var(--text-muted);font-size:12px}.step-row{display:grid;grid-template-columns:38px minmax(0,1fr);gap:14px;padding:16px 18px;border-bottom:1px solid var(--border-light)}.step-row:last-child{border-bottom:0}.step-index{display:grid;place-items:center;width:30px;height:30px;border-radius:50%;background:linear-gradient(135deg,var(--primary-color),var(--risk-low));color:var(--text-inverse);font-size:12px;font-weight:950;box-shadow:0 10px 28px rgba(56,189,248,.18)}.step-main h3{margin:0 0 8px;color:var(--text-primary);font-size:15px}.step-main p{margin:0 0 10px;color:var(--text-secondary);font-size:12px;line-height:1.7}.step-main b{color:var(--primary-light)}.command-box{padding:12px;border:1px solid var(--border-light);border-radius:var(--card-radius-sm);background:rgba(2,8,23,.24);margin-top:8px}.command-box code{white-space:pre-wrap;word-break:break-all;color:#bfe7ff;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px;line-height:1.55}.download-actions{display:flex;flex-wrap:wrap;gap:10px;margin:8px 0 10px}.download-link{display:inline-flex;align-items:center;justify-content:center;min-height:32px;padding:0 14px;border:1px solid rgba(56,189,248,.42);border-radius:999px;background:rgba(56,189,248,.12);color:#bfe7ff;font-size:12px;font-weight:800;text-decoration:none}.download-link.secondary{border-color:var(--border-light);background:rgba(148,163,184,.1);color:var(--text-secondary)}.download-link:hover{border-color:var(--primary-light);color:var(--primary-light)}@media(max-width:980px){.guide-title{height:auto;align-items:flex-start;flex-direction:column;padding:14px}.install-page{padding:10px}.step-row{grid-template-columns:1fr}}
 </style>

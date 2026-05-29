@@ -9188,7 +9188,17 @@ func agentInstallConfigHandler(cfg *Config) http.HandlerFunc {
 			"message": "success",
 			"data": map[string]interface{}{
 				"agent_center": map[string]interface{}{"role": "control_plane", "grpc_port": 8081, "api_server": apiServer},
-				"install":      map[string]interface{}{"service": "ly-agent", "install_dir": "/opt/ly-agent", "uninstall_url": apiServer + "/api/v1/agent/uninstall.sh"},
+				"install": map[string]interface{}{
+					"service":       "ly-agent",
+					"install_dir":   "/opt/ly-agent",
+					"linux_url":     apiServer + "/api/v1/agent/install.sh",
+					"uninstall_url": apiServer + "/api/v1/agent/uninstall.sh",
+					"downloads": map[string]string{
+						"linux_amd64":   apiServer + "/api/v1/agent/download?os=linux&arch=amd64",
+						"linux_arm64":   apiServer + "/api/v1/agent/download?os=linux&arch=arm64",
+						"windows_amd64": apiServer + "/api/v1/agent/download?os=windows&arch=amd64",
+					},
+				},
 				"telemetry_streams": map[string]string{
 					"traffic":   "telemetry:traffic",
 					"runtime":   "telemetry:runtime",
@@ -9394,7 +9404,13 @@ mkdir -p \
   "$INSTALL_DIR/rasp/ebpf" \
   "$INSTALL_DIR/rasp/rules"
 rm -f "$AGENT_TMP"
-	curl -kfsSL "$API_SERVER/api/v1/agent/download" -o "$AGENT_TMP"
+ARCH=$(uname -m 2>/dev/null || printf 'unknown')
+case "$ARCH" in
+  x86_64|amd64) AGENT_ARCH="amd64" ;;
+  aarch64|arm64) AGENT_ARCH="arm64" ;;
+  *) printf 'Unsupported CPU architecture: %%s\n' "$ARCH" >&2; exit 1 ;;
+esac
+curl -kfsSL "$API_SERVER/api/v1/agent/download?os=linux&arch=$AGENT_ARCH" -o "$AGENT_TMP"
 chmod +x "$AGENT_TMP"
 if command -v systemctl >/dev/null 2>&1; then
   systemctl stop ly-agent 2>/dev/null || true
@@ -9525,21 +9541,75 @@ func agentDownloadHandler(cfg *Config) http.HandlerFunc {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		candidates := []string{
-			"/app/ly-agent",
-			"/root/ly-flow-platform/agent/ly-agent",
-			filepath.Join("..", "agent", "ly-agent"),
-			filepath.Join("agent", "ly-agent"),
+		targetOS := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("os")))
+		if targetOS == "" {
+			targetOS = "linux"
 		}
+		targetArch := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("arch")))
+		switch targetArch {
+		case "", "x86_64", "x64":
+			targetArch = "amd64"
+		case "aarch64":
+			targetArch = "arm64"
+		}
+		if targetOS != "linux" && targetOS != "windows" {
+			http.Error(w, fmt.Sprintf("unsupported agent os: %s", targetOS), http.StatusBadRequest)
+			return
+		}
+		if targetArch != "amd64" && targetArch != "arm64" {
+			http.Error(w, fmt.Sprintf("unsupported agent arch: %s", targetArch), http.StatusBadRequest)
+			return
+		}
+		if targetOS == "windows" && targetArch != "amd64" {
+			http.Error(w, "windows pcap agent is available for amd64 only", http.StatusBadRequest)
+			return
+		}
+
+		filename := fmt.Sprintf("ly-agent-%s-%s", targetOS, targetArch)
+		if targetOS == "windows" {
+			filename += ".exe"
+		}
+		candidates := agentBinaryCandidates(targetOS, targetArch)
 		for _, path := range candidates {
 			if st, err := os.Stat(path); err == nil && !st.IsDir() {
 				w.Header().Set("Content-Type", "application/octet-stream")
-				w.Header().Set("Content-Disposition", "attachment; filename=ly-agent")
+				w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
 				http.ServeFile(w, r, path)
 				return
 			}
 		}
-		http.Error(w, "agent binary not found", http.StatusNotFound)
+		http.Error(w, fmt.Sprintf("agent binary not found for os=%s arch=%s", targetOS, targetArch), http.StatusNotFound)
+	}
+}
+
+func agentBinaryCandidates(targetOS, targetArch string) []string {
+	if targetOS == "" {
+		targetOS = "linux"
+	}
+	if targetArch == "" {
+		targetArch = "amd64"
+	}
+	name := "ly-agent"
+	if targetOS == "windows" {
+		name = "ly-agent.exe"
+	}
+	qualified := fmt.Sprintf("ly-agent-%s-%s", targetOS, targetArch)
+	if targetOS == "windows" {
+		qualified += ".exe"
+	}
+	return []string{
+		filepath.Join("/app", qualified),
+		filepath.Join("/app", "agents", targetOS, targetArch, name),
+		filepath.Join("/root/ly-flow-platform/agent", qualified),
+		filepath.Join("/root/ly-flow-platform/agent", "dist", targetOS, targetArch, name),
+		filepath.Join("agent", qualified),
+		filepath.Join("agent", "dist", targetOS, targetArch, name),
+		filepath.Join("..", "agent", qualified),
+		filepath.Join("..", "agent", "dist", targetOS, targetArch, name),
+		filepath.Join("/app", name),
+		filepath.Join("/root/ly-flow-platform/agent", name),
+		filepath.Join("agent", name),
+		filepath.Join("..", "agent", name),
 	}
 }
 
