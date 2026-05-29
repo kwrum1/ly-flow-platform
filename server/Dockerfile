@@ -9,10 +9,12 @@ WORKDIR /app
 COPY server/ly-server /app/ly-server
 COPY server/ly-agent-center /app/ly-agent-center
 COPY agent/ly-agent /app/ly-agent
+COPY agent/dist/ /app/agents/
 COPY rules/ /etc/ly/rules/
 COPY probe/rasp/ /app/probe/rasp/
 
 RUN chmod +x /app/ly-server /app/ly-agent-center /app/ly-agent \
+    && find /app/agents -type f -exec chmod +x {} \; \
     && find /app/probe/rasp -name '*.sh' -exec chmod +x {} \;
 
 EXPOSE 8080 8081

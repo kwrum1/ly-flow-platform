@@ -9597,7 +9597,7 @@ func agentBinaryCandidates(targetOS, targetArch string) []string {
 	if targetOS == "windows" {
 		qualified += ".exe"
 	}
-	return []string{
+	candidates := []string{
 		filepath.Join("/app", qualified),
 		filepath.Join("/app", "agents", targetOS, targetArch, name),
 		filepath.Join("/root/ly-flow-platform/agent", qualified),
@@ -9606,11 +9606,16 @@ func agentBinaryCandidates(targetOS, targetArch string) []string {
 		filepath.Join("agent", "dist", targetOS, targetArch, name),
 		filepath.Join("..", "agent", qualified),
 		filepath.Join("..", "agent", "dist", targetOS, targetArch, name),
-		filepath.Join("/app", name),
-		filepath.Join("/root/ly-flow-platform/agent", name),
-		filepath.Join("agent", name),
-		filepath.Join("..", "agent", name),
 	}
+	if targetOS == "linux" {
+		candidates = append(candidates,
+			filepath.Join("/app", name),
+			filepath.Join("/root/ly-flow-platform/agent", name),
+			filepath.Join("agent", name),
+			filepath.Join("..", "agent", name),
+		)
+	}
+	return candidates
 }
 
 func agentSnapshotHandler(cfg *Config) http.HandlerFunc {
