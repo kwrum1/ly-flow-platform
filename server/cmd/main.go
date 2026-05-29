@@ -9598,8 +9598,8 @@ func agentBinaryCandidates(targetOS, targetArch string) []string {
 		qualified += ".exe"
 	}
 	candidates := []string{
-		filepath.Join("/app", qualified),
 		filepath.Join("/app", "agents", targetOS, targetArch, name),
+		filepath.Join("/app", qualified),
 		filepath.Join("/root/ly-flow-platform/agent", qualified),
 		filepath.Join("/root/ly-flow-platform/agent", "dist", targetOS, targetArch, name),
 		filepath.Join("agent", qualified),

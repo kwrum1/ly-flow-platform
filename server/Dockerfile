@@ -6,6 +6,8 @@ USER root
 
 WORKDIR /app
 
+RUN rm -f /app/ly-agent-linux-amd64 /app/ly-agent-linux-arm64 /app/ly-agent-windows-amd64.exe
+
 COPY server/ly-server /app/ly-server
 COPY server/ly-agent-center /app/ly-agent-center
 COPY agent/ly-agent /app/ly-agent
