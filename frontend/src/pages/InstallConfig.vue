@@ -14,7 +14,7 @@
         <div class="step-index">1</div>
         <div class="step-main">
           <h3>Linux：复制一键安装命令</h3>
-          <p>脚本会自动判断 x86_64 / arm64 架构，下载对应 Linux Agent；Linux 版本保留 AF_PACKET 与 PF_RING 策略。</p>
+          <p>脚本会自动判断 x86_64 / arm64 架构并下载对应 Linux Agent；x86 与 ARM 主机使用同一条命令，Linux 版本保留 AF_PACKET 与 PF_RING 策略。</p>
           <div class="command-box">
             <code>{{ installCommand }}</code>
           </div>
@@ -63,6 +63,9 @@
             <a class="download-link" :href="windowsAmd64Url" download>下载 Windows x86_64 Agent</a>
           </div>
           <div class="command-box small">
+            <code>{{ windowsDownloadUrl }}</code>
+          </div>
+          <div class="command-box small">
             <code>{{ windowsInstallNote }}</code>
           </div>
         </div>
@@ -80,6 +83,7 @@ const origin = typeof window === 'undefined' ? '' : window.location.origin
 const installUrl = computed(() => `${origin}/api/v1/agent/install.sh`)
 const uninstallUrl = computed(() => `${origin}/api/v1/agent/uninstall.sh`)
 const windowsAmd64Url = computed(() => `${origin}/api/v1/agent/download?os=windows&arch=amd64`)
+const windowsDownloadUrl = computed(() => `Windows 下载地址：${windowsAmd64Url.value}`)
 const installCommand = computed(() => `bash -c "if (command -v curl); then (curl -kfsSL ${installUrl.value} | bash); else (wget --no-check-certificate -q -O - ${installUrl.value} | bash); fi"`)
 const uninstallCommand = computed(() => `bash -c "if (command -v curl); then (curl -kfsSL ${uninstallUrl.value} | bash); else (wget --no-check-certificate -q -O - ${uninstallUrl.value} | bash); fi"`)
 const statusCommand = 'systemctl status ly-agent --no-pager'
