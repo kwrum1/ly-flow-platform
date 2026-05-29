@@ -23,12 +23,9 @@ import (
 	"time"
 
 	"github.com/google/gopacket"
-	"github.com/google/gopacket/afpacket"
 	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
 	"github.com/lyflow/ly-flow-platform/contracts"
 	"github.com/redis/go-redis/v9"
-	"golang.org/x/net/bpf"
 )
 
 var version = "v2.0.0"
@@ -725,6 +722,12 @@ func (a *Agent) runTrafficCapture() {
 			fmt.Printf("[probe] AF_PACKET capture unavailable: %v; falling back to procfs sampler\n", err)
 		}
 	}
+	if engine == "pcap" {
+		if err := a.runPCAPPacketCapture(); err != nil {
+			fmt.Printf("[probe] PCAP capture unavailable: %v\n", err)
+		}
+		return
+	}
 	a.runProcfsTrafficFallback()
 }
 
@@ -735,7 +738,12 @@ func (a *Agent) trafficCaptureEnabledOnCurrentInterface(interfaceName string) bo
 func selectCaptureEngine(configured string) string {
 	switch strings.ToLower(strings.TrimSpace(configured)) {
 	case "", "auto", "af_packet", "afpacket":
+		if runtime.GOOS == "windows" {
+			return "pcap"
+		}
 		return "af_packet"
+	case "pcap", "npcap", "winpcap":
+		return "pcap"
 	case "ebpf", "socket_filter", "bpf":
 		return "ebpf"
 	case "pfring", "pf_ring":
@@ -773,6 +781,12 @@ func resolveCaptureCapability(requested string) captureCapability {
 	case "procfs":
 		capability.Status = "fallback"
 		capability.FallbackReason = "packet_capture_disabled_or_unavailable"
+	case "pcap":
+		if runtime.GOOS != "windows" {
+			capability.ActiveEngine = "af_packet"
+			capability.Status = "fallback"
+			capability.FallbackReason = "pcap_reserved_for_windows_agent"
+		}
 	}
 	return capability
 }
@@ -783,96 +797,6 @@ func isCentOS7Kernel(version string) bool {
 
 func pfRingAvailable() bool {
 	return exists("/proc/net/pf_ring") || exists("/dev/pf_ring")
-}
-
-func (a *Agent) runAFPacketCapture() error {
-	captureInterface := a.cfg.TrafficInterface
-	handle, err := afpacket.NewTPacket(
-		afpacket.OptInterface(captureInterface),
-		afpacket.OptFrameSize(65536),
-		afpacket.OptBlockSize(1<<20),
-		afpacket.OptNumBlocks(16),
-		afpacket.OptPollTimeout(time.Second),
-	)
-	if err != nil {
-		return err
-	}
-	defer handle.Close()
-
-	if strings.TrimSpace(a.cfg.BPFFilter) != "" {
-		bpf, err := pcapBPF(layers.LinkTypeEthernet, 65536, a.cfg.BPFFilter)
-		if err != nil {
-			return fmt.Errorf("compile bpf: %w", err)
-		}
-		if err := handle.SetBPF(bpf); err != nil {
-			return fmt.Errorf("set bpf: %w", err)
-		}
-	}
-
-	client := redis.NewClient(&redis.Options{Addr: a.cfg.Redis})
-	defer client.Close()
-
-	decodeOptions := gopacket.DecodeOptions{Lazy: true, NoCopy: true}
-	scanDetector := newPortScanDetector()
-	windowStart := time.Now()
-	publishedInWindow := 0
-	for {
-		select {
-		case <-a.ctx.Done():
-			return nil
-		default:
-		}
-		if !a.trafficCaptureEnabledOnCurrentInterface(captureInterface) {
-			select {
-			case <-a.ctx.Done():
-				return nil
-			case <-time.After(time.Second):
-				continue
-			}
-		}
-
-		data, ci, err := handle.ZeroCopyReadPacketData()
-		if err != nil {
-			if strings.Contains(err.Error(), "timeout") {
-				continue
-			}
-			return err
-		}
-		packet := gopacket.NewPacket(data, layers.LinkTypeEthernet, decodeOptions)
-		obs := a.observationFromPacket(packet, ci.CaptureLength, "af_packet")
-		if obs.Protocol == "" || isContainerBridgeTraffic(obs.SrcIP, obs.DstIP) {
-			continue
-		}
-		if alert := scanDetector.observe(obs, a); alert != nil {
-			if err := publishJSONToStream(a.ctx, client, "alerts:dpi", alert, "component_alert"); err != nil {
-				fmt.Printf("[probe] port scan alert publish failed: %v\n", err)
-			}
-		}
-		if time.Since(windowStart) >= time.Second {
-			windowStart = time.Now()
-			publishedInWindow = 0
-		}
-		if a.cfg.MaxTrafficEventsPerSec > 0 && publishedInWindow >= a.cfg.MaxTrafficEventsPerSec {
-			continue
-		}
-		if err := a.publishTrafficObservation(client, obs); err != nil {
-			fmt.Printf("[probe] flow publish failed: %v\n", err)
-		} else {
-			publishedInWindow++
-		}
-	}
-}
-
-func pcapBPF(linkType layers.LinkType, snapLen int, filter string) ([]bpf.RawInstruction, error) {
-	instructions, err := pcap.CompileBPFFilter(linkType, snapLen, filter)
-	if err != nil {
-		return nil, err
-	}
-	raw := make([]bpf.RawInstruction, 0, len(instructions))
-	for _, ins := range instructions {
-		raw = append(raw, bpf.RawInstruction{Op: ins.Code, Jt: ins.Jt, Jf: ins.Jf, K: ins.K})
-	}
-	return raw, nil
 }
 
 func (a *Agent) runProcfsTrafficFallback() {
@@ -2145,17 +2069,6 @@ func readMemInfo() map[string]int64 {
 			result[key] = v * 1024
 		}
 	}
-	return result
-}
-
-func readDiskUsage(path string) map[string]uint64 {
-	var stat syscall.Statfs_t
-	result := map[string]uint64{}
-	if err := syscall.Statfs(path, &stat); err != nil {
-		return result
-	}
-	result["total_bytes"] = stat.Blocks * uint64(stat.Bsize)
-	result["free_bytes"] = stat.Bavail * uint64(stat.Bsize)
 	return result
 }
 

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 )
@@ -62,13 +63,15 @@ func TestSelectCaptureEngine(t *testing.T) {
 		input string
 		want  string
 	}{
-		{"", "af_packet"},
-		{"auto", "af_packet"},
+		{"", defaultCaptureEngineForTest()},
+		{"auto", defaultCaptureEngineForTest()},
 		{"afpacket", "af_packet"},
+		{"pcap", "pcap"},
+		{"npcap", "pcap"},
 		{"ebpf", "ebpf"},
 		{"pf_ring", "pfring"},
 		{"procfs", "procfs"},
-		{"unknown", "af_packet"},
+		{"unknown", defaultCaptureEngineForTest()},
 	}
 	for _, tc := range tests {
 		t.Run(tc.input, func(t *testing.T) {
@@ -77,6 +80,13 @@ func TestSelectCaptureEngine(t *testing.T) {
 			}
 		})
 	}
+}
+
+func defaultCaptureEngineForTest() string {
+	if runtime.GOOS == "windows" {
+		return "pcap"
+	}
+	return "af_packet"
 }
 
 func TestResolveCaptureCapabilityIsHonestAboutFallbacks(t *testing.T) {
