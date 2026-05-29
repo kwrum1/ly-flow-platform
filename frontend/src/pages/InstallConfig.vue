@@ -57,8 +57,8 @@
       <div class="step-row">
         <div class="step-index">5</div>
         <div class="step-main">
-          <h3>Windows：下载安装包后手动安装</h3>
-          <p>Windows Agent 独立使用 Npcap/WinPcap 兼容 PCAP 抓包分析，不启用 Linux 的 AF_PACKET / PF_RING。</p>
+          <h3>Windows：下载单文件 Agent</h3>
+          <p>Windows Agent 使用 Npcap/WinPcap 兼容 PCAP 抓包分析。下载后以管理员身份运行 exe，默认连接当前控制台；程序无前端界面，仅在右下角显示流影托盘图标。</p>
           <div class="download-actions">
             <a class="download-link" :href="windowsAmd64Url" download>下载 Windows x86_64 Agent</a>
           </div>
@@ -88,7 +88,7 @@ const installCommand = computed(() => `bash -c "if (command -v curl); then (curl
 const uninstallCommand = computed(() => `bash -c "if (command -v curl); then (curl -kfsSL ${uninstallUrl.value} | bash); else (wget --no-check-certificate -q -O - ${uninstallUrl.value} | bash); fi"`)
 const statusCommand = 'systemctl status ly-agent --no-pager'
 const logCommand = 'journalctl -u ly-agent -n 80 --no-pager'
-const windowsInstallNote = '先安装 Npcap，再以管理员权限运行下载的 ly-agent-windows-*.exe，并使用与 Linux 相同的 agent.yaml 配置连接控制台。'
+const windowsInstallNote = '先安装 Npcap，再右键 ly-agent-windows-amd64.exe 选择“以管理员身份运行”；Agent 无打开/退出菜单，停止请使用 Windows 服务或任务管理器。'
 </script>
 
 <style scoped>

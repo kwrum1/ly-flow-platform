@@ -2815,6 +2815,9 @@ func resolveTrafficInterface(cfg *Config) string {
 	if iface != "" && !strings.EqualFold(iface, "auto") {
 		return iface
 	}
+	if runtime.GOOS == "windows" {
+		return "auto"
+	}
 
 	if resolved, err := defaultRouteInterface(); err == nil && resolved != "" {
 		return resolved
@@ -3337,6 +3340,7 @@ func main() {
 		RASPBridgeToken:         getEnv("LY_RASP_TOKEN", ""),
 		AssetEnabled:            true,
 	}
+	applyPlatformDefaults(cfg)
 
 	configPath := resolveConfigPath(os.Args[1:])
 	if yamlValues, err := parseSimpleYAML(configPath); err == nil {
@@ -3350,6 +3354,7 @@ func main() {
 	logCleanup := setupLogging(cfg)
 	defer logCleanup()
 	fmt.Printf("[agent] Selected traffic interface: %s\n", cfg.TrafficInterface)
+	startPlatformUI()
 
 	agent := NewAgent(cfg)
 	if err := agent.Start(); err != nil {

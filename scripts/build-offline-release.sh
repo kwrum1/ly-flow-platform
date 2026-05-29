@@ -50,7 +50,7 @@ else
     exit 1
   fi
 fi
-run_in "$ROOT_DIR/agent" env GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOWORK=off go build -o ly-agent-windows-amd64.exe ./cmd
+run_in "$ROOT_DIR/agent" env GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOWORK=off go build -ldflags=-H=windowsgui -o ly-agent-windows-amd64.exe ./cmd
 cp "$ROOT_DIR/agent/ly-agent-windows-amd64.exe" "$ROOT_DIR/agent/dist/windows/amd64/ly-agent.exe"
 run_in "$ROOT_DIR/dpi-engine" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENABLED=0 GOWORK=off go build -o ly-dpi-engine ./cmd
 run_in "$ROOT_DIR/security-engine" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENABLED=0 GOWORK=off go build -o ly-security-engine ./cmd
