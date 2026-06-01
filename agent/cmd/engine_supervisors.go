@@ -138,7 +138,7 @@ func commandVersion(binary string) string {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 2_000_000_000)
 	defer cancel()
-	cmd := exec.CommandContext(ctx, binary, "--version")
+	cmd := hiddenCommandContext(ctx, binary, "--version")
 	out, err := cmd.Output()
 	if err != nil {
 		return ""

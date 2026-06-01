@@ -43,6 +43,23 @@ func TestAgentConfigWithoutKeyDeniedJSON(t *testing.T) {
 	}
 }
 
+func TestAgentTrafficEventWithoutKeyDeniedJSON(t *testing.T) {
+	body := bytes.NewBufferString(`{"agent_id":"agent-1","stream":"sessions:semantic","type":"semantic_session","data":"{}"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/agent/traffic-event", body)
+	rec := httptest.NewRecorder()
+	agentTrafficEventHandler(&Config{}).ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status=%d, want 401", rec.Code)
+	}
+	var payload map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("response is not JSON: %v", err)
+	}
+	if payload["error_code"] != "agent_auth_required" {
+		t.Fatalf("unexpected response: %#v", payload)
+	}
+}
+
 func TestEngineDesiredStatesForAgentFollowToggles(t *testing.T) {
 	states := engineDesiredStatesForAgent(false, true, false)
 	seen := map[string]bool{}

@@ -1,12 +1,20 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
+
+	"github.com/google/gopacket"
+	"github.com/google/gopacket/layers"
+	"github.com/redis/go-redis/v9"
 )
 
 func TestParseRouteDev(t *testing.T) {
@@ -79,6 +87,36 @@ func TestSelectCaptureEngine(t *testing.T) {
 				t.Fatalf("selectCaptureEngine(%q) = %q, want %q", tc.input, got, tc.want)
 			}
 		})
+	}
+}
+
+func TestObservationFromPacketKeepsICMP(t *testing.T) {
+	packet := gopacket.NewPacket([]byte{
+		0x45, 0x00, 0x00, 0x1c, 0x00, 0x01, 0x00, 0x00,
+		0x40, 0x01, 0x00, 0x00, 0x0a, 0x01, 0x12, 0x06,
+		0xdf, 0x05, 0x05, 0x05, 0x08, 0x00, 0x00, 0x00,
+		0x00, 0x01, 0x00, 0x01,
+	}, layers.LayerTypeIPv4, gopacket.Default)
+	agent := NewAgent(&Config{TrafficInterface: "auto"})
+	obs := agent.observationFromPacket(packet, len(packet.Data()), "pcap")
+	if obs.Protocol != "ICMP" || obs.SrcIP != "10.1.18.6" || obs.DstIP != "223.5.5.5" {
+		t.Fatalf("observationFromPacket(ICMP) = protocol=%q src=%q dst=%q", obs.Protocol, obs.SrcIP, obs.DstIP)
+	}
+}
+
+func TestObservationFromEthernetPacketKeepsICMP(t *testing.T) {
+	packet := gopacket.NewPacket([]byte{
+		0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77,
+		0x88, 0x99, 0xaa, 0xbb, 0x08, 0x00,
+		0x45, 0x00, 0x00, 0x1c, 0x00, 0x01, 0x00, 0x00,
+		0x40, 0x01, 0x00, 0x00, 0x0a, 0x01, 0x12, 0x06,
+		0xdf, 0x05, 0x05, 0x05, 0x08, 0x00, 0x00, 0x00,
+		0x00, 0x01, 0x00, 0x01,
+	}, layers.LayerTypeEthernet, gopacket.Default)
+	agent := NewAgent(&Config{TrafficInterface: "ens33"})
+	obs := agent.observationFromPacket(packet, len(packet.Data()), "af_packet")
+	if obs.Protocol != "ICMP" || obs.SrcIP != "10.1.18.6" || obs.DstIP != "223.5.5.5" {
+		t.Fatalf("observationFromPacket(ethernet ICMP) = protocol=%q src=%q dst=%q", obs.Protocol, obs.SrcIP, obs.DstIP)
 	}
 }
 
@@ -212,6 +250,9 @@ func TestTrafficCaptureEnabledRequiresSameInterface(t *testing.T) {
 	if agent.trafficCaptureEnabledOnCurrentInterface("ens160") {
 		t.Fatal("capture should pause after mirror interface changes")
 	}
+	if !agent.trafficCaptureInterfaceChanged("ens160") {
+		t.Fatal("capture should request restart after mirror interface changes")
+	}
 	agent.cfg.TrafficEnabled = false
 	if agent.trafficCaptureEnabledOnCurrentInterface("ens33") {
 		t.Fatal("capture should pause when traffic is disabled")
@@ -239,6 +280,258 @@ func TestRuntimeFallbackEventCarriesHonestBackendMetadata(t *testing.T) {
 		t.Fatalf("fallback_reason metadata missing: %#v", event.Metadata)
 	}
 }
+
+func TestPublishTrafficObservationPreservesNetworkProtocolForICMP(t *testing.T) {
+	agent := NewAgent(&Config{
+		API:                    "http://127.0.0.1:8080",
+		Redis:                  "127.0.0.1:0",
+		TrafficInterface:       "auto",
+		RawStream:              "flows:raw",
+		SemanticStream:         "flows:semantic",
+		SessionStream:          "sessions:semantic",
+		SessionEnabled:         true,
+		TrafficTelemetryStream: "",
+	})
+	obs := trafficObservation{
+		Timestamp:   time.Unix(1700000000, 0).UTC(),
+		Engine:      "pcap",
+		SrcIP:       "10.1.18.6",
+		DstIP:       "223.5.5.5",
+		Protocol:    "ICMP",
+		AppProtocol: "ICMP",
+		Packets:     1,
+	}
+
+	client := &recordingStreamClient{}
+	if err := agent.publishTrafficObservationToStreams(client, obs); err != nil {
+		t.Fatalf("publishTrafficObservationToStreams() error = %v", err)
+	}
+	session := client.valuesForStream("sessions:semantic")
+	if session["protocol"] != "ICMP" || session["app_protocol"] != "ICMP" {
+		t.Fatalf("session protocol fields = protocol %v app_protocol %v, want ICMP/ICMP", session["protocol"], session["app_protocol"])
+	}
+	semantic := client.valuesForStream("flows:semantic")
+	if semantic["protocol"] != "ICMP" || semantic["dst_ip"] != "223.5.5.5" {
+		t.Fatalf("semantic flow = protocol %v dst %v, want ICMP 223.5.5.5", semantic["protocol"], semantic["dst_ip"])
+	}
+}
+
+type recordingStreamClient struct {
+	entries []recordedStreamEntry
+}
+
+type recordedStreamEntry struct {
+	stream string
+	values map[string]interface{}
+}
+
+func (c *recordingStreamClient) publish(ctx context.Context, stream string, payload map[string]interface{}, payloadType string) error {
+	copied := map[string]interface{}{}
+	for key, value := range payload {
+		copied[key] = value
+	}
+	c.entries = append(c.entries, recordedStreamEntry{stream: stream, values: copied})
+	return nil
+}
+
+func (c *recordingStreamClient) valuesForStream(stream string) map[string]interface{} {
+	for _, entry := range c.entries {
+		if entry.stream == stream {
+			return entry.values
+		}
+	}
+	return nil
+}
+
+func TestDurableTrafficSpoolPersistsBeforeRedisAck(t *testing.T) {
+	dir := t.TempDir()
+	tmpDir := filepath.Join(dir, "tmp")
+	spool := &durableTrafficSpool{
+		pendingDir: dir,
+		tmpDir:     tmpDir,
+		maxBytes:   1024 * 1024,
+	}
+	payload := map[string]interface{}{"id": "flow-1", "src_ip": "10.0.0.1"}
+	if err := spool.publish(context.Background(), "flows:raw", payload, "raw_flow"); err != nil {
+		t.Fatalf("spool publish error: %v", err)
+	}
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatalf("read spool dir: %v", err)
+	}
+	wals := make([]os.DirEntry, 0, len(entries))
+	for _, entry := range entries {
+		if !entry.IsDir() {
+			wals = append(wals, entry)
+		}
+	}
+	if len(wals) != 1 {
+		t.Fatalf("spool wal files = %d, want 1", len(wals))
+	}
+	data, err := os.ReadFile(filepath.Join(dir, wals[0].Name()))
+	if err != nil {
+		t.Fatalf("read spool record: %v", err)
+	}
+	var record spoolRecord
+	if err := json.Unmarshal(data, &record); err != nil {
+		t.Fatalf("spool record json: %v", err)
+	}
+	if record.Stream != "flows:raw" || record.Type != "raw_flow" || record.Data == "" {
+		t.Fatalf("unexpected spool record: %#v", record)
+	}
+}
+
+func TestDurableTrafficSpoolKeepsPendingOnRedisError(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "1-flows_raw.wal")
+	record := spoolRecord{Version: 1, RecordID: "1", Stream: "flows:raw", Type: "raw_flow", Data: `{"id":"flow-1"}`}
+	if err := writeSpoolRecord(path, record); err != nil {
+		t.Fatalf("write spool record: %v", err)
+	}
+	spool := &durableTrafficSpool{pendingDir: dir, client: nilRedisClient{}, ctx: context.Background()}
+	if err := spool.flushFile(path); err == nil {
+		t.Fatal("flushFile succeeded with failing redis client")
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Fatalf("pending spool record missing after redis error: %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read pending spool record: %v", err)
+	}
+	var updated spoolRecord
+	if err := json.Unmarshal(data, &updated); err != nil {
+		t.Fatalf("updated spool record json: %v", err)
+	}
+	if updated.Attempts != 1 || updated.LastError == "" {
+		t.Fatalf("attempt metadata not recorded: %#v", updated)
+	}
+}
+
+func TestDurableTrafficSpoolRemovesPendingAfterRedisAck(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "1-flows_raw.wal")
+	record := spoolRecord{Version: 1, RecordID: "1", Stream: "flows:raw", Type: "raw_flow", Data: `{"id":"flow-1"}`}
+	if err := writeSpoolRecord(path, record); err != nil {
+		t.Fatalf("write spool record: %v", err)
+	}
+	spool := &durableTrafficSpool{pendingDir: dir, client: recordingRedisClient{}, ctx: context.Background()}
+	if err := spool.flushFile(path); err != nil {
+		t.Fatalf("flushFile error: %v", err)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("expected acked spool record removed, stat err=%v", err)
+	}
+}
+
+func TestDurableTrafficSpoolDeliversOverHTTP(t *testing.T) {
+	var request map[string]interface{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/api/v1/agent/traffic-event" {
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		_ = json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success"})
+	}))
+	defer server.Close()
+	spool := &durableTrafficSpool{httpEndpoint: server.URL + "/api/v1/agent/traffic-event", agentID: "agent-win", agentKey: "key-win"}
+	record := spoolRecord{Stream: "sessions:semantic", Type: "semantic_session", Data: `{"id":"session-1"}`}
+	if err := spool.deliver(record, map[string]interface{}{"type": record.Type, "data": record.Data}); err != nil {
+		t.Fatalf("deliver over http: %v", err)
+	}
+	if request["agent_id"] != "agent-win" || request["agent_key"] != "key-win" || request["stream"] != "sessions:semantic" {
+		t.Fatalf("unexpected request: %#v", request)
+	}
+}
+
+func TestEndpointAgentSpoolUsesHTTPTransport(t *testing.T) {
+	spool, err := newDurableTrafficSpool(context.Background(), &Config{SpoolEnabled: true, SpoolDir: t.TempDir(), API: "https://platform.example"})
+	if err != nil {
+		t.Fatalf("newDurableTrafficSpool error: %v", err)
+	}
+	defer spool.Close()
+	if spool.httpEndpoint != "https://platform.example/api/v1/agent/traffic-event" {
+		t.Fatalf("httpEndpoint=%q, want HTTPS traffic ingest endpoint", spool.httpEndpoint)
+	}
+}
+
+func TestDurableTrafficSpoolRecoversValidTempFiles(t *testing.T) {
+	dir := t.TempDir()
+	tmpDir := filepath.Join(dir, "tmp")
+	if err := os.MkdirAll(tmpDir, 0o750); err != nil {
+		t.Fatalf("mkdir tmp: %v", err)
+	}
+	tmpPath := filepath.Join(tmpDir, "1-flows_raw.wal.tmp")
+	record := spoolRecord{Version: 1, RecordID: "1", Stream: "flows:raw", Type: "raw_flow", Data: `{"id":"flow-1"}`}
+	if err := writeSpoolRecord(tmpPath, record); err != nil {
+		t.Fatalf("write temp spool record: %v", err)
+	}
+	spool := &durableTrafficSpool{pendingDir: dir, tmpDir: tmpDir}
+	if err := spool.recoverTempFiles(); err != nil {
+		t.Fatalf("recoverTempFiles error: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "1-flows_raw.wal")); err != nil {
+		t.Fatalf("recovered wal missing: %v", err)
+	}
+	if _, err := os.Stat(tmpPath); !os.IsNotExist(err) {
+		t.Fatalf("expected temp file renamed, stat err=%v", err)
+	}
+}
+
+func TestDurableTrafficSpoolFlushesToLiveRedis(t *testing.T) {
+	redisAddr := os.Getenv("LYFLOW_REDIS_INTEGRATION_ADDR")
+	if redisAddr == "" {
+		t.Skip("set LYFLOW_REDIS_INTEGRATION_ADDR to run live Redis spool test")
+	}
+	dir := t.TempDir()
+	ctx := context.Background()
+	client := redis.NewClient(&redis.Options{Addr: redisAddr})
+	defer client.Close()
+	stream := "spool:integration:test"
+	_ = client.Del(ctx, stream).Err()
+	spool := &durableTrafficSpool{
+		pendingDir: dir,
+		client:     client,
+		ctx:        ctx,
+	}
+	path := filepath.Join(dir, "1-spool_integration.wal")
+	record := spoolRecord{Version: 1, RecordID: "1", Stream: stream, Type: "raw_flow", Data: `{"id":"flow-live"}`}
+	if err := writeSpoolRecord(path, record); err != nil {
+		t.Fatalf("write spool record: %v", err)
+	}
+	if err := spool.flushFile(path); err != nil {
+		t.Fatalf("flushFile live redis: %v", err)
+	}
+	if got := client.XLen(ctx, stream).Val(); got != 1 {
+		t.Fatalf("live redis stream length = %d, want 1", got)
+	}
+	if _, err := os.Stat(path); !os.IsNotExist(err) {
+		t.Fatalf("expected acked live spool record removed, stat err=%v", err)
+	}
+	_ = client.Del(ctx, stream).Err()
+}
+
+type recordingRedisClient struct{}
+
+func (recordingRedisClient) XAdd(ctx context.Context, args *redis.XAddArgs) *redis.StringCmd {
+	cmd := redis.NewStringCmd(ctx)
+	cmd.SetVal("1-0")
+	return cmd
+}
+
+func (recordingRedisClient) Close() error { return nil }
+
+type nilRedisClient struct{}
+
+func (nilRedisClient) XAdd(ctx context.Context, args *redis.XAddArgs) *redis.StringCmd {
+	cmd := redis.NewStringCmd(ctx)
+	cmd.SetErr(errors.New("redis unavailable"))
+	return cmd
+}
+
+func (nilRedisClient) Close() error { return nil }
 
 func TestUnsupportedRuntimeBackendDoesNotEmitSyntheticEvent(t *testing.T) {
 	agent := NewAgent(&Config{HIDSEnabled: true, RuntimeStream: "alerts:runtime"})

@@ -44,13 +44,14 @@ func (a *Agent) runAFPacketCapture() error {
 
 	decodeOptions := gopacket.DecodeOptions{Lazy: true, NoCopy: true}
 	scanDetector := newPortScanDetector()
-	windowStart := time.Now()
-	publishedInWindow := 0
 	for {
 		select {
 		case <-a.ctx.Done():
 			return nil
 		default:
+		}
+		if a.trafficCaptureInterfaceChanged(captureInterface) {
+			return fmt.Errorf("capture interface changed from %s to %s", captureInterface, a.cfg.TrafficInterface)
 		}
 		if !a.trafficCaptureEnabledOnCurrentInterface(captureInterface) {
 			select {
@@ -78,17 +79,8 @@ func (a *Agent) runAFPacketCapture() error {
 				fmt.Printf("[probe] port scan alert publish failed: %v\n", err)
 			}
 		}
-		if time.Since(windowStart) >= time.Second {
-			windowStart = time.Now()
-			publishedInWindow = 0
-		}
-		if a.cfg.MaxTrafficEventsPerSec > 0 && publishedInWindow >= a.cfg.MaxTrafficEventsPerSec {
-			continue
-		}
 		if err := a.publishTrafficObservation(client, obs); err != nil {
 			fmt.Printf("[probe] flow publish failed: %v\n", err)
-		} else {
-			publishedInWindow++
 		}
 	}
 }

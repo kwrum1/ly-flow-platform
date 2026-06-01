@@ -15,6 +15,9 @@ const (
 	lyNIFTip              = 0x00000004
 	lyWMDestroy           = 0x0002
 	lyIDIApplication      = 32512
+	lyImageIcon           = 1
+	lyLRDefaultSize       = 0x00000040
+	lyLRShared            = 0x00008000
 )
 
 type lyPoint struct {
@@ -74,6 +77,7 @@ var (
 	lyProcTranslateMessage  = lyUser32.NewProc("TranslateMessage")
 	lyProcDispatchMessage   = lyUser32.NewProc("DispatchMessageW")
 	lyProcLoadIcon          = lyUser32.NewProc("LoadIconW")
+	lyProcLoadImage         = lyUser32.NewProc("LoadImageW")
 	lyProcShellNotifyIcon   = lyShell32.NewProc("Shell_NotifyIconW")
 	lyTrayWindowClass       = syscall.StringToUTF16Ptr("LyFlowAgentTrayWindow")
 	lyTrayWindowTitle       = syscall.StringToUTF16Ptr("LyFlow Agent")
@@ -88,7 +92,7 @@ func runWindowsTrayIcon() {
 	runtime.LockOSThread()
 	defer runtime.UnlockOSThread()
 
-	icon, _, _ := lyProcLoadIcon.Call(0, uintptr(lyIDIApplication))
+	icon := loadLyFlowTrayIcon()
 	wc := lyWndClassEx{
 		Size:      uint32(unsafe.Sizeof(lyWndClassEx{})),
 		WndProc:   lyTrayWindowProcPointer,
@@ -131,6 +135,25 @@ func runWindowsTrayIcon() {
 		lyProcTranslateMessage.Call(uintptr(unsafe.Pointer(&msg)))
 		lyProcDispatchMessage.Call(uintptr(unsafe.Pointer(&msg)))
 	}
+}
+
+func loadLyFlowTrayIcon() uintptr {
+	path, ok := findLyFlowIconFile()
+	if ok {
+		icon, _, _ := lyProcLoadImage.Call(
+			0,
+			uintptr(unsafe.Pointer(syscall.StringToUTF16Ptr(path))),
+			lyImageIcon,
+			0,
+			0,
+			lyLRDefaultSize,
+		)
+		if icon != 0 {
+			return icon
+		}
+	}
+	icon, _, _ := lyProcLoadIcon.Call(0, uintptr(lyIDIApplication))
+	return icon
 }
 
 func lyTrayWindowProc(hwnd uintptr, msg uint32, wParam, lParam uintptr) uintptr {

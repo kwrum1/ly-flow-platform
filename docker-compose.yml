@@ -37,7 +37,7 @@ services:
     image: redis:7-alpine
     container_name: ly-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory ${REDIS_MAXMEMORY:-8gb} --maxmemory-policy ${REDIS_MAXMEMORY_POLICY:-noeviction}
     volumes:
       - redis_data:/data
     ports:
@@ -298,7 +298,6 @@ services:
       - TRAFFIC_ENABLED=true
       - TRAFFIC_INTERFACE=${LOCAL_MIRROR_INTERFACE:-auto}
       - CAPTURE_ENGINE=af_packet
-      - BPF_FILTER=${LOCAL_MIRROR_BPF_FILTER:-(tcp or udp) and not net 172.16.0.0/12}
       - PROMISCUOUS=true
       - TRAFFIC_MAX_EVENTS_PER_SECOND=${LOCAL_MIRROR_MAX_EVENTS_PER_SECOND:-0}
       - HIDS_ENABLED=false
@@ -309,7 +308,12 @@ services:
       - SEMANTIC_STREAM=flows:semantic
       - TELEMETRY_TRAFFIC_STREAM=telemetry:traffic
       - RETENTION_ENABLED=false
+      - SPOOL_ENABLED=true
+      - SPOOL_DIR=/opt/ly-agent/data/spool
+      - SPOOL_MAX_BYTES=${LOCAL_MIRROR_SPOOL_MAX_BYTES:-10737418240}
       - LOG_FILE=/opt/ly-agent/logs/local-mirror.log
+    volumes:
+      - agent_spool:/opt/ly-agent/data
     depends_on:
       ly-server:
         condition: service_started
@@ -337,6 +341,9 @@ services:
       - HIDS_ENABLED=true
       - RASP_ENABLED=true
       - ASSET_ENABLED=true
+      - SPOOL_ENABLED=true
+      - SPOOL_DIR=/opt/ly-agent/data/spool
+      - SPOOL_MAX_BYTES=${AGENT_SPOOL_MAX_BYTES:-10737418240}
       - ENGINE_STATUS_FILE=/opt/ly-engine-lab/runtime/status.json
       - LOG_FILE=/opt/ly-agent/logs/agent.log
     volumes:
@@ -345,6 +352,7 @@ services:
       - ./.sisyphus/runtime/engine-outputs/yara:/opt/ly-agent/yara
       - ./.sisyphus/runtime/engine-outputs/rasp:/opt/ly-agent/rasp
       - ./.sisyphus/runtime/engine-outputs/status:/opt/ly-engine-lab/runtime:ro
+      - agent_spool:/opt/ly-agent/data
     depends_on:
       ly-server:
         condition: service_started
@@ -372,4 +380,6 @@ volumes:
   redis_data:
     driver: local
   clickhouse_data:
+    driver: local
+  agent_spool:
     driver: local

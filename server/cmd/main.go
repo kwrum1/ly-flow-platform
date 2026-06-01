@@ -23,6 +23,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unicode"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -286,6 +287,7 @@ func main() {
 	mux.HandleFunc("/api/v1/traffic/sessions", trafficSessionsHandler(cfg))
 	mux.HandleFunc("/api/v1/traffic/mirror-interface", mirrorCaptureConfigHandler(cfg))
 	mux.HandleFunc("/api/v1/situation/target-location", targetLocationConfigHandler(cfg))
+	mux.HandleFunc("/api/v1/system/time", systemTimeHandler())
 	mux.HandleFunc("/api/v1/incidents/", incidentDetailHandler(cfg))
 	mux.HandleFunc("/api/v1/incidents", incidentsHandler(cfg))
 	mux.HandleFunc("/api/v1/timeline/", timelineDetailHandler(cfg))
@@ -326,6 +328,7 @@ func main() {
 	mux.HandleFunc("/api/v1/agent/enroll", agentEnrollHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/heartbeat", agentHeartbeatHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/config", agentConfigHandler(cfg))
+	mux.HandleFunc("/api/v1/agent/traffic-event", agentTrafficEventHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/task-result", agentTaskResultHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/component-alert", agentComponentAlertHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/runtime-event", agentRuntimeEventHandler(cfg))
@@ -681,6 +684,96 @@ func targetLocationLabel(cfg targetLocationConfig) string {
 		}
 	}
 	return strings.Join(kept, "·")
+}
+
+func systemTimeHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.Method {
+		case http.MethodGet:
+			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": systemTimeResponse(loadSystemTimeConfig())})
+		case http.MethodPost, http.MethodPut:
+			var req struct {
+				Time      string `json:"time"`
+				Sync      bool   `json:"sync"`
+				NTPServer string `json:"ntp_server"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+				writeJSONError(w, http.StatusBadRequest, "invalid_system_time", "Invalid system time request")
+				return
+			}
+			cfg := loadSystemTimeConfig()
+			cfg.NTPServer = strings.TrimSpace(req.NTPServer)
+			parsed := parseOptionalTime(req.Time)
+			if parsed == nil && !req.Sync {
+				writeJSONError(w, http.StatusBadRequest, "invalid_system_time", "time is required")
+				return
+			}
+			if parsed != nil {
+				now := time.Now()
+				cfg.OffsetMillis = parsed.UnixMilli() - now.UnixMilli()
+				cfg.SyncedAt = now.UTC().Format(time.RFC3339Nano)
+				cfg.Source = "manual"
+			} else if req.Sync {
+				cfg.SyncedAt = time.Now().UTC().Format(time.RFC3339Nano)
+				cfg.Source = "browser"
+			}
+			if err := saveSystemTimeConfig(cfg); err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "save_system_time_failed", err.Error())
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": systemTimeResponse(cfg)})
+		default:
+			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		}
+	}
+}
+
+type systemTimeConfig struct {
+	OffsetMillis int64  `json:"offset_ms"`
+	NTPServer    string `json:"ntp_server,omitempty"`
+	SyncedAt     string `json:"last_synced_at,omitempty"`
+	Source       string `json:"source,omitempty"`
+}
+
+func systemTimeConfigPath() string {
+	return ".sisyphus/runtime/system-time-config.json"
+}
+
+func loadSystemTimeConfig() systemTimeConfig {
+	cfg := systemTimeConfig{}
+	_ = readJSONFile(systemTimeConfigPath(), &cfg)
+	cfg.NTPServer = strings.TrimSpace(cfg.NTPServer)
+	return cfg
+}
+
+func saveSystemTimeConfig(cfg systemTimeConfig) error {
+	if err := os.MkdirAll(filepath.Dir(systemTimeConfigPath()), 0o755); err != nil {
+		return err
+	}
+	data, err := json.MarshalIndent(cfg, "", "  ")
+	if err != nil {
+		return err
+	}
+	return os.WriteFile(systemTimeConfigPath(), data, 0o644)
+}
+
+func systemTimeResponse(cfg systemTimeConfig) map[string]interface{} {
+	now := time.Now()
+	platformNow := now.Add(time.Duration(cfg.OffsetMillis) * time.Millisecond)
+	return map[string]interface{}{
+		"server_time":       now.Format(time.RFC3339Nano),
+		"server_unix_ms":    now.UnixMilli(),
+		"platform_time":     platformNow.Format(time.RFC3339Nano),
+		"platform_unix_ms":  platformNow.UnixMilli(),
+		"offset_ms":         cfg.OffsetMillis,
+		"ntp_server":        cfg.NTPServer,
+		"last_synced_at":    cfg.SyncedAt,
+		"source":            cfg.Source,
+		"timezone":          platformNow.Format("-07:00"),
+		"client_sync_hint":  "apply offset_ms in all frontend time displays",
+		"modifiable_by_api": true,
+	}
 }
 
 func targetCityLabel(cfg targetLocationConfig) string {
@@ -2893,6 +2986,8 @@ func activeAgentDisplayNames(ctx context.Context, cfg *Config) map[string]string
 type activeTrafficAgentInfo struct {
 	DisplayName string
 	Interface   string
+	IP          string
+	Hostname    string
 }
 
 func activeTrafficAgentInfos(ctx context.Context, cfg *Config) map[string]activeTrafficAgentInfo {
@@ -2900,7 +2995,7 @@ func activeTrafficAgentInfos(ctx context.Context, cfg *Config) map[string]active
 		return nil
 	}
 	rows, err := cfg.DBPool.Query(ctx, `
-		SELECT a.uuid, COALESCE(NULLIF(a.display_name, ''), NULLIF(a.hostname, ''), a.uuid), COALESCE(h.metadata, '{}'::jsonb)
+		SELECT a.uuid, COALESCE(NULLIF(a.display_name, ''), NULLIF(a.hostname, ''), a.uuid), COALESCE(host(a.ip), ''), COALESCE(a.hostname, ''), COALESCE(h.metadata, '{}'::jsonb)
 		FROM agents a
 		LEFT JOIN hosts h ON h.agent_id = a.uuid
 		WHERE COALESCE(a.traffic_enabled, false) = true
@@ -2911,9 +3006,9 @@ func activeTrafficAgentInfos(ctx context.Context, cfg *Config) map[string]active
 	defer rows.Close()
 	infos := map[string]activeTrafficAgentInfo{}
 	for rows.Next() {
-		var id, name string
+		var id, name, ip, hostname string
 		var metadataRaw []byte
-		if err := rows.Scan(&id, &name, &metadataRaw); err != nil || strings.TrimSpace(id) == "" {
+		if err := rows.Scan(&id, &name, &ip, &hostname, &metadataRaw); err != nil || strings.TrimSpace(id) == "" {
 			continue
 		}
 		capabilities := capabilitiesFromMetadata(metadataRaw)
@@ -2921,6 +3016,8 @@ func activeTrafficAgentInfos(ctx context.Context, cfg *Config) map[string]active
 		infos[id] = activeTrafficAgentInfo{
 			DisplayName: firstNonEmpty(strings.TrimSpace(name), id),
 			Interface:   strings.TrimSpace(asString(traffic["interface"])),
+			IP:          strings.TrimSpace(ip),
+			Hostname:    strings.TrimSpace(hostname),
 		}
 	}
 	return infos
@@ -5363,7 +5460,7 @@ func startXDRProcessor(cfg *Config) {
 func unifiedStatsHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		if r.Method != http.MethodGet {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
@@ -5806,20 +5903,87 @@ func applyMirrorCaptureLabel(item map[string]interface{}) {
 	if !isMirrorCaptureItem(item) {
 		return
 	}
-	item["agent_id"] = "local"
+	agentID := strings.TrimSpace(xdrPickString(item, "agent_id"))
+	if agentID == "" || agentID == "local" || agentID == "localhost" {
+		item["agent_id"] = "local"
+	}
 	item["display_name"] = "流量镜像分析"
 	item["agent_display_name"] = "流量镜像分析"
 	item["probe_name"] = "流量镜像分析"
 	item["probe_kind"] = "镜像接口"
 	item["capture_source"] = "mirror"
 	if entities := asMap(item["entities"]); len(entities) > 0 {
-		entities["agent_id"] = "local"
+		entityAgentID := strings.TrimSpace(xdrPickString(entities, "agent_id"))
+		if entityAgentID == "" || entityAgentID == "local" || entityAgentID == "localhost" {
+			entities["agent_id"] = "local"
+		}
 		entities["display_name"] = "流量镜像分析"
 		item["entities"] = entities
 	}
 }
 
+func attributeMirrorTrafficToAgent(item map[string]interface{}, agentInfos map[string]activeTrafficAgentInfo) {
+	if !isMirrorCaptureItem(item) || len(agentInfos) == 0 {
+		return
+	}
+	src := strings.TrimSpace(xdrPickString(item, "src_ip"))
+	dst := strings.TrimSpace(xdrPickString(item, "dst_ip"))
+	for agentID, info := range agentInfos {
+		ip := strings.TrimSpace(info.IP)
+		if ip == "" || (ip != src && ip != dst) {
+			continue
+		}
+		name := firstNonEmpty(info.DisplayName, info.Hostname, agentID)
+		item["agent_id"] = agentID
+		item["sensor_id"] = agentID
+		item["attributed_agent_id"] = agentID
+		item["attributed_agent_name"] = name
+		item["associated_agent_id"] = agentID
+		item["associated_agent_name"] = name
+		item["agent_display_name"] = "流量镜像分析"
+		item["display_name"] = "流量镜像分析"
+		item["probe_name"] = "流量镜像分析"
+		item["probe_kind"] = "镜像接口"
+		item["capture_source"] = "mirror"
+		if info.Hostname != "" {
+			item["hostname"] = info.Hostname
+			item["attributed_hostname"] = info.Hostname
+			item["associated_hostname"] = info.Hostname
+		}
+		if content := asMap(item["content"]); len(content) > 0 {
+			content["agent_id"] = agentID
+			content["sensor_id"] = agentID
+			content["attributed_agent_id"] = agentID
+			content["attributed_agent_name"] = name
+			content["associated_agent_id"] = agentID
+			content["associated_agent_name"] = name
+			content["agent_display_name"] = "流量镜像分析"
+			content["display_name"] = "流量镜像分析"
+			content["probe_name"] = "流量镜像分析"
+			content["probe_kind"] = "镜像接口"
+			content["capture_source"] = "mirror"
+			if info.Hostname != "" {
+				content["hostname"] = info.Hostname
+				content["attributed_hostname"] = info.Hostname
+				content["associated_hostname"] = info.Hostname
+			}
+			item["content"] = content
+		}
+		if entities := asMap(item["entities"]); len(entities) > 0 {
+			entities["agent_id"] = agentID
+			entities["display_name"] = "流量镜像分析"
+			entities["attributed_agent_id"] = agentID
+			entities["attributed_agent_name"] = name
+			item["entities"] = entities
+		}
+		return
+	}
+}
+
 func isMirrorCaptureItem(item map[string]interface{}) bool {
+	if strings.EqualFold(xdrPickString(item, "capture_source"), "mirror") || xdrPickString(item, "probe_kind") == "镜像接口" || xdrPickString(item, "probe_name", "display_name", "agent_display_name") == "流量镜像分析" {
+		return true
+	}
 	agentID := strings.ToLower(strings.TrimSpace(xdrPickString(item, "agent_id", "entities.agent_id")))
 	if agentID != "" && agentID != "local" && agentID != "localhost" {
 		return false
@@ -6740,11 +6904,12 @@ func loadTrafficStream(cfg *Config, stream string, limit, offset int, query, age
 		if !trafficItemBelongsToActiveAgent(item, agentInfos) {
 			continue
 		}
+		attributeMirrorTrafficToAgent(item, agentInfos)
 		normalizeAgentSessionAggregate(item, agentInfos)
 		if isContainerBridgeTrafficItem(item) {
 			continue
 		}
-		if isConfiguredMirrorInterfaceItem(item) {
+		if isConfiguredMirrorInterfaceItem(item) && xdrPickString(item, "agent_id") == "local" {
 			applyMirrorCaptureLabel(item)
 		}
 		enrichTrafficItemDisplayName(item, agentInfos)
@@ -6780,6 +6945,7 @@ func persistTrafficSession(ctx context.Context, cfg *Config, msg redis.XMessage)
 	if !trafficItemBelongsToActiveAgent(item, agentInfos) {
 		return
 	}
+	attributeMirrorTrafficToAgent(item, agentInfos)
 	normalizeAgentSessionAggregate(item, agentInfos)
 	if isContainerBridgeTrafficItem(item) {
 		return
@@ -6790,6 +6956,11 @@ func persistTrafficSession(ctx context.Context, cfg *Config, msg redis.XMessage)
 		raw, _ := json.Marshal(item)
 		sum := sha256.Sum256(raw)
 		uid = hex.EncodeToString(sum[:])
+	}
+	if isMirrorCaptureItem(item) {
+		if agentName := trafficItemMatchedAgentName(item, agentInfos); agentName != "" {
+			item["attributed_agent_name"] = agentName
+		}
 	}
 	observed := parseTrafficItemTime(item)
 	raw, err := json.Marshal(item)
@@ -6808,16 +6979,29 @@ func loadPersistentTrafficSessions(ctx context.Context, cfg *Config, limit, offs
 	if cfg == nil || cfg.DBPool == nil {
 		return nil, 0, fmt.Errorf("session store unavailable")
 	}
+	hasFilter := query != "" || agentID != "" || srcIP != "" || srcPort != "" || dstIP != "" || dstPort != "" || startTime != nil || endTime != nil
+	if hasFilter && cfg.Redis != nil {
+		return loadFilteredTrafficSessionsFromRedis(ctx, cfg, limit, offset, query, agentID, srcIP, srcPort, dstIP, dstPort, startTime, endTime)
+	}
+
 	where := []string{"1=1"}
 	where = append(where, "(COALESCE(agent_id, '') IN ('', 'local', 'localhost') OR EXISTS (SELECT 1 FROM agents a WHERE a.uuid = traffic_sessions.agent_id AND COALESCE(a.traffic_enabled, false) = true))")
 	args := []interface{}{}
 	if query != "" {
-		args = append(args, "%"+query+"%")
-		where = append(where, fmt.Sprintf("raw_event::text ILIKE $%d", len(args)))
+		queryTokens := trafficSessionQueryTokens(query)
+		if len(queryTokens) > 0 {
+			parts := make([]string, 0, len(queryTokens))
+			for _, token := range queryTokens {
+				args = append(args, "%"+token+"%")
+				idx := len(args)
+				parts = append(parts, fmt.Sprintf("(agent_id ILIKE $%d OR src_ip ILIKE $%d OR dst_ip ILIKE $%d OR protocol ILIKE $%d OR raw_event->>'display_name' ILIKE $%d OR raw_event->>'agent_display_name' ILIKE $%d OR raw_event->>'probe_name' ILIKE $%d OR raw_event->>'hostname' ILIKE $%d OR raw_event->>'attributed_agent_name' ILIKE $%d OR raw_event->>'associated_agent_name' ILIKE $%d OR raw_event->>'message' ILIKE $%d)", idx, idx, idx, idx, idx, idx, idx, idx, idx, idx, idx))
+			}
+			where = append(where, "("+strings.Join(parts, " AND ")+")")
+		}
 	}
 	if agentID != "" {
 		args = append(args, agentID)
-		where = append(where, fmt.Sprintf("agent_id = $%d", len(args)))
+		where = append(where, fmt.Sprintf("(agent_id = $%d OR raw_event->>'attributed_agent_id' = $%d OR raw_event->>'associated_agent_id' = $%d)", len(args), len(args), len(args)))
 	}
 	if srcIP != "" {
 		args = append(args, "%"+srcIP+"%")
@@ -6852,14 +7036,62 @@ func loadPersistentTrafficSessions(ctx context.Context, cfg *Config, limit, offs
 	if err := cfg.DBPool.QueryRow(ctx, "SELECT COUNT(*) FROM traffic_sessions WHERE "+clause, args...).Scan(&total); err != nil {
 		return nil, 0, err
 	}
-	queryArgs := append(args, limit, offset)
-	rows, err := cfg.DBPool.Query(ctx, "SELECT raw_event FROM traffic_sessions WHERE "+clause+fmt.Sprintf(" ORDER BY observed_at DESC LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2), queryArgs...)
+	agentInfos := activeTrafficAgentInfos(ctx, cfg)
+	matchedItems := []map[string]interface{}{}
+	seen := map[string]struct{}{}
+	addItem := func(item map[string]interface{}) {
+		if !trafficItemBelongsToActiveAgent(item, agentInfos) {
+			return
+		}
+		attributeMirrorTrafficToAgent(item, agentInfos)
+		normalizeAgentSessionAggregate(item, agentInfos)
+		if isMirrorCaptureItem(item) {
+			applyMirrorCaptureLabel(item)
+		}
+		enrichTrafficItemDisplayName(item, agentInfos)
+		if !eventInTimeRange(item, startTime, endTime) || !trafficItemMatches(item, query, agentID, srcIP, srcPort, dstIP, dstPort) {
+			return
+		}
+		key := firstNonEmpty(xdrPickString(item, "message_id"), xdrPickString(item, "id"))
+		if key == "" {
+			raw, _ := json.Marshal(item)
+			sum := sha256.Sum256(raw)
+			key = hex.EncodeToString(sum[:])
+		}
+		if _, ok := seen[key]; ok {
+			return
+		}
+		seen[key] = struct{}{}
+		matchedItems = append(matchedItems, item)
+	}
+
+	if cfg.Redis != nil {
+		redisReadCount := int64(offset + limit + 1000)
+		if query != "" || agentID != "" || srcIP != "" || srcPort != "" || dstIP != "" || dstPort != "" || startTime != nil || endTime != nil {
+			redisReadCount = 20000
+		}
+		redisMessages, err := cfg.Redis.XRevRangeN(ctx, "sessions:semantic", "+", "-", redisReadCount).Result()
+		if err == nil {
+			for _, msg := range redisMessages {
+				item := trafficItemFromMessage(cfg, "sessions:semantic", msg)
+				if isContainerBridgeTrafficItem(item) {
+					continue
+				}
+				addItem(item)
+			}
+		}
+	}
+
+	dbLimit := offset + limit + 1000
+	if dbLimit < 1000 {
+		dbLimit = 1000
+	}
+	queryArgs := append(args, dbLimit)
+	rows, err := cfg.DBPool.Query(ctx, "SELECT raw_event FROM traffic_sessions WHERE "+clause+fmt.Sprintf(" ORDER BY observed_at DESC LIMIT $%d", len(args)+1), queryArgs...)
 	if err != nil {
 		return nil, 0, err
 	}
 	defer rows.Close()
-	items := []map[string]interface{}{}
-	agentInfos := activeTrafficAgentInfos(ctx, cfg)
 	for rows.Next() {
 		var raw []byte
 		if err := rows.Scan(&raw); err != nil {
@@ -6869,17 +7101,117 @@ func loadPersistentTrafficSessions(ctx context.Context, cfg *Config, limit, offs
 		if json.Unmarshal(raw, &item) != nil {
 			continue
 		}
-		if !trafficItemBelongsToActiveAgent(item, agentInfos) {
-			continue
-		}
-		normalizeAgentSessionAggregate(item, agentInfos)
+		addItem(item)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, 0, err
+	}
+	for _, item := range matchedItems {
 		if isMirrorCaptureItem(item) {
 			applyMirrorCaptureLabel(item)
+			if agentName := trafficItemMatchedAgentName(item, agentInfos); agentName != "" {
+				item["attributed_agent_name"] = agentName
+			}
 		}
-		enrichTrafficItemDisplayName(item, agentInfos)
-		items = append(items, item)
 	}
-	return items, total, rows.Err()
+	sort.SliceStable(matchedItems, func(i, j int) bool {
+		return parseTrafficItemTime(matchedItems[i]).After(parseTrafficItemTime(matchedItems[j]))
+	})
+	if len(matchedItems) > total {
+		total = len(matchedItems)
+	}
+	start := offset
+	if start > len(matchedItems) {
+		start = len(matchedItems)
+	}
+	end := start + limit
+	if end > len(matchedItems) {
+		end = len(matchedItems)
+	}
+	return matchedItems[start:end], total, nil
+}
+
+func loadFilteredTrafficSessionsFromRedis(ctx context.Context, cfg *Config, limit, offset int, query, agentID, srcIP, srcPort, dstIP, dstPort string, startTime, endTime *time.Time) ([]map[string]interface{}, int, error) {
+	if cfg == nil || cfg.Redis == nil {
+		return nil, 0, fmt.Errorf("redis unavailable")
+	}
+	items := make([]map[string]interface{}, 0, limit)
+	matched := 0
+	seen := map[string]struct{}{}
+	agentInfos := activeTrafficAgentInfos(ctx, cfg)
+	end := "+"
+	for scanned := 0; scanned < 200000 && len(items) < limit; {
+		messages, err := cfg.Redis.XRevRangeN(ctx, "sessions:semantic", end, "-", 5000).Result()
+		if err != nil {
+			return nil, 0, err
+		}
+		if len(messages) == 0 {
+			break
+		}
+		for _, msg := range messages {
+			item := trafficItemFromMessage(cfg, "sessions:semantic", msg)
+			if isContainerBridgeTrafficItem(item) {
+				continue
+			}
+			if isMirrorCaptureItem(item) {
+				attributeMirrorTrafficToAgent(item, agentInfos)
+				if isMirrorCaptureItem(item) {
+					applyMirrorCaptureLabel(item)
+				}
+			}
+			if !eventInTimeRange(item, startTime, endTime) || !trafficItemMatches(item, query, agentID, srcIP, srcPort, dstIP, dstPort) {
+				continue
+			}
+			key := firstNonEmpty(xdrPickString(item, "message_id"), xdrPickString(item, "id"), msg.ID)
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			matched++
+			if matched <= offset {
+				continue
+			}
+			item["message_id"] = firstNonEmpty(xdrPickString(item, "message_id"), msg.ID)
+			item["stream"] = "sessions:semantic"
+			items = append(items, item)
+			if len(items) >= limit {
+				break
+			}
+		}
+		scanned += len(messages)
+		end = "(" + messages[len(messages)-1].ID
+		if len(messages) < 5000 {
+			break
+		}
+	}
+	return items, matched, nil
+}
+
+func trafficSessionQueryTokens(query string) []string {
+	query = strings.TrimSpace(strings.ToLower(query))
+	if query == "" {
+		return nil
+	}
+	query = strings.TrimSpace(strings.TrimPrefix(query, "流量来源:"))
+	query = strings.TrimSpace(strings.TrimPrefix(query, "流量来源："))
+	query = strings.TrimSpace(strings.TrimPrefix(query, "traffic source:"))
+	query = strings.TrimSpace(strings.TrimPrefix(query, "source:"))
+	if query == "" {
+		return nil
+	}
+	if strings.Contains(query, "流量镜像分析") || strings.Contains(query, "镜像") || strings.Contains(query, "mirror") {
+		return []string{"流量镜像分析"}
+	}
+	fields := strings.FieldsFunc(query, func(r rune) bool {
+		return unicode.IsSpace(r) || r == ',' || r == ';' || r == '，' || r == '；' || r == ':' || r == '：'
+	})
+	if len(fields) == 0 {
+		return []string{query}
+	}
+	if len(fields) > 4 {
+		fields = fields[:4]
+	}
+	return fields
 }
 
 func parseTrafficItemTime(item map[string]interface{}) time.Time {
@@ -6901,32 +7233,7 @@ func mirrorSessionOnlyEnabled() bool {
 	return config.Enabled && strings.TrimSpace(config.Interface) != ""
 }
 
-func isContainerBridgeTrafficItem(item map[string]interface{}) bool {
-	content := asMap(item["content"])
-	values := []string{
-		asString(item["src_ip"]), asString(item["dst_ip"]),
-		xdrPickString(item, "entities.source_ip"), xdrPickString(item, "entities.target_ip"),
-		asString(content["src_ip"]), asString(content["dst_ip"]),
-	}
-	for _, value := range values {
-		if isContainerBridgeIPValue(value) {
-			return true
-		}
-	}
-	return false
-}
-
-func isContainerBridgeIPValue(value string) bool {
-	value = strings.TrimSpace(value)
-	if strings.HasPrefix(value, "172.16.") || strings.HasPrefix(value, "172.17.") || strings.HasPrefix(value, "172.18.") || strings.HasPrefix(value, "172.19.") || strings.HasPrefix(value, "172.20.") || strings.HasPrefix(value, "172.21.") || strings.HasPrefix(value, "172.22.") || strings.HasPrefix(value, "172.23.") || strings.HasPrefix(value, "172.24.") || strings.HasPrefix(value, "172.25.") || strings.HasPrefix(value, "172.26.") || strings.HasPrefix(value, "172.27.") || strings.HasPrefix(value, "172.28.") || strings.HasPrefix(value, "172.29.") || strings.HasPrefix(value, "172.30.") || strings.HasPrefix(value, "172.31.") {
-		return true
-	}
-	ip := net.ParseIP(value).To4()
-	if ip == nil {
-		return false
-	}
-	return ip[0] == 172 && ip[1] >= 16 && ip[1] <= 31
-}
+func isContainerBridgeTrafficItem(item map[string]interface{}) bool { return false }
 
 func trafficItemBelongsToActiveAgent(item map[string]interface{}, agentInfos map[string]activeTrafficAgentInfo) bool {
 	if isMirrorCaptureItem(item) {
@@ -7008,6 +7315,19 @@ func enrichTrafficItemDisplayName(item map[string]interface{}, agentInfos map[st
 	item["probe_name"] = name
 }
 
+func trafficItemMatchedAgentName(item map[string]interface{}, agentInfos map[string]activeTrafficAgentInfo) string {
+	if agentID := xdrPickString(item, "attributed_agent_id", "associated_agent_id"); agentID != "" {
+		if name := xdrPickString(item, "attributed_agent_name", "associated_agent_name"); name != "" {
+			return name
+		}
+		if info, ok := agentInfos[agentID]; ok {
+			return firstNonEmpty(info.DisplayName, info.Hostname, agentID)
+		}
+		return agentID
+	}
+	return ""
+}
+
 func trafficItemFromMessage(cfg *Config, stream string, msg redis.XMessage) map[string]interface{} {
 	raw := streamDataString(msg.Values)
 	payload := map[string]interface{}{}
@@ -7024,40 +7344,48 @@ func trafficItemFromMessage(cfg *Config, stream string, msg redis.XMessage) map[
 		timestamp = strings.Split(msg.ID, "-")[0]
 	}
 	item := map[string]interface{}{
-		"message_id":         msg.ID,
-		"stream":             stream,
-		"id":                 xdrPickString(payload, "id", "flow_id", "session_id"),
-		"timestamp":          timestamp,
-		"agent_id":           xdrPickString(payload, "agent_id", "sensor_id"),
-		"display_name":       xdrPickString(payload, "display_name", "agent_display_name", "probe_name"),
-		"agent_display_name": xdrPickString(payload, "agent_display_name", "display_name", "probe_name"),
-		"probe_name":         xdrPickString(payload, "probe_name", "display_name", "agent_display_name"),
-		"hostname":           xdrPickString(payload, "hostname"),
-		"src_ip":             xdrPickString(payload, "src_ip"),
-		"src_port":           xdrPickNumber(payload, "src_port", 0),
-		"dst_ip":             xdrPickString(payload, "dst_ip"),
-		"dst_port":           xdrPickNumber(payload, "dst_port", 0),
-		"protocol":           xdrPickString(payload, "protocol", "app_protocol"),
-		"app_protocol":       xdrPickString(payload, "app_protocol", "protocol"),
-		"http_host":          xdrPickString(payload, "http_host"),
-		"http_method":        xdrPickString(payload, "http_method"),
-		"http_path":          xdrPickString(payload, "http_path"),
-		"dns_query":          xdrPickString(payload, "dns_query"),
-		"tls_sni":            xdrPickString(payload, "tls_sni"),
-		"bytes_in":           xdrPickNumber(payload, "bytes_in", 0),
-		"bytes_out":          xdrPickNumber(payload, "bytes_out", 0),
-		"packets":            xdrPickNumber(payload, "packets", 0),
-		"duration_ms":        xdrPickNumber(payload, "duration_ms", 0),
-		"direction":          xdrPickString(payload, "direction"),
-		"business_action":    xdrPickString(payload, "business_action"),
-		"engine":             xdrPickString(payload, "engine"),
-		"interface":          xdrPickString(payload, "interface"),
-		"bpf_filter":         xdrPickString(payload, "bpf_filter"),
-		"promiscuous":        payload["promiscuous"],
-		"source":             xdrPickString(payload, "source"),
-		"risk_level":         xdrPickString(payload, "risk_level"),
-		"raw_reference":      payload["raw_reference"],
-		"content":            payload,
+		"message_id":            msg.ID,
+		"stream":                stream,
+		"id":                    xdrPickString(payload, "id", "flow_id", "session_id"),
+		"timestamp":             timestamp,
+		"agent_id":              xdrPickString(payload, "agent_id", "sensor_id"),
+		"display_name":          xdrPickString(payload, "display_name", "agent_display_name", "probe_name"),
+		"agent_display_name":    xdrPickString(payload, "agent_display_name", "display_name", "probe_name"),
+		"probe_name":            xdrPickString(payload, "probe_name", "display_name", "agent_display_name"),
+		"probe_kind":            xdrPickString(payload, "probe_kind"),
+		"capture_source":        xdrPickString(payload, "capture_source"),
+		"attributed_agent_id":   xdrPickString(payload, "attributed_agent_id", "associated_agent_id"),
+		"attributed_agent_name": xdrPickString(payload, "attributed_agent_name", "associated_agent_name"),
+		"attributed_hostname":   xdrPickString(payload, "attributed_hostname", "associated_hostname"),
+		"associated_agent_id":   xdrPickString(payload, "associated_agent_id", "attributed_agent_id"),
+		"associated_agent_name": xdrPickString(payload, "associated_agent_name", "attributed_agent_name"),
+		"associated_hostname":   xdrPickString(payload, "associated_hostname", "attributed_hostname"),
+		"hostname":              xdrPickString(payload, "hostname"),
+		"src_ip":                xdrPickString(payload, "src_ip"),
+		"src_port":              xdrPickNumber(payload, "src_port", 0),
+		"dst_ip":                xdrPickString(payload, "dst_ip"),
+		"dst_port":              xdrPickNumber(payload, "dst_port", 0),
+		"protocol":              xdrPickString(payload, "protocol", "app_protocol"),
+		"app_protocol":          xdrPickString(payload, "app_protocol", "protocol"),
+		"http_host":             xdrPickString(payload, "http_host"),
+		"http_method":           xdrPickString(payload, "http_method"),
+		"http_path":             xdrPickString(payload, "http_path"),
+		"dns_query":             xdrPickString(payload, "dns_query"),
+		"tls_sni":               xdrPickString(payload, "tls_sni"),
+		"bytes_in":              xdrPickNumber(payload, "bytes_in", 0),
+		"bytes_out":             xdrPickNumber(payload, "bytes_out", 0),
+		"packets":               xdrPickNumber(payload, "packets", 0),
+		"duration_ms":           xdrPickNumber(payload, "duration_ms", 0),
+		"direction":             xdrPickString(payload, "direction"),
+		"business_action":       xdrPickString(payload, "business_action"),
+		"engine":                xdrPickString(payload, "engine"),
+		"interface":             xdrPickString(payload, "interface"),
+		"bpf_filter":            xdrPickString(payload, "bpf_filter"),
+		"promiscuous":           payload["promiscuous"],
+		"source":                xdrPickString(payload, "source"),
+		"risk_level":            xdrPickString(payload, "risk_level"),
+		"raw_reference":         payload["raw_reference"],
+		"content":               payload,
 	}
 	applyMirrorCaptureLabel(item)
 	return item
@@ -7065,7 +7393,9 @@ func trafficItemFromMessage(cfg *Config, stream string, msg redis.XMessage) map[
 
 func trafficItemMatches(item map[string]interface{}, query, agentID, srcIP, srcPort, dstIP, dstPort string) bool {
 	if agentID != "" && !strings.EqualFold(xdrPickString(item, "agent_id"), agentID) {
-		return false
+		if !strings.EqualFold(xdrPickString(item, "attributed_agent_id", "associated_agent_id"), agentID) {
+			return false
+		}
 	}
 	if srcIP != "" && !strings.Contains(xdrPickString(item, "src_ip"), srcIP) {
 		return false
@@ -7082,8 +7412,53 @@ func trafficItemMatches(item map[string]interface{}, query, agentID, srcIP, srcP
 	if query == "" {
 		return true
 	}
-	data, _ := json.Marshal(item)
-	return strings.Contains(strings.ToLower(string(data)), query)
+	tokens := trafficSessionQueryTokens(query)
+	if len(tokens) == 0 {
+		return true
+	}
+	query = tokens[0]
+	if net.ParseIP(query) != nil {
+		return strings.Contains(strings.ToLower(xdrPickString(item, "src_ip")), query) || strings.Contains(strings.ToLower(xdrPickString(item, "dst_ip")), query)
+	}
+	fields := []string{
+		xdrPickString(item, "id"),
+		xdrPickString(item, "flow_id"),
+		xdrPickString(item, "message_id"),
+		xdrPickString(item, "agent_id"),
+		xdrPickString(item, "src_ip"),
+		xdrPickString(item, "dst_ip"),
+		strconv.FormatInt(xdrPickNumber(item, "src_port", 0), 10),
+		strconv.FormatInt(xdrPickNumber(item, "dst_port", 0), 10),
+		xdrPickString(item, "protocol"),
+		xdrPickString(item, "app_protocol"),
+		xdrPickString(item, "display_name"),
+		xdrPickString(item, "agent_display_name"),
+		xdrPickString(item, "probe_name"),
+		xdrPickString(item, "probe_kind"),
+		xdrPickString(item, "capture_source"),
+		xdrPickString(item, "attributed_agent_id"),
+		xdrPickString(item, "attributed_agent_name"),
+		xdrPickString(item, "attributed_hostname"),
+		xdrPickString(item, "associated_agent_id"),
+		xdrPickString(item, "associated_agent_name"),
+		xdrPickString(item, "associated_hostname"),
+		xdrPickString(item, "hostname"),
+		xdrPickString(item, "message"),
+		xdrPickString(item, "source"),
+	}
+	for _, token := range tokens {
+		matched := false
+		for _, field := range fields {
+			if strings.Contains(strings.ToLower(field), token) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	return true
 }
 
 func parseOptionalTime(value string) *time.Time {
@@ -8586,7 +8961,7 @@ func agentConfigHandler(cfg *Config) http.HandlerFunc {
 					"engine_desired_states": desiredStates,
 					"policy": map[string]interface{}{
 						"version":   1,
-						"traffic":   map[string]interface{}{"enabled": trafficEnabled, "interface": "auto", "capture_engine": "auto", "bpf_filter": "tcp or udp", "promiscuous": true},
+						"traffic":   map[string]interface{}{"enabled": trafficEnabled, "interface": "auto", "capture_engine": "auto", "bpf_filter": "", "promiscuous": true},
 						"rasp":      map[string]interface{}{"enabled": raspEnabled, "mode": "monitor", "languages": map[string]bool{"python": true, "java": false}, "block_on_hit": false},
 						"runtime":   map[string]interface{}{"enabled": hidsEnabled, "backend": "auto", "include_paths": []string{"/etc", "/var/log"}, "exclude_paths": []string{"/proc", "/sys"}},
 						"asset":     map[string]interface{}{"interval_seconds": 60, "processes": true, "performance": true},
@@ -8597,6 +8972,57 @@ func agentConfigHandler(cfg *Config) http.HandlerFunc {
 				"tasks": []map[string]interface{}{},
 			},
 		})
+	}
+}
+
+func agentTrafficEventHandler(cfg *Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if r.Method != http.MethodPost {
+			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+			return
+		}
+		var req struct {
+			AgentID  string                 `json:"agent_id"`
+			AgentKey string                 `json:"agent_key"`
+			Stream   string                 `json:"stream"`
+			Type     string                 `json:"type"`
+			Data     string                 `json:"data"`
+			Values   map[string]interface{} `json:"values"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			writeJSONError(w, http.StatusBadRequest, "invalid_traffic_event", "Invalid traffic event")
+			return
+		}
+		agentID := normalizeAgentID(req.AgentID)
+		stream := strings.TrimSpace(req.Stream)
+		if agentID == "" || stream == "" {
+			writeJSONError(w, http.StatusBadRequest, "invalid_traffic_event", "agent_id and stream are required")
+			return
+		}
+		if err := requireAgentKey(r.Context(), cfg, agentID, req.AgentKey); err != nil {
+			writeJSONError(w, http.StatusUnauthorized, "agent_auth_required", "valid agent key required")
+			return
+		}
+		if cfg == nil || cfg.Redis == nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "redis_unavailable", "redis unavailable")
+			return
+		}
+		values := req.Values
+		if len(values) == 0 {
+			values = map[string]interface{}{"type": req.Type, "data": req.Data}
+		}
+		if strings.TrimSpace(asString(values["data"])) == "" && strings.TrimSpace(req.Data) != "" {
+			values["data"] = req.Data
+		}
+		if strings.TrimSpace(asString(values["type"])) == "" && strings.TrimSpace(req.Type) != "" {
+			values["type"] = req.Type
+		}
+		if err := cfg.Redis.XAdd(r.Context(), &redis.XAddArgs{Stream: stream, Values: values}).Err(); err != nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "traffic_event_write_failed", err.Error())
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"ack": true}})
 	}
 }
 
@@ -9433,7 +9859,7 @@ traffic:
   enabled: true
   interface: "__TRAFFIC_INTERFACE__"
   capture_engine: auto
-  bpf_filter: "tcp or udp"
+  bpf_filter: ""
   promiscuous: true
   streams:
     raw: "flows:raw"
@@ -9537,7 +9963,7 @@ printf 'ly-agent installed. API_SERVER=%%s REDIS_SERVER=%%s TRAFFIC_INTERFACE=%%
 
 func agentDownloadHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
@@ -9572,8 +9998,15 @@ func agentDownloadHandler(cfg *Config) http.HandlerFunc {
 		candidates := agentBinaryCandidates(targetOS, targetArch)
 		for _, path := range candidates {
 			if st, err := os.Stat(path); err == nil && !st.IsDir() {
+				etag := fmt.Sprintf("%x-%x", st.Size(), st.ModTime().UnixNano())
 				w.Header().Set("Content-Type", "application/octet-stream")
 				w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=%s", filename))
+				w.Header().Set("Cache-Control", "no-store, no-cache, must-revalidate, max-age=0")
+				w.Header().Set("Pragma", "no-cache")
+				w.Header().Set("Expires", "0")
+				w.Header().Set("ETag", etag)
+				w.Header().Set("X-LyFlow-Agent-Version", "v2.0.0")
+				w.Header().Set("X-LyFlow-Agent-Size", strconv.FormatInt(st.Size(), 10))
 				http.ServeFile(w, r, path)
 				return
 			}

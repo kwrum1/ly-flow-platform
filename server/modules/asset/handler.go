@@ -449,13 +449,18 @@ func applyHostMetadata(host *Host, metadataRaw []byte) {
 	if cores := int64FromInterface(perf["cpu_cores"]); cores > 0 {
 		host.CPU = strconv.FormatInt(cores, 10) + " cores"
 	}
+	if cpuPercent, ok := floatFromInterface(perf["cpu_usage_percent"]); ok {
+		host.CPUUsagePercent = &cpuPercent
+	}
 	if loadAvg, ok := perf["load_avg"].([]interface{}); ok && len(loadAvg) > 0 {
 		if load1, ok := floatFromInterface(loadAvg[0]); ok {
 			cpuPercent := load1
 			if cores := int64FromInterface(perf["cpu_cores"]); cores > 0 {
 				cpuPercent = (load1 / float64(cores)) * 100
 			}
-			host.CPUUsagePercent = &cpuPercent
+			if host.CPUUsagePercent == nil {
+				host.CPUUsagePercent = &cpuPercent
+			}
 		}
 	}
 	if memory, ok := perf["memory"].(map[string]interface{}); ok {
