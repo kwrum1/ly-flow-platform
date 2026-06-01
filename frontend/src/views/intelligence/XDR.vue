@@ -183,6 +183,7 @@ import api, { isRequestCanceled } from '../../api'
 import { normalizeList } from '../../api/adapters'
 import { createPollingScheduler } from '../../data/polling/scheduler'
 import { createPollingFreshnessTracker } from '../../data/polling/freshness'
+import { PLATFORM_TIME_UPDATED_EVENT, formatChinaDateTime, formatChinaTime } from '../../shared/time'
 
 const router = useRouter()
 const searchQuery = ref('')
@@ -254,14 +255,14 @@ const statusText = (status) => {
 
 const formatTime = (value) => {
   if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
-  return date.toLocaleString('zh-CN')
+  const text = formatChinaDateTime(value)
+  return text === '暂无时间' || text === '时间格式异常' ? '-' : text
 }
 
 const formatPollingTime = (value) => {
   if (!value) return '-'
-  return new Date(value).toLocaleTimeString('zh-CN', { hour12: false })
+  const text = formatChinaTime(value)
+  return text === '时间格式异常' ? '-' : text
 }
 
 const stats = computed(() => [
@@ -282,6 +283,14 @@ const filteredEvents = computed(() => {
       .some((value) => String(value).toLowerCase().includes(query))
   })
 })
+
+const refreshFormattedTimes = () => {
+  events.value = events.value.map((event) => ({
+    ...event,
+    timeText: formatTime(event.rawTime),
+  }))
+  updateXdrPolling()
+}
 
 const updateXdrPolling = (snapshot = xdrFreshness.getSnapshot()) => {
   xdrPolling.value = {
@@ -387,10 +396,12 @@ const loadXDRData = async ({ signal } = {}) => {
       const status = normalizeStatus(firstDefined(event, 'status', 'state'))
       const eventId = firstDefined(event, 'id', 'event_id', 'uuid', 'alert_id')
 
+      const rawTime = firstDefined(event, 'created_at', 'timestamp', 'time')
       return {
         id: eventId || `xdr-${idx}`,
         eventDetailId: eventId || null,
-        timeText: formatTime(firstDefined(event, 'created_at', 'timestamp', 'time')),
+        rawTime,
+        timeText: formatTime(rawTime),
         type: String(firstDefined(event, 'event_type', 'type', 'attack_type') || '-'),
         srcIp: String(firstDefined(event, 'src_ip', 'source_ip', 'srcIp') || '-'),
         dstIp: String(firstDefined(event, 'dst_ip', 'destination_ip', 'dstIp') || '-'),
@@ -435,10 +446,12 @@ onMounted(async () => {
   }, 1000)
   await loadXDRData()
   window.addEventListener('resize', handleResize)
+  window.addEventListener(PLATFORM_TIME_UPDATED_EVENT, refreshFormattedTimes)
 })
 
 onUnmounted(() => {
   window.removeEventListener('resize', handleResize)
+  window.removeEventListener(PLATFORM_TIME_UPDATED_EVENT, refreshFormattedTimes)
   xdrScheduler.stopAll()
   if (xdrStaleTimer) clearInterval(xdrStaleTimer)
   echarts.getInstanceByDom(graphRef.value)?.dispose()

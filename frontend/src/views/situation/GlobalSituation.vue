@@ -427,6 +427,7 @@ import { useRouter } from 'vue-router'
 import api, { createRequestController, isRequestCanceled } from '../../api'
 import { createPollingFreshnessTracker } from '../../data/polling/freshness'
 import { CONNECTION_STATUS, createRealtimeGateway } from '../../realtime'
+import { formatChinaDateTime, formatChinaTime, platformNow } from '../../shared/time'
 
 const router = useRouter()
 const currentTime = ref('')
@@ -498,23 +499,15 @@ const footerStats = ref({
 })
 
 const updateTime = () => {
-  const now = new Date()
-  currentTime.value = now.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  }).replace(/\//g, '-')
+  currentTime.value = formatChinaDateTime(platformNow()).replace(/\//g, '-')
 }
 
 const unwrap = (payload) => payload?.data ?? payload ?? {}
 
 const formatPollingTime = (value) => {
   if (!value) return '-'
-  return new Date(value).toLocaleTimeString('zh-CN', { hour12: false })
+  const text = formatChinaTime(value)
+  return text === '时间格式异常' ? '-' : text
 }
 
 const updateSituationPolling = (snapshot = situationFreshness.getSnapshot()) => {

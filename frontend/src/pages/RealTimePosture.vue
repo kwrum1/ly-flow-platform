@@ -317,7 +317,7 @@ function shortTime(value) {
   if (!value) return '-'
   const d = new Date(value)
   if (isNaN(d.getTime())) return '-'
-  return d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
+  return formatChinaDateTime(value)
 }
 
 function fmtNum(v) { return Number(v).toFixed(1) }

@@ -41,15 +41,29 @@
       </article>
 
       <article class="panel mirror-panel location-panel">
-        <div class="panel-title"><strong>地点设置</strong><span>同步态势感知被攻击源</span></div>
+        <div class="panel-title location-title"><strong>地点设置</strong><span>同步态势感知被攻击源</span></div>
         <form class="location-form" @submit.prevent="saveTargetLocation">
           <label><span>省份</span><input v-model="targetProvince" placeholder="北京"></label>
           <label><span>城市</span><input v-model="targetCity" placeholder="北京"></label>
           <label><span>市区</span><input v-model="targetDistrict" placeholder="海淀区"></label>
           <button type="submit" class="primary" :disabled="savingTargetLocation || !targetCity.trim()">{{ savingTargetLocation ? '保存中' : '保存地点' }}</button>
-          <small>保存后全球态势地图目标点与目标区域会同步为该市区。</small>
+          <small>保存后全球态势地图目标点与区域同步为当前市区。</small>
         </form>
         <div v-if="targetLocationMessage" class="notice success">{{ targetLocationMessage }}</div>
+      </article>
+
+      <article class="panel mirror-panel time-panel">
+        <div class="panel-title"><strong>时间设置</strong><span>平台时间基准，统一修正所有情报显示</span></div>
+        <form class="time-form" @submit.prevent="saveSystemTime">
+          <label><span>服务器当前时间</span><input :value="serverTimeText" disabled></label>
+          <label><span>平台基准时间</span><input :value="platformTimeText" disabled></label>
+          <label><span>修改时间</span><input v-model="systemTimeInput" type="datetime-local"></label>
+          <label><span>NTP 服务器</span><input v-model.trim="ntpServer" placeholder="ntp.aliyun.com"></label>
+          <button type="button" @click="syncBrowserTime" :disabled="savingSystemTime">同步本机最新时间</button>
+          <button type="submit" class="primary" :disabled="savingSystemTime || !systemTimeInput">{{ savingSystemTime ? '同步中' : '保存时间' }}</button>
+          <small>同步会保存平台时间偏移，不直接依赖服务器系统时间；所有页面时间显示都会按该基准修正。</small>
+        </form>
+        <div v-if="systemTimeMessage" class="notice success">{{ systemTimeMessage }}</div>
       </article>
     </section>
 
@@ -143,6 +157,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { assetAgentClient, overviewClient, trafficClient } from '../api/domain'
 import { normalizeItems } from '../shared/api-normalize'
+import { formatChinaDateTime, refreshPlatformTimeOffset, setPlatformTimeOffset } from '../shared/time'
 
 const agents = ref([])
 const total = ref(0)
@@ -166,9 +181,17 @@ const targetCity = ref('')
 const targetDistrict = ref('')
 const savingTargetLocation = ref(false)
 const targetLocationMessage = ref('')
+const serverTime = ref('')
+const platformTime = ref('')
+const systemTimeInput = ref('')
+const ntpServer = ref('')
+const savingSystemTime = ref(false)
+const systemTimeMessage = ref('')
 
 const onlineCount = computed(() => agents.value.filter((a) => isOnline(a)).length)
 const offlineCount = computed(() => Math.max(agents.value.length - onlineCount.value, 0))
+const serverTimeText = computed(() => serverTime.value ? formatChinaDateTime(serverTime.value) : '-')
+const platformTimeText = computed(() => platformTime.value ? formatChinaDateTime(platformTime.value) : '-')
 
 function cleanIP(ip) { return (ip || '').replace(/\/\d+$/, '') || '-' }
 
@@ -246,6 +269,50 @@ async function loadTargetLocation() {
   } catch { /* location setting keeps defaults until server is updated */ }
 }
 
+async function loadSystemTime() {
+  try {
+    const data = await refreshPlatformTimeOffset(overviewClient.systemTime)
+    applySystemTimePayload(data)
+  } catch { /* time panel remains editable */ }
+}
+
+function applySystemTimePayload(data = {}) {
+  setPlatformTimeOffset(data?.offset_ms || 0)
+  serverTime.value = data?.server_time || ''
+  platformTime.value = data?.platform_time || serverTime.value || ''
+  ntpServer.value = data?.ntp_server || ntpServer.value || ''
+  systemTimeInput.value = toDateTimeLocal(platformTime.value || new Date().toISOString())
+}
+
+function toDateTimeLocal(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const pad = (n) => String(n).padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+async function syncBrowserTime() {
+  systemTimeInput.value = toDateTimeLocal(new Date().toISOString())
+  await saveSystemTime()
+}
+
+async function saveSystemTime() {
+  if (!systemTimeInput.value) return
+  savingSystemTime.value = true
+  systemTimeMessage.value = ''
+  error.value = ''
+  try {
+    const date = new Date(systemTimeInput.value)
+    const data = await overviewClient.updateSystemTime({ time: date.toISOString(), ntp_server: ntpServer.value.trim() })
+    applySystemTimePayload(data)
+    systemTimeMessage.value = `平台时间基准已同步${ntpServer.value ? `，NTP：${ntpServer.value}` : ''}`
+  } catch (e) {
+    error.value = e?.message || '系统时间同步失败'
+  } finally {
+    savingSystemTime.value = false
+  }
+}
+
 function mirrorInterfaceLabel(iface) {
   const parts = [iface.name]
   if (iface.ips?.length) parts.push(iface.ips.join(', '))
@@ -287,7 +354,7 @@ async function saveTargetLocation() {
     targetProvince.value = data?.province || targetProvince.value.trim()
     targetCity.value = data?.city || targetCity.value.trim()
     targetDistrict.value = data?.district || targetDistrict.value.trim()
-    targetLocationMessage.value = `态势目标已同步为 ${data?.label || [targetProvince.value, targetCity.value, targetDistrict.value].filter(Boolean).join('·')}`
+    targetLocationMessage.value = `已保存：态势地图目标区域 = ${data?.label || [targetProvince.value, targetCity.value, targetDistrict.value].filter(Boolean).join('·')}`
   } catch (e) {
     error.value = e?.message || '地点设置保存失败'
   } finally {
@@ -372,6 +439,7 @@ onMounted(() => {
   loadAgents()
   loadMirrorConfig()
   loadTargetLocation()
+  loadSystemTime()
 })
 </script>
 
@@ -452,7 +520,7 @@ onMounted(() => {
 
 .settings-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(360px, 0.92fr);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 12px;
   background: transparent;
   border: 0;
@@ -471,20 +539,28 @@ onMounted(() => {
 }
 
 .mirror-form,
-.location-form {
+.location-form,
+.time-form {
   display: grid;
-  grid-template-columns: minmax(220px, 0.45fr) auto auto minmax(260px, 1fr);
+  grid-template-columns: minmax(180px, 1fr) auto;
   gap: 10px;
   align-items: end;
   padding: 12px 16px;
 }
 
 .mirror-form label,
-.location-form label {
+.location-form label,
+.time-form label {
   display: grid;
   gap: 6px;
   color: var(--text-secondary);
   font-size: 12px;
+}
+
+.mirror-form small,
+.location-form small,
+.time-form small {
+  grid-column: 1 / -1;
 }
 
 .mirror-form small,
@@ -495,7 +571,18 @@ onMounted(() => {
 }
 
 .location-form {
-  grid-template-columns: minmax(86px, 0.85fr) minmax(86px, 0.85fr) minmax(96px, 0.9fr) auto minmax(170px, 1fr);
+  grid-template-columns: repeat(3, minmax(96px, 1fr)) auto;
+  align-items: end;
+}
+
+.location-panel .notice.success {
+  margin: 0 16px 14px;
+}
+
+.location-title span {
+  max-width: 160px;
+  text-align: right;
+  line-height: 1.35;
 }
 
 .mirror-switch {

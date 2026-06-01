@@ -118,6 +118,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { CONNECTION_STATUS } from '../realtime'
+import { platformNow } from '../shared/time'
 import {
   navGroups as sharedNavGroups,
   routeMeta as sharedRouteMeta
@@ -186,12 +187,12 @@ export default {
     }
 
     const updateTime = () => {
-      const now = new Date()
+      const now = platformNow()
       currentTime.value = now.toLocaleTimeString('zh-CN', {
-        hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
+        timeZone: 'Asia/Shanghai', hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false
       })
       currentDate.value = now.toLocaleDateString('zh-CN', {
-        weekday: 'short', month: '2-digit', day: '2-digit'
+        timeZone: 'Asia/Shanghai', weekday: 'short', month: '2-digit', day: '2-digit'
       })
     }
 

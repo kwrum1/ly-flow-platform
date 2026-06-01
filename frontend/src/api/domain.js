@@ -108,4 +108,6 @@ export const overviewClient = Object.freeze({
   globalSituation: () => api.get('/public/situation/global'),
   targetLocation: () => api.get('/situation/target-location'),
   updateTargetLocation: (payload) => api.put('/situation/target-location', payload),
+  systemTime: () => api.get('/system/time'),
+  updateSystemTime: (payload) => api.put('/system/time', payload),
 })

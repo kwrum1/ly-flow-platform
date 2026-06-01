@@ -19,9 +19,9 @@
           <tbody>
             <tr v-if="loading && !hasLoaded"><td colspan="7" class="empty-cell">正在读取会话数据</td></tr>
             <tr v-else-if="sessions.length === 0"><td colspan="7" class="empty-cell">当前没有会话记录。</td></tr>
-            <tr v-for="session in sessions" :key="session.message_id || session.id">
+            <tr v-for="session in sessions" :key="`${session.message_id || session.id}-${timeVersion}`">
               <td>{{ formatChinaDateTime(session.timestamp || session.created_at || session.last_seen) }}</td>
-              <td><b>{{ probeName(session) }}</b><small>{{ probeKind(session) }}</small></td>
+              <td><b>{{ trafficSourceText(session) }}</b></td>
               <td><span class="engine-chip">{{ protocolText(session) }}</span></td>
               <td>{{ endpointText(session, 'src') }}</td>
               <td>{{ endpointText(session, 'dst') }}</td>
@@ -61,7 +61,7 @@
 import { nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { assetAgentClient, trafficClient } from '../api/domain'
 import { normalizeItems, pickText } from '../shared/api-normalize'
-import { formatChinaDateTime } from '../shared/time'
+import { formatChinaDateTime, getPlatformTimeVersion } from '../shared/time'
 
 const loading = ref(false)
 const hasLoaded = ref(false)
@@ -69,6 +69,7 @@ const error = ref('')
 const query = ref('')
 const filters = ref({ src_ip: '', dst_ip: '', protocol: '' })
 const sessions = ref([])
+const timeVersion = ref(0)
 const page = ref(1)
 const pageSize = ref(12)
 const selected = ref(null)
@@ -84,19 +85,18 @@ function display(value) {
   return value === undefined || value === null || value === '' ? '-' : String(value)
 }
 
-function probeName(item) {
+function trafficSourceName(item) {
   const id = entity(item, 'agent_id') || item.agent_id || ''
   if (isMirrorTraffic(item, id)) return '流量镜像分析'
   return agentNames.value[id] || item.agent_display_name || item.display_name || item.probe_name || item.hostname || id
 }
 
-function probeKind(item) {
-  const id = entity(item, 'agent_id') || item.agent_id || ''
-  return isMirrorTraffic(item, id) ? '镜像接口' : '终端探针抓包'
+function trafficSourceText(item) {
+  return `流量来源:${trafficSourceName(item) || '-'}`
 }
 
 function isMirrorTraffic(item, id = '') {
-  return item.capture_source === 'mirror' || item.probe_name === '流量镜像分析' || item.agent_display_name === '流量镜像分析' || item.display_name === '流量镜像分析' || !id || id === 'local' || id === 'localhost'
+  return item.capture_source === 'mirror' || item.probe_kind === '镜像接口' || item.probe_name === '流量镜像分析' || item.agent_display_name === '流量镜像分析' || item.display_name === '流量镜像分析'
 }
 
 function protocolText(item) {
@@ -116,8 +116,7 @@ function sessionSummary(item) {
 function sessionRows(item) {
   return [
     { label: '时间', value: display(formatChinaDateTime(item.timestamp || item.created_at || item.last_seen)) },
-    { label: '探针', value: probeName(item) },
-    { label: '探针类型', value: probeKind(item) },
+    { label: '流量来源', value: trafficSourceName(item) },
     { label: '协议', value: protocolText(item) },
     { label: '源地址', value: endpointText(item, 'src') },
     { label: '目的地址', value: endpointText(item, 'dst') },
@@ -142,6 +141,7 @@ async function loadAgents() {
 }
 
 async function loadSessions() {
+  timeVersion.value = getPlatformTimeVersion()
   loading.value = true
   error.value = ''
   try {

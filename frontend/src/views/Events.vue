@@ -243,6 +243,7 @@ import {
 import { aggregateLifecycleMetrics, aggregateStatusPipeline, formatDurationLabel } from '../domain/ops-metrics'
 import { CONNECTION_STATUS, createRealtimeGateway } from '../realtime'
 import { sanitizeSensitiveValue } from '../utils/security-display'
+import { formatChinaDateTime } from '../shared/time'
 
 const router = useRouter()
 const events = ref([])
@@ -508,9 +509,8 @@ const priorityOf = (event) => {
 const formatTime = (value) => {
   if (!value) return '-'
   const normalized = typeof value === 'number' && value < 1000000000000 ? value * 1000 : value
-  const date = new Date(normalized)
-  if (Number.isNaN(date.getTime())) return '-'
-  return date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit' })
+  const text = formatChinaDateTime(normalized)
+  return text === '暂无时间' || text === '时间格式异常' ? '-' : text
 }
 
 const applyPreset = (key) => {

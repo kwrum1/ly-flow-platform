@@ -6,6 +6,8 @@ import * as ElementPlusIcons from '@element-plus/icons-vue'
 import App from './App.vue'
 import router from './router'
 import { useAuthStore } from './stores/auth'
+import { overviewClient } from './api/domain'
+import { refreshPlatformTimeOffset } from './shared/time'
 
 const app = createApp(App)
 const pinia = createPinia()
@@ -20,5 +22,6 @@ app.use(ElementPlus)
 
 const authStore = useAuthStore(pinia)
 authStore.initializeSession().catch(() => {})
+refreshPlatformTimeOffset(overviewClient.systemTime).catch(() => {})
 
 app.mount('#app')

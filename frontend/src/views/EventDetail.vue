@@ -320,9 +320,8 @@ const pushAuditEntry = ({ type, result, message }) => {
 const formatTime = (value) => {
   if (!value) return '-'
   const normalized = typeof value === 'number' && value < 1000000000000 ? value * 1000 : value
-  const date = new Date(normalized)
-  if (Number.isNaN(date.getTime())) return '-'
-  return date.toLocaleString('zh-CN')
+  const text = formatChinaDateTime(normalized)
+  return text === '暂无时间' || text === '时间格式异常' ? '-' : text
 }
 
 const toTimestampValue = (value) => {

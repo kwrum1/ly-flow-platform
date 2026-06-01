@@ -68,6 +68,7 @@ import { useRoute } from 'vue-router'
 import { isRequestCanceled } from '../api'
 import { timelineAPI } from '../api/events'
 import { groupTimelineBySource, normalizeTimelineItems } from '../domain/timeline'
+import { formatChinaDateTime } from '../shared/time'
 
 const route = useRoute()
 const timelineItems = ref([])
@@ -83,9 +84,8 @@ const severityText = (severity) => severityMap[severity] || severity || '未知'
 const sourceLabel = (source) => sourceMap[source] || String(source || 'events').toUpperCase()
 const formatTime = (value) => {
   if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
-  return date.toLocaleString('zh-CN')
+  const text = formatChinaDateTime(value)
+  return text === '暂无时间' || text === '时间格式异常' ? '-' : text
 }
 
 const loadTimeline = async () => {

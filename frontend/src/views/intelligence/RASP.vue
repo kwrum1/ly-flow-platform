@@ -210,6 +210,7 @@ import { normalizeList } from '../../api/adapters'
 import { createPollingScheduler } from '../../data/polling/scheduler'
 import { createPollingFreshnessTracker } from '../../data/polling/freshness'
 import { sanitizeSensitiveValue } from '../../utils/security-display'
+import { formatChinaDateTime, formatChinaTime } from '../../shared/time'
 
 const activeFilter = ref('all')
 const trendRef = ref(null)
@@ -267,14 +268,14 @@ const normalizeSeverity = (severity) => {
 
 const formatTime = (value) => {
   if (!value) return '-'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
-  return date.toLocaleString('zh-CN')
+  const text = formatChinaDateTime(value)
+  return text === '暂无时间' || text === '时间格式异常' ? '-' : text
 }
 
 const formatPollingTime = (value) => {
   if (!value) return '-'
-  return new Date(value).toLocaleTimeString('zh-CN', { hour12: false })
+  const text = formatChinaTime(value)
+  return text === '时间格式异常' ? '-' : text
 }
 
 const updateRaspPolling = (snapshot = raspFreshness.getSnapshot()) => {
