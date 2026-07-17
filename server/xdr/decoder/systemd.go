@@ -37,7 +37,7 @@ func (d *SystemdDecoder) Decode(line string) (*models.NormalizedLog, error) {
 		if pidIdx := strings.Index(log.Program, "["); pidIdx != -1 {
 			if endIdx := strings.Index(log.Program, "]"); endIdx != -1 {
 				log.Program = log.Program[:pidIdx]
-				if pid, err := strconv.Atoi(log.Program[pidIdx+1:endIdx]); err == nil {
+				if pid, err := strconv.Atoi(log.Program[pidIdx+1 : endIdx]); err == nil {
 					log.Metadata["pid"] = pid
 				}
 			}

@@ -5,25 +5,32 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"strings"
-	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/lyflow/ly-flow-platform/contracts"
+	transport "github.com/lyflow/ly-flow-platform/transportreliability"
 	"github.com/redis/go-redis/v9"
 
 	"ly-flow-platform/security-engine/config"
 )
 
 type Engine struct {
-	cfg    config.Config
-	client *redis.Client
-	stats  Stats
-	rules  atomic.Pointer[Bundle]
-	mu     sync.Mutex
+	cfg      config.Config
+	client   *redis.Client
+	stats    Stats
+	state    atomic.Pointer[engineState]
+	reliable *transport.RedisConsumer
+	health   *runtimeHealth
+}
+
+type engineState struct {
+	bundle   *Bundle
+	manifest LifecycleManifest
 }
 
 type Stats struct {
@@ -33,85 +40,139 @@ type Stats struct {
 	Reloads     atomic.Uint64
 }
 
-type Snapshot struct {
-	Service       string            `json:"service"`
-	Status        string            `json:"status"`
-	Inputs        []string          `json:"inputs"`
-	Outputs       map[string]string `json:"outputs"`
-	BundleVersion string            `json:"bundle_version"`
-	RuleCounts    map[string]int    `json:"rule_counts"`
-	Received      uint64            `json:"received"`
-	Alerts        uint64            `json:"alerts"`
-	DeadLetters   uint64            `json:"dead_letters"`
-	Reloads       uint64            `json:"reloads"`
-}
-
 func New(cfg config.Config, client *redis.Client) *Engine {
-	e := &Engine{cfg: cfg, client: client}
-	e.rules.Store(EmptyBundle())
+	if cfg.ReadCount <= 0 {
+		cfg.ReadCount = 64
+	}
+	if cfg.MaxMessageBytes <= 0 {
+		cfg.MaxMessageBytes = 1 << 20
+	}
+	if cfg.CPUBudget <= 0 {
+		cfg.CPUBudget = 100 * time.Millisecond
+	}
+	if cfg.MemoryBudgetBytes <= 0 {
+		cfg.MemoryBudgetBytes = 16 << 20
+	}
+	if cfg.RestartBudget <= 0 {
+		cfg.RestartBudget = 3
+	}
+	e := &Engine{cfg: cfg, client: client, health: newRuntimeHealth(cfg)}
+	spool, err := transport.RuntimeSpoolFromEnv("security-engine-consumer")
+	if err != nil {
+		log.Printf("[security-engine] encrypted transport spool disabled: %v", err)
+	}
+	e.reliable = transport.NewRedisConsumer(transport.ConsumerConfig{
+		Client: client, Group: cfg.ConsumerGroup, Consumer: cfg.ConsumerName, Spool: spool,
+		Retry: transport.RetryPolicy{MaxAttempts: 4, BaseDelay: 50 * time.Millisecond, MaxDelay: time.Second, Jitter: 0.2},
+	})
+	e.state.Store(&engineState{bundle: EmptyBundle()})
 	return e
 }
 
-func (e *Engine) EnsureGroups(ctx context.Context) {
+func (e *Engine) EnsureGroups(ctx context.Context) error {
 	for _, stream := range e.cfg.InputStreams {
 		if err := e.client.XGroupCreateMkStream(ctx, stream, e.cfg.ConsumerGroup, "0").Err(); err != nil && !strings.Contains(err.Error(), "BUSYGROUP") {
-			log.Printf("[security-engine] create group failed stream=%s err=%v", stream, err)
+			return fmt.Errorf("create consumer group for %s: %w", stream, err)
 		}
 	}
+	return nil
 }
 
-func (e *Engine) Run(ctx context.Context) {
-	e.EnsureGroups(ctx)
+func (e *Engine) Run(ctx context.Context) error {
+	if _, err := e.VerifyIntegrity(ctx); err != nil {
+		return fmt.Errorf("verify runtime integrity: %w", err)
+	}
+	if err := e.EnsureGroups(ctx); err != nil {
+		e.health.degrade("transport_unavailable", false)
+		return err
+	}
+	if err := transport.RegisterProducer(ctx, e.client, "security-engine"); err != nil {
+		e.health.degrade("transport_unavailable", false)
+		return fmt.Errorf("register reliable producer: %w", err)
+	}
 	for {
 		select {
 		case <-ctx.Done():
-			return
+			return nil
 		default:
-			e.consumeOnce(ctx)
+			if err := e.consumeOnce(ctx); err != nil {
+				return err
+			}
 		}
 	}
 }
 
-func (e *Engine) consumeOnce(ctx context.Context) {
+func (e *Engine) consumeOnce(ctx context.Context) error {
+	e.health.touchWatchdog()
+	if err := transport.RegisterProducer(ctx, e.client, "security-engine"); err != nil {
+		e.health.degrade("transport_unavailable", false)
+		return fmt.Errorf("renew reliable producer lease: %w", err)
+	}
+	started := time.Now()
+	for _, stream := range e.cfg.InputStreams {
+		if err := e.reliable.Reclaim(ctx, stream, e.process); err != nil {
+			e.health.degrade("transport_unavailable", false)
+			return fmt.Errorf("reclaim pending stream %s: %w", stream, err)
+		}
+		if time.Since(started) > e.cfg.CPUBudget {
+			e.health.degrade("cpu_budget_exceeded", false)
+			return ErrRuntimeCPUBudget
+		}
+	}
 	streams := make([]string, 0, len(e.cfg.InputStreams)*2)
 	streams = append(streams, e.cfg.InputStreams...)
 	for range e.cfg.InputStreams {
 		streams = append(streams, ">")
 	}
-	results, err := e.client.XReadGroup(ctx, &redis.XReadGroupArgs{Group: e.cfg.ConsumerGroup, Consumer: e.cfg.ConsumerName, Streams: streams, Count: 64, Block: e.cfg.ReadBlock}).Result()
+	results, err := e.client.XReadGroup(ctx, &redis.XReadGroupArgs{Group: e.cfg.ConsumerGroup, Consumer: e.cfg.ConsumerName, Streams: streams, Count: e.cfg.ReadCount, Block: e.cfg.ReadBlock}).Result()
 	if err != nil {
-		if err != redis.Nil {
-			log.Printf("[security-engine] read failed: %v", err)
+		if !errors.Is(err, redis.Nil) {
+			e.health.degrade("transport_unavailable", false)
 			if strings.Contains(err.Error(), "NOGROUP") {
-				e.EnsureGroups(ctx)
+				if groupErr := e.EnsureGroups(ctx); groupErr != nil {
+					return errors.Join(fmt.Errorf("read input streams: %w", err), groupErr)
+				}
 			}
+			return fmt.Errorf("read input streams: %w", err)
 		}
-		return
+		return nil
 	}
 	for _, result := range results {
-		ids := make([]string, 0, len(result.Messages))
-		for _, msg := range result.Messages {
-			ids = append(ids, msg.ID)
-			e.process(ctx, result.Stream, msg)
-		}
-		if len(ids) > 0 {
-			_ = e.client.XAck(ctx, result.Stream, e.cfg.ConsumerGroup, ids...).Err()
+		if err := e.reliable.Handle(ctx, result.Stream, result.Messages, e.process); err != nil {
+			return fmt.Errorf("durable handoff for %s: %w", result.Stream, err)
 		}
 	}
+	return nil
 }
 
-func (e *Engine) process(ctx context.Context, stream string, msg redis.XMessage) {
+func (e *Engine) process(ctx context.Context, delivery transport.Delivery) (transport.DurableOutcome, error) {
 	e.stats.Received.Add(1)
-	env, err := decodeTelemetry(msg.Values)
+	encoded, err := json.Marshal(delivery.Values)
 	if err != nil {
-		e.deadLetter(ctx, stream, msg.ID, msg.Values, err)
-		return
+		return transport.DurableOutcome{}, fmt.Errorf("measure security-engine delivery: %w", err)
+	}
+	if len(encoded) > e.cfg.MaxMessageBytes || len(encoded) > e.cfg.MemoryBudgetBytes {
+		e.health.degrade("memory_budget_exceeded", false)
+		return transport.DurableOutcome{}, ErrRuntimeMemoryBudget
+	}
+	uid := transport.DeterministicUID("security_engine_receipts", delivery.Stream, delivery.MessageID)
+	processed, err := e.client.HExists(ctx, "transport_reliability:security_engine", uid).Result()
+	if err != nil {
+		return transport.DurableOutcome{}, fmt.Errorf("load security-engine receipt: %w", err)
+	}
+	if processed {
+		return transport.DurableOutcome{UID: uid, Sink: "security_engine_receipts"}, nil
+	}
+	env, err := decodeTelemetry(delivery.Values)
+	if err != nil {
+		e.stats.DeadLetters.Add(1)
+		return transport.DurableOutcome{}, transport.Permanent(transport.ReasonInvalidPayload, err)
 	}
 	if err := env.Validate(); err != nil {
-		e.deadLetter(ctx, stream, msg.ID, msg.Values, err)
-		return
+		e.stats.DeadLetters.Add(1)
+		return transport.DurableOutcome{}, transport.Permanent(transport.ReasonInvalidPayload, err)
 	}
-	alerts := e.rules.Load().Match(env)
+	alerts := e.state.Load().bundle.Match(env)
 	for _, alert := range alerts {
 		alert.ID = alertID(env.ID, alert.RuleID)
 		alert.OccurredAt = env.ObservedAt
@@ -120,26 +181,22 @@ func (e *Engine) process(ctx context.Context, stream string, msg redis.XMessage)
 		if env.RawReference != nil {
 			alert.EvidenceRefs = []contracts.RawReference{*env.RawReference}
 		}
-		alert.CandidateOnly = alert.CandidateOnly || alert.Category == contracts.TelemetryRASP && !e.cfg.BlockByDefault
+		alert.CandidateOnly = alert.CandidateOnly || alert.Category == contracts.TelemetryRASP
 		if err := e.emitAlert(ctx, alert); err != nil {
-			log.Printf("[security-engine] emit alert failed: %v", err)
-			continue
+			return transport.DurableOutcome{}, fmt.Errorf("emit alert %s: %w", alert.ID, err)
 		}
 		e.stats.Alerts.Add(1)
 	}
-}
-
-func (e *Engine) Reload(bundle *Bundle) {
-	if bundle == nil {
-		bundle = EmptyBundle()
+	if err := e.client.HSet(ctx, "transport_reliability:security_engine", uid, delivery.MessageID).Err(); err != nil {
+		return transport.DurableOutcome{}, fmt.Errorf("persist security-engine receipt: %w", err)
 	}
-	e.rules.Store(bundle)
-	e.stats.Reloads.Add(1)
+	return transport.DurableOutcome{UID: uid, Sink: "security_engine_receipts"}, nil
 }
 
-func (e *Engine) Snapshot() Snapshot {
-	bundle := e.rules.Load()
-	return Snapshot{Service: "ly-security-engine", Status: "running", Inputs: e.cfg.InputStreams, Outputs: map[string]string{"dpi": e.cfg.DPIStream, "runtime": e.cfg.RuntimeStream, "rasp": e.cfg.RASPStream, "log_audit": e.cfg.LogAuditStream}, BundleVersion: bundle.Version, RuleCounts: bundle.Counts(), Received: e.stats.Received.Load(), Alerts: e.stats.Alerts.Load(), DeadLetters: e.stats.DeadLetters.Load(), Reloads: e.stats.Reloads.Load()}
+func (e *Engine) Activate(bundle *Bundle, manifest LifecycleManifest) {
+	e.state.Store(&engineState{bundle: bundle, manifest: manifest})
+	e.stats.Reloads.Add(1)
+	e.health.recover()
 }
 
 func (e *Engine) emitAlert(ctx context.Context, alert contracts.ComponentAlert) error {
@@ -151,7 +208,7 @@ func (e *Engine) emitAlert(ctx context.Context, alert contracts.ComponentAlert) 
 		return err
 	}
 	stream := e.outputStream(alert.Category)
-	return e.client.XAdd(ctx, &redis.XAddArgs{Stream: stream, Values: map[string]any{"data": string(data)}}).Err()
+	return e.client.Eval(ctx, securityAlertScript, []string{"transport_reliability:security_alerts", stream}, alert.ID, string(data)).Err()
 }
 
 func (e *Engine) outputStream(category contracts.TelemetryCategory) string {
@@ -169,11 +226,12 @@ func (e *Engine) outputStream(category contracts.TelemetryCategory) string {
 	}
 }
 
-func (e *Engine) deadLetter(ctx context.Context, stream, msgID string, values map[string]any, cause error) {
-	e.stats.DeadLetters.Add(1)
-	raw, _ := json.Marshal(values)
-	_ = e.client.XAdd(ctx, &redis.XAddArgs{Stream: "deadletter:" + stream, Values: map[string]any{"source_stream": stream, "source_message_id": msgID, "reason": cause.Error(), "raw": string(raw), "created_at": time.Now().UTC().Format(time.RFC3339Nano)}}).Err()
-}
+const securityAlertScript = `
+if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1 then return redis.call('HGET', KEYS[1], ARGV[1]) end
+local id = redis.call('XADD', KEYS[2], '*', 'event_uid', ARGV[1], 'data', ARGV[2])
+redis.call('HSET', KEYS[1], ARGV[1], id)
+return id
+`
 
 func decodeTelemetry(values map[string]any) (contracts.TelemetryEnvelope, error) {
 	data, ok := values["data"]

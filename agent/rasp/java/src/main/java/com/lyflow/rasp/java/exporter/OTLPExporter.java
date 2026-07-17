@@ -1,284 +1,444 @@
 package com.lyflow.rasp.java.exporter;
 
+import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonPrimitive;
+import com.google.gson.JsonSerializer;
 import com.lyflow.rasp.java.config.RASPConfig;
 import com.lyflow.rasp.java.model.RASPEvent;
-import com.google.gson.Gson;
-import com.google.gson.JsonObject;
-import com.google.gson.JsonArray;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
-import java.io.OutputStream;
-import java.net.HttpURLConnection;
-import java.net.URL;
-import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
+import java.io.IOException;
+import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.Map;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.LongSupplier;
 
-/**
- * OTLP HTTP Exporter
- * Exports RASP events in OpenTelemetry format
- */
-public class OTLPExporter implements Exporter {
-    private static final Logger logger = LoggerFactory.getLogger(OTLPExporter.class);
+// allow: SIZE_OK - this bounded exporter is one queue-owning supervised state machine.
+public final class OTLPExporter implements Exporter {
+    private static final long WATCHDOG_STALE_NANOS = TimeUnit.SECONDS.toNanos(5);
+    private static final long WATCHDOG_CHECK_NANOS = TimeUnit.SECONDS.toNanos(1);
+    private static final long WATCHDOG_BACKOFF_NANOS = TimeUnit.MILLISECONDS.toNanos(250);
 
-    private static final String OTLP_ENDPOINT = "/v1/traces";
-    private static final String CONTENT_TYPE = "application/x-protobuf";
-
-    private final RASPConfig config;
-    private final Gson gson;
-    private final BlockingQueue<RASPEvent> eventQueue;
-    private final ExecutorService exporterExecutor;
-    private volatile boolean running = true;
-
-    public OTLPExporter(RASPConfig config) {
-        this.config = config;
-        this.gson = new Gson();
-        this.eventQueue = new LinkedBlockingQueue<>(10000);
-        this.exporterExecutor = Executors.newSingleThreadExecutor(r -> {
-            Thread t = new Thread(r, "otlp-exporter");
-            t.setDaemon(true);
-            return t;
-        });
-
-        startExporting();
-        logger.info("OTLPExporter initialized, endpoint: {}", config.getOTLPEndpoint());
+    interface WatchdogClock {
+        long nanoTime();
+        Instant now();
+        boolean await(CountDownLatch stopped, long timeoutNanos) throws InterruptedException;
     }
 
-    private void startExporting() {
-        exporterExecutor.submit(() -> {
-            while (running) {
-                try {
-                    RASPEvent event = eventQueue.poll(1, TimeUnit.SECONDS);
-                    if (event != null) {
-                        sendEvent(event);
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    break;
-                } catch (Exception e) {
-                    logger.error("Error in OTLP exporter loop", e);
-                }
-            }
+    private static final class SystemWatchdogClock implements WatchdogClock {
+        @Override
+        public long nanoTime() {
+            return System.nanoTime();
+        }
+
+        @Override
+        public Instant now() {
+            return Instant.now();
+        }
+
+        @Override
+        public boolean await(CountDownLatch stopped, long timeoutNanos) throws InterruptedException {
+            return stopped.await(timeoutNanos, TimeUnit.NANOSECONDS);
+        }
+    }
+
+    private final RASPConfig config;
+    private final Gson gson = new GsonBuilder()
+            .registerTypeAdapter(Instant.class, (JsonSerializer<Instant>)
+                    (source, type, context) -> new JsonPrimitive(source.toString()))
+            .create();
+    private final CanonicalEventEncoder encoder = new CanonicalEventEncoder();
+    private final BlockingQueue<RASPEvent> eventQueue;
+    private final int physicalQueueCapacity;
+    private final Object queueAdmissionLock = new Object();
+    private final Object workerLifecycleLock = new Object();
+    private final ExecutorService executor;
+    private final ExecutorService watchdogExecutor;
+    private final BridgeFallbackLog fallbackLog;
+    private final RASPBridgeTransport transport;
+    private final CanonicalEvidenceLog evidenceLog;
+    private final LongSupplier nanoTime;
+    private final WatchdogClock watchdogClock;
+    private final CountDownLatch stopped = new CountDownLatch(1);
+    private final CountDownLatch watchdogFinished = new CountDownLatch(1);
+    private final AtomicLong delivered = new AtomicLong();
+    private final AtomicLong rejected = new AtomicLong();
+    private final AtomicLong failures = new AtomicLong();
+    private final AtomicLong fallbackPersisted = new AtomicLong();
+    private final AtomicLong publicationRetryCount = new AtomicLong();
+    private volatile boolean running = true;
+    private volatile boolean workerBusy;
+    private volatile String lastError = "";
+    private volatile Instant watchdogAt;
+    private volatile long watchdogActivityNanos;
+    private volatile long failureAtNanos;
+    private volatile Future<?> workerTask;
+    private volatile String publicationStatus = "healthy";
+    private volatile String publicationLastError = "";
+    private volatile String publicationReason = "";
+    private volatile ControlHealthPublicationException lastPublicationFailure;
+
+    public OTLPExporter(RASPConfig config) {
+        this(config, ThreadCpuTime.supplier(), new SystemWatchdogClock());
+    }
+
+    OTLPExporter(RASPConfig config, LongSupplier nanoTime) {
+        this(config, nanoTime, new SystemWatchdogClock());
+    }
+
+    OTLPExporter(RASPConfig config, LongSupplier nanoTime, WatchdogClock watchdogClock) {
+        this.config = config;
+        this.nanoTime = nanoTime;
+        this.watchdogClock = watchdogClock;
+        watchdogAt = watchdogClock.now();
+        watchdogActivityNanos = watchdogClock.nanoTime();
+        physicalQueueCapacity = config.getQueueCapacity();
+        eventQueue = new ArrayBlockingQueue<>(physicalQueueCapacity);
+        transport = config.getEvidencePath().isEmpty() ? new RASPBridgeTransport(config) : null;
+        evidenceLog = config.getEvidencePath().isEmpty()
+                ? null
+                : new CanonicalEvidenceLog(config.getEvidencePath(), config.getMaxLogBytes());
+        BridgeFallbackLog configuredFallback;
+        try {
+            configuredFallback = new BridgeFallbackLog(config);
+        } catch (RuntimeException error) {
+            configuredFallback = null;
+            failures.incrementAndGet();
+            lastError = "fallback_integrity_failed";
+            config.disablePrevention();
+        }
+        fallbackLog = configuredFallback;
+        if (!new BinaryIntegrityVerifier().verify(config)) {
+            config.disablePrevention();
+            failures.incrementAndGet();
+            lastError = "binary_integrity_failed";
+            reportControlHealth(lastError);
+        }
+        executor = Executors.newSingleThreadExecutor(task -> {
+            Thread thread = new Thread(task, "rasp-bounded-exporter");
+            thread.setDaemon(true);
+            return thread;
         });
+        watchdogExecutor = Executors.newSingleThreadExecutor(task -> {
+            Thread thread = new Thread(task, "rasp-exporter-watchdog");
+            thread.setDaemon(true);
+            return thread;
+        });
+        workerTask = executor.submit(this::runExporter);
+        watchdogExecutor.submit(this::runWatchdog);
     }
 
     @Override
     public void export(RASPEvent event) {
-        if (event == null) return;
-
-        // Add agent metadata
-        if (event.getAppName() == null || event.getAppName().isEmpty()) {
-            event.setAppName(config.getAppName() != null ? config.getAppName() : getAppName());
+        if (!prepare(event)) {
+            return;
         }
-
-        // Queue the event for async export
-        boolean queued = eventQueue.offer(event);
-        if (!queued) {
-            logger.warn("Event queue full, dropping event: {}", event.getId());
+        synchronized (queueAdmissionLock) {
+            if (eventQueue.size() >= effectiveQueueCapacity() || !eventQueue.offer(event)) {
+                rejected.incrementAndGet();
+                lastError = "queue_capacity_exceeded";
+                reportControlHealth(lastError);
+            }
         }
     }
 
     @Override
     public void exportSync(RASPEvent event) {
-        sendEvent(event);
+        if (prepare(event)) {
+            sendEvent(event);
+        }
+    }
+
+    private boolean prepare(RASPEvent event) {
+        if (event == null || !running) {
+            return false;
+        }
+        applyAppName(event);
+        if (transport != null) {
+            try {
+                transport.refreshConfig();
+            } catch (IOException | RuntimeException error) {
+                recordFailure(event, error);
+                return false;
+            }
+        }
+        return config.shouldExportNow();
+    }
+
+    private void runExporter() {
+        while (running || !eventQueue.isEmpty()) {
+            touchWatchdog();
+            try {
+                RASPEvent event = eventQueue.poll(100, TimeUnit.MILLISECONDS);
+                if (event != null) {
+                    sendEvent(event);
+                }
+            } catch (InterruptedException ignored) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
     }
 
     private void sendEvent(RASPEvent event) {
+        workerBusy = true;
+        touchWatchdog();
         try {
-            String otlpPayload = buildOTLPPayload(event);
-            sendToOTLPEndpoint(otlpPayload);
-            logger.debug("Event exported successfully: {}", event.getId());
-        } catch (Exception e) {
-            logger.error("Failed to export event: {}", event.getId(), e);
-            // Fallback: try sending to Redis directly
-            try {
-                sendToRedis(event);
-            } catch (Exception ex) {
-                logger.error("Failed to send event to Redis as fallback", ex);
+            long started = nanoTime.getAsLong();
+            JsonObject payload = encoder.encode(event, config);
+            if (gson.toJson(payload).getBytes(java.nio.charset.StandardCharsets.UTF_8).length > config.getMemoryBudgetBytes()) {
+                failures.incrementAndGet();
+                lastError = "memory_budget_exceeded";
+                reportControlHealth(lastError);
+                return;
             }
+            if (nanoTime.getAsLong() - started > TimeUnit.MILLISECONDS.toNanos(config.getCpuBudgetMillis())) {
+                failures.incrementAndGet();
+                lastError = "cpu_budget_exceeded";
+                reportControlHealth(lastError);
+                return;
+            }
+            try {
+                if (evidenceLog != null) {
+                    evidenceLog.append(payload);
+                } else {
+                    transport.refreshConfig();
+                    transport.send(payload, gson);
+                }
+                delivered.incrementAndGet();
+                lastError = "";
+                if ("degraded".equals(publicationStatus)) {
+                    reportControlHealth("ready");
+                }
+            } catch (IOException | RuntimeException error) {
+                recordFailure(event, error);
+            }
+        } finally {
+            workerBusy = false;
+            touchWatchdog();
         }
     }
 
-    private String buildOTLPPayload(RASPEvent event) {
-        // Build OTLP JSON payload
-        JsonObject payload = new JsonObject();
-
-        // ResourceSpans array
-        JsonArray resourceSpans = new JsonArray();
-        JsonObject resourceSpan = new JsonObject();
-
-        // Resource
-        JsonObject resource = new JsonObject();
-        JsonObject resourceAttr = new JsonObject();
-        JsonArray attrs = new JsonArray();
-
-        // Agent ID attribute
-        attrs.add(createAttribute("agent.id", config.getAgentID()));
-        attrs.add(createAttribute("agent.type", "java"));
-        attrs.add(createAttribute("service.name", "ly-rasp-java"));
-
-        resource.add("attributes", attrs);
-        resourceSpan.add("resource", resource);
-
-        // ScopeSpans (empty for now)
-        JsonArray scopeSpans = new JsonArray();
-        JsonObject scopeSpan = new JsonObject();
-        JsonObject scope = new JsonObject();
-        scope.add("name", createJsonPrimitive("ly-rasp"));
-        scope.add("version", createJsonPrimitive("1.0.0"));
-        scopeSpan.add("scope", scope);
-
-        // Spans array
-        JsonArray spans = new JsonArray();
-        JsonObject span = new JsonObject();
-
-        // Span details
-        span.add("trace_id", createJsonPrimitive(generateTraceId()));
-        span.add("span_id", createJsonPrimitive(generateSpanId()));
-        span.add("parent_span_id", createJsonPrimitive(""));
-        span.add("name", createJsonPrimitive("rasp." + event.getType()));
-        span.add("kind", createJsonPrimitive(1)); // INTERNAL
-        span.add("startTimeUnixNano", createJsonPrimitive(String.valueOf(event.getTimestamp() * 1000000)));
-        span.add("endTimeUnixNano", createJsonPrimitive(String.valueOf(System.currentTimeMillis() * 1000000)));
-        span.add("status", createJsonObject("code", 1)); // UNSET
-
-        // Span attributes
-        JsonArray spanAttrs = new JsonArray();
-        spanAttrs.add(createAttribute("event.type", event.getType()));
-        spanAttrs.add(createAttribute("event.severity", event.getSeverity()));
-        spanAttrs.add(createAttribute("event.id", event.getId()));
-        spanAttrs.add(createAttribute("event.class", event.getClassName()));
-        spanAttrs.add(createAttribute("event.method", event.getMethodName()));
-
-        if (event.getStackTrace() != null) {
-            spanAttrs.add(createAttribute("event.stacktrace", event.getStackTrace()));
+    private void recordFailure(RASPEvent event, Exception error) {
+        failures.incrementAndGet();
+        failureAtNanos = watchdogClock.nanoTime();
+        watchdogAt = watchdogClock.now();
+        if (error instanceof ControlAuthorizationException) {
+            config.disablePrevention();
+            lastError = "authorization_failed";
+            reportControlHealth(lastError);
+            return;
         }
+        if (error instanceof ConfigIntegrityException) {
+            config.disablePrevention();
+            lastError = error.getMessage();
+            reportControlHealth(lastError);
+            return;
+        }
+        if (error instanceof RuntimeBudgetException budgetError) {
+            lastError = budgetError.reason();
+            reportControlHealth(lastError);
+            return;
+        }
+        lastError = "exporter_unavailable";
+        persistFallback(encoder.encode(event, config), lastError);
+        reportControlHealth(lastError);
+    }
 
-        if (event.getContext() != null) {
-            for (Map.Entry<String, Object> entry : event.getContext().entrySet()) {
-                String key = "event.context." + entry.getKey();
-                Object value = entry.getValue();
-                if (value != null) {
-                    spanAttrs.add(createAttribute(key, String.valueOf(value)));
+    private void runWatchdog() {
+        long nextRestartAt = watchdogClock.nanoTime();
+        try {
+            while (running && !watchdogClock.await(stopped, WATCHDOG_CHECK_NANOS)) {
+                long now = watchdogClock.nanoTime();
+                boolean unavailable = "exporter_unavailable".equals(lastError);
+                boolean staleWorker = workerBusy
+                        && now - watchdogActivityNanos > WATCHDOG_STALE_NANOS;
+                boolean staleExporter = unavailable
+                        && now - failureAtNanos > WATCHDOG_STALE_NANOS;
+                boolean stale = staleWorker || staleExporter;
+                if (!stale || now < nextRestartAt || "off".equals(config.getMode())) {
+                    continue;
+                }
+                lastError = "watchdog_stale";
+                watchdogAt = watchdogClock.now();
+                if (!config.recordWatchdogRestart()) {
+                    lastError = config.getRuntimeHealthReason();
+                    reportControlHealth(lastError);
+                    return;
+                }
+                reportControlHealth(lastError);
+                restartWorker();
+                int shift = Math.min(config.getRestartCount() - 1, 20);
+                nextRestartAt = now + (WATCHDOG_BACKOFF_NANOS << shift);
+            }
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+        } finally {
+            watchdogFinished.countDown();
+        }
+    }
+
+    private void restartWorker() {
+        synchronized (workerLifecycleLock) {
+            if (!running) {
+                return;
+            }
+            workerTask.cancel(true);
+            workerTask = executor.submit(this::runExporter);
+        }
+    }
+
+    private void touchWatchdog() {
+        watchdogActivityNanos = watchdogClock.nanoTime();
+        watchdogAt = watchdogClock.now();
+    }
+
+    private void persistFallback(JsonObject payload, String reason) {
+        if (fallbackLog == null) {
+            return;
+        }
+        try {
+            fallbackLog.append(payload, reason, config);
+            fallbackPersisted.incrementAndGet();
+        } catch (IOException | NoSuchAlgorithmException | RuntimeException error) {
+            lastError = error.getClass().getSimpleName();
+        }
+    }
+
+    private void reportControlHealth(String reason) {
+        if (transport == null) {
+            persistFallback(controlHealth(reason), reason);
+            return;
+        }
+        if ("degraded".equals(publicationStatus) && reason.equals(publicationReason)) {
+            persistFallback(controlHealth(reason), reason);
+            return;
+        }
+        ControlHealthPublicationException failure = publishControlHealth(reason);
+        if (failure != null) {
+            persistFallback(controlHealth(reason), reason);
+        }
+    }
+
+    private ControlHealthPublicationException publishControlHealth(String reason) {
+        if (transport == null) {
+            publicationStatus = "healthy";
+            publicationLastError = "";
+            lastPublicationFailure = null;
+            return null;
+        }
+        for (int attempt = 1; attempt <= 3; attempt++) {
+            try {
+                transport.sendControlHealth(controlHealth(reason), gson);
+                publicationStatus = "healthy";
+                publicationLastError = "";
+                publicationReason = reason;
+                lastPublicationFailure = null;
+                return null;
+            } catch (IOException | RuntimeException error) {
+                publicationStatus = "degraded";
+                publicationReason = reason;
+                publicationRetryCount.incrementAndGet();
+                publicationLastError = error.getClass().getSimpleName() + ": " + error.getMessage();
+                if (attempt < 3 && !awaitPublicationBackoff(attempt)) {
+                    break;
                 }
             }
         }
-
-        span.add("attributes", spanAttrs);
-
-        // Events array
-        JsonArray events = new JsonArray();
-        JsonObject eventObj = new JsonObject();
-        eventObj.add("timeUnixNano", createJsonPrimitive(String.valueOf(event.getTimestamp() * 1000000)));
-        eventObj.add("name", createJsonPrimitive("exception"));
-        JsonArray eventAttrs = new JsonArray();
-        eventAttrs.add(createAttribute("exception.type", event.getType()));
-        eventAttrs.add(createAttribute("exception.message", event.getDescription()));
-        eventObj.add("attributes", eventAttrs);
-        events.add(eventObj);
-        span.add("events", events);
-
-        spans.add(span);
-        scopeSpan.add("spans", spans);
-        scopeSpans.add(scopeSpan);
-        resourceSpan.add("scopeSpans", scopeSpans);
-        resourceSpans.add(resourceSpan);
-
-        payload.add("resourceSpans", resourceSpans);
-
-        return gson.toJson(payload);
+        lastPublicationFailure = new ControlHealthPublicationException(3, publicationLastError);
+        return lastPublicationFailure;
     }
 
-    private JsonObject createAttribute(String key, String value) {
-        JsonObject attr = new JsonObject();
-        attr.add("key", createJsonPrimitive(key));
-        JsonObject val = new JsonObject();
-        val.add("stringValue", createJsonPrimitive(value));
-        attr.add("value", val);
-        return attr;
-    }
-
-    private JsonObject createJsonObject(String key, int value) {
-        JsonObject obj = new JsonObject();
-        obj.add(key, createJsonPrimitive(String.valueOf(value)));
-        return obj;
-    }
-
-    private com.google.gson.JsonPrimitive createJsonPrimitive(String value) {
-        return new com.google.gson.JsonPrimitive(value);
-    }
-
-    private void sendToOTLPEndpoint(String payload) throws Exception {
-        String endpoint = config.getServerAddr() + OTLP_ENDPOINT;
-        URL url = new URL(endpoint);
-        HttpURLConnection conn = (HttpURLConnection) url.openConnection();
-
+    private boolean awaitPublicationBackoff(int attempt) {
         try {
-            conn.setRequestMethod("POST");
-            conn.setRequestProperty("Content-Type", "application/json");
-            conn.setRequestProperty("User-Agent", "ly-rasp-java/1.0.0");
-            conn.setDoOutput(true);
-            conn.setConnectTimeout(5000);
-            conn.setReadTimeout(5000);
-
-            try (OutputStream os = conn.getOutputStream()) {
-                os.write(payload.getBytes(StandardCharsets.UTF_8));
-                os.flush();
-            }
-
-            int responseCode = conn.getResponseCode();
-            if (responseCode >= 400) {
-                throw new Exception("OTLP endpoint returned " + responseCode);
-            }
-        } finally {
-            conn.disconnect();
+            TimeUnit.MILLISECONDS.sleep(10L << (attempt - 1));
+            return true;
+        } catch (InterruptedException error) {
+            Thread.currentThread().interrupt();
+            publicationLastError = "InterruptedException: control health retry interrupted";
+            return false;
         }
     }
 
-    private void sendToRedis(RASPEvent event) throws Exception {
-        // Fallback: send to Redis Stream alerts:rasp
-        // In production, this would use Lettuce client
-        logger.info("Sending event to Redis fallback: {}", event.getId());
-    }
-
-    private String getAppName() {
-        // Try to get application name from system properties
-        String appName = System.getProperty("spring.application.name");
-        if (appName == null) {
-            appName = System.getProperty("application.name", "unknown");
+    private void applyAppName(RASPEvent event) {
+        if (event.getAppName() == null || event.getAppName().isEmpty()) {
+            event.setAppName(config.getAppName());
         }
-        return appName;
-    }
-
-    private String generateTraceId() {
-        // Generate a 32-character hex trace ID
-        return String.format("%032x", System.nanoTime());
-    }
-
-    private String generateSpanId() {
-        // Generate a 16-character hex span ID
-        return String.format("%016x", System.nanoTime());
     }
 
     public void shutdown() {
-        running = false;
-        exporterExecutor.shutdown();
-        try {
-            if (!exporterExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
-                exporterExecutor.shutdownNow();
-            }
-        } catch (InterruptedException e) {
-            exporterExecutor.shutdownNow();
+        synchronized (workerLifecycleLock) {
+            running = false;
+            stopped.countDown();
+            executor.shutdown();
         }
+        watchdogExecutor.shutdownNow();
+        try {
+            if (!watchdogExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                watchdogExecutor.shutdownNow();
+                watchdogExecutor.awaitTermination(5, TimeUnit.SECONDS);
+            }
+            if (!executor.awaitTermination(5, TimeUnit.SECONDS)) {
+                eventQueue.clear();
+                workerTask.cancel(true);
+                executor.shutdownNow();
+                executor.awaitTermination(5, TimeUnit.SECONDS);
+            }
+        } catch (InterruptedException ignored) {
+            watchdogExecutor.shutdownNow();
+            executor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
+    }
+
+    boolean awaitWatchdogStopped(long timeout, TimeUnit unit) throws InterruptedException {
+        return watchdogFinished.await(timeout, unit);
+    }
+
+    boolean executorsTerminated() {
+        return executor.isTerminated() && watchdogExecutor.isTerminated();
     }
 
     public int getQueueSize() {
         return eventQueue.size();
+    }
+
+    private int effectiveQueueCapacity() {
+        int configured = Math.min(physicalQueueCapacity, config.getQueueCapacity());
+        return Math.max(eventQueue.size(), configured);
+    }
+
+    public Map<String, Object> getDeliveryHealth() {
+        String configReason = config.getRuntimeHealthReason();
+        String reason = lastError.isEmpty() ? configReason : lastError;
+        String status = failures.get() > 0 || rejected.get() > 0 || !reason.isEmpty() ? "degraded" : "healthy";
+        return new CanonicalControlHealth(
+                config, "java-rasp", effectiveQueueCapacity(), status, reason, watchdogAt, publication()).asMap();
+    }
+
+    public String getDeliveryHealthJson() {
+        return gson.toJson(getDeliveryHealth());
+    }
+
+    private JsonObject controlHealth(String reason) {
+        return new CanonicalControlHealth(
+                config, "java-rasp", effectiveQueueCapacity(), "degraded", reason, watchdogAt, publication()).asJson();
+    }
+
+    private ControlHealthPublication publication() {
+        return new ControlHealthPublication(
+                publicationStatus, publicationRetryCount.get(), publicationLastError);
+    }
+
+    ControlHealthPublicationException getLastPublicationFailure() {
+        return lastPublicationFailure;
     }
 }

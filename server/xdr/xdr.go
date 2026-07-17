@@ -10,10 +10,12 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/lyflow/ly-flow-platform/server/internal/redisconfig"
 	"github.com/lyflow/ly-flow-platform/server/unified"
 	"github.com/lyflow/ly-flow-platform/server/xdr/decoder"
 	"github.com/lyflow/ly-flow-platform/server/xdr/models"
 	"github.com/lyflow/ly-flow-platform/server/xdr/rules"
+	transport "github.com/lyflow/ly-flow-platform/transportreliability"
 )
 
 type XDRProcessor struct {
@@ -24,10 +26,10 @@ type XDRProcessor struct {
 	ctx       context.Context
 	cancel    context.CancelFunc
 	wg        sync.WaitGroup
+	reliable  *transport.RedisConsumer
 
-	stats     *models.XDREventStats
-	statsMu   sync.RWMutex
-
+	stats   *models.XDREventStats
+	statsMu sync.RWMutex
 }
 
 func NewXDRProcessor(redisAddr string, rulesDir string) (*XDRProcessor, error) {
@@ -43,6 +45,14 @@ func NewXDRProcessor(redisAddr string, rulesDir string) (*XDRProcessor, error) {
 	if err := xp.initRedis(); err != nil {
 		log.Printf("[XDR] Redis 连接失败: %v，不启用模拟数据", err)
 	}
+	spool, err := transport.RuntimeSpoolFromEnv("server-xdr-consumer")
+	if err != nil {
+		return nil, fmt.Errorf("configure encrypted transport spool: %w", err)
+	}
+	xp.reliable = transport.NewRedisConsumer(transport.ConsumerConfig{
+		Client: xp.redis, Group: "xdr-processor", Consumer: "xdr-consumer", Spool: spool,
+		Retry: transport.RetryPolicy{MaxAttempts: 4, BaseDelay: 50 * time.Millisecond, MaxDelay: time.Second, Jitter: 0.2},
+	})
 
 	decoder.InitDecoders()
 
@@ -54,9 +64,7 @@ func NewXDRProcessor(redisAddr string, rulesDir string) (*XDRProcessor, error) {
 }
 
 func (xp *XDRProcessor) initRedis() error {
-	xp.redis = redis.NewClient(&redis.Options{
-		Addr: xp.redisAddr,
-	})
+	xp.redis = redis.NewClient(redisconfig.Options(xp.redisAddr, 0))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -71,6 +79,9 @@ func (xp *XDRProcessor) initRedis() error {
 				log.Printf("[XDR] 创建消费者组失败 (%s): %v", stream, err)
 			}
 		}
+	}
+	if err := transport.RegisterProducer(ctx, xp.redis, "server-xdr"); err != nil {
+		return err
 	}
 
 	return nil
@@ -130,6 +141,16 @@ func (xp *XDRProcessor) consumeLogs() {
 
 func (xp *XDRProcessor) consumeUnifiedEvents() {
 	ctx := xp.ctx
+	if err := transport.RegisterProducer(ctx, xp.redis, "server-xdr"); err != nil {
+		log.Printf("[XDR] reliable producer lease renewal failed: %v", err)
+		return
+	}
+	for _, stream := range []string{"events:xdr", "alerts:xdr"} {
+		if err := xp.reliable.Reclaim(ctx, stream, xp.processDelivery); err != nil {
+			log.Printf("[XDR] pending reclaim failed stream=%s err=%v", stream, err)
+			return
+		}
+	}
 
 	streams, err := xp.redis.XReadGroup(ctx, &redis.XReadGroupArgs{
 		Group:    "xdr-processor",
@@ -144,16 +165,32 @@ func (xp *XDRProcessor) consumeUnifiedEvents() {
 	}
 
 	for _, stream := range streams {
-		for _, msg := range stream.Messages {
-			log := xp.convertMessageToNormalizedLog(stream.Stream, msg)
-			if log == nil {
-				continue
-			}
-			xp.processLog(log)
+		if err := xp.reliable.Handle(ctx, stream.Stream, stream.Messages, xp.processDelivery); err != nil {
+			log.Printf("[XDR] durable handoff failed stream=%s err=%v", stream.Stream, err)
 		}
-
-		xp.redis.XAck(ctx, stream.Stream, "xdr-processor", msgIDsToStrings(stream.Messages)...)
 	}
+}
+
+func (xp *XDRProcessor) processDelivery(ctx context.Context, delivery transport.Delivery) (transport.DurableOutcome, error) {
+	uid := transport.DeterministicUID("xdr_events_v2", delivery.Stream, delivery.MessageID)
+	processed, err := xp.redis.HExists(ctx, "transport_reliability:xdr_events_v2", uid).Result()
+	if err != nil {
+		return transport.DurableOutcome{}, fmt.Errorf("load XDR receipt: %w", err)
+	}
+	if processed {
+		return transport.DurableOutcome{UID: uid, Sink: "xdr_events_v2"}, nil
+	}
+	logEntry := xp.convertMessageToNormalizedLog(delivery.Stream, redis.XMessage{ID: delivery.MessageID, Values: delivery.Values})
+	if logEntry == nil {
+		return transport.DurableOutcome{}, transport.Permanent(transport.ReasonInvalidPayload, fmt.Errorf("unsupported XDR payload"))
+	}
+	if err := xp.processLog(ctx, logEntry); err != nil {
+		return transport.DurableOutcome{}, err
+	}
+	if err := xp.redis.HSet(ctx, "transport_reliability:xdr_events_v2", uid, delivery.MessageID).Err(); err != nil {
+		return transport.DurableOutcome{}, fmt.Errorf("persist XDR receipt: %w", err)
+	}
+	return transport.DurableOutcome{UID: uid, Sink: "xdr_events_v2"}, nil
 }
 
 func (xp *XDRProcessor) convertMessageToNormalizedLog(stream string, msg redis.XMessage) *models.NormalizedLog {
@@ -255,66 +292,73 @@ func (xp *XDRProcessor) unifiedEventToNormalizedLog(stream, msgID string, event 
 	return log
 }
 
-func (xp *XDRProcessor) processLog(log *models.NormalizedLog) {
+func (xp *XDRProcessor) processLog(ctx context.Context, log *models.NormalizedLog) error {
 	matches := xp.engine.Match(log)
 
 	for _, result := range matches {
-		xp.generateAlert(result)
+		if err := xp.generateAlert(ctx, result); err != nil {
+			return err
+		}
 	}
 
 	xp.updateStats(log, matches)
+	return nil
 }
 
-func (xp *XDRProcessor) generateAlert(result *models.MatchResult) {
+func (xp *XDRProcessor) generateAlert(ctx context.Context, result *models.MatchResult) error {
 	event := &models.XDREventInput{
-		EventType:       result.Rule.GetEventType(),
-		Severity:        result.Rule.GetSeverity(),
-		AgentID:         result.Log.AgentID,
-		Hostname:        result.Log.Hostname,
-		Message:         fmt.Sprintf("%s - %s", result.Rule.Name, result.Log.Message),
-		SrcIP:           result.Log.SrcIP,
-		DstIP:           result.Log.DstIP,
-		SrcPort:         result.Log.SrcPort,
-		DstPort:         result.Log.DstPort,
-		User:            result.Log.User,
-		Service:         result.Log.Service,
-		RawLog:          result.Log.Raw,
-		RuleID:          result.Rule.ID,
-		RuleName:        result.Rule.Name,
-		MitreTactic:     result.Rule.GetMitreTactic(),
-		MitreTechnique:  result.Rule.GetMitreTechnique(),
-		Tags:            result.Rule.GetTags(),
-		LogSource:       result.Log.Source,
-		Frequency:       result.Rule.Frequency,
+		EventType:      result.Rule.GetEventType(),
+		Severity:       result.Rule.GetSeverity(),
+		AgentID:        result.Log.AgentID,
+		Hostname:       result.Log.Hostname,
+		Message:        fmt.Sprintf("%s - %s", result.Rule.Name, result.Log.Message),
+		SrcIP:          result.Log.SrcIP,
+		DstIP:          result.Log.DstIP,
+		SrcPort:        result.Log.SrcPort,
+		DstPort:        result.Log.DstPort,
+		User:           result.Log.User,
+		Service:        result.Log.Service,
+		RawLog:         result.Log.Raw,
+		RuleID:         result.Rule.ID,
+		RuleName:       result.Rule.Name,
+		MitreTactic:    result.Rule.GetMitreTactic(),
+		MitreTechnique: result.Rule.GetMitreTechnique(),
+		Tags:           result.Rule.GetTags(),
+		LogSource:      result.Log.Source,
+		Frequency:      result.Rule.Frequency,
 	}
 
-	xp.publishAlert(event.ToXDREvent())
+	nativeID := fmt.Sprint(result.Log.Metadata["message_id"])
+	uid := transport.DeterministicUID("xdr_alerts", fmt.Sprint(result.Log.Metadata["stream"]), nativeID+":"+fmt.Sprint(result.Rule.ID))
+	return xp.publishAlert(ctx, event.ToXDREvent(), uid)
 }
 
-func (xp *XDRProcessor) publishAlert(event *models.XDREvent) {
-	data, _ := json.Marshal(event)
+func (xp *XDRProcessor) publishAlert(ctx context.Context, event *models.XDREvent, uid string) error {
+	data, err := json.Marshal(event)
+	if err != nil {
+		return fmt.Errorf("encode XDR alert: %w", err)
+	}
 
 	if xp.redis != nil {
-		ctx := context.Background()
-		xp.redis.XAdd(ctx, &redis.XAddArgs{
-			Stream: "alerts:xdr",
-			MaxLen: 10000,
-			Approx: true,
-			Values: map[string]interface{}{
-				"event_type": event.EventType,
-				"severity":   event.Severity,
-				"message":    event.Message,
-				"data":       string(data),
-				"timestamp":  event.CreatedAt.Format(time.RFC3339),
-			},
-		})
-
-		xp.redis.LPush(ctx, "alerts:list", string(data))
-		xp.redis.LTrim(ctx, "alerts:list", 0, 999)
+		if err := xp.redis.Eval(ctx, xdrAlertScript, []string{"transport_reliability:xdr_alerts", "alerts:xdr", "alerts:list"},
+			uid, event.EventType, event.Severity, event.Message, string(data), event.CreatedAt.Format(time.RFC3339),
+		).Err(); err != nil {
+			return fmt.Errorf("publish idempotent XDR alert: %w", err)
+		}
 	}
 
 	log.Printf("[XDR] 告警: [%s] %s (%d) - %s", event.Severity, event.RuleName, event.RuleID, event.SrcIP)
+	return nil
 }
+
+const xdrAlertScript = `
+if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1 then return redis.call('HGET', KEYS[1], ARGV[1]) end
+local id = redis.call('XADD', KEYS[2], '*', 'event_uid', ARGV[1], 'event_type', ARGV[2], 'severity', ARGV[3], 'message', ARGV[4], 'data', ARGV[5], 'timestamp', ARGV[6])
+redis.call('HSET', KEYS[1], ARGV[1], id)
+redis.call('LPUSH', KEYS[3], ARGV[5])
+redis.call('LTRIM', KEYS[3], 0, 999)
+return id
+`
 
 func (xp *XDRProcessor) updateStats(log *models.NormalizedLog, matches []*models.MatchResult) {
 	xp.statsMu.Lock()
@@ -358,15 +402,15 @@ func (xp *XDRProcessor) GetStats() *models.XDREventStats {
 	defer xp.statsMu.RUnlock()
 
 	stats := &models.XDREventStats{
-		TotalEvents:     xp.stats.TotalEvents,
-		TotalAlerts:     xp.stats.TotalAlerts,
-		CriticalAlerts:  xp.stats.CriticalAlerts,
-		HighAlerts:      xp.stats.HighAlerts,
-		MediumAlerts:    xp.stats.MediumAlerts,
-		LowAlerts:       xp.stats.LowAlerts,
-		EventsToday:     xp.stats.EventsToday,
-		AlertsToday:     xp.stats.AlertsToday,
-		TopSources:      xp.stats.TopSources,
+		TotalEvents:    xp.stats.TotalEvents,
+		TotalAlerts:    xp.stats.TotalAlerts,
+		CriticalAlerts: xp.stats.CriticalAlerts,
+		HighAlerts:     xp.stats.HighAlerts,
+		MediumAlerts:   xp.stats.MediumAlerts,
+		LowAlerts:      xp.stats.LowAlerts,
+		EventsToday:    xp.stats.EventsToday,
+		AlertsToday:    xp.stats.AlertsToday,
+		TopSources:     xp.stats.TopSources,
 	}
 
 	stats.Sources = make([]string, 0, len(stats.TopSources))
@@ -374,12 +418,4 @@ func (xp *XDRProcessor) GetStats() *models.XDREventStats {
 		stats.Sources = append(stats.Sources, source)
 	}
 	return stats
-}
-
-func msgIDsToStrings(messages []redis.XMessage) []string {
-	ids := make([]string, len(messages))
-	for i, m := range messages {
-		ids[i] = m.ID
-	}
-	return ids
 }

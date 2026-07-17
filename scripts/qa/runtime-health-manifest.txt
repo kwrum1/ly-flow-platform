@@ -1,0 +1,30 @@
+# Todo 15 bounded runtime health QA
+authoritative_agent=agent/cmd/runtime_health.go+rasp_bridge_health.go+integrity.go+rasp_policy.go+engine_supervisors.go
+authoritative_python=agent/rasp/python/ly_rasp/runtime_health.py+reporter.py+bridge.py+control_health.py
+authoritative_java=agent/rasp/java/src/main/java/com/lyflow/rasp/java/exporter/OTLPExporter.java+CanonicalControlHealth.java+ControlHealthPublication.java+ControlHealthPublicationException.java+BinaryIntegrityVerifier.java
+authoritative_security_engine=security-engine/engine/runtime_health.go
+schema=lyflow.control_health.v1
+schema_contract=contracts/control-health/v1/schema.json
+canonical_fixture=contracts/control-health/v1/fixture.json
+event_type=control.health
+canonical_runtimes=agent-runtime,python-rasp,java-rasp,security-engine
+failure_policy=observation-fail-open+integrity-fail-closed+authorization-fail-closed
+budgets=queue+read+cpu+memory+restart
+watchdog=canonical-utc+bounded-restart
+config_integrity=signed-agent-policy+hmac-rasp-bridge-config+signed-engine-lifecycle
+binary_integrity=python-sha256+java-sha256+security-engine-signed-bundle-digest
+degraded_health=canonical-reason+prevention-state+watchdog+restart-count
+publication_state=status+retry_count+last_error;bounded-attempts=3;backoff=10ms,20ms;recovery-clears-error
+prevention_state=acknowledged-signed-monitor-policy;fail-open-preserves-enabled;integrity-config-auth-restart-exhaustion-disable
+required_scenarios=healthy-canonical,exact-cross-runtime-fixture,observation-outage,publication-outage-fail-open,publication-recovery,authorization-rejection,read-cap,cpu-cap,memory-cap,watchdog-stale,watchdog-exhaustion,config-signature,binary-tamper,lifecycle-tamper,java-time-marshalling,experimental-java-boot
+go_runner=bash scripts/qa/run-go-tests.sh runtime-health
+agent_release_runner=bash scripts/qa/agent-release-integrity_test.sh
+agent_production_runner=bash scripts/qa/agent-production-integrity_test.sh
+python_runner=cd agent/rasp/python && python3 -m unittest tests.test_runtime_health tests.test_bridge_delivery tests.test_conformance tests.test_watchdog_supervisor
+python_expected_tests=20
+java_runner=bash scripts/qa/run-java-rasp-conformance.sh --iterations 10
+java_expected_tests=25-unit+1-integration
+java_support=experimental-runtime-profile;immutable-classified-jar;excluded-from-default-and-pilot
+schema_runner=bash scripts/qa/run-control-health-schema-conformance_test.sh
+java_experimental_runner=bash scripts/qa/java-rasp-experimental-profile_test.sh
+evidence=scripts/qa/runtime-health-evidence.txt

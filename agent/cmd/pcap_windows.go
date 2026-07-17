@@ -11,11 +11,11 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
-	"github.com/redis/go-redis/v9"
 )
 
 func (a *Agent) runPCAPPacketCapture() error {
-	captureInterface := strings.TrimSpace(a.cfg.TrafficInterface)
+	trafficConfig := a.captureConfigSnapshot()
+	captureInterface := strings.TrimSpace(trafficConfig.Interface)
 	if captureInterface == "" || strings.EqualFold(captureInterface, "auto") {
 		resolved, err := defaultWindowsPCAPInterface(a.cfg.API)
 		if err != nil {
@@ -23,58 +23,98 @@ func (a *Agent) runPCAPPacketCapture() error {
 			return err
 		}
 		captureInterface = resolved
+		a.cfgMu.Lock()
 		a.cfg.TrafficInterface = resolved
+		a.cfgMu.Unlock()
+		trafficConfig.Interface = resolved
 	}
+	if err := validateWindowsPCAPInterface(captureInterface); err != nil {
+		a.ensureTrafficQuality().ConfigureInterface(captureInterface, containerBridgePolicy{}, err)
+		a.markTrafficError(err)
+		return err
+	}
+	a.ensureTrafficQuality().ConfigureInterface(captureInterface, containerBridgePolicy{}, nil)
 	a.markTrafficCaptureStarted(captureInterface)
 
-	handle, err := pcap.OpenLive(captureInterface, 65536, a.cfg.Promiscuous, time.Second)
+	handle, err := pcap.OpenLive(captureInterface, 65536, trafficConfig.Promiscuous, time.Second)
 	if err != nil {
 		a.markTrafficError(err)
 		return err
 	}
 	defer handle.Close()
 
-	if strings.TrimSpace(a.cfg.BPFFilter) != "" {
-		if err := handle.SetBPFFilter(a.cfg.BPFFilter); err != nil {
+	if strings.TrimSpace(trafficConfig.BPFFilter) != "" {
+		if err := handle.SetBPFFilter(trafficConfig.BPFFilter); err != nil {
 			a.markTrafficError(err)
 			return fmt.Errorf("set bpf: %w", err)
 		}
 	}
 
-	client := redis.NewClient(&redis.Options{Addr: a.cfg.Redis})
-	defer client.Close()
-
 	packetSource := gopacket.NewPacketSource(handle, layers.LinkTypeEthernet)
 	scanDetector := newPortScanDetector()
+	packetsSinceStats := uint64(0)
 	for {
 		select {
 		case <-a.ctx.Done():
+			a.recordPCAPStats(handle)
 			return nil
 		case packet, ok := <-packetSource.Packets():
 			if !ok {
 				return nil
 			}
-			if !a.cfg.TrafficEnabled {
+			if !a.captureConfigSnapshot().Enabled {
 				continue
+			}
+			if a.trafficCaptureInterfaceChanged(captureInterface) {
+				return fmt.Errorf("capture interface changed from %s to %s", captureInterface, a.captureConfigSnapshot().Interface)
 			}
 			obs := a.observationFromPacket(packet, len(packet.Data()), "pcap")
-			if obs.Protocol == "" || isContainerBridgeTraffic(obs.SrcIP, obs.DstIP) {
-				continue
-			}
-			a.markTrafficPacket(obs)
-			if alert := scanDetector.observe(obs, a); alert != nil {
-				if err := publishJSONToStream(a.ctx, client, "alerts:dpi", alert, "component_alert"); err != nil {
-					fmt.Printf("[probe] port scan alert publish failed: %v\n", err)
+			alert, publish := a.processCapturedObservation(scanDetector, obs)
+			alertOutcome := trafficPublishAttempt{attempted: alert != nil}
+			if alert != nil {
+				alertOutcome.err = a.publishAgentStream(a.ctx, "alerts:dpi", alert, "component_alert")
+				if alertOutcome.err != nil {
+					fmt.Printf("[probe] port scan alert publish failed: %v\n", alertOutcome.err)
 				}
 			}
-			if err := a.publishTrafficObservation(client, obs); err != nil {
-				a.markTrafficError(err)
-				fmt.Printf("[probe] pcap flow publish failed: %v\n", err)
-			} else {
-				a.markTrafficPublish()
+			packetsSinceStats++
+			if packetsSinceStats >= 1024 {
+				a.recordPCAPStats(handle)
+				packetsSinceStats = 0
 			}
+			flowOutcome := trafficPublishAttempt{attempted: publish}
+			if publish {
+				flowOutcome.err = a.publishTrafficObservation(obs)
+				if flowOutcome.err != nil {
+					fmt.Printf("[probe] pcap flow publish failed: %v\n", flowOutcome.err)
+				}
+			}
+			a.recordTrafficPublishOutcome(alertOutcome, flowOutcome)
 		}
 	}
+}
+
+func validateWindowsPCAPInterface(name string) error {
+	devices, err := pcap.FindAllDevs()
+	if err != nil {
+		return fmt.Errorf("list pcap interfaces: %w", err)
+	}
+	for _, device := range devices {
+		if device.Name != name {
+			continue
+		}
+		return nil
+	}
+	return fmt.Errorf("pcap interface %s not found", name)
+}
+
+func (a *Agent) recordPCAPStats(handle *pcap.Handle) {
+	stats, err := handle.Stats()
+	if err != nil {
+		a.ensureTrafficQuality().RecordStatsUnavailable()
+		return
+	}
+	a.ensureTrafficQuality().RecordPCAPStats(captureSocketStats{Packets: uint64(stats.PacketsReceived), Drops: uint64(stats.PacketsDropped), InterfaceDrops: uint64(stats.PacketsIfDropped)})
 }
 
 func defaultWindowsPCAPInterface(api string) (string, error) {

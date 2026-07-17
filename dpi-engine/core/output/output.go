@@ -2,6 +2,8 @@ package output
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"log"
 	"sync"
@@ -19,22 +21,22 @@ const (
 
 // Alert represents a DPI alert
 type Alert struct {
-	ID        uint64    `json:"id"`
-	Timestamp string    `json:"timestamp"`
-	Type      string    `json:"type"`
-	SrcIP     string    `json:"src_ip"`
-	DstIP     string    `json:"dst_ip"`
-	SrcPort   uint16    `json:"src_port"`
-	DstPort   uint16    `json:"dst_port"`
-	Protocol  string    `json:"protocol"`
-	Signature string    `json:"signature"`
-	Category  string    `json:"category"`
-	Severity  uint8     `json:"severity"`
-	Score     int       `json:"score"`
-	Status    string    `json:"status"`
-	SensorID  string    `json:"sensor_id"`
-	Domain    string    `json:"domain,omitempty"`
-	Data      string    `json:"data,omitempty"`
+	ID        uint64 `json:"id"`
+	Timestamp string `json:"timestamp"`
+	Type      string `json:"type"`
+	SrcIP     string `json:"src_ip"`
+	DstIP     string `json:"dst_ip"`
+	SrcPort   uint16 `json:"src_port"`
+	DstPort   uint16 `json:"dst_port"`
+	Protocol  string `json:"protocol"`
+	Signature string `json:"signature"`
+	Category  string `json:"category"`
+	Severity  uint8  `json:"severity"`
+	Score     int    `json:"score"`
+	Status    string `json:"status"`
+	SensorID  string `json:"sensor_id"`
+	Domain    string `json:"domain,omitempty"`
+	Data      string `json:"data,omitempty"`
 }
 
 // Output handles alert output to Redis Stream
@@ -48,7 +50,10 @@ type Output struct {
 	queue          []*Alert
 	wg             sync.WaitGroup
 	running        atomic.Bool
-	stats          struct{ Sent uint64; Errors uint64 }
+	stats          struct {
+		Sent   uint64
+		Errors uint64
+	}
 }
 
 // New creates a new output handler
@@ -118,25 +123,17 @@ func (o *Output) flush() {
 	o.queue = make([]*Alert, 0, batchSize)
 	o.mu.Unlock()
 
-	pipe := o.client.Pipeline()
+	failed := make([]*Alert, 0)
 	for _, alert := range alerts {
-		data, _ := json.Marshal(alert)
-		pipe.XAdd(o.ctx, &redis.XAddArgs{
-			Stream: o.stream,
-			MaxLen: 10000,
-			Approx: true,
-			Values: map[string]interface{}{
-				"type": "dpi_alert",
-				"data": string(data),
-			},
-		})
+		if err := o.sendJSONToStream(o.stream, "dpi_alert", alert); err != nil {
+			failed = append(failed, alert)
+		}
 	}
-
-	if _, err := pipe.Exec(o.ctx); err != nil {
-		atomic.AddUint64(&o.stats.Errors, 1)
-		log.Printf("[output] XAdd error: %v", err)
-	} else {
-		atomic.AddUint64(&o.stats.Sent, uint64(len(alerts)))
+	if len(failed) > 0 {
+		o.mu.Lock()
+		o.queue = append(failed, o.queue...)
+		o.mu.Unlock()
+		log.Printf("[output] durable handoff paused for %d alerts", len(failed))
 	}
 }
 
@@ -207,15 +204,9 @@ func (o *Output) sendJSONToStream(stream, payloadType string, payload interface{
 		return err
 	}
 
-	err = o.client.XAdd(o.ctx, &redis.XAddArgs{
-		Stream: stream,
-		MaxLen: 10000,
-		Approx: true,
-		Values: map[string]interface{}{
-			"type": payloadType,
-			"data": string(data),
-		},
-	}).Err()
+	sum := sha256.Sum256(append([]byte(stream+"\x00"+payloadType+"\x00"), data...))
+	uid := "dpi-" + hex.EncodeToString(sum[:16])
+	err = o.client.Eval(o.ctx, idempotentOutputScript, []string{"transport_reliability:dpi_outputs", stream}, uid, payloadType, string(data)).Err()
 	if err == nil {
 		atomic.AddUint64(&o.stats.Sent, 1)
 	} else {
@@ -223,6 +214,13 @@ func (o *Output) sendJSONToStream(stream, payloadType string, payload interface{
 	}
 	return err
 }
+
+const idempotentOutputScript = `
+if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1 then return redis.call('HGET', KEYS[1], ARGV[1]) end
+local id = redis.call('XADD', KEYS[2], '*', 'event_uid', ARGV[1], 'type', ARGV[2], 'data', ARGV[3])
+redis.call('HSET', KEYS[1], ARGV[1], id)
+return id
+`
 
 // Stats returns output statistics
 func (o *Output) Stats() (sent, errors uint64) {

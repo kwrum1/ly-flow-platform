@@ -1,0 +1,18 @@
+# Todo 20 advisory response governance QA
+task=20
+candidate_input=v2-active-only
+shadow_rejection=typed-constructor+postgres-check-constraint+http-boundary
+state=response_advisories-postgres
+schema_migration=advisory_response_schema_migrations:20
+idempotency=response_advisory_audit-unique-key+canonical-payload-hash+postgres-advisory-lock
+approval=two-distinct-admin-or-analyst-actors
+verification=in-memory-fake-only+temporary-apply+rollback+zero-residual-state
+production_execution=disabled-no-verification-or-execute-route
+supported_actions=analyst_review,increase_monitoring,collect_forensic_bundle,suggest_waf_or_proxy_acl,suggest_host_isolation
+forbidden_actions=firewall_block,process_kill,file_delete,account_disable,namespace_isolate
+health_gates=incident-freshness+Agent-online-recent-heartbeat
+audit=response_advisory_audit-immutable
+dispatch_gate=repository-route+registry+import+AST-scan
+required_scenarios=fake-apply-rollback,restart-persistence,idempotent-replay,concurrent-submit,self-approval-denial,stale-incident-denial,unhealthy-Agent-denial,unsupported-action-denial,missing-verification-denial,shadow-type-DB-API-denial,no-production-dispatch
+runner=bash scripts/qa/run-go-tests.sh advisory-response
+evidence=.omo/evidence/task-20-lyflow-commercial-defense-hardening.txt

@@ -1,0 +1,32 @@
+{
+  "schema_version": "lyflow.detection-replay-manifest.v1",
+  "revision": "detection-replay.v1",
+  "corpus": {
+    "path": "corpus.jsonl",
+    "sha256": "b24b50908b2be4737c2cd06f6eb563a4e5800af8938b5700fdc537baa8ca1fd9"
+  },
+  "baseline": {
+    "path": "baseline.json",
+    "sha256": "0f84feaa3cd5191c06acc327578ab25894f1cb44bd1becc9b865daa9276cfb7a"
+  },
+  "representative_workflow": {
+    "path": "representative-workflow.json",
+    "sha256": "ad8e450b9df59fdecba77a6875454bab28a6d6076743bea2c52eeef0ab319778"
+  },
+  "algorithms": [
+    {
+      "identity": "v2-active",
+      "descriptor_path": "algorithms/v2-active.json",
+      "descriptor_sha256": "555fad4f72fc1a46a5b910fc85cee5f5add5751bff0fc3dbaf8a82ce86f12f24",
+      "rules_path": "rules/v2-active.json",
+      "rules_sha256": "a5c9c60ac3fb80edbe7b906a8ac444d8f2c8dcea502096a86f3c04f062447875"
+    },
+    {
+      "identity": "v3-shadow",
+      "descriptor_path": "algorithms/v3-shadow.json",
+      "descriptor_sha256": "00070798cf266a43f62b02b562cfbdce99d84e665e2b88a72af1cba7c2f318cc",
+      "rules_path": "rules/v3-shadow.json",
+      "rules_sha256": "6e841579e64b9ffa5b36861d3928f09a0f956703584d8b09a3731ecd8a6b1624"
+    }
+  ]
+}

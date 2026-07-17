@@ -1,0 +1,17 @@
+# Task22 release provenance QA manifest
+scripts/qa/release-provenance_test.sh
+scripts/qa/generate-release-evidence.sh --output <local-output>
+npm --prefix frontend ci --offline
+npm --prefix frontend audit --omit=dev --offline --json
+GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOWORK=off go test -race -shuffle=on -count=1 ./... (pkg)
+GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOWORK=off go test -race -shuffle=on -count=1 ./... (agent)
+GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOWORK=off go test -race -shuffle=on -count=1 ./... (dpi-engine)
+GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOWORK=off go test -race -shuffle=on -count=1 ./... (security-engine)
+GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOWORK=off go test -race -shuffle=on -count=1 ./... (server)
+npm --prefix frontend run lint
+npm --prefix frontend run typecheck
+npm --prefix frontend run test
+npm --prefix frontend run build
+mvn -o -f agent/rasp/java/pom.xml package -DskipTests
+scripts/release-provenance.sh validate-exceptions --file scripts/qa/vulnerability-exceptions.json
+scripts/build-offline-release.sh requires RELEASE_SIGNING_KEY plus digest-pinned local base images

@@ -18,6 +18,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -25,6 +26,8 @@ import (
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
 	"github.com/lyflow/ly-flow-platform/contracts"
+	shared "github.com/lyflow/ly-flow-platform/rasppolicy"
+	transport "github.com/lyflow/ly-flow-platform/transportreliability"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -35,61 +38,97 @@ var spoolRecordCounter uint64
 const defaultConfigFile = "/opt/ly-agent/etc/agent.yaml"
 
 type Config struct {
-	AgentID                 string
-	AgentKey                string
-	Mode                    string
-	API                     string
-	Redis                   string
-	InsecureSkipVerify      bool
-	HeartbeatInterval       int
-	LogLevel                string
-	LogFile                 string
-	TrafficEnabled          bool
-	TrafficInterface        string
-	CaptureEngine           string
-	BPFFilter               string
-	Promiscuous             bool
-	MaxTrafficEventsPerSec  int
-	RawStream               string
-	SemanticStream          string
-	TrafficTelemetryStream  string
-	RuntimeTelemetryStream  string
-	RASPTelemetryStream     string
-	LogAuditTelemetryStream string
-	SessionEnabled          bool
-	SessionStream           string
-	RetentionEnabled        bool
-	RetentionDir            string
-	SpoolEnabled            bool
-	SpoolDir                string
-	SpoolMaxBytes           int64
-	SpoolFlushInterval      int
-	HIDSEnabled             bool
-	RuntimeStream           string
-	RASPEnabled             bool
-	RASPStream              string
-	RASPBridgeAddr          string
-	RASPBridgeToken         string
-	AssetEnabled            bool
+	AgentID                  string
+	AgentKey                 string
+	EnrollmentToken          string
+	Mode                     string
+	API                      string
+	Redis                    string
+	RedisUsername            string
+	RedisPassword            string
+	RedisLegacyPassword      string
+	InsecureSkipVerify       bool
+	HeartbeatInterval        int
+	LogLevel                 string
+	LogFile                  string
+	TrafficEnabled           bool
+	TrafficInterface         string
+	CaptureEngine            string
+	BPFFilter                string
+	Promiscuous              bool
+	TrafficSampleEveryN      int
+	MaxTrafficEventsPerSec   int
+	RawStream                string
+	SemanticStream           string
+	TrafficTelemetryStream   string
+	RuntimeTelemetryStream   string
+	RASPTelemetryStream      string
+	LogAuditTelemetryStream  string
+	SessionEnabled           bool
+	SessionStream            string
+	RetentionEnabled         bool
+	RetentionDir             string
+	SpoolEnabled             bool
+	SpoolDir                 string
+	SpoolMaxBytes            int64
+	SpoolFlushInterval       int
+	HIDSEnabled              bool
+	RuntimeStream            string
+	RASPEnabled              bool
+	RASPStream               string
+	RASPBridgeAddr           string
+	RASPBridgeToken          string
+	RASPPolicyRootPath       string
+	RASPMode                 string
+	RASPPolicyVersion        uint64
+	RASPBlockOnHit           bool
+	AgentBinaryDigestPath    string
+	AgentBinaryRootPath      string
+	AgentConfigPath          string
+	AgentConfigSignaturePath string
+	AgentConfigRootPath      string
+	AgentIdentityPath        string
+	RequireAgentIntegrity    bool
+	RequireConfigIntegrity   bool
+	AssetEnabled             bool
 }
 
 type Agent struct {
-	cfg              *Config
-	ctx              context.Context
-	cancel           context.CancelFunc
-	restartTraffic   chan struct{}
-	status           string
-	agentID          string
-	agentKey         string
-	hostname         string
-	localIP          string
-	runtimePublisher RuntimeEventPublisher
-	engines          *EngineRegistry
-	trafficStarted   bool
-	hidsStarted      bool
-	raspStarted      bool
-	trafficSpool     *durableTrafficSpool
-	trafficStats     trafficRuntimeStats
+	cfg                    *Config
+	cfgMu                  sync.RWMutex
+	ctx                    context.Context
+	cancel                 context.CancelFunc
+	restartTraffic         chan struct{}
+	status                 string
+	agentID                string
+	agentKey               string
+	hostname               string
+	localIP                string
+	runtimePublisher       RuntimeEventPublisher
+	runtimeHealth          *runtimeControlHealth
+	engines                *EngineRegistry
+	trafficStarted         bool
+	hidsStarted            bool
+	raspStarted            bool
+	trafficSpool           *durableTrafficSpool
+	trafficSpoolMu         sync.Mutex
+	trafficStats           trafficRuntimeStats
+	clock                  trafficClock
+	trafficQuality         *trafficQualityMonitor
+	suricataProfile        suricataProfileRuntime
+	ackPolicyVersion       uint64
+	ackPolicySignature     string
+	raspPolicyEnvelope     shared.SignedPolicy
+	raspPolicyACKed        bool
+	raspPolicyExpiresAt    time.Time
+	raspPolicyExpired      bool
+	raspFailBehavior       shared.FailBehavior
+	raspMaxEventsPerSecond int
+	raspLanguages          []shared.Language
+	raspRateWindow         time.Time
+	raspRateCount          int
+	raspBridgeMu           sync.RWMutex
+	raspBridge             *raspBridgeRuntime
 }
 
 type trafficRuntimeStats struct {
@@ -171,7 +210,11 @@ func NewAgent(cfg *Config) *Agent {
 		status:         "starting",
 		hostname:       hostname,
 		localIP:        getLocalIP(),
+		clock:          systemTrafficClock{},
+		raspLanguages:  []shared.Language{shared.LanguagePython, shared.LanguageJava},
+		runtimeHealth:  newRuntimeControlHealth("agent-runtime", agentRuntimeLimits(), time.Now),
 	}
+	a.trafficQuality = newTrafficQualityMonitor(a.clock, captureQualityConfigFrom(cfg))
 	a.runtimePublisher = NewHTTPRuntimePublisher(a)
 	a.engines = NewEngineRegistry(
 		newSuricataSupervisor(),
@@ -183,7 +226,8 @@ func NewAgent(cfg *Config) *Agent {
 }
 
 func (a *Agent) capabilityModel() map[string]interface{} {
-	capture := resolveCaptureCapability(selectCaptureEngine(a.cfg.CaptureEngine))
+	trafficConfig := a.captureConfigSnapshot()
+	capture := resolveCaptureCapability(selectCaptureEngine(trafficConfig.CaptureEngine))
 	runtimeStrategy := detectStrategy()
 	runtimeStatus := "disabled"
 	runtimeBackend := "disabled"
@@ -214,23 +258,24 @@ func (a *Agent) capabilityModel() map[string]interface{} {
 			"interval_sec": 60,
 		},
 		"traffic_collector": map[string]interface{}{
-			"enabled":            a.cfg.TrafficEnabled,
-			"status":             enabledStatus(a.cfg.TrafficEnabled),
+			"enabled":            trafficConfig.Enabled,
+			"status":             enabledStatus(trafficConfig.Enabled),
 			"requested_engine":   capture.RequestedEngine,
 			"active_engine":      capture.ActiveEngine,
 			"backend_status":     capture.Status,
 			"fallback_reason":    capture.FallbackReason,
 			"runtime_dependency": trafficRuntimeDependencyStatus(atomicString(a.trafficStats.lastError)),
-			"interface":          a.cfg.TrafficInterface,
+			"interface":          trafficConfig.Interface,
 			"selected_interface": atomicString(a.trafficStats.selectedInterface),
-			"bpf_filter":         a.cfg.BPFFilter,
-			"promiscuous":        a.cfg.Promiscuous,
+			"bpf_filter":         trafficConfig.BPFFilter,
+			"promiscuous":        trafficConfig.Promiscuous,
 			"started_at":         unixSecondsRFC3339(atomic.LoadInt64(&a.trafficStats.startedAt)),
 			"last_packet_at":     unixSecondsRFC3339(atomic.LoadInt64(&a.trafficStats.lastPacketAt)),
 			"last_publish_at":    unixSecondsRFC3339(atomic.LoadInt64(&a.trafficStats.lastPublishAt)),
 			"packet_count":       atomic.LoadUint64(&a.trafficStats.packetCount),
 			"publish_count":      atomic.LoadUint64(&a.trafficStats.publishCount),
 			"publish_errors":     atomic.LoadUint64(&a.trafficStats.publishErrorCount),
+			"capture_quality":    a.captureQualityCapability(),
 			"last_error":         atomicString(a.trafficStats.lastError),
 			"last_source":        atomicString(a.trafficStats.lastSource),
 			"last_destination":   atomicString(a.trafficStats.lastDestination),
@@ -272,11 +317,13 @@ func (a *Agent) capabilityModel() map[string]interface{} {
 			"python":         "sitecustomize_runtime_hooks",
 			"php":            "native_extension_with_prepend_fallback",
 			"java":           "javaagent_security_jdbc_hooks",
+			"languages":      []string{"python", "java"},
 			"generic":        "local_bridge_transport",
 			"active_backend": runtimeLanguageHint(),
 			"stream":         a.cfg.RASPStream,
 		},
 		"engine_supervisors": a.engineSupervisorCapability(),
+		"suricata_profile":   a.suricataProfileHealth(),
 	}
 }
 
@@ -309,20 +356,20 @@ func enabledStatus(enabled bool) string {
 }
 
 func (a *Agent) markTrafficCaptureStarted(interfaceName string) {
-	atomic.StoreInt64(&a.trafficStats.startedAt, time.Now().UTC().Unix())
+	atomic.StoreInt64(&a.trafficStats.startedAt, a.clock.Now().UTC().Unix())
 	a.trafficStats.selectedInterface.Store(interfaceName)
 }
 
 func (a *Agent) markTrafficPacket(obs trafficObservation) {
 	atomic.AddUint64(&a.trafficStats.packetCount, 1)
-	atomic.StoreInt64(&a.trafficStats.lastPacketAt, time.Now().UTC().Unix())
+	atomic.StoreInt64(&a.trafficStats.lastPacketAt, a.clock.Now().UTC().Unix())
 	a.trafficStats.lastSource.Store(obs.SrcIP)
 	a.trafficStats.lastDestination.Store(obs.DstIP)
 }
 
 func (a *Agent) markTrafficPublish() {
 	atomic.AddUint64(&a.trafficStats.publishCount, 1)
-	atomic.StoreInt64(&a.trafficStats.lastPublishAt, time.Now().UTC().Unix())
+	atomic.StoreInt64(&a.trafficStats.lastPublishAt, a.clock.Now().UTC().Unix())
 	a.trafficStats.lastError.Store("")
 }
 
@@ -364,10 +411,17 @@ func trafficRuntimeDependencyStatus(lastError string) map[string]interface{} {
 }
 
 func (a *Agent) Start() error {
+	if err := a.verifyAgentStartupIntegrity(a.ctx, ""); err != nil {
+		return err
+	}
 	if a.isLocalMirrorMode() {
 		return a.startLocalMirror()
 	}
 	a.status = "running"
+	a.cfgMu.Lock()
+	a.cfg.RASPEnabled = false
+	a.cfg.RASPMode = string(shared.ModeOff)
+	a.cfgMu.Unlock()
 	fmt.Printf("[agent] ly-agent %s starting...\n", version)
 	fmt.Printf("[agent] OS: %s, Arch: %s, CPUs: %d\n", runtime.GOOS, runtime.GOARCH, runtime.NumCPU())
 	fmt.Printf("[agent] API Server: %s\n", a.cfg.API)
@@ -378,12 +432,12 @@ func (a *Agent) Start() error {
 		return fmt.Errorf("enroll failed: %v", err)
 	}
 
+	a.pullConfigAndReportTasks()
 	a.startManagedCollectors()
 	if a.cfg.AssetEnabled {
 		go a.runAssetCollector()
 	}
 	a.runEngineAdapters()
-	go a.runRASPBridge()
 	go a.heartbeatLoop()
 	go a.configLoop()
 
@@ -392,7 +446,7 @@ func (a *Agent) Start() error {
 }
 
 func (a *Agent) startManagedCollectors() {
-	if a.cfg.TrafficEnabled && !a.trafficStarted {
+	if a.captureConfigSnapshot().Enabled && !a.trafficStarted {
 		a.trafficStarted = true
 		go a.runTrafficCapture()
 	}
@@ -403,6 +457,11 @@ func (a *Agent) startManagedCollectors() {
 	if a.cfg.RASPEnabled && !a.raspStarted {
 		a.raspStarted = true
 		go a.runRASP()
+		go a.runRASPBridge()
+		health := newRuntimeControlHealth("agent-rasp-adapter", agentRuntimeLimits(), time.Now)
+		go runSupervisedRuntime(a.ctx, health, runtimeSupervisorConfig{
+			Name: "rasp", Run: func(ctx context.Context) { a.runRASPEventAdapterContext(withRuntimeHealth(ctx, health)) }, OnHealth: a.handleControlHealth,
+		})
 	}
 }
 
@@ -456,14 +515,17 @@ func (a *Agent) mirrorConfigLoop() {
 
 func (a *Agent) applyMirrorConfig() {
 	config := fetchMirrorConfig(a.cfg.API)
+	a.cfgMu.Lock()
+	oldInterface := a.cfg.TrafficInterface
 	if strings.TrimSpace(config.Interface) != "" {
-		oldInterface := a.cfg.TrafficInterface
 		a.cfg.TrafficInterface = strings.TrimSpace(config.Interface)
-		if oldInterface != "" && oldInterface != a.cfg.TrafficInterface {
-			a.requestTrafficRestart()
-		}
 	}
 	a.cfg.TrafficEnabled = config.Enabled
+	newInterface := a.cfg.TrafficInterface
+	a.cfgMu.Unlock()
+	if oldInterface != "" && oldInterface != newInterface {
+		a.requestTrafficRestart()
+	}
 }
 
 func (a *Agent) Stop() {
@@ -498,6 +560,7 @@ func (a *Agent) enroll() error {
 	}
 
 	reqBody := map[string]interface{}{
+		"enrollment_token": a.cfg.EnrollmentToken,
 		"hostname":         a.hostname,
 		"ip":               a.localIP,
 		"os":               runtime.GOOS,
@@ -510,7 +573,7 @@ func (a *Agent) enroll() error {
 	body, _ := json.Marshal(reqBody)
 	resp, err := httpPost(a.cfg.API+"/api/v1/agent/enroll", body)
 	if err != nil {
-		return fmt.Errorf("enroll failed: %v", err)
+		return fmt.Errorf("enrollment request failed")
 	}
 
 	var result struct {
@@ -519,31 +582,40 @@ func (a *Agent) enroll() error {
 		Data    map[string]interface{} `json:"data"`
 	}
 	if err := json.Unmarshal(resp, &result); err != nil {
-		return fmt.Errorf("parse response failed: %v, body: %s", err, string(resp))
+		return fmt.Errorf("parse enrollment response: %w", err)
 	}
 
 	if result.Code != 0 {
-		msg := result.Message
-		if msg == "" {
-			msg = "unknown error"
+		return fmt.Errorf("enrollment rejected by server")
+	}
+
+	agentID, idOK := result.Data["agent_id"].(string)
+	agentKey, keyOK := result.Data["agent_key"].(string)
+	agentID = strings.TrimSpace(agentID)
+	agentKey = strings.TrimSpace(agentKey)
+	if !idOK || agentID == "" {
+		return fmt.Errorf("enrollment response missing valid agent_id")
+	}
+	if !keyOK || agentKey == "" {
+		return fmt.Errorf("enrollment response missing valid agent_key")
+	}
+	credentialPath := resolveConfigPath(os.Args[1:])
+	if a.cfg.RequireConfigIntegrity || strings.TrimSpace(a.cfg.AgentConfigSignaturePath) != "" {
+		credentialPath = a.cfg.AgentIdentityPath
+		if strings.TrimSpace(credentialPath) == "" {
+			return fmt.Errorf("signed config requires a separate agent identity path")
 		}
-		return fmt.Errorf("enroll failed: %s", msg)
 	}
-
-	if agentID, ok := result.Data["agent_id"].(string); ok {
-		a.agentID = agentID
+	if err := persistAgentCredentials(credentialPath, agentID, agentKey); err != nil {
+		return fmt.Errorf("persist enrollment credentials: %w", err)
 	}
-	if agentKey, ok := result.Data["agent_key"].(string); ok {
-		a.agentKey = agentKey
-	}
-
-	if a.agentID == "" {
-		return fmt.Errorf("enroll failed: no agent_id in response")
-	}
+	a.agentID = agentID
+	a.agentKey = agentKey
+	a.cfg.AgentID = agentID
+	a.cfg.AgentKey = agentKey
 
 	fmt.Printf("[agent] Enroll successful!\n")
 	fmt.Printf("[agent]   Agent ID: %s\n", a.agentID)
-	fmt.Printf("[agent]   Agent Key: %s\n", a.agentKey)
 	return nil
 }
 
@@ -614,6 +686,7 @@ func (a *Agent) configLoop() {
 		case <-a.ctx.Done():
 			return
 		case <-ticker.C:
+			a.enforceRASPPolicyExpiry(time.Now().UTC())
 			a.pullConfigAndReportTasks()
 		}
 	}
@@ -624,9 +697,14 @@ func (a *Agent) pullConfigAndReportTasks() {
 		return
 	}
 
-	reqBody := map[string]interface{}{"agent_id": a.agentID, "agent_key": a.agentKey}
+	ackVersion, ackSignature := a.policyACKSnapshot()
+	reqBody := map[string]interface{}{
+		"agent_id": a.agentID, "agent_key": a.agentKey,
+		"ack_policy_version": ackVersion, "ack_policy_signature": ackSignature,
+		"capabilities": a.capabilityModel(),
+	}
 	body, _ := json.Marshal(reqBody)
-	resp, err := httpPost(a.cfg.API+"/api/v1/agent/config", body)
+	resp, err := httpPostAgent(a.cfg.API+"/api/v1/agent/config", body, a.agentID, a.agentKey)
 	if err != nil {
 		fmt.Printf("[config] Warning: config pull failed: %v\n", err)
 		return
@@ -639,6 +717,7 @@ func (a *Agent) pullConfigAndReportTasks() {
 			Config              map[string]interface{}   `json:"config"`
 			EngineDesiredStates []EngineDesiredState     `json:"engine_desired_states"`
 			Tasks               []map[string]interface{} `json:"tasks"`
+			RASPPolicy          shared.SignedPolicy      `json:"rasp_policy"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(resp, &result); err != nil {
@@ -652,6 +731,17 @@ func (a *Agent) pullConfigAndReportTasks() {
 		fmt.Printf("[config] Warning: server returned code=%d message=%s\n", result.Code, result.Message)
 		return
 	}
+	if result.Data.RASPPolicy.Policy.Version > 0 {
+		if err := a.applySignedRASPPolicy(result.Data.RASPPolicy); err != nil {
+			a.handleControlHealth(a.runtimeHealth.Degrade("signed_config_integrity_failed", true))
+			fmt.Printf("[config] Warning: signed RASP policy rejected: %v\n", err)
+			return
+		} else if err := a.acknowledgePendingRASPPolicy(); err != nil {
+			a.handleControlHealth(a.runtimeHealth.Degrade("authorization_failed", true))
+			fmt.Printf("[config] Warning: signed RASP policy ACK failed: %v\n", err)
+			return
+		}
+	}
 	a.applyPulledConfig(result.Data.Config)
 
 	desired := result.Data.EngineDesiredStates
@@ -659,6 +749,11 @@ func (a *Agent) pullConfigAndReportTasks() {
 		desired = parseEngineDesiredStates(result.Data.Config["engine_desired_states"])
 	}
 	if len(desired) > 0 && a.engines != nil {
+		for index := range desired {
+			if desired[index].Name == EngineRASP {
+				desired[index].Enabled = a.raspPolicyEnabled()
+			}
+		}
 		statuses := a.engines.Apply(a.ctx, desired)
 		fmt.Printf("[config] Applied %d engine desired states\n", len(statuses))
 	}
@@ -681,6 +776,8 @@ func (a *Agent) applyPulledConfig(config map[string]interface{}) {
 		return
 	}
 	if traffic := mapFromInterface(policy["traffic"]); len(traffic) > 0 {
+		a.cfgMu.Lock()
+		oldInterface := a.cfg.TrafficInterface
 		if enabled, ok := boolFromInterface(traffic["enabled"]); ok {
 			a.cfg.TrafficEnabled = enabled
 		}
@@ -696,16 +793,24 @@ func (a *Agent) applyPulledConfig(config map[string]interface{}) {
 		if promiscuous, ok := boolFromInterface(traffic["promiscuous"]); ok {
 			a.cfg.Promiscuous = promiscuous
 		}
+		if sampleEvery, ok := positiveIntFromInterface(traffic["sample_every_n"]); ok {
+			a.cfg.TrafficSampleEveryN = sampleEvery
+		}
+		if rateLimit, ok := nonNegativeIntFromInterface(traffic["max_events_per_second"]); ok {
+			a.cfg.MaxTrafficEventsPerSec = rateLimit
+		}
 		applyPlatformTrafficPolicy(a.cfg)
+		qualityConfig := captureQualityConfigFrom(a.cfg)
+		newInterface := a.cfg.TrafficInterface
+		a.cfgMu.Unlock()
+		a.ensureTrafficQuality().UpdateConfig(qualityConfig)
+		if oldInterface != newInterface {
+			a.requestTrafficRestart()
+		}
 	}
 	if runtimePolicy := mapFromInterface(policy["runtime"]); len(runtimePolicy) > 0 {
 		if enabled, ok := boolFromInterface(runtimePolicy["enabled"]); ok {
 			a.cfg.HIDSEnabled = enabled
-		}
-	}
-	if rasp := mapFromInterface(policy["rasp"]); len(rasp) > 0 {
-		if enabled, ok := boolFromInterface(rasp["enabled"]); ok {
-			a.cfg.RASPEnabled = enabled
 		}
 	}
 	a.startManagedCollectors()
@@ -751,6 +856,16 @@ func stringFromInterface(value interface{}) string {
 	return fmt.Sprintf("%v", value)
 }
 
+func positiveIntFromInterface(value interface{}) (int, bool) {
+	parsed, err := strconv.Atoi(strings.TrimSpace(stringFromInterface(value)))
+	return parsed, err == nil && parsed > 0
+}
+
+func nonNegativeIntFromInterface(value interface{}) (int, bool) {
+	parsed, err := strconv.Atoi(strings.TrimSpace(stringFromInterface(value)))
+	return parsed, err == nil && parsed >= 0
+}
+
 func parseEngineDesiredStates(value interface{}) []EngineDesiredState {
 	raw, err := json.Marshal(value)
 	if err != nil || string(raw) == "null" {
@@ -765,18 +880,17 @@ func parseEngineDesiredStates(value interface{}) []EngineDesiredState {
 
 func (a *Agent) reportTaskResult(taskID, status string, result map[string]interface{}, errorMsg string) error {
 	reqBody := map[string]interface{}{
-		"agent_id":  a.agentID,
-		"agent_key": a.agentKey,
-		"task_id":   taskID,
-		"status":    status,
-		"result":    result,
+		"agent_id": a.agentID,
+		"task_id":  taskID,
+		"status":   status,
+		"result":   result,
 	}
 	if strings.TrimSpace(errorMsg) != "" {
 		reqBody["error"] = errorMsg
 	}
 
 	body, _ := json.Marshal(reqBody)
-	resp, err := httpPost(a.cfg.API+"/api/v1/agent/task-result", body)
+	resp, err := httpPostAgent(a.cfg.API+"/api/v1/agent/task-result", body, a.agentID, a.agentKey)
 	if err != nil {
 		return err
 	}
@@ -799,10 +913,19 @@ func (a *Agent) reportTaskResult(taskID, status string, result map[string]interf
 
 func (a *Agent) runTrafficCapture() {
 	for {
-		capability := resolveCaptureCapability(selectCaptureEngine(a.cfg.CaptureEngine))
+		trafficConfig := a.captureConfigSnapshot()
+		if err := a.prepareTrafficQualityForInterface(trafficConfig.Interface); err != nil {
+			a.trafficStats.lastError.Store(err.Error())
+			fmt.Printf("[probe] Invalid traffic interface: %v\n", err)
+			if !a.waitTrafficRestart() {
+				return
+			}
+			continue
+		}
+		capability := resolveCaptureCapability(selectCaptureEngine(trafficConfig.CaptureEngine))
 		engine := capability.ActiveEngine
 		fmt.Printf("[probe] Traffic capture on %s (engine=%s, bpf=%q, promiscuous=%v)\n",
-			a.cfg.TrafficInterface, engine, a.cfg.BPFFilter, a.cfg.Promiscuous)
+			trafficConfig.Interface, engine, trafficConfig.BPFFilter, trafficConfig.Promiscuous)
 
 		if capability.Status == "fallback" && capability.FallbackReason != "" {
 			fmt.Printf("[probe] %s requested; using %s fallback: %s\n", capability.RequestedEngine, capability.ActiveEngine, capability.FallbackReason)
@@ -812,7 +935,7 @@ func (a *Agent) runTrafficCapture() {
 			if err := a.runAFPacketCapture(); err == nil {
 				return
 			} else {
-				if a.isLocalMirrorMode() {
+				if a.isLocalMirrorMode() || a.trafficCaptureInterfaceChanged(atomicString(a.trafficStats.selectedInterface)) {
 					fmt.Printf("[mirror] AF_PACKET capture restarting: %v\n", err)
 					if !a.waitTrafficRestart() {
 						return
@@ -825,6 +948,9 @@ func (a *Agent) runTrafficCapture() {
 		if engine == "pcap" {
 			if err := a.runPCAPPacketCapture(); err != nil {
 				fmt.Printf("[probe] PCAP capture unavailable: %v\n", err)
+				if a.trafficCaptureInterfaceChanged(atomicString(a.trafficStats.selectedInterface)) && a.waitTrafficRestart() {
+					continue
+				}
 			}
 			return
 		}
@@ -852,12 +978,13 @@ func (a *Agent) requestTrafficRestart() {
 }
 
 func (a *Agent) trafficCaptureInterfaceChanged(interfaceName string) bool {
-	configured := strings.TrimSpace(a.cfg.TrafficInterface)
+	configured := strings.TrimSpace(a.captureConfigSnapshot().Interface)
 	return configured != "" && !strings.EqualFold(configured, "auto") && configured != strings.TrimSpace(interfaceName)
 }
 
 func (a *Agent) trafficCaptureEnabledOnCurrentInterface(interfaceName string) bool {
-	return a.cfg.TrafficEnabled && strings.TrimSpace(a.cfg.TrafficInterface) == strings.TrimSpace(interfaceName)
+	config := a.captureConfigSnapshot()
+	return config.Enabled && strings.TrimSpace(config.Interface) == strings.TrimSpace(interfaceName)
 }
 
 func selectCaptureEngine(configured string) string {
@@ -925,8 +1052,6 @@ func pfRingAvailable() bool {
 }
 
 func (a *Agent) runProcfsTrafficFallback() {
-	client := redis.NewClient(&redis.Options{Addr: a.cfg.Redis})
-	defer client.Close()
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -934,15 +1059,20 @@ func (a *Agent) runProcfsTrafficFallback() {
 		case <-a.ctx.Done():
 			return
 		case <-ticker.C:
-			if !a.cfg.TrafficEnabled {
+			if !a.captureConfigSnapshot().Enabled {
 				continue
 			}
+			detector := newPortScanDetector()
 			for _, obs := range a.procfsTrafficObservations() {
-				if isContainerBridgeTraffic(obs.SrcIP, obs.DstIP) {
+				_, publish := a.processCapturedObservation(detector, obs)
+				if !publish {
 					continue
 				}
-				if err := a.publishTrafficObservation(client, obs); err != nil {
+				if err := a.publishTrafficObservation(obs); err != nil {
+					a.markTrafficPublishError(err)
 					fmt.Printf("[probe] procfs flow publish failed: %v\n", err)
+				} else {
+					a.markTrafficPublishQuality()
 				}
 			}
 		}
@@ -951,14 +1081,6 @@ func (a *Agent) runProcfsTrafficFallback() {
 
 type trafficStreamWriter interface {
 	publish(ctx context.Context, stream string, payload map[string]interface{}, payloadType string) error
-}
-
-type redisTrafficStreamWriter struct {
-	client *redis.Client
-}
-
-func (w redisTrafficStreamWriter) publish(ctx context.Context, stream string, payload map[string]interface{}, payloadType string) error {
-	return publishJSONToStream(ctx, w.client, stream, payload, payloadType)
 }
 
 type spoolRecord struct {
@@ -992,6 +1114,7 @@ type durableTrafficSpool struct {
 	ctx           context.Context
 	mu            chan struct{}
 	closed        chan struct{}
+	encrypted     *transport.EncryptedSpool
 }
 
 func newDurableTrafficSpool(ctx context.Context, cfg *Config) (*durableTrafficSpool, error) {
@@ -1008,7 +1131,7 @@ func newDurableTrafficSpool(ctx context.Context, cfg *Config) (*durableTrafficSp
 		tmpDir:        filepath.Join(dir, "tmp"),
 		maxBytes:      cfg.SpoolMaxBytes,
 		flushInterval: time.Duration(cfg.SpoolFlushInterval) * time.Second,
-		client:        redis.NewClient(&redis.Options{Addr: cfg.Redis}),
+		client:        redis.NewClient(redisOptions(cfg)),
 		httpEndpoint:  strings.TrimRight(strings.TrimSpace(cfg.API), "/") + "/api/v1/agent/traffic-event",
 		ctx:           ctx,
 		mu:            make(chan struct{}, 1),
@@ -1027,6 +1150,19 @@ func newDurableTrafficSpool(ctx context.Context, cfg *Config) (*durableTrafficSp
 		return nil, err
 	}
 	if err := spool.recoverTempFiles(); err != nil {
+		return nil, err
+	}
+	key, err := transport.DeriveSpoolKey("agent-traffic", os.Getenv("LYFLOW_TRANSPORT_SPOOL_KEY"), firstNonEmpty(cfg.RedisPassword, cfg.RedisLegacyPassword, cfg.AgentKey))
+	if err != nil {
+		return nil, fmt.Errorf("configure encrypted traffic spool: %w", err)
+	}
+	spool.encrypted, err = transport.NewEncryptedSpool(transport.SpoolConfig{
+		Dir: filepath.Join(dir, "v2"), Key: key, MaxBytes: spool.maxBytes, MaxAge: 7 * 24 * time.Hour,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("create encrypted traffic spool: %w", err)
+	}
+	if err := spool.migrateLegacyRecords(); err != nil {
 		return nil, err
 	}
 	go spool.run()
@@ -1095,32 +1231,6 @@ func (s *durableTrafficSpool) publish(ctx context.Context, stream string, payloa
 	if err != nil {
 		return err
 	}
-	tmpDir := s.tmpDir
-	if tmpDir == "" {
-		tmpDir = s.pendingDir
-	}
-	if err := os.MkdirAll(s.pendingDir, 0o750); err != nil {
-		return err
-	}
-	if err := os.MkdirAll(tmpDir, 0o750); err != nil {
-		return err
-	}
-	if s.maxBytes > 0 {
-		used, err := dirSize(s.pendingDir)
-		if err != nil {
-			return err
-		}
-		if s.tmpDir != "" && s.tmpDir != s.pendingDir {
-			tmpUsed, err := dirSize(s.tmpDir)
-			if err != nil {
-				return err
-			}
-			used += tmpUsed
-		}
-		if used+int64(len(data)) > s.maxBytes {
-			return fmt.Errorf("traffic spool full: used=%d max=%d", used, s.maxBytes)
-		}
-	}
 	record := spoolRecord{
 		Version:   1,
 		RecordID:  fmt.Sprintf("%d-%d-%d", time.Now().UTC().UnixNano(), os.Getpid(), atomic.AddUint64(&spoolRecordCounter, 1)),
@@ -1137,30 +1247,22 @@ func (s *durableTrafficSpool) publish(ctx context.Context, stream string, payloa
 	if err != nil {
 		return err
 	}
-	name := sanitizeSpoolName(record.RecordID + "-" + stream + ".wal")
-	tmpPath := filepath.Join(tmpDir, name+".tmp")
-	finalPath := filepath.Join(s.pendingDir, name)
-	file, err := os.OpenFile(tmpPath, os.O_CREATE|os.O_WRONLY|os.O_EXCL, 0o640)
-	if err != nil {
+	if s.encrypted == nil {
+		return fmt.Errorf("encrypted traffic spool is unavailable")
+	}
+	if err := s.encrypted.Append(ctx, transport.SpoolRecord{
+		UID: record.RecordID, Stream: stream, MessageID: record.RecordID,
+		Payload: encoded, CreatedAt: time.Now().UTC(),
+	}); err != nil {
+		return fmt.Errorf("append encrypted traffic spool: %w", err)
+	}
+	if s.client == nil && strings.TrimSpace(s.httpEndpoint) == "" {
+		return nil
+	}
+	if err := s.replayEncrypted(ctx); err != nil {
+		s.signalFlush()
 		return err
 	}
-	if _, err = file.Write(append(encoded, '\n')); err == nil {
-		err = file.Sync()
-	}
-	closeErr := file.Close()
-	if err != nil {
-		_ = os.Remove(tmpPath)
-		return err
-	}
-	if closeErr != nil {
-		_ = os.Remove(tmpPath)
-		return closeErr
-	}
-	if err := os.Rename(tmpPath, finalPath); err != nil {
-		_ = os.Remove(tmpPath)
-		return err
-	}
-	s.signalFlush()
 	return nil
 }
 
@@ -1189,6 +1291,12 @@ func (s *durableTrafficSpool) signalFlush() {
 }
 
 func (s *durableTrafficSpool) flushOnce() {
+	if s.encrypted != nil {
+		if err := s.replayEncrypted(s.ctx); err != nil {
+			fmt.Printf("[spool] encrypted flush paused: %v\n", err)
+		}
+		return
+	}
 	entries, err := os.ReadDir(s.pendingDir)
 	if err != nil {
 		fmt.Printf("[spool] read pending failed: %v\n", err)
@@ -1205,6 +1313,59 @@ func (s *durableTrafficSpool) flushOnce() {
 			return
 		}
 	}
+}
+
+func (s *durableTrafficSpool) replayEncrypted(ctx context.Context) error {
+	return s.encrypted.Replay(ctx, func(_ context.Context, encrypted transport.SpoolRecord) error {
+		var record spoolRecord
+		if err := json.Unmarshal(encrypted.Payload, &record); err != nil {
+			return fmt.Errorf("decode encrypted traffic spool record: %w", err)
+		}
+		values := record.Values
+		if len(values) == 0 {
+			values = map[string]interface{}{"type": record.Type, "data": record.Data}
+		}
+		return s.deliver(record, values)
+	})
+}
+
+func (s *durableTrafficSpool) migrateLegacyRecords() error {
+	entries, err := os.ReadDir(s.pendingDir)
+	if err != nil {
+		return fmt.Errorf("read legacy traffic spool: %w", err)
+	}
+	for _, entry := range entries {
+		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".wal") {
+			continue
+		}
+		path := filepath.Join(s.pendingDir, entry.Name())
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return fmt.Errorf("read legacy traffic spool record: %w", err)
+		}
+		var record spoolRecord
+		if err := json.Unmarshal(bytes.TrimSpace(data), &record); err != nil {
+			return fmt.Errorf("decode legacy traffic spool record: %w", err)
+		}
+		if err := s.encrypted.Append(s.ctx, transport.SpoolRecord{
+			UID: record.RecordID, Stream: record.Stream, MessageID: record.RecordID,
+			Payload: bytes.TrimSpace(data), CreatedAt: parseSpoolCreatedAt(record.CreatedAt),
+		}); err != nil {
+			return fmt.Errorf("encrypt legacy traffic spool record: %w", err)
+		}
+		if err := os.Remove(path); err != nil {
+			return fmt.Errorf("remove migrated legacy traffic spool record: %w", err)
+		}
+	}
+	return nil
+}
+
+func parseSpoolCreatedAt(value string) time.Time {
+	parsed, err := time.Parse(time.RFC3339Nano, value)
+	if err != nil {
+		return time.Now().UTC()
+	}
+	return parsed.UTC()
 }
 
 func (s *durableTrafficSpool) flushFile(path string) error {
@@ -1233,23 +1394,34 @@ func (s *durableTrafficSpool) flushFile(path string) error {
 }
 
 func (s *durableTrafficSpool) deliver(record spoolRecord, values map[string]interface{}) error {
+	stableValues := make(map[string]interface{}, len(values)+1)
+	for key, value := range values {
+		stableValues[key] = value
+	}
+	stableValues["event_uid"] = record.RecordID
 	if strings.TrimSpace(s.httpEndpoint) != "" && strings.TrimSpace(s.agentID) != "" && strings.TrimSpace(s.agentKey) != "" {
 		payload := map[string]interface{}{
-			"agent_id":  s.agentID,
-			"agent_key": s.agentKey,
-			"stream":    record.Stream,
-			"type":      record.Type,
-			"data":      record.Data,
-			"values":    values,
+			"agent_id": s.agentID,
+			"stream":   record.Stream,
+			"type":     record.Type,
+			"data":     record.Data,
+			"values":   stableValues,
 		}
 		body, err := json.Marshal(payload)
 		if err != nil {
 			return err
 		}
-		_, err = httpPost(s.httpEndpoint, body)
+		_, err = httpPostAgent(s.httpEndpoint, body, s.agentID, s.agentKey)
 		return err
 	}
-	return s.client.XAdd(s.ctx, &redis.XAddArgs{Stream: record.Stream, Values: values}).Err()
+	return (transport.RetryPolicy{MaxAttempts: 4, BaseDelay: 50 * time.Millisecond, MaxDelay: time.Second, Jitter: 0.2}).Do(s.ctx, record.RecordID, func(ctx context.Context) error {
+		if client, ok := s.client.(*redis.Client); ok {
+			if err := transport.RegisterProducer(ctx, client, "agent-traffic"); err != nil {
+				return err
+			}
+		}
+		return s.client.XAdd(ctx, &redis.XAddArgs{Stream: record.Stream, Values: stableValues}).Err()
+	}, nil)
 }
 
 func writeSpoolRecord(path string, record spoolRecord) error {
@@ -1283,30 +1455,49 @@ func dirSize(dir string) (int64, error) {
 	return total, nil
 }
 
-func (a *Agent) publishTrafficObservation(client *redis.Client, obs trafficObservation) error {
+func (a *Agent) publishTrafficObservation(obs trafficObservation) error {
 	redisAddr := strings.TrimSpace(a.cfg.Redis)
 	if redisAddr == "" {
 		return fmt.Errorf("redis address is empty")
 	}
-	if a.cfg.SpoolEnabled {
-		if a.trafficSpool == nil {
-			spool, err := newDurableTrafficSpool(a.ctx, a.cfg)
-			if err != nil {
-				return err
-			}
-			if a.isLocalMirrorMode() {
-				spool.httpEndpoint = ""
-			}
-			a.trafficSpool = spool
-		}
-		a.trafficSpool.agentID = a.agentID
-		a.trafficSpool.agentKey = a.agentKey
-		return a.publishTrafficObservationToStreams(a.trafficSpool, obs)
+	spool, err := a.ensureTrafficSpool()
+	if err != nil {
+		return err
 	}
-	return a.publishTrafficObservationToStreams(redisTrafficStreamWriter{client: client}, obs)
+	return a.publishTrafficObservationToStreams(spool, obs)
+}
+
+func (a *Agent) ensureTrafficSpool() (*durableTrafficSpool, error) {
+	if !a.cfg.SpoolEnabled {
+		return nil, fmt.Errorf("encrypted durable Agent spool is required")
+	}
+	a.trafficSpoolMu.Lock()
+	defer a.trafficSpoolMu.Unlock()
+	if a.trafficSpool == nil {
+		spool, err := newDurableTrafficSpool(a.ctx, a.cfg)
+		if err != nil {
+			return nil, err
+		}
+		if a.isLocalMirrorMode() {
+			spool.httpEndpoint = ""
+		}
+		a.trafficSpool = spool
+	}
+	a.trafficSpool.agentID = a.agentID
+	a.trafficSpool.agentKey = a.agentKey
+	return a.trafficSpool, nil
+}
+
+func (a *Agent) publishAgentStream(ctx context.Context, stream string, payload map[string]interface{}, payloadType string) error {
+	spool, err := a.ensureTrafficSpool()
+	if err != nil {
+		return err
+	}
+	return spool.publish(ctx, stream, payload, payloadType)
 }
 
 func (a *Agent) publishTrafficObservationToStreams(writer trafficStreamWriter, obs trafficObservation) error {
+	trafficConfig := a.captureConfigSnapshot()
 	now := obs.Timestamp
 	if now.IsZero() {
 		now = time.Now().UTC()
@@ -1317,7 +1508,7 @@ func (a *Agent) publishTrafficObservationToStreams(writer trafficStreamWriter, o
 	}
 	flowID := fmt.Sprintf("host-%s-%d", a.agentID, now.UnixNano())
 	if a.isLocalMirrorMode() {
-		flowID = fmt.Sprintf("mirror-%s-%d", a.cfg.TrafficInterface, now.UnixNano())
+		flowID = fmt.Sprintf("mirror-%s-%d", trafficConfig.Interface, now.UnixNano())
 	}
 	appProtocol := obs.AppProtocol
 	if appProtocol == "" {
@@ -1346,10 +1537,10 @@ func (a *Agent) publishTrafficObservationToStreams(writer trafficStreamWriter, o
 		"sensor_id":       a.agentID,
 		"agent_id":        a.agentID,
 		"hostname":        a.hostname,
-		"interface":       a.cfg.TrafficInterface,
+		"interface":       trafficConfig.Interface,
 		"engine":          obs.Engine,
-		"bpf_filter":      a.cfg.BPFFilter,
-		"promiscuous":     a.cfg.Promiscuous,
+		"bpf_filter":      trafficConfig.BPFFilter,
+		"promiscuous":     trafficConfig.Promiscuous,
 		"src_ip":          obs.SrcIP,
 		"dst_ip":          obs.DstIP,
 		"src_port":        int64(obs.SrcPort),
@@ -1418,10 +1609,10 @@ func (a *Agent) publishTrafficObservationToStreams(writer trafficStreamWriter, o
 		"agent_id":        a.agentID,
 		"sensor_id":       a.agentID,
 		"hostname":        a.hostname,
-		"interface":       a.cfg.TrafficInterface,
+		"interface":       trafficConfig.Interface,
 		"engine":          obs.Engine,
-		"bpf_filter":      a.cfg.BPFFilter,
-		"promiscuous":     a.cfg.Promiscuous,
+		"bpf_filter":      trafficConfig.BPFFilter,
+		"promiscuous":     trafficConfig.Promiscuous,
 		"src_ip":          obs.SrcIP,
 		"dst_ip":          obs.DstIP,
 		"src_port":        int64(obs.SrcPort),
@@ -1468,10 +1659,10 @@ func (a *Agent) publishTrafficObservationToStreams(writer trafficStreamWriter, o
 			"agent_id":        a.agentID,
 			"sensor_id":       a.agentID,
 			"hostname":        a.hostname,
-			"interface":       a.cfg.TrafficInterface,
+			"interface":       trafficConfig.Interface,
 			"engine":          obs.Engine,
-			"bpf_filter":      a.cfg.BPFFilter,
-			"promiscuous":     a.cfg.Promiscuous,
+			"bpf_filter":      trafficConfig.BPFFilter,
+			"promiscuous":     trafficConfig.Promiscuous,
 			"src_ip":          obs.SrcIP,
 			"dst_ip":          obs.DstIP,
 			"src_port":        int64(obs.SrcPort),
@@ -1502,7 +1693,7 @@ func (a *Agent) publishTrafficObservationToStreams(writer trafficStreamWriter, o
 	}
 
 	fmt.Printf("[probe] published telemetry: raw=%s semantic=%s session=%s sensor=%s iface=%s engine=%s\n",
-		a.cfg.RawStream, a.cfg.SemanticStream, a.cfg.SessionStream, a.agentID, a.cfg.TrafficInterface, obs.Engine)
+		a.cfg.RawStream, a.cfg.SemanticStream, a.cfg.SessionStream, a.agentID, trafficConfig.Interface, obs.Engine)
 	return nil
 
 }
@@ -1553,24 +1744,6 @@ func isRetentionWorthy(obs trafficObservation, businessAction string) bool {
 	return strings.Contains(domain, ".xyz") || strings.Contains(domain, "malware") || strings.Contains(domain, "miner")
 }
 
-func publishJSONToStream(ctx context.Context, client *redis.Client, stream string, payload map[string]interface{}, payloadType string) error {
-	stream = strings.TrimSpace(stream)
-	if stream == "" {
-		return fmt.Errorf("stream is empty for %s", payloadType)
-	}
-	data, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	return client.XAdd(ctx, &redis.XAddArgs{
-		Stream: stream,
-		Values: map[string]interface{}{
-			"type": payloadType,
-			"data": string(data),
-		},
-	}).Err()
-}
-
 func structToMap(value interface{}) map[string]interface{} {
 	data, err := json.Marshal(value)
 	if err != nil {
@@ -1588,7 +1761,7 @@ func (a *Agent) observationFromPacket(packet gopacket.Packet, captureLength int,
 		Timestamp:      time.Now().UTC(),
 		Source:         "ly-agent-packet-capture",
 		Engine:         engine,
-		Interface:      a.cfg.TrafficInterface,
+		Interface:      a.captureConfigSnapshot().Interface,
 		SrcIP:          a.localIP,
 		Packets:        1,
 		BytesOut:       uint64(captureLength),
@@ -1771,8 +1944,6 @@ func sanitizeIDPart(value string) string {
 	value = strings.ReplaceAll(value, ":", "-")
 	return value
 }
-
-func isContainerBridgeTraffic(srcIP, dstIP string) bool { return false }
 
 func annotateApplication(obs *trafficObservation, payload []byte) {
 	if obs == nil {
@@ -1970,6 +2141,7 @@ func businessActionForObservation(obs trafficObservation) string {
 }
 
 func (a *Agent) procfsTrafficObservations() []trafficObservation {
+	trafficConfig := a.captureConfigSnapshot()
 	files := []struct {
 		path     string
 		protocol string
@@ -1998,7 +2170,7 @@ func (a *Agent) procfsTrafficObservations() []trafficObservation {
 				Timestamp:      time.Now().UTC(),
 				Source:         "ly-agent-procfs-fallback",
 				Engine:         "procfs",
-				Interface:      a.cfg.TrafficInterface,
+				Interface:      trafficConfig.Interface,
 				SrcIP:          srcIP,
 				DstIP:          dstIP,
 				SrcPort:        srcPort,
@@ -2021,7 +2193,7 @@ func (a *Agent) procfsTrafficObservations() []trafficObservation {
 			Timestamp:      time.Now().UTC(),
 			Source:         "ly-agent-procfs-fallback-empty-sample",
 			Engine:         "procfs",
-			Interface:      a.cfg.TrafficInterface,
+			Interface:      trafficConfig.Interface,
 			SrcIP:          a.localIP,
 			DstIP:          serverHost,
 			DstPort:        8080,
@@ -2161,10 +2333,14 @@ func (a *Agent) publishLogAuditHeartbeat() {
 		},
 		Excerpt: "lyflow log audit collector heartbeat",
 	}
-	client := redis.NewClient(&redis.Options{Addr: a.cfg.Redis})
-	defer client.Close()
-	_ = publishJSONToStream(a.ctx, client, "logs:raw", structToMap(telemetry), "log_raw")
-	_ = publishJSONToStream(a.ctx, client, a.cfg.LogAuditTelemetryStream, structToMap(telemetry), "telemetry_log_audit")
+	if err := a.publishAgentStream(a.ctx, "logs:raw", structToMap(telemetry), "log_raw"); err != nil {
+		a.handleControlHealth(a.runtimeHealth.Degrade("observation_delivery_unavailable", false))
+		fmt.Printf("[log-audit] raw heartbeat publish failed: %v\n", err)
+	}
+	if err := a.publishAgentStream(a.ctx, a.cfg.LogAuditTelemetryStream, structToMap(telemetry), "telemetry_log_audit"); err != nil {
+		a.handleControlHealth(a.runtimeHealth.Degrade("observation_delivery_unavailable", false))
+		fmt.Printf("[log-audit] telemetry heartbeat publish failed: %v\n", err)
+	}
 }
 
 func (a *Agent) publishLogAuditTelemetry(event RuntimeEvent, input wazuhAlertInput) {
@@ -2200,10 +2376,14 @@ func (a *Agent) publishLogAuditTelemetry(event RuntimeEvent, input wazuhAlertInp
 		},
 		Excerpt: truncateForMetadata(message, 280),
 	}
-	client := redis.NewClient(&redis.Options{Addr: a.cfg.Redis})
-	defer client.Close()
-	_ = publishJSONToStream(a.ctx, client, "logs:raw", structToMap(telemetry), "log_raw")
-	_ = publishJSONToStream(a.ctx, client, a.cfg.LogAuditTelemetryStream, structToMap(telemetry), "telemetry_log_audit")
+	if err := a.publishAgentStream(a.ctx, "logs:raw", structToMap(telemetry), "log_raw"); err != nil {
+		a.handleControlHealth(a.runtimeHealth.Degrade("observation_delivery_unavailable", false))
+		fmt.Printf("[log-audit] raw event publish failed: %v\n", err)
+	}
+	if err := a.publishAgentStream(a.ctx, a.cfg.LogAuditTelemetryStream, structToMap(telemetry), "telemetry_log_audit"); err != nil {
+		a.handleControlHealth(a.runtimeHealth.Degrade("observation_delivery_unavailable", false))
+		fmt.Printf("[log-audit] telemetry event publish failed: %v\n", err)
+	}
 }
 
 func (a *Agent) runAssetCollector() {
@@ -2231,7 +2411,8 @@ func (a *Agent) runRASP() {
 		case <-a.ctx.Done():
 			return
 		case <-ticker.C:
-			if !a.cfg.RASPEnabled {
+			a.enforceRASPPolicyExpiry(time.Now().UTC())
+			if !a.raspPolicyEnabled() {
 				continue
 			}
 			a.publishRASPProtectionStatus()
@@ -2245,18 +2426,25 @@ func (a *Agent) publishRASPProtectionStatus() {
 	}
 	now := time.Now().UTC()
 	status := map[string]interface{}{
-		"agent_id":      a.agentID,
-		"hostname":      a.hostname,
-		"status":        "protected",
-		"mode":          "monitor",
-		"policy_state":  "audit_only",
-		"applications":  []string{"generic-local-bridge"},
-		"hooks":         []string{"sql", "command", "file", "http"},
-		"source":        "agent-rasp-probe-manager",
-		"last_seen_at":  now.Format(time.RFC3339Nano),
-		"updated_at":    now.Format(time.RFC3339Nano),
-		"bridge_addr":   a.cfg.RASPBridgeAddr,
-		"telemetry_key": "telemetry:rasp",
+		"agent_id":       a.agentID,
+		"hostname":       a.hostname,
+		"status":         "protected",
+		"mode":           "monitor",
+		"policy_state":   "audit_only",
+		"applications":   []string{"generic-local-bridge"},
+		"hooks":          []string{"sql", "command", "file", "http"},
+		"source":         "agent-rasp-probe-manager",
+		"last_seen_at":   now.Format(time.RFC3339Nano),
+		"updated_at":     now.Format(time.RFC3339Nano),
+		"bridge_addr":    a.cfg.RASPBridgeAddr,
+		"telemetry_key":  "telemetry:rasp",
+		"control_health": a.runtimeHealth.Snapshot(),
+	}
+	if delivery, ok := a.raspBridgeHealthSnapshot(); ok {
+		status["delivery"] = delivery
+		if delivery.Status == controlHealthDegraded {
+			status["status"] = "degraded"
+		}
 	}
 	telemetry := contracts.TelemetryEnvelope{
 		SchemaVersion: contracts.TelemetrySchemaVersion,
@@ -2275,84 +2463,21 @@ func (a *Agent) publishRASPProtectionStatus() {
 		Fields:  status,
 		Excerpt: "RASP protection heartbeat",
 	}
-	client := redis.NewClient(&redis.Options{Addr: a.cfg.Redis})
-	defer client.Close()
 	if data, err := json.Marshal(status); err == nil {
-		_ = client.Set(a.ctx, "rasp:protection:"+a.agentID, string(data), 5*time.Minute).Err()
+		client := redis.NewClient(redisOptions(a.cfg))
+		defer client.Close()
+		if err := client.Set(a.ctx, "rasp:protection:"+a.agentID, string(data), 5*time.Minute).Err(); err != nil {
+			a.handleControlHealth(a.runtimeHealth.Degrade("health_store_unavailable", false))
+			fmt.Printf("[rasp] protection health store failed: %v\n", err)
+		}
+	} else {
+		a.handleControlHealth(a.runtimeHealth.Degrade("health_encoding_failed", false))
+		fmt.Printf("[rasp] protection health encode failed: %v\n", err)
 	}
-	_ = publishJSONToStream(a.ctx, client, a.cfg.RASPTelemetryStream, structToMap(telemetry), "telemetry_rasp")
-}
-
-func (a *Agent) runRASPBridge() {
-	addr := strings.TrimSpace(a.cfg.RASPBridgeAddr)
-	if addr == "" {
-		return
+	if err := a.publishAgentStream(a.ctx, a.cfg.RASPTelemetryStream, structToMap(telemetry), "telemetry_rasp"); err != nil {
+		a.handleControlHealth(a.runtimeHealth.Degrade("health_delivery_unavailable", false))
+		fmt.Printf("[rasp] protection health publish failed: %v\n", err)
 	}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/v1/rasp/events", a.handleRASPBridgeEvent)
-	server := &http.Server{Addr: addr, Handler: mux}
-	go func() {
-		<-a.ctx.Done()
-		_ = server.Shutdown(context.Background())
-	}()
-	fmt.Printf("[rasp] local bridge listening on %s\n", addr)
-	if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-		fmt.Printf("[rasp] local bridge failed: %v\n", err)
-	}
-}
-
-func (a *Agent) handleRASPBridgeEvent(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	if token := strings.TrimSpace(a.cfg.RASPBridgeToken); token != "" && r.Header.Get("X-Ly-RASP-Token") != token {
-		http.Error(w, "unauthorized", http.StatusUnauthorized)
-		return
-	}
-	defer r.Body.Close()
-	payload := map[string]interface{}{}
-	if err := json.NewDecoder(io.LimitReader(r.Body, 1<<20)).Decode(&payload); err != nil {
-		http.Error(w, "invalid json", http.StatusBadRequest)
-		return
-	}
-	now := time.Now().UTC()
-	eventID := fmt.Sprintf("rasp-%s-%d", a.agentID, now.UnixNano())
-	normalizeRASPBridgePayload(payload)
-	telemetry := contracts.TelemetryEnvelope{
-		SchemaVersion: contracts.TelemetrySchemaVersion,
-		ID:            eventID,
-		Category:      contracts.TelemetryRASP,
-		EventType:     pickPayloadString(payload, "event_type", "hook_type", "type"),
-		ObservedAt:    now,
-		ReceivedAt:    now,
-		Source:        pickPayloadString(payload, "source", "language", "runtime"),
-		Entities: contracts.EntityRef{
-			AgentID:     a.agentID,
-			HostID:      a.hostname,
-			Hostname:    a.hostname,
-			Application: pickPayloadString(payload, "application", "app", "service"),
-			SourceIP:    pickPayloadString(payload, "source_ip", "client_ip"),
-			TargetIP:    a.localIP,
-			TraceID:     pickPayloadString(payload, "trace_id", "request_id"),
-		},
-		Fields:  payload,
-		Excerpt: truncateForMetadata(pickPayloadString(payload, "payload", "query", "command", "cmdline", "path", "url"), 280),
-	}
-	if telemetry.EventType == "" {
-		telemetry.EventType = "rasp.event"
-	}
-	if telemetry.Source == "" {
-		telemetry.Source = "rasp-probe"
-	}
-	client := redis.NewClient(&redis.Options{Addr: a.cfg.Redis})
-	defer client.Close()
-	if err := publishJSONToStream(r.Context(), client, a.cfg.RASPTelemetryStream, structToMap(telemetry), "telemetry_rasp"); err != nil {
-		http.Error(w, "publish failed", http.StatusInternalServerError)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "id": eventID})
 }
 
 func normalizeRASPBridgePayload(payload map[string]interface{}) {
@@ -3268,11 +3393,7 @@ func NewHTTPRuntimePublisher(agent *Agent) RuntimeEventPublisher {
 }
 
 func (p *HTTPRuntimePublisher) Publish(ctx context.Context, event RuntimeEvent) error {
-	payload, err := json.Marshal(event)
-	if err != nil {
-		return err
-	}
-	if _, err := httpPost(p.agent.cfg.API+"/api/v1/agent/runtime-event", payload); err != nil {
+	if err := p.agent.publishAgentStream(ctx, "alerts:runtime", structToMap(event), "runtime_event"); err != nil {
 		return err
 	}
 	fmt.Printf("[runtime] published monitor event: type=%s backend=%s\n", event.Type, event.Backend)
@@ -3596,6 +3717,16 @@ func applyYAMLConfig(cfg *Config, yamlValues map[string]string) {
 	if v := yamlValues["traffic.promiscuous"]; v != "" {
 		cfg.Promiscuous = parseBoolOrDefault(v, cfg.Promiscuous)
 	}
+	if v := yamlValues["traffic.sample_every_n"]; v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.TrafficSampleEveryN = n
+		}
+	}
+	if v := yamlValues["traffic.max_events_per_second"]; v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
+			cfg.MaxTrafficEventsPerSec = n
+		}
+	}
 	if v := yamlValues["traffic.streams.raw"]; v != "" {
 		cfg.RawStream = v
 	}
@@ -3660,6 +3791,9 @@ func applyYAMLConfig(cfg *Config, yamlValues map[string]string) {
 	if v := yamlValues["rasp.bridge_token"]; v != "" {
 		cfg.RASPBridgeToken = v
 	}
+	if v := yamlValues["rasp.policy_root"]; v != "" {
+		cfg.RASPPolicyRootPath = v
+	}
 	if v := yamlValues["log_audit.telemetry_stream"]; v != "" {
 		cfg.LogAuditTelemetryStream = v
 	}
@@ -3671,6 +3805,9 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("AGENT_KEY"); v != "" {
 		cfg.AgentKey = v
+	}
+	if v := os.Getenv("AGENT_ENROLL_TOKEN"); v != "" {
+		cfg.EnrollmentToken = v
 	}
 	if v := os.Getenv("AGENT_MODE"); v != "" {
 		cfg.Mode = v
@@ -3684,6 +3821,9 @@ func applyEnvOverrides(cfg *Config) {
 	if v := os.Getenv("REDIS_SERVER"); v != "" {
 		cfg.Redis = v
 	}
+	cfg.RedisUsername = os.Getenv("REDIS_ACL_USERNAME")
+	cfg.RedisPassword = os.Getenv("REDIS_ACL_PASSWORD")
+	cfg.RedisLegacyPassword = os.Getenv("REDIS_PASSWORD")
 	if v := os.Getenv("API_INSECURE_SKIP_VERIFY"); v != "" {
 		cfg.InsecureSkipVerify = parseBoolOrDefault(v, cfg.InsecureSkipVerify)
 	}
@@ -3708,6 +3848,11 @@ func applyEnvOverrides(cfg *Config) {
 	if v := os.Getenv("TRAFFIC_MAX_EVENTS_PER_SECOND"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n >= 0 {
 			cfg.MaxTrafficEventsPerSec = n
+		}
+	}
+	if v := os.Getenv("TRAFFIC_SAMPLE_EVERY_N"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.TrafficSampleEveryN = n
 		}
 	}
 	if v := os.Getenv("RAW_STREAM"); v != "" {
@@ -3765,6 +3910,30 @@ func applyEnvOverrides(cfg *Config) {
 	if v := os.Getenv("LY_RASP_TOKEN"); v != "" {
 		cfg.RASPBridgeToken = v
 	}
+	if v := os.Getenv("RASP_POLICY_ROOT"); v != "" {
+		cfg.RASPPolicyRootPath = v
+	}
+	if v := os.Getenv("AGENT_BINARY_DIGEST"); v != "" {
+		cfg.AgentBinaryDigestPath = v
+	}
+	if v := os.Getenv("AGENT_BINARY_ROOT"); v != "" {
+		cfg.AgentBinaryRootPath = v
+	}
+	if v := os.Getenv("AGENT_CONFIG_SIGNATURE"); v != "" {
+		cfg.AgentConfigSignaturePath = v
+	}
+	if v := os.Getenv("AGENT_CONFIG_ROOT"); v != "" {
+		cfg.AgentConfigRootPath = v
+	}
+	if v := os.Getenv("AGENT_IDENTITY_CONFIG"); v != "" {
+		cfg.AgentIdentityPath = v
+	}
+	if v := os.Getenv("AGENT_REQUIRE_BINARY_INTEGRITY"); v != "" {
+		cfg.RequireAgentIntegrity = parseBoolOrDefault(v, cfg.RequireAgentIntegrity)
+	}
+	if v := os.Getenv("AGENT_REQUIRE_CONFIG_INTEGRITY"); v != "" {
+		cfg.RequireConfigIntegrity = parseBoolOrDefault(v, cfg.RequireConfigIntegrity)
+	}
 	if v := os.Getenv("ASSET_ENABLED"); v != "" {
 		cfg.AssetEnabled = parseBoolOrDefault(v, cfg.AssetEnabled)
 	}
@@ -3800,6 +3969,30 @@ func httpPost(url string, body []byte) ([]byte, error) {
 		return nil, fmt.Errorf("http %d: %s", resp.StatusCode, strings.TrimSpace(string(result)))
 	}
 	return result, nil
+}
+
+func httpPostAgent(url string, body []byte, agentID, agentKey string) ([]byte, error) {
+	req, err := http.NewRequest("POST", url, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("X-Lyflow-Agent-ID", agentID)
+	req.Header.Set("Authorization", "Bearer "+agentKey)
+	client := httpClient(agentInsecureSkipVerify(), 30*time.Second)
+	resp, err := client.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	response, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
+		return nil, fmt.Errorf("agent HTTP POST %s: status %d: %s", url, resp.StatusCode, strings.TrimSpace(string(response)))
+	}
+	return response, nil
 }
 
 func agentInsecureSkipVerify() bool {
@@ -3896,46 +4089,61 @@ func main() {
 	}
 
 	cfg := &Config{
-		API:                     "http://localhost:8080",
-		Redis:                   "localhost:6379",
-		HeartbeatInterval:       30,
-		LogLevel:                "info",
-		LogFile:                 "/opt/ly-agent/logs/agent.log",
-		TrafficEnabled:          true,
-		TrafficInterface:        "auto",
-		CaptureEngine:           "auto",
-		BPFFilter:               "",
-		Promiscuous:             true,
-		MaxTrafficEventsPerSec:  0,
-		RawStream:               "flows:raw",
-		SemanticStream:          "flows:semantic",
-		SessionEnabled:          true,
-		SessionStream:           "sessions:semantic",
-		TrafficTelemetryStream:  "telemetry:traffic",
-		RuntimeTelemetryStream:  "telemetry:runtime",
-		RASPTelemetryStream:     "telemetry:rasp",
-		LogAuditTelemetryStream: "telemetry:log_audit",
-		RetentionEnabled:        true,
-		RetentionDir:            "/opt/ly-agent/data/packets",
-		SpoolEnabled:            true,
-		SpoolDir:                "/opt/ly-agent/data/spool",
-		SpoolMaxBytes:           10 * 1024 * 1024 * 1024,
-		SpoolFlushInterval:      1,
-		HIDSEnabled:             true,
-		RuntimeStream:           "alerts:runtime",
-		RASPEnabled:             false,
-		RASPStream:              "alerts:rasp",
-		RASPBridgeAddr:          "127.0.0.1:17891",
-		RASPBridgeToken:         getEnv("LY_RASP_TOKEN", ""),
-		AssetEnabled:            true,
+		API:                      "http://localhost:8080",
+		Redis:                    "localhost:6379",
+		HeartbeatInterval:        30,
+		LogLevel:                 "info",
+		LogFile:                  "/opt/ly-agent/logs/agent.log",
+		TrafficEnabled:           true,
+		TrafficInterface:         "auto",
+		CaptureEngine:            "auto",
+		BPFFilter:                "",
+		Promiscuous:              true,
+		TrafficSampleEveryN:      1,
+		MaxTrafficEventsPerSec:   0,
+		RawStream:                "flows:raw",
+		SemanticStream:           "flows:semantic",
+		SessionEnabled:           true,
+		SessionStream:            "sessions:semantic",
+		TrafficTelemetryStream:   "telemetry:traffic",
+		RuntimeTelemetryStream:   "telemetry:runtime",
+		RASPTelemetryStream:      "telemetry:rasp",
+		LogAuditTelemetryStream:  "telemetry:log_audit",
+		RetentionEnabled:         true,
+		RetentionDir:             "/opt/ly-agent/data/packets",
+		SpoolEnabled:             true,
+		SpoolDir:                 "/opt/ly-agent/data/spool",
+		SpoolMaxBytes:            10 * 1024 * 1024 * 1024,
+		SpoolFlushInterval:       1,
+		HIDSEnabled:              true,
+		RuntimeStream:            "alerts:runtime",
+		RASPEnabled:              false,
+		RASPStream:               "alerts:rasp",
+		RASPBridgeAddr:           "127.0.0.1:17891",
+		RASPBridgeToken:          getEnv("LY_RASP_TOKEN", ""),
+		RASPPolicyRootPath:       getEnv("RASP_POLICY_ROOT", "/etc/lyflow/trust/policy-root.pem"),
+		RASPMode:                 "monitor",
+		AgentBinaryDigestPath:    getEnv("AGENT_BINARY_DIGEST", "/etc/lyflow/trust/agent-binary.digest.json"),
+		AgentBinaryRootPath:      getEnv("AGENT_BINARY_ROOT", "/etc/lyflow/trust/agent-binary-root.pem"),
+		AgentConfigPath:          getEnv("AGENT_CONFIG", defaultConfigFile),
+		AgentConfigSignaturePath: getEnv("AGENT_CONFIG_SIGNATURE", "/etc/lyflow/trust/agent-config.digest.json"),
+		AgentConfigRootPath:      getEnv("AGENT_CONFIG_ROOT", "/etc/lyflow/trust/agent-config-root.pem"),
+		AgentIdentityPath:        getEnv("AGENT_IDENTITY_CONFIG", "/opt/ly-agent/etc/agent-identity.yaml"),
+		RequireAgentIntegrity:    parseBoolOrDefault(getEnv("AGENT_REQUIRE_BINARY_INTEGRITY", "true"), true),
+		RequireConfigIntegrity:   parseBoolOrDefault(getEnv("AGENT_REQUIRE_CONFIG_INTEGRITY", "true"), true),
+		AssetEnabled:             true,
 	}
 	applyPlatformDefaults(cfg)
 
 	configPath := resolveConfigPath(os.Args[1:])
+	cfg.AgentConfigPath = configPath
 	if yamlValues, err := parseSimpleYAML(configPath); err == nil {
 		applyYAMLConfig(cfg, yamlValues)
 	} else {
 		log.Printf("[agent] config file not loaded (%s): %v", configPath, err)
+	}
+	if identityValues, err := parseSimpleYAML(cfg.AgentIdentityPath); err == nil {
+		applyAgentIdentity(cfg, identityValues)
 	}
 	applyEnvOverrides(cfg)
 	applyPlatformTrafficPolicy(cfg)

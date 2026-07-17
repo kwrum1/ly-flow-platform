@@ -1,0 +1,10 @@
+Todo17 verifier evidence
+
+PASS bash scripts/qa/run-go-tests.sh xdr-features
+PASS real local Postgres replay/restart with deterministic graph and scoring-detail checksums
+PASS GOWORK=off go test -race -shuffle=on -count=10 ./... in server
+PASS real-store GOWORK=off go test -race -shuffle=on -count=10 ./xdr/features ./cmd
+PASS GOWORK=off go vet ./... and GOWORK=off go build ./... in server
+PASS shell syntax, harness self-test, LSP diagnostics, gofmt, diff whitespace, pure LOC, manual SQL QA, and cleanup
+
+Authoritative evidence: .omo/evidence/task-17-lyflow-commercial-defense-hardening.json

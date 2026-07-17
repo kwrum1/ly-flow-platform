@@ -1,8 +1,6 @@
 package main
 
 import (
-	"context"
-	"encoding/json"
 	"fmt"
 	"time"
 
@@ -10,10 +8,10 @@ import (
 )
 
 type pathCandidate struct {
-	EventIndices   []int
-	EdgeTypes      []string
-	EdgeStrengths  []float64
-	Transitions    []*models.AttackTransition
+	EventIndices  []int
+	EdgeTypes     []string
+	EdgeStrengths []float64
+	Transitions   []*models.AttackTransition
 }
 
 func boundedPathSearch(events []*models.CanonicalEventV2, edges []*models.GraphEdgeV2, config *Config) []*models.ChainHypothesisV2 {
@@ -288,39 +286,4 @@ func deduceHypotheses(hypotheses []*models.ChainHypothesisV2) []*models.ChainHyp
 		out = append(out, h)
 	}
 	return out
-}
-
-func persistChainHypotheses(ctx context.Context, hypotheses []*models.ChainHypothesisV2, config *Config) error {
-	if config.DBPool == nil || len(hypotheses) == 0 {
-		return nil
-	}
-	for _, h := range hypotheses {
-		pathNodes, _ := json.Marshal(h.PathNodeUIDs)
-		scoreDetail, _ := json.Marshal(h.ScoreDetail)
-		pathEvidence, _ := json.Marshal(h.PathEvidence)
-		firstSeen := "NULL"
-		lastSeen := "NULL"
-		if h.FirstSeen != nil && !h.FirstSeen.IsZero() {
-			firstSeen = fmt.Sprintf("'%s'", h.FirstSeen.Format(time.RFC3339))
-		}
-		if h.LastSeen != nil && !h.LastSeen.IsZero() {
-			lastSeen = fmt.Sprintf("'%s'", h.LastSeen.Format(time.RFC3339))
-		}
-		_, err := config.DBPool.Exec(ctx,
-			`INSERT INTO xdr_chain_hypotheses (tenant_id, hypothesis_uid, seed_node_uid, path_node_uids, 
-			 risk_score, confidence_score, impact_score, path_continuity_score, chain_score, score_detail,
-			 severity, hypothesis_status, rejection_reason, evaluation_version, attack_mapping_version,
-			 path_evidence, first_seen, last_seen, traversal_depth, created_at)
-			 VALUES ($1,$2,$3,$4::jsonb,$5,$6,$7,$8,$9,$10::jsonb,$11,$12,$13,$14,$15,$16::jsonb,
-			 `+firstSeen+`::timestamptz, `+lastSeen+`::timestamptz, $17, NOW())
-			 ON CONFLICT (tenant_id, hypothesis_uid) DO UPDATE SET chain_score=EXCLUDED.chain_score, severity=EXCLUDED.severity, hypothesis_status=EXCLUDED.hypothesis_status`,
-			h.TenantID, h.HypothesisUID, h.SeedNodeUID, pathNodes,
-			h.RiskScore, h.ConfidenceScore, h.ImpactScore, h.PathContinuityScore, h.ChainScore, scoreDetail,
-			h.Severity, h.HypothesisStatus, h.RejectionReason, h.EvaluationVersion, h.AttackMappingVersion,
-			pathEvidence, h.TraversalDepth)
-		if err != nil {
-			return fmt.Errorf("persist hypothesis %s: %w", h.HypothesisUID, err)
-		}
-	}
-	return nil
 }

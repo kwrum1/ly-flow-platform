@@ -27,39 +27,39 @@ func NewWazuhConverter(rulesDir string) *WazuhConverter {
 
 type WazuhRuleGroup struct {
 	XMLName xml.Name    `xml:"group"`
-	Name   string      `xml:"name,attr"`
-	Rules  []WazuhRule `xml:"rule"`
+	Name    string      `xml:"name,attr"`
+	Rules   []WazuhRule `xml:"rule"`
 }
 
 type WazuhRule struct {
-	XMLName      xml.Name   `xml:"rule"`
-	ID           int        `xml:"id,attr"`
-	Level        int        `xml:"level,attr"`
-	Maxsize      int        `xml:"maxsize,attr"`
-	Frequency    int        `xml:"frequency,attr"`
-	Timeframe    int        `xml:"timeframe,attr"`
-	Ignore       int        `xml:"ignore,attr"`
-	Noalert      bool       `xml:"noalert,attr"`
-	Overwrite    bool       `xml:"overwrite,attr"`
-	DecodedAs    string     `xml:"decoded_as"`
-	Match        string     `xml:"match"`
-	Regex        string     `xml:"regex"`
-	Field        string     `xml:"field"`
-	SRcip        string     `xml:"srcip"`
-	DstIP        string     `xml:"dstip"`
-	User         string     `xml:"user"`
-	Program      string     `xml:"program_name"`
-	ExtraData    string     `xml:"extra_data"`
-	Hostname     string     `xml:"hostname"`
-	Description  string     `xml:"description"`
-	Group        string     `xml:"group"`
-	Groups       string     `xml:"groups"`
-	Info         []WazuhInfo `xml:"info"`
-	Mitre        WazuhMitre `xml:"mitre"`
-	IfSID        string     `xml:"if_sid"`
-	SameSrcip    bool       `xml:"same_source_ip"`
-	SameUser     bool       `xml:"same_user"`
-	NotMatch     string     `xml:"not_match"`
+	XMLName     xml.Name    `xml:"rule"`
+	ID          int         `xml:"id,attr"`
+	Level       int         `xml:"level,attr"`
+	Maxsize     int         `xml:"maxsize,attr"`
+	Frequency   int         `xml:"frequency,attr"`
+	Timeframe   int         `xml:"timeframe,attr"`
+	Ignore      int         `xml:"ignore,attr"`
+	Noalert     bool        `xml:"noalert,attr"`
+	Overwrite   bool        `xml:"overwrite,attr"`
+	DecodedAs   string      `xml:"decoded_as"`
+	Match       string      `xml:"match"`
+	Regex       string      `xml:"regex"`
+	Field       string      `xml:"field"`
+	SRcip       string      `xml:"srcip"`
+	DstIP       string      `xml:"dstip"`
+	User        string      `xml:"user"`
+	Program     string      `xml:"program_name"`
+	ExtraData   string      `xml:"extra_data"`
+	Hostname    string      `xml:"hostname"`
+	Description string      `xml:"description"`
+	Group       string      `xml:"group"`
+	Groups      string      `xml:"groups"`
+	Info        []WazuhInfo `xml:"info"`
+	Mitre       WazuhMitre  `xml:"mitre"`
+	IfSID       string      `xml:"if_sid"`
+	SameSrcip   bool        `xml:"same_source_ip"`
+	SameUser    bool        `xml:"same_user"`
+	NotMatch    string      `xml:"not_match"`
 }
 
 type WazuhInfo struct {
@@ -127,8 +127,8 @@ func (c *WazuhConverter) convertXMLToYAML(data []byte, filename string) error {
 	}
 
 	yamlData, err := yaml.Marshal(struct {
-		Source string         `yaml:"source"`
-		Rules  []models.Rule  `yaml:"rules"`
+		Source string        `yaml:"source"`
+		Rules  []models.Rule `yaml:"rules"`
 	}{
 		Source: c.getSourceFromFilename(filename),
 		Rules:  rules,

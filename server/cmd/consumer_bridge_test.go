@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/lyflow/ly-flow-platform/server/unified"
+	transport "github.com/lyflow/ly-flow-platform/transportreliability"
 )
 
 func TestToUnifiedXDREventNormalizesMixedSignals(t *testing.T) {
@@ -86,7 +87,7 @@ func TestBuildDeadLetterValuesKeepsSourceAndReason(t *testing.T) {
 	if values["source_stream"] != unified.StreamAlertsRuntime || values["source_message_id"] != "1-0" {
 		t.Fatalf("source fields not preserved: %+v", values)
 	}
-	if !strings.Contains(values["reason"].(string), "invalid json") {
+	if values["reason"] != string(transport.ReasonHandlerRejected) || !strings.Contains(values["detail"].(string), "invalid json") {
 		t.Fatalf("reason = %q", values["reason"])
 	}
 	if !json.Valid([]byte(values["raw"].(string))) {

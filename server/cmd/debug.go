@@ -121,18 +121,15 @@ func checkSecurityEngineAlertBus(ctx context.Context, cfg *Config) componentStat
 }
 
 func checkXDREvaluator(ctx context.Context, cfg *Config) componentStatus {
-	events, _, err := loadXDRComponentEvents(cfg, 1000)
+	result, err := xdrActiveChainsResponse(ctx, cfg, 20)
 	if err != nil {
-		return componentStatus{Status: "error", Message: err.Error(), Remediation: "verify events:xdr and component alert ingestion"}
+		return componentStatus{Status: "error", Message: err.Error(), Remediation: "verify canonical event storage and versioned XDR persistence"}
 	}
-	chains := buildXDRChains(cfg, events, 20)
-	posture := buildXDRPosture(events)
-	candidates := buildXDRResponseCandidates(events, 20)
 	status := "ok"
-	if len(events) == 0 || len(chains) == 0 {
+	if len(result.activeChains()) == 0 {
 		status = "degraded"
 	}
-	return componentStatus{Status: status, Message: "XDR evaluator online", Details: map[string]interface{}{"event_count": len(events), "chain_count": len(chains), "candidate_count": len(candidates), "posture": posture}}
+	return componentStatus{Status: status, Message: "XDR evaluator online", Details: map[string]interface{}{"chain_count": len(result.activeChains()), "health": cfg.XDRGraph.Health()}}
 }
 
 func checkXDRResponsePolicy(cfg *Config) componentStatus {

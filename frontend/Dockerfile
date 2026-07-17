@@ -1,19 +1,16 @@
-ARG RUNTIME_IMAGE=nginx:1.27-alpine
+ARG RUNTIME_IMAGE=ly-flow/frontend@sha256:98767ee96d258cdd023b6a620a4b1b44a2239a8f2742f51dc91d240615740707
 
 FROM ${RUNTIME_IMAGE}
 
 USER root
 
 COPY frontend/dist /usr/share/nginx/html
+COPY frontend/docker-entrypoint.d/40-lyflow-tls.sh /docker-entrypoint.d/40-lyflow-tls.sh
 
 ENV LY_SERVER_UPSTREAM=http://ly-server:8080
-RUN apk add --no-cache openssl \
+RUN command -v openssl >/dev/null \
     && mkdir -p /etc/nginx/templates /etc/nginx/ssl \
-    && openssl req -x509 -nodes -newkey rsa:2048 -days 3650 \
-        -keyout /etc/nginx/ssl/lyflow.key \
-        -out /etc/nginx/ssl/lyflow.crt \
-        -subj "/CN=lyflow.local/O=LyFlow Security Console" \
-        -addext "subjectAltName=DNS:localhost,DNS:lyflow.local,IP:127.0.0.1" \
+    && chmod 0755 /docker-entrypoint.d/40-lyflow-tls.sh \
     && echo 'server { \
     listen 443 ssl; \
     server_name _; \

@@ -1,0 +1,12 @@
+{
+  "schema_version": "lyflow.representative-data-review.v1",
+  "review_id": "representative-review-inert-20260716",
+  "reviewer": "independent-calibration-review",
+  "status": "approved",
+  "data_class": "redacted-representative",
+  "manifest_revision": "detection-replay.v1",
+  "corpus_sha256": "b24b50908b2be4737c2cd06f6eb563a4e5800af8938b5700fdc537baa8ca1fd9",
+  "representative_workflow_sha256": "ad8e450b9df59fdecba77a6875454bab28a6d6076743bea2c52eeef0ab319778",
+  "approved_at": "2026-07-15T00:00:00Z",
+  "expires_at": "2026-08-01T00:00:00Z"
+}

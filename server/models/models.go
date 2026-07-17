@@ -12,6 +12,7 @@ import (
 // Event represents a normalized security event stored in PostgreSQL
 type Event struct {
 	ID             int64     `json:"id" db:"id"`
+	EventUID       string    `json:"event_uid" db:"event_uid"`
 	Timestamp      time.Time `json:"timestamp" db:"timestamp"`
 	EventType      string    `json:"event_type" db:"event_type"`
 	Source         string    `json:"source" db:"source"`
@@ -31,6 +32,14 @@ type Event struct {
 	CreatedAt      time.Time `json:"created_at" db:"created_at"`
 }
 
+const EventMaterializationSQL = `
+	INSERT INTO events (event_uid, timestamp, event_type, source, severity, src_ip, dst_ip,
+		src_port, dst_port, protocol, domain, tags, mitre_tactic, mitre_technique,
+		raw_data, metadata, status)
+	VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+	ON CONFLICT (event_uid) DO UPDATE SET event_uid = EXCLUDED.event_uid
+`
+
 // Asset represents a managed asset
 type Asset struct {
 	ID        int64     `json:"id" db:"id"`
@@ -47,17 +56,17 @@ type Asset struct {
 
 // Vulnerability represents a detected vulnerability
 type Vulnerability struct {
-	ID           int64      `json:"id" db:"id"`
-	AssetID      int64      `json:"asset_id" db:"asset_id"`
-	CVE          string     `json:"cve" db:"cve"`
-	Severity     string     `json:"severity" db:"severity"`
-	Scanner      string     `json:"scanner" db:"scanner"`
-	Title        string     `json:"title" db:"title"`
-	Description  string     `json:"description" db:"description"`
-	Remediation  string     `json:"remediation" db:"remediation"`
-	Status       string     `json:"status" db:"status"`
-	CreatedAt    time.Time  `json:"created_at" db:"created_at"`
-	ResolvedAt   *time.Time `json:"resolved_at" db:"resolved_at"`
+	ID          int64      `json:"id" db:"id"`
+	AssetID     int64      `json:"asset_id" db:"asset_id"`
+	CVE         string     `json:"cve" db:"cve"`
+	Severity    string     `json:"severity" db:"severity"`
+	Scanner     string     `json:"scanner" db:"scanner"`
+	Title       string     `json:"title" db:"title"`
+	Description string     `json:"description" db:"description"`
+	Remediation string     `json:"remediation" db:"remediation"`
+	Status      string     `json:"status" db:"status"`
+	CreatedAt   time.Time  `json:"created_at" db:"created_at"`
+	ResolvedAt  *time.Time `json:"resolved_at" db:"resolved_at"`
 }
 
 // Agent represents a registered security agent
@@ -130,6 +139,8 @@ type DB struct {
 	pool *pgxpool.Pool
 }
 
+func (db *DB) Pool() *pgxpool.Pool { return db.pool }
+
 // NewDB creates a new database connection pool
 func NewDB(ctx context.Context, dsn string) (*DB, error) {
 	config, err := pgxpool.ParseConfig(dsn)
@@ -166,16 +177,10 @@ func (db *DB) InsertEvent(ctx context.Context, event *Event) (int64, error) {
 		tags = event.Tags
 	}
 
-	query := `
-		INSERT INTO events (timestamp, event_type, source, severity, src_ip, dst_ip,
-			src_port, dst_port, protocol, domain, tags, mitre_tactic, mitre_technique,
-			raw_data, metadata, status)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-		RETURNING id
-	`
+	query := EventMaterializationSQL + " RETURNING id"
 
 	err := db.pool.QueryRow(ctx, query,
-		event.Timestamp, event.EventType, event.Source, event.Severity,
+		event.EventUID, event.Timestamp, event.EventType, event.Source, event.Severity,
 		event.SrcIP, event.DstIP, event.SrcPort, event.DstPort,
 		event.Protocol, event.Domain, tags, event.MitreTactic, event.MitreTechnique,
 		event.RawData, event.Metadata, event.Status,
@@ -194,13 +199,8 @@ func (db *DB) BatchInsertEvents(ctx context.Context, events []*Event) error {
 		} else {
 			tags = event.Tags
 		}
-		batch.Queue(`
-			INSERT INTO events (timestamp, event_type, source, severity, src_ip, dst_ip,
-				src_port, dst_port, protocol, domain, tags, mitre_tactic, mitre_technique,
-				raw_data, metadata, status)
-			VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-		`,
-			event.Timestamp, event.EventType, event.Source, event.Severity,
+		batch.Queue(EventMaterializationSQL,
+			event.EventUID, event.Timestamp, event.EventType, event.Source, event.Severity,
 			event.SrcIP, event.DstIP, event.SrcPort, event.DstPort,
 			event.Protocol, event.Domain, tags, event.MitreTactic, event.MitreTechnique,
 			event.RawData, event.Metadata, event.Status,

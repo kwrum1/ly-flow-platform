@@ -1,0 +1,39 @@
+Task22 release provenance evidence
+generated_at=2026-07-14T00:00:00Z
+network_mode=local-only; GOPROXY=off; GOSUMDB=off; npm_config_offline=true; Maven -o
+policy=reachable high/critical blocks release
+exceptions_schema=scripts/qa/vulnerability-exceptions.json; owner/reachability/compensating_control/expires_at<=30d/scanner name+version+database required
+
+RESOLVED_LOCAL
+PASS dependency-pins: npm direct production/dev versions exactly match package-lock; Go workspace uses 1.24.4; Python direct requirements are exact; Java POM versions are exact.
+PASS npm-raw-result: npm 10.9.7 offline output reported high=0 critical=0 across 144 production dependencies.
+
+REMAINING_EXTERNAL_SCANNER_RUNTIME_DIGEST_ASSETS
+BLOCKED npm-advisory-proof: npm cache has no security/advisories or audits/quick record, so the empty result has no locally provable database version and is not accepted as a release pass.
+BLOCKED python-audit: pip-audit and an approved local Python advisory database are unavailable; requirements.lock is direct-only because no cached distributions exist for a hash-complete transitive lock.
+BLOCKED go-audit: govulncheck and a local Go vulnerability database are unavailable. No Go finding or reachability claim is fabricated.
+BLOCKED image-audit: Trivy, Grype, and local image vulnerability databases are unavailable. Local image IDs/digests are inventoried without asserting vulnerability status.
+BLOCKED java-runtime-assets: Maven 3.9.9 offline cache lacks maven-surefire-plugin:2.17 and opentelemetry-exporter-otlp-http:1.34.0; direct cached JAR SHA-256 values are emitted in java.cdx.json.
+BLOCKED base/action/toolchain-digests: local nginx/suricata repo digests, supported CPython 3.10-3.12, and GitHub action commit objects are unavailable; release builder requires digest overrides and no action SHA or Python patch version is fabricated.
+
+PASS signed-release: synthetic Ed25519 rule/release manifests verify with the install verifier operation; one-byte payload mutation fails before install/copy/load/start side effects.
+PASS deterministic-archive: two normalized tar+gzip builds from the same signed package compare byte-for-byte.
+PASS deterministic-sbom: two fixed-epoch local evidence generations produced byte-identical frontend, Go, image, Java, and Python CycloneDX files and identical blocked scanner summaries.
+PASS signed-rules: rules/rules-manifest.sha256 and .sig are generated before the enclosing release manifest.
+PASS outer-artifact: builder emits archive .sha256 and raw Ed25519 .sha256.sig.
+PASS shell-gates: release provenance, Go harness, RASP conformance harness, secure Compose, and Suricata profile self-tests passed.
+PASS frontend-gates: npm ci --offline, TypeScript typecheck, 84 Vitest tests, and Vite production build passed.
+PASS frontend-lint: all 9 errors were corrected without suppressions; ESLint exits zero with 0 errors (1314 pre-existing warnings remain non-blocking and were not redesigned).
+PASS go-gates: server, security-engine, and dpi-engine full race/shuffle suites passed.
+PASS agent-go-gate: full race/shuffle suite passed; affected RASP bridge tests passed with race and count=10 after setup provisioned a signed, selector-assigned, acknowledged active policy without weakening the inactive-policy gate.
+PASS pkg-go-gate: full race/shuffle suite passed; deterministic 153-entry event inventory regeneration is byte-stable and generated/no-diff active-producer native-fixture coverage passed.
+
+SBOM_SHA256 frontend.cdx.json a0ea205d974f7f30178d03516293b56dbacd5d7b2d463aa8697114e9ffb94ece
+SBOM_SHA256 go.cdx.json c0e449751c0e3e6cd74173ba4f688e62a9ff33a5dd303315149549b27c83a0cb
+SBOM_SHA256 images.cdx.json f02c41648c76d687b98cd7411cbf198bb683e01b5fd40ab4298ec3b691ac5d2f
+SBOM_SHA256 java.cdx.json 711fa6596f1085c75a6eeb1afafbbb000906ad1d663be029e211406e9477e08d
+SBOM_SHA256 python.cdx.json e7fa6addae5319b5d2ba14076ee965bec64124a9b9e68292458d968a57216289
+
+clean-build-comparison=synthetic signed package byte-identical; full application/image rebuild remains externally BLOCKED by missing pinned nginx/suricata digests and scanner databases.
+non_reproducible_layers=docker-save layer metadata/order is normalized only at outer gzip; frontend Dockerfile generates a certificate during image build; APK package indexes/base tags are not accepted without supplied digests; CGO ARM agent is externally supplied. These layers require two clean digest-pinned builds before a reproducibility claim.
+status=BLOCKED

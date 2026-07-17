@@ -6,22 +6,22 @@ import (
 
 // NormalizedLog 归一化日志结构 - 统一不同来源的日志格式
 type NormalizedLog struct {
-	ID        uint64                  `json:"id"`        // 日志 ID
-	Timestamp time.Time                `json:"timestamp"` // 日志时间
-	AgentID   string                  `json:"agent_id"`  // Agent ID
-	Hostname  string                  `json:"hostname"`  // 主机名
-	Source    string                  `json:"source"`    // 日志来源: sshd/nginx/mysql/systemd/auditd
-	Program   string                  `json:"program"`   // 程序名称
-	Level     string                  `json:"level"`     // 日志级别: info/warning/error/critical
-	Message   string                  `json:"message"`   // 日志消息
-	SrcIP     string                  `json:"src_ip"`    // 源 IP
-	DstIP     string                  `json:"dst_ip"`    // 目标 IP
-	SrcPort   int                     `json:"src_port"`  // 源端口
-	DstPort   int                     `json:"dst_port"`  // 目标端口
-	User      string                  `json:"user"`      // 用户名
-	Service   string                  `json:"service"`   // 服务名
-	Raw       string                  `json:"raw"`       // 原始日志
-	Metadata  map[string]interface{}  `json:"metadata"`  // 额外元数据
+	ID        uint64                 `json:"id"`        // 日志 ID
+	Timestamp time.Time              `json:"timestamp"` // 日志时间
+	AgentID   string                 `json:"agent_id"`  // Agent ID
+	Hostname  string                 `json:"hostname"`  // 主机名
+	Source    string                 `json:"source"`    // 日志来源: sshd/nginx/mysql/systemd/auditd
+	Program   string                 `json:"program"`   // 程序名称
+	Level     string                 `json:"level"`     // 日志级别: info/warning/error/critical
+	Message   string                 `json:"message"`   // 日志消息
+	SrcIP     string                 `json:"src_ip"`    // 源 IP
+	DstIP     string                 `json:"dst_ip"`    // 目标 IP
+	SrcPort   int                    `json:"src_port"`  // 源端口
+	DstPort   int                    `json:"dst_port"`  // 目标端口
+	User      string                 `json:"user"`      // 用户名
+	Service   string                 `json:"service"`   // 服务名
+	Raw       string                 `json:"raw"`       // 原始日志
+	Metadata  map[string]interface{} `json:"metadata"`  // 额外元数据
 }
 
 // NewNormalizedLog 创建归一化日志
@@ -36,15 +36,15 @@ func NewNormalizedLog() *NormalizedLog {
 type LogSource string
 
 const (
-	SourceSSH     LogSource = "sshd"
-	SourceNginx   LogSource = "nginx"
-	SourceMySQL   LogSource = "mysql"
-	SourceSystemd LogSource = "systemd"
-	SourceAuditd  LogSource = "auditd"
-	SourceApache  LogSource = "apache"
+	SourceSSH      LogSource = "sshd"
+	SourceNginx    LogSource = "nginx"
+	SourceMySQL    LogSource = "mysql"
+	SourceSystemd  LogSource = "systemd"
+	SourceAuditd   LogSource = "auditd"
+	SourceApache   LogSource = "apache"
 	SourcePostgres LogSource = "postgresql"
-	SourcePAM     LogSource = "pam"
-	SourceUnknown LogSource = "unknown"
+	SourcePAM      LogSource = "pam"
+	SourceUnknown  LogSource = "unknown"
 )
 
 // LogLevel 日志级别

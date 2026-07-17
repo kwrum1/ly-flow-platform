@@ -1,0 +1,35 @@
+services:
+  redis:
+    environment:
+      REDIS_PASSWORD: !reset null
+    command:
+      - /bin/sh
+      - -ec
+      - >-
+        exec redis-server --appendonly yes --maxmemory "${REDIS_MAXMEMORY:-8gb}"
+        --maxmemory-policy "${REDIS_MAXMEMORY_POLICY:-noeviction}"
+        --user "$$REDIS_ACL_USERNAME" on ">$$REDIS_ACL_PASSWORD" "~*" "&*" "+@all"
+
+  ly-server:
+    environment:
+      REDIS_PASSWORD: !reset null
+
+  ly-dpi-engine:
+    environment:
+      REDIS_PASSWORD: !reset null
+
+  ly-security-engine:
+    environment:
+      REDIS_PASSWORD: !reset null
+
+  agent-center:
+    environment:
+      REDIS_PASSWORD: !reset null
+
+  ly-local-mirror:
+    environment:
+      REDIS_PASSWORD: !reset null
+
+  ly-agent:
+    environment:
+      REDIS_PASSWORD: !reset null

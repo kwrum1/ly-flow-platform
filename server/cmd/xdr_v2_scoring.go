@@ -20,13 +20,13 @@ func scoreChainHypothesisV2(path *ScoreablePath, config *Config) {
 }
 
 type ScoreablePath struct {
-	Events     []*models.CanonicalEventV2
-	EdgeTypes  []string
+	Events        []*models.CanonicalEventV2
+	EdgeTypes     []string
 	EdgeStrengths []float64
-	Depth      int
-	FirstSeen  time.Time
-	LastSeen   time.Time
-	Transitions []*models.AttackTransition
+	Depth         int
+	FirstSeen     time.Time
+	LastSeen      time.Time
+	Transitions   []*models.AttackTransition
 
 	RiskScore           float64
 	ConfidenceScore     float64

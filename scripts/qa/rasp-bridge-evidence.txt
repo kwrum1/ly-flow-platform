@@ -1,0 +1,18 @@
+Todo12 verifier evidence
+
+PASS bash scripts/qa/run-go-tests.sh rasp-bridge
+PASS Go affected Agent tests with race, shuffle, and count=10
+PASS Go vet and Agent binary build
+PASS authenticated real loopback inert event delivery canonicalizes as agent.rasp
+PASS stale overlap token, missing token, wrong Agent/policy/version, unknown schema, and non-local binding reject
+PASS 1 MiB body cap, signed-policy rate limit, bounded queue saturation, and bounded rejection
+PASS queue/downstream failures fsync integrity-chained fallback records and report degraded delivery health
+PASS authenticated Agent control-plane config pulls include bound headers and body credentials
+PASS Python no-excuse audit, compileall, conformance, real loopback, and fallback checks repeated 10 times
+PASS Java affected exporter/config javac -Xlint:all and real loopback checks repeated 10 times
+PASS shell syntax, QA harness self-tests, Go and shell LSP diagnostics, diff whitespace check, and temporary artifact cleanup
+PASS Todo13 support matrix, conformance runner, and evidence remain present and merged
+
+BLOCKED Python basedpyright and Java jdtls are not installed; installation/network changes were prohibited.
+BLOCKED full offline Maven build lacks cached maven-surefire-plugin:2.17; the affected Todo12 Java source set compiles and runs cleanly from cached dependencies.
+BLOCKED full Java source-tree compilation still has Todo14-gated placeholder defects outside Todo12 (missing DetectionResult.builder and ASM AdviceAdapter/import wiring).

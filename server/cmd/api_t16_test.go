@@ -5,8 +5,53 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"time"
+
+	"github.com/lyflow/ly-flow-platform/server/agentidentity"
 )
+
+func TestHTTPAgentEnrollmentUsesOneTimeTokenAndServerIdentity(t *testing.T) {
+	// Given
+	now := time.Date(2026, 7, 12, 0, 0, 0, 0, time.UTC)
+	manager := agentidentity.NewManager(agentidentity.NewMemoryStore(), func() time.Time { return now })
+	token, err := manager.IssueEnrollmentToken("agent-http", time.Minute)
+	if err != nil {
+		t.Fatalf("issue enrollment token: %v", err)
+	}
+	handler := agentEnrollHandler(&Config{AgentIdentity: manager})
+	body := `{"enrollment_token":"` + token + `","hostname":"untrusted-host","ip":"192.0.2.30"}`
+
+	// When
+	recorder := httptest.NewRecorder()
+	handler.ServeHTTP(recorder, httptest.NewRequest(http.MethodPost, "/api/v1/agent/enroll", strings.NewReader(body)))
+
+	// Then
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("enrollment status = %d body = %s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		Data struct {
+			AgentID  string `json:"agent_id"`
+			AgentKey string `json:"agent_key"`
+		} `json:"data"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	if response.Data.AgentID != "agent-http" {
+		t.Fatalf("agent id = %q", response.Data.AgentID)
+	}
+	if err := manager.Authenticate(response.Data.AgentID, response.Data.AgentKey, agentidentity.TransportHTTP); err != nil {
+		t.Fatalf("authenticate issued credential: %v", err)
+	}
+	replay := httptest.NewRecorder()
+	handler.ServeHTTP(replay, httptest.NewRequest(http.MethodPost, "/api/v1/agent/enroll", strings.NewReader(body)))
+	if replay.Code != http.StatusForbidden {
+		t.Fatalf("replayed enrollment status = %d body = %s", replay.Code, replay.Body.String())
+	}
+}
 
 func TestSanitizeAgentRecordOmitsSecrets(t *testing.T) {
 	record := sanitizeAgentRecord(map[string]interface{}{

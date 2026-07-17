@@ -132,12 +132,12 @@ func TestScoreChainHypothesisV2(t *testing.T) {
 func TestValidatePathContinuity_NoStrongEdge(t *testing.T) {
 	cfg := &Config{XDRV2WindowHours: 24}
 	path := &ScoreablePath{
-		Events:     make([]*models.CanonicalEventV2, 2),
-		EdgeTypes:  []string{models.EdgeTypeWeakSameIP},
+		Events:        make([]*models.CanonicalEventV2, 2),
+		EdgeTypes:     []string{models.EdgeTypeWeakSameIP},
 		EdgeStrengths: []float64{models.EdgeStrengthWeak},
-		FirstSeen:  testdata.FixedNow,
-		LastSeen:   testdata.FixedNow.Add(10 * time.Minute),
-		Depth:      2,
+		FirstSeen:     testdata.FixedNow,
+		LastSeen:      testdata.FixedNow.Add(10 * time.Minute),
+		Depth:         2,
 	}
 	path.Events[0] = &models.CanonicalEventV2{ObservedAt: testdata.FixedNow}
 	path.Events[1] = &models.CanonicalEventV2{ObservedAt: testdata.FixedNow.Add(10 * time.Minute)}
@@ -154,8 +154,8 @@ func TestValidatePathContinuity_NoStrongEdge(t *testing.T) {
 func TestValidatePathContinuity_ReverseOrder(t *testing.T) {
 	cfg := &Config{XDRV2WindowHours: 24}
 	path := &ScoreablePath{
-		Events:     make([]*models.CanonicalEventV2, 3),
-		EdgeTypes:  []string{models.EdgeTypeSameProcess, models.EdgeTypeSameProcess},
+		Events:        make([]*models.CanonicalEventV2, 3),
+		EdgeTypes:     []string{models.EdgeTypeSameProcess, models.EdgeTypeSameProcess},
 		EdgeStrengths: []float64{models.EdgeStrengthStrong, models.EdgeStrengthStrong},
 		Transitions: []*models.AttackTransition{
 			{TransitionClass: models.TransitionReverse},
@@ -181,12 +181,12 @@ func TestValidatePathContinuity_ReverseOrder(t *testing.T) {
 func TestValidatePathContinuity_OutsideWindow(t *testing.T) {
 	cfg := &Config{XDRV2WindowHours: 24}
 	path := &ScoreablePath{
-		Events:     make([]*models.CanonicalEventV2, 2),
-		EdgeTypes:  []string{models.EdgeTypeSameProcess},
+		Events:        make([]*models.CanonicalEventV2, 2),
+		EdgeTypes:     []string{models.EdgeTypeSameProcess},
 		EdgeStrengths: []float64{models.EdgeStrengthStrong},
-		FirstSeen: testdata.FixedNow,
-		LastSeen:  testdata.FixedNow.Add(30 * time.Hour),
-		Depth:     2,
+		FirstSeen:     testdata.FixedNow,
+		LastSeen:      testdata.FixedNow.Add(30 * time.Hour),
+		Depth:         2,
 	}
 	path.Events[0] = &models.CanonicalEventV2{ObservedAt: testdata.FixedNow}
 	path.Events[1] = &models.CanonicalEventV2{ObservedAt: testdata.FixedNow.Add(30 * time.Hour)}

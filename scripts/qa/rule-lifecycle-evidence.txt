@@ -1,0 +1,21 @@
+Todo21 verifier evidence
+
+PASS bash scripts/qa/run-go-tests.sh rule-lifecycle
+PASS local httptest pinned benign bundle and allowlisted redirect
+PASS rejection coverage: disallowed redirect, private/link-local/metadata DNS answers, caller/bundle digest mismatch, HTTP/decoded size caps, stalled body timeout, forged fetched source, unsupported typed category, strict compile, manifest tamper, signed source_revision mismatch, inactive manifest path, immutable source revision
+PASS startup/reload coverage: process requires signed active lifecycle manifest, rule-root attribution, bundle digest and revision; /reload requires authenticated admin control principal, rejects unauthenticated/analyst callers, and ignores legacy SECURITY_ENGINE_BUNDLE
+PASS inline coverage: bounded HTTP body, typed local source, caller digest, strict conversion/compile/stage, content-addressed immutable snapshot, signed activation, and redacted digest/size/parse/conflict outcome stages
+PASS durable audit coverage: source upsert, inline attempt/outcome, fetch attempt/outcome, parse, persist, authenticated engine reload, activate, sync; no overall success before activation
+PASS activation coverage: admin RBAC, signed audit ledger, atomic active manifest, version+digest runtime health, manual reload/rollback, automatic health rollback, exact first-activation runtime snapshot restore, and exact runtime/manifest compensation on injected post-activation DB status failure
+PASS YARA source manifest uses semantically valid hids category and hids compiled path; unsupported runtime source category rejects
+PASS real local cached Postgres source-version/snapshot/audit/status-compensation integration and Redis security-engine authenticated process startup/reload integration
+PASS server rulelifecycle/controlaudit/trustroot and scoped Todo21 cmd tests: race, shuffle, count=1
+PASS security-engine config/engine/cmd: race, shuffle, count=1
+PASS affected server and security-engine packages: vet and build with GOWORK=off GOPROXY=off
+PASS docker compose config, shell syntax, JSON LSP config, JSON-aware QA harness verification
+PASS scoped git diff whitespace check, gofmt, source size ceiling for new Task21 and lifecycle/security-engine units, no direct fetch/cache fallback, no untrusted code execution path
+PASS temporary container, modfile, binary, reload-audit, log, and test artifact cleanup
+PASS scoped gopls diagnostics/check for changed Task21 Go files; zero code diagnostics; basedpyright unavailable for Python test
+PASS all rule manifests smoke-validated; deterministic NOTICE generator produced identical SHA-256 d177260f4ee6c38d74768b3ac4cc4f03bb4010ecc275c465d8662de60f648779 outputs
+
+RevisedDoneClaim: Todo21 verifier blockers are closed; Todo22 evidence and implementation were not modified.

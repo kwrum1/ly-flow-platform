@@ -33,12 +33,12 @@ func loadTrustedProxyCIDRs(config *Config) ([]*net.IPNet, error) {
 }
 
 type SourceAttribution struct {
-	ClientIP     string  `json:"client_ip"`
-	RemoteAddr   string  `json:"remote_addr"`
-	XFFChain     []string `json:"xff_chain,omitempty"`
-	Confidence   float64 `json:"confidence"`
-	Reason       string  `json:"reason"`
-	TrustedHops  int     `json:"trusted_hops"`
+	ClientIP    string   `json:"client_ip"`
+	RemoteAddr  string   `json:"remote_addr"`
+	XFFChain    []string `json:"xff_chain,omitempty"`
+	Confidence  float64  `json:"confidence"`
+	Reason      string   `json:"reason"`
+	TrustedHops int      `json:"trusted_hops"`
 }
 
 func resolveSourceAttribution(remoteAddr, xffHeader string, trustedCIDRs []*net.IPNet) *SourceAttribution {

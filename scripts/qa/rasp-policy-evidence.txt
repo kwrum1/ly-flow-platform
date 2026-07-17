@@ -1,0 +1,13 @@
+Todo11 verifier evidence
+
+PASS bash scripts/qa/run-go-tests.sh rasp-policy
+PASS Go affected packages: race, shuffle, count=10, vet, build
+PASS real PostgreSQL policy store and Agent config HTTP tests, including interruption, race, and count=10
+PASS Agent live HTTP server startup: unsigned RASP remains disabled until signed assignment verification and persisted ACK
+PASS Python affected sources: compileall and expiry, fail-policy, autoload-gate, and rate-limit checks repeated 10 times
+PASS Java affected sources: javac -Xlint:all, runtime checks repeated 10 times, and jar build
+PASS Go LSP diagnostics for every changed Go source
+PASS Docker Compose config, shell syntax/self-tests, no-index diff whitespace check, and disposable-container cleanup
+
+BLOCKED Python and Java LSP servers are not installed; network/tool installation and dependency changes are prohibited.
+BLOCKED full Maven build has pre-existing unresolved io.opentelemetry:opentelemetry-exporter-otlp-http:1.34.0 and unrelated Java compile defects; the affected Java source set builds cleanly with cached dependencies.

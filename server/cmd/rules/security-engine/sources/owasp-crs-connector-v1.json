@@ -1,0 +1,60 @@
+{
+  "converted_count": 1,
+  "deduplicated_count": 0,
+  "mode": "sync_convert",
+  "report": {
+    "converted": 1,
+    "inserted": 0,
+    "duplicates": 0,
+    "unsupported": 0,
+    "support_counts": {
+      "full_supported": 1,
+      "partial_supported": 0,
+      "unsupported": 0
+    }
+  },
+  "rule_count": 1,
+  "rules": [
+    {
+      "candidate": true,
+      "category": "rasp",
+      "conditions": null,
+      "dedup_key": "9165972cbc2174467e941f5f41ba37cd27fe12d1a166cd91c89c65c865c89a2c",
+      "field": "payload",
+      "group_by": "",
+      "id": "owasp-crs-942100",
+      "name": "SQL injection",
+      "operator": "regex",
+      "regex": true,
+      "score_hint": 90,
+      "severity": "critical",
+      "source_id": "owasp-crs-connector",
+      "source_license": "Apache-2.0",
+      "source_url": "https://raw.githubusercontent.com/coreruleset/coreruleset/main/rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf",
+      "source_version": "v1",
+      "stage_hint": "initial_access",
+      "support_level": "full_supported",
+      "upstream_id": "owasp-crs-942100",
+      "value": "union",
+      "window": {}
+    }
+  ],
+  "source": {
+    "bundled": false,
+    "category": "rasp",
+    "connector": true,
+    "id": "owasp-crs-connector",
+    "license": "Apache-2.0",
+    "name": "OWASP CRS Connector",
+    "origin": "external_subscription",
+    "restricted": false,
+    "updatable": true,
+    "updated_at": "2026-07-14T17:02:33Z",
+    "url": "https://raw.githubusercontent.com/coreruleset/coreruleset/main/rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf"
+  },
+  "source_content_digest": "d2c1700220f6026226767982ee3fe3acf7d04c3aa2b7f23850a4e55fd52c1b21",
+  "source_revision": "v1",
+  "synced_at": "2026-07-14T17:02:33Z",
+  "unsupported_count": 0,
+  "version": "v1"
+}

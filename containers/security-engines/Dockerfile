@@ -1,4 +1,17 @@
-ARG RUNTIME_IMAGE=ly-flow/server:latest
+ARG RUNTIME_IMAGE=ly-flow/security-engines@sha256:f165fe4fe3cb4e01229a8a2ba38c0e8ac060887566f8d9d9064648400e35a127
+ARG SURICATA_PROFILE_IMAGE=docker.io/jasonish/suricata@sha256:73cf099d6299f75dda2d9d6edcfb8238b7a7322566d6189a69d46442a366b7fa
+
+FROM ${SURICATA_PROFILE_IMAGE} AS suricata-profile
+
+USER root
+
+COPY rules/suricata/suricata-profile.yaml /etc/suricata/lyflow-suricata-profile.yaml
+COPY rules/suricata/et-open.rules /var/lib/suricata/rules/lyflow-suricata.rules
+
+RUN suricata -T -c /etc/suricata/lyflow-suricata-profile.yaml
+
+ENTRYPOINT ["suricata"]
+CMD ["-c", "/etc/suricata/lyflow-suricata-profile.yaml", "-i", "eth0"]
 
 FROM ${RUNTIME_IMAGE}
 
@@ -13,7 +26,13 @@ COPY third_party/security-engines /opt/ly-engine-lab/source
 COPY rules /opt/ly-engine-lab/rules
 
 RUN chmod +x /usr/local/bin/engine-output-bridge \
-    && apk add --no-cache bash yara openjdk17-jre-headless python3 procps \
+    && command -v bash >/dev/null \
+    && command -v yara >/dev/null \
+    && command -v java >/dev/null \
+    && command -v python3 >/dev/null \
+    && command -v ps >/dev/null \
+    && rm -f /app/ly-server /app/ly-agent-center /app/ly-agent \
+    && rm -rf /app/agents /app/agent/rasp \
     && mkdir -p /var/log/suricata /var/ossec/logs/alerts /opt/ly-agent/yara /opt/ly-agent/rasp /opt/ly-engine-lab/runtime /opt/ly-engine-lab/bin /opt/ly-engine-lab/rules/yara \
     && cp -a /opt/ly-engine-lab/source/signature-base/yara/. /opt/ly-engine-lab/rules/yara/ 2>/dev/null || true \
     && printf '%s\n' '#!/usr/bin/env bash' 'exec -a wazuh-agentd sleep infinity' > /usr/local/bin/wazuh-agentd \

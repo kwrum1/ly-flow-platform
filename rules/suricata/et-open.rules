@@ -25,3 +25,5 @@ alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET MALWARE Suspicious Downlo
 
 # DNS Tunnel子域名数量过多
 alert dns $HOME_NET any -> $EXTERNAL_NET any (msg:"ET TROJAN High DNS Query Count Possible Tunnel"; dns.query; pcre:"/[a-z]+\.[a-z]{5,}\.[a-z]{2,4}$/"; threshold: type threshold, track by_src, count 50, seconds 60; sid:1000050; rev:1;)
+
+alert dns $HOME_NET any -> $EXTERNAL_NET 53 (msg:"LYFLOW INERT pinned profile verification"; dns.query; content:"profile.test"; nocase; classtype:misc-activity; sid:9000001; rev:1;)

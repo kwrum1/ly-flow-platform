@@ -1,19 +1,23 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/gopacket"
 	"github.com/google/gopacket/layers"
+	transport "github.com/lyflow/ly-flow-platform/transportreliability"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -47,6 +51,148 @@ func TestParseRouteDev(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAgentEnrollAdoptsServerIdentityWithoutDerivingItFromHost(t *testing.T) {
+	// Given
+	var got struct {
+		Hostname string `json:"hostname"`
+		IP       string `json:"ip"`
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if err := json.NewDecoder(r.Body).Decode(&got); err != nil {
+			t.Fatalf("decode enrollment request: %v", err)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":0,"message":"success","data":{"agent_id":"server-issued-id","agent_key":"server-issued-key"}}`))
+	}))
+	defer server.Close()
+	configPath := filepath.Join(t.TempDir(), "agent.yaml")
+	if err := os.WriteFile(configPath, []byte("server:\n  api: preserve-me\ntraffic:\n  enabled: true\n"), 0o640); err != nil {
+		t.Fatalf("write config fixture: %v", err)
+	}
+	t.Setenv("AGENT_CONFIG", configPath)
+	agent := NewAgent(&Config{API: server.URL})
+	agent.hostname = "characterized-host"
+	agent.localIP = "192.0.2.10"
+
+	// When
+	err := agent.enroll()
+
+	// Then
+	if err != nil {
+		t.Fatalf("enroll: %v", err)
+	}
+	if got.Hostname != "characterized-host" || got.IP != "192.0.2.10" {
+		t.Fatalf("enrollment host data = hostname %q ip %q", got.Hostname, got.IP)
+	}
+	if agent.agentID != "server-issued-id" || agent.agentKey != "server-issued-key" {
+		t.Fatalf("agent credentials = id %q key %q", agent.agentID, agent.agentKey)
+	}
+	reloaded := &Config{}
+	values, err := parseSimpleYAML(configPath)
+	if err != nil {
+		t.Fatalf("reload persisted config: %v", err)
+	}
+	applyYAMLConfig(reloaded, values)
+	if reloaded.AgentID != "server-issued-id" || reloaded.AgentKey != "server-issued-key" {
+		t.Fatalf("reloaded credentials = id %q key %q", reloaded.AgentID, reloaded.AgentKey)
+	}
+	persisted, err := os.ReadFile(configPath)
+	if err != nil {
+		t.Fatalf("read persisted config: %v", err)
+	}
+	if !bytes.Contains(persisted, []byte("api: preserve-me")) || bytes.Contains(persisted, []byte("enrollment")) {
+		t.Fatalf("persisted config did not preserve unrelated content or retained enrollment token: %s", persisted)
+	}
+}
+
+func TestAgentEnrollRejectsMissingBlankOrNonStringCredentials(t *testing.T) {
+	tests := []struct {
+		name string
+		data string
+	}{
+		{name: "missing key", data: `{"agent_id":"issued-id"}`},
+		{name: "blank key", data: `{"agent_id":"issued-id","agent_key":"  "}`},
+		{name: "non-string key", data: `{"agent_id":"issued-id","agent_key":42}`},
+		{name: "blank id", data: `{"agent_id":" ","agent_key":"issued-secret"}`},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Given
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(`{"code":0,"data":` + test.data + `}`))
+			}))
+			defer server.Close()
+			configPath := filepath.Join(t.TempDir(), "agent.yaml")
+			if err := os.WriteFile(configPath, []byte("server:\n  api: unchanged\n"), 0o600); err != nil {
+				t.Fatalf("write config fixture: %v", err)
+			}
+			t.Setenv("AGENT_CONFIG", configPath)
+			agent := NewAgent(&Config{API: server.URL})
+
+			// When
+			output, err := captureStdout(t, agent.enroll)
+
+			// Then
+			if err == nil {
+				t.Fatal("enrollment accepted an invalid credential response")
+			}
+			if strings.Contains(output, "Enroll successful") || agent.agentID != "" || agent.agentKey != "" || agent.cfg.AgentID != "" || agent.cfg.AgentKey != "" {
+				t.Fatalf("invalid response produced success or credential adoption: output=%q id=%q", output, agent.agentID)
+			}
+		})
+	}
+}
+
+func TestAgentEnrollPersistenceFailureFailsClosedWithoutCredentialLeak(t *testing.T) {
+	// Given
+	const credential = "issued-secret-that-must-not-leak"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"code":0,"data":{"agent_id":"issued-id","agent_key":"` + credential + `"}}`))
+	}))
+	defer server.Close()
+	t.Setenv("AGENT_CONFIG", filepath.Join(t.TempDir(), "missing", "agent.yaml"))
+	agent := NewAgent(&Config{API: server.URL})
+
+	// When
+	output, err := captureStdout(t, agent.enroll)
+
+	// Then
+	if err == nil {
+		t.Fatal("enrollment succeeded despite credential persistence failure")
+	}
+	if agent.agentID != "" || agent.agentKey != "" || agent.cfg.AgentID != "" || agent.cfg.AgentKey != "" {
+		t.Fatalf("credentials adopted after persistence failure: id=%q", agent.agentID)
+	}
+	if strings.Contains(output, credential) || strings.Contains(err.Error(), credential) || strings.Contains(output, "Enroll successful") {
+		t.Fatal("persistence failure leaked credential or printed success")
+	}
+}
+
+func captureStdout(t *testing.T, action func() error) (string, error) {
+	t.Helper()
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("open stdout pipe: %v", err)
+	}
+	original := os.Stdout
+	os.Stdout = writer
+	actionErr := action()
+	os.Stdout = original
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close stdout writer: %v", err)
+	}
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("read stdout: %v", err)
+	}
+	if err := reader.Close(); err != nil {
+		t.Fatalf("close stdout reader: %v", err)
+	}
+	return string(output), actionErr
 }
 
 func TestResolveTrafficInterface(t *testing.T) {
@@ -207,6 +353,9 @@ func TestApplyPulledConfigUpdatesCollectorDesiredState(t *testing.T) {
 		HIDSEnabled:      true,
 		RASPEnabled:      true,
 	})
+	agent.trafficStarted = true
+	agent.hidsStarted = true
+	agent.raspStarted = true
 
 	agent.applyPulledConfig(map[string]interface{}{
 		"policy": map[string]interface{}{
@@ -216,7 +365,7 @@ func TestApplyPulledConfigUpdatesCollectorDesiredState(t *testing.T) {
 		},
 	})
 
-	if agent.cfg.TrafficEnabled || agent.cfg.HIDSEnabled || agent.cfg.RASPEnabled {
+	if agent.cfg.TrafficEnabled || agent.cfg.HIDSEnabled || !agent.cfg.RASPEnabled {
 		t.Fatalf("collector desired state not disabled: traffic=%v hids=%v rasp=%v", agent.cfg.TrafficEnabled, agent.cfg.HIDSEnabled, agent.cfg.RASPEnabled)
 	}
 	if agent.cfg.TrafficInterface != "ens33" {
@@ -345,17 +494,21 @@ func (c *recordingStreamClient) valuesForStream(stream string) map[string]interf
 
 func TestDurableTrafficSpoolPersistsBeforeRedisAck(t *testing.T) {
 	dir := t.TempDir()
-	tmpDir := filepath.Join(dir, "tmp")
+	encrypted, err := transport.NewEncryptedSpool(transport.SpoolConfig{
+		Dir: filepath.Join(dir, "v2"), Key: []byte("0123456789abcdef0123456789abcdef"), MaxBytes: 1024 * 1024, MaxAge: time.Hour,
+	})
+	if err != nil {
+		t.Fatalf("create encrypted spool: %v", err)
+	}
 	spool := &durableTrafficSpool{
-		pendingDir: dir,
-		tmpDir:     tmpDir,
-		maxBytes:   1024 * 1024,
+		maxBytes:  1024 * 1024,
+		encrypted: encrypted,
 	}
 	payload := map[string]interface{}{"id": "flow-1", "src_ip": "10.0.0.1"}
 	if err := spool.publish(context.Background(), "flows:raw", payload, "raw_flow"); err != nil {
 		t.Fatalf("spool publish error: %v", err)
 	}
-	entries, err := os.ReadDir(dir)
+	entries, err := os.ReadDir(filepath.Join(dir, "v2", "pending"))
 	if err != nil {
 		t.Fatalf("read spool dir: %v", err)
 	}
@@ -368,16 +521,12 @@ func TestDurableTrafficSpoolPersistsBeforeRedisAck(t *testing.T) {
 	if len(wals) != 1 {
 		t.Fatalf("spool wal files = %d, want 1", len(wals))
 	}
-	data, err := os.ReadFile(filepath.Join(dir, wals[0].Name()))
+	data, err := os.ReadFile(filepath.Join(dir, "v2", "pending", wals[0].Name()))
 	if err != nil {
 		t.Fatalf("read spool record: %v", err)
 	}
-	var record spoolRecord
-	if err := json.Unmarshal(data, &record); err != nil {
-		t.Fatalf("spool record json: %v", err)
-	}
-	if record.Stream != "flows:raw" || record.Type != "raw_flow" || record.Data == "" {
-		t.Fatalf("unexpected spool record: %#v", record)
+	if strings.Contains(string(data), "10.0.0.1") || strings.Contains(string(data), "flows:raw") {
+		t.Fatalf("spool record contains plaintext: %q", data)
 	}
 }
 
@@ -430,6 +579,9 @@ func TestDurableTrafficSpoolDeliversOverHTTP(t *testing.T) {
 		if r.URL.Path != "/api/v1/agent/traffic-event" {
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
+		if r.Header.Get("X-Lyflow-Agent-ID") != "agent-win" || r.Header.Get("Authorization") != "Bearer key-win" {
+			t.Fatalf("missing agent authentication headers: id=%q authorization=%q", r.Header.Get("X-Lyflow-Agent-ID"), r.Header.Get("Authorization"))
+		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			t.Fatalf("decode request: %v", err)
 		}
@@ -441,13 +593,16 @@ func TestDurableTrafficSpoolDeliversOverHTTP(t *testing.T) {
 	if err := spool.deliver(record, map[string]interface{}{"type": record.Type, "data": record.Data}); err != nil {
 		t.Fatalf("deliver over http: %v", err)
 	}
-	if request["agent_id"] != "agent-win" || request["agent_key"] != "key-win" || request["stream"] != "sessions:semantic" {
+	if request["agent_id"] != "agent-win" || request["stream"] != "sessions:semantic" {
 		t.Fatalf("unexpected request: %#v", request)
+	}
+	if _, exists := request["agent_key"]; exists {
+		t.Fatalf("credential leaked into payload: %#v", request)
 	}
 }
 
 func TestEndpointAgentSpoolUsesHTTPTransport(t *testing.T) {
-	spool, err := newDurableTrafficSpool(context.Background(), &Config{SpoolEnabled: true, SpoolDir: t.TempDir(), API: "https://platform.example"})
+	spool, err := newDurableTrafficSpool(context.Background(), &Config{SpoolEnabled: true, SpoolDir: t.TempDir(), API: "https://platform.example", AgentKey: "test-agent-key"})
 	if err != nil {
 		t.Fatalf("newDurableTrafficSpool error: %v", err)
 	}
@@ -487,7 +642,13 @@ func TestDurableTrafficSpoolFlushesToLiveRedis(t *testing.T) {
 	}
 	dir := t.TempDir()
 	ctx := context.Background()
-	client := redis.NewClient(&redis.Options{Addr: redisAddr})
+	cfg := &Config{
+		Redis:               redisAddr,
+		RedisUsername:       os.Getenv("REDIS_ACL_USERNAME"),
+		RedisPassword:       os.Getenv("REDIS_ACL_PASSWORD"),
+		RedisLegacyPassword: os.Getenv("REDIS_PASSWORD"),
+	}
+	client := redis.NewClient(redisOptions(cfg))
 	defer client.Close()
 	stream := "spool:integration:test"
 	_ = client.Del(ctx, stream).Err()

@@ -1,0 +1,21 @@
+# Todo 11 monitor-first RASP policy QA
+authoritative_source=server/agentpolicy
+wire_contract=pkg/rasppolicy
+trust_role=policy
+default_mode=monitor
+production_block_promotion=disabled
+real_store=postgres
+agent_ack=verified-envelope+version+signature-before-collector-start
+selector_capability=declared-runtime-languages
+expiry_runtime=assignment-check+agent-periodic-check
+expiry_canary_fallback=active-policy
+fail_behavior=monitor-or-disable
+event_limit=max-events-per-second-bounded
+same_version=exact-signed-envelope-idempotent-only
+signature_payload=policy+signer-fingerprint
+
+required_scenarios=create,sign,assign,ack,canary,promote,expire,rollback,language-match,active-fallback,outage-fail-policy,event-rate-limit
+rejections=bad_signature,bad_fingerprint,stale_version,same_version_replacement,language_mismatch,missing_ack,failed_canary,missing_replay_metrics,legacy_block_default
+adversarial=malformed,stale,dirty,hung,flaky,misleading,interruption
+runner=bash scripts/qa/run-go-tests.sh rasp-policy
+evidence=scripts/qa/rasp-policy-evidence.txt

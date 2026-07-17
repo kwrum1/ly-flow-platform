@@ -1,0 +1,25 @@
+# Todo 12 authenticated local RASP bridge QA
+authoritative_bridge=agent/cmd/rasp_bridge_*.go
+authoritative_python=agent/rasp/python/ly_rasp/bridge.py
+authoritative_java=agent/rasp/java/src/main/java/com/lyflow/rasp/java/exporter
+event_schema=lyflow.rasp_bridge_event.v1
+config_schema=lyflow.rasp_bridge_config.v1
+listener_default=127.0.0.1:17891
+listener_policy=loopback-or-unix-ipc-only
+authentication=rotating-token+agent-binding
+token_overlap=2m-bounded
+policy_binding=agent-id+policy-id+policy-version+language
+body_limit_bytes=1048576
+queue_capacity=128
+rate_limit=signed-policy-max-events-per-second
+fallback_schema=lyflow.rasp_fallback.v1
+fallback_integrity=payload-sha256+previous-record-sha256+record-sha256+fsync
+delivery_health=authenticated-endpoint+rasp-protection-heartbeat
+arbitrary_schema=reject
+
+required_scenarios=canonical-inert-delivery,token-overlap,authenticated-config-pull,local-binding,policy-binding,body-cap,queue-saturation,durable-fallback,delivery-health
+rejections=missing-token,stale-token,wrong-agent,wrong-policy-version,unknown-field,oversized-body,rate-limit,queue-full
+runner=bash scripts/qa/run-go-tests.sh rasp-bridge
+manual_qa=GOWORK=off go test -v ./cmd -run TestRASPBridgeRealLoopback_delivers_authenticated_inert_event -count=1
+todo13_conformance=scripts/qa/run-rasp-conformance.sh-preserved
+evidence=scripts/qa/rasp-bridge-evidence.txt

@@ -11,12 +11,16 @@ import (
 	"github.com/google/gopacket/afpacket"
 	"github.com/google/gopacket/layers"
 	"github.com/google/gopacket/pcap"
-	"github.com/redis/go-redis/v9"
 	"golang.org/x/net/bpf"
 )
 
 func (a *Agent) runAFPacketCapture() error {
-	captureInterface := a.cfg.TrafficInterface
+	trafficConfig := a.captureConfigSnapshot()
+	captureInterface := strings.TrimSpace(trafficConfig.Interface)
+	if err := a.prepareTrafficQualityForInterface(captureInterface); err != nil {
+		return err
+	}
+	a.markTrafficCaptureStarted(captureInterface)
 	handle, err := afpacket.NewTPacket(
 		afpacket.OptInterface(captureInterface),
 		afpacket.OptFrameSize(65536),
@@ -28,9 +32,10 @@ func (a *Agent) runAFPacketCapture() error {
 		return err
 	}
 	defer handle.Close()
+	a.ensureTrafficQuality().ResetAFPacketStats()
 
-	if strings.TrimSpace(a.cfg.BPFFilter) != "" {
-		bpf, err := pcapBPF(layers.LinkTypeEthernet, 65536, a.cfg.BPFFilter)
+	if strings.TrimSpace(trafficConfig.BPFFilter) != "" {
+		bpf, err := pcapBPF(layers.LinkTypeEthernet, 65536, trafficConfig.BPFFilter)
 		if err != nil {
 			return fmt.Errorf("compile bpf: %w", err)
 		}
@@ -39,19 +44,18 @@ func (a *Agent) runAFPacketCapture() error {
 		}
 	}
 
-	client := redis.NewClient(&redis.Options{Addr: a.cfg.Redis})
-	defer client.Close()
-
 	decodeOptions := gopacket.DecodeOptions{Lazy: true, NoCopy: true}
 	scanDetector := newPortScanDetector()
+	packetsSinceStats := uint64(0)
 	for {
 		select {
 		case <-a.ctx.Done():
+			a.recordAFPacketSocketStats(handle)
 			return nil
 		default:
 		}
 		if a.trafficCaptureInterfaceChanged(captureInterface) {
-			return fmt.Errorf("capture interface changed from %s to %s", captureInterface, a.cfg.TrafficInterface)
+			return fmt.Errorf("capture interface changed from %s to %s", captureInterface, a.captureConfigSnapshot().Interface)
 		}
 		if !a.trafficCaptureEnabledOnCurrentInterface(captureInterface) {
 			select {
@@ -65,24 +69,48 @@ func (a *Agent) runAFPacketCapture() error {
 		data, ci, err := handle.ZeroCopyReadPacketData()
 		if err != nil {
 			if strings.Contains(err.Error(), "timeout") {
+				a.recordAFPacketSocketStats(handle)
 				continue
 			}
 			return err
 		}
 		packet := gopacket.NewPacket(data, layers.LinkTypeEthernet, decodeOptions)
 		obs := a.observationFromPacket(packet, ci.CaptureLength, "af_packet")
-		if obs.Protocol == "" || isContainerBridgeTraffic(obs.SrcIP, obs.DstIP) {
-			continue
-		}
-		if alert := scanDetector.observe(obs, a); alert != nil {
-			if err := publishJSONToStream(a.ctx, client, "alerts:dpi", alert, "component_alert"); err != nil {
-				fmt.Printf("[probe] port scan alert publish failed: %v\n", err)
+		alert, publish := a.processCapturedObservation(scanDetector, obs)
+		alertOutcome := trafficPublishAttempt{attempted: alert != nil}
+		if alert != nil {
+			alertOutcome.err = a.publishAgentStream(a.ctx, "alerts:dpi", alert, "component_alert")
+			if alertOutcome.err != nil {
+				fmt.Printf("[probe] port scan alert publish failed: %v\n", alertOutcome.err)
 			}
 		}
-		if err := a.publishTrafficObservation(client, obs); err != nil {
-			fmt.Printf("[probe] flow publish failed: %v\n", err)
+		packetsSinceStats++
+		if packetsSinceStats >= 1024 {
+			a.recordAFPacketSocketStats(handle)
+			packetsSinceStats = 0
 		}
+		flowOutcome := trafficPublishAttempt{attempted: publish}
+		if publish {
+			flowOutcome.err = a.publishTrafficObservation(obs)
+			if flowOutcome.err != nil {
+				fmt.Printf("[probe] flow publish failed: %v\n", flowOutcome.err)
+			}
+		}
+		a.recordTrafficPublishOutcome(alertOutcome, flowOutcome)
 	}
+}
+
+func (a *Agent) recordAFPacketSocketStats(handle *afpacket.TPacket) {
+	stats, statsV3, err := handle.SocketStats()
+	if err != nil {
+		a.ensureTrafficQuality().RecordStatsUnavailable()
+		return
+	}
+	a.ensureTrafficQuality().RecordAFPacketStats(captureSocketStats{
+		Packets:      uint64(stats.Packets()) + uint64(statsV3.Packets()),
+		Drops:        uint64(stats.Drops()) + uint64(statsV3.Drops()),
+		QueueFreezes: uint64(statsV3.QueueFreezes()),
+	})
 }
 
 func pcapBPF(linkType layers.LinkType, snapLen int, filter string) ([]bpf.RawInstruction, error) {

@@ -1,0 +1,7 @@
+# Direct dependency lock for the Python RASP candidate.
+# A hash-complete transitive lock is release-blocked until the approved package
+# cache is populated; see scripts/qa/release-provenance-evidence.txt.
+redis==5.0.0
+pytest==7.0.0
+pytest-asyncio==0.21.0
+setuptools==78.1.1

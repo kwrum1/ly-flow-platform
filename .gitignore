@@ -1,6 +1,8 @@
 # Dependencies
 vendor/
 node_modules/
+__pycache__/
+*.py[cod]
 
 # Build outputs
 dist/

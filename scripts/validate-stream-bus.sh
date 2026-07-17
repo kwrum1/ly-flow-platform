@@ -14,10 +14,20 @@ STREAMS=(
 
 REDIS_CONTAINER="${REDIS_CONTAINER:-ly-redis}"
 REDIS_ADDR="${REDIS_ADDR:-}"
+REDIS_ACL_USERNAME="${REDIS_ACL_USERNAME:-}"
+REDIS_ACL_PASSWORD="${REDIS_ACL_PASSWORD:-}"
+REDIS_PASSWORD="${REDIS_PASSWORD:-}"
+
+redis_auth_args=()
+if [[ -n "$REDIS_ACL_USERNAME" && -n "$REDIS_ACL_PASSWORD" ]]; then
+  redis_auth_args=(--user "$REDIS_ACL_USERNAME" --pass "$REDIS_ACL_PASSWORD")
+elif [[ -n "$REDIS_PASSWORD" ]]; then
+  redis_auth_args=(--pass "$REDIS_PASSWORD")
+fi
 
 redis_cli() {
   if [[ -n "$REDIS_CONTAINER" ]]; then
-    docker exec "$REDIS_CONTAINER" redis-cli "$@"
+    docker exec "$REDIS_CONTAINER" redis-cli "${redis_auth_args[@]}" "$@"
     return
   fi
 
@@ -28,7 +38,7 @@ redis_cli() {
 
   local host="${REDIS_ADDR%:*}"
   local port="${REDIS_ADDR##*:}"
-  redis-cli -h "$host" -p "$port" "$@"
+  redis-cli -h "$host" -p "$port" "${redis_auth_args[@]}" "$@"
 }
 
 stream_latest_id() {

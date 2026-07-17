@@ -1,0 +1,24 @@
+Todo9 verifier evidence
+
+PASS exact pinned image: docker.io/jasonish/suricata@sha256:73cf099d6299f75dda2d9d6edcfb8238b7a7322566d6189a69d46442a366b7fa, platform linux/amd64 digest sha256:84c672480ff73520c4d5deef001243542b0fdcdd68ab8ca09bd0ab31851a52ff
+PASS deterministic generator: SURICATA_PCAP_OUTPUT=<tmp>/inert.pcap GOWORK=off go test -run '^TestGenerateSuricataProfilePCAP$' ./cmd; generator sha256 214f0037a4f361eee49e43c05ad342d555847f853be2fa0fb6c8a58d64b1fb18
+PASS benign fixture traffic: fixed 2026-07-13 timestamps, TEST-NET/documentation addresses, DNS profile.test, HTTP GET /fixture, TLS 1.3 ClientHello/ServerHello; no offensive payloads
+PASS pinned Suricata command: docker run --rm --pull never --network none --user 0:0 --entrypoint suricata -v rules/suricata/suricata-profile.yaml:/evidence/suricata-profile.yaml:ro -v rules/suricata/et-open.rules:/evidence/et-open.rules:ro -v <tmp>/inert.pcap:/evidence/inert.pcap:ro -v <tmp>/eve:/var/log/suricata <image> -c /evidence/suricata-profile.yaml -S /evidence/et-open.rules -r /evidence/inert.pcap -l /var/log/suricata --runmode single
+PASS generated EVE exact counts: 8 total; alert=1, dns=2, flow=3, http=1, tls=1
+PASS generated PCAP sha256: 1020dcf67299ac65cead8ad7169039cf64af93fa8f01af877e57f479a6219022
+PASS normalized EVE sha256: 31e2606f7993c22f13fc1d583f2d48e273d29d791ba3d3d9f1570ae13e78cea3
+PASS canonical golden sha256: 908ee79e3490b8a93bc9c3bb8d3cf504a6fa12127b5560e885e300e10a363582
+PASS normalization: scripts/qa/normalize-suricata-eve.jq sha256 569a34025135df821cc442bedd1c7c508a2f0f3372d08c8e9eef2c7b066b1404; repeat regeneration byte-identical for PCAP, EVE, and golden
+PASS scripts/qa/verify-suricata-profile.sh and verify-suricata-profile_test.sh; stale metadata and PCAP drift rejected
+PASS scripts/qa/run-go-tests.sh suricata-profile
+PASS GOWORK=off go test -race -shuffle=on -count=10 ./cmd -run '^(TestGenerateSuricataProfilePCAP|TestSuricataProfile|TestConsumeSuricataEVEFile)'
+PASS GOWORK=off go vet ./... and GOWORK=off go build ./... in agent
+PASS scoped shell syntax, diff whitespace, generator/provenance/profile verification, and zero LSP diagnostics
+PASS source tag: git tag -v suricata-7.0.11; signer fingerprint 1DBF03667457EB6AED9E0DF9C1F495E3926856B4; tag object f8c635860940b336d976224887e50d9713c12022; release commit 98b12d1c30e6f8db1e38f3c34abf965a4d03b062
+PASS source archive: https://www.openinfosecfoundation.org/download/suricata-7.0.11.tar.gz sha256 dd732464af4336298696fe102ff18285140895646990be74b4865f4c90b66738; detached signature sha256 b5540f3eb063a675e56e8fb3560f2e129f40c942ef0d5e8966e82633518cd537; OISF signer B36FDAF2607E10E8FFA89E5E2BA9C98CCDF1E93A
+PASS authoritative key retrieval through http://10.18.0.32:10808 from keyserver.ubuntu.com; exact armored keys and verification logs retained under third_party/security-engines/suricata-evidence/7.0.11/
+PASS registry raw index sha256 73cf099d6299f75dda2d9d6edcfb8238b7a7322566d6189a69d46442a366b7fa and linux/amd64 manifest sha256 84c672480ff73520c4d5deef001243542b0fdcdd68ab8ca09bd0ab31851a52ff retained and checked
+PASS source archive checksum sidecar probe recorded HTTP 404 in third_party/security-engines/suricata-evidence/7.0.11/source-checksum-unavailable.headers; detached signature was available and verified
+PASS exact source/key/signature/manifest/header/verification assets retained; only transient Docker containers and temporary directories cleaned
+
+DoneClaim: Todo9 verification failures are fixed; all requested profile, provenance, race/count10, vet, build, LSP, and diff gates passed.

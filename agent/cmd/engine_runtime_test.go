@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -14,11 +15,14 @@ import (
 func TestConsumeSuricataEVEFilePublishesAlerts(t *testing.T) {
 	received := make(chan contracts.ComponentAlert, 1)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Path != "/api/v1/agent/component-alert" {
+		if r.URL.Path != "/api/v1/agent/traffic-event" {
 			t.Fatalf("unexpected path %s", r.URL.Path)
 		}
+		if r.Header.Get("X-Lyflow-Agent-ID") != "agent-1" || r.Header.Get("Authorization") != "Bearer key-1" {
+			t.Fatalf("missing agent authentication headers: id=%q authorization=%q", r.Header.Get("X-Lyflow-Agent-ID"), r.Header.Get("Authorization"))
+		}
 		var alert contracts.ComponentAlert
-		if err := json.NewDecoder(r.Body).Decode(&alert); err != nil {
+		if err := decodeDurableAgentPayload(r, &alert); err != nil {
 			t.Fatalf("decode alert: %v", err)
 		}
 		received <- alert
@@ -27,14 +31,14 @@ func TestConsumeSuricataEVEFilePublishesAlerts(t *testing.T) {
 	defer server.Close()
 
 	path := filepath.Join(t.TempDir(), "eve.json")
-	content := `{"timestamp":"2026-05-17T05:00:00.123456+0800","event_type":"flow"}` + "\n" +
-		`{"timestamp":"2026-05-17T05:00:01.123456+0800","event_type":"alert","src_ip":"10.1.18.20","src_port":4444,"dest_ip":"10.1.18.30","dest_port":80,"proto":"TCP","community_id":"1:test","alert":{"action":"allowed","gid":1,"signature_id":2010935,"rev":3,"signature":"ET MALWARE Example","category":"trojan-activity","severity":2,"app_proto":"http"}}` + "\n"
+	content := `{"timestamp":"2026-05-17T05:00:01.123456+0800","flow_id":1001,"event_type":"alert","src_ip":"10.1.18.20","src_port":4444,"dest_ip":"10.1.18.30","dest_port":80,"proto":"TCP","community_id":"1:test","suricata_version":"7.0.11","alert":{"action":"allowed","gid":1,"signature_id":2010935,"rev":3,"signature":"ET MALWARE Example","category":"trojan-activity","severity":2,"app_proto":"http"}}` + "\n"
 	if err := os.WriteFile(path, []byte(content), 0644); err != nil {
 		t.Fatalf("write eve: %v", err)
 	}
 
-	agent := NewAgent(&Config{API: server.URL})
+	agent := NewAgent(durableAgentTestConfig(t, server.URL))
 	agent.agentID = "agent-1"
+	agent.agentKey = "key-1"
 	agent.hostname = "endpoint-1"
 	next, err := agent.consumeSuricataEVEFile(path, 0)
 	if err != nil {
@@ -73,7 +77,7 @@ func TestConsumeEngineJSONLineAlertFilePublishesWazuhYARARASP(t *testing.T) {
 	received := make(chan contracts.ComponentAlert, 3)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var alert contracts.ComponentAlert
-		if err := json.NewDecoder(r.Body).Decode(&alert); err != nil {
+		if err := decodeDurableAgentPayload(r, &alert); err != nil {
 			t.Fatalf("decode alert: %v", err)
 		}
 		received <- alert
@@ -81,8 +85,9 @@ func TestConsumeEngineJSONLineAlertFilePublishesWazuhYARARASP(t *testing.T) {
 	}))
 	defer server.Close()
 
-	agent := NewAgent(&Config{API: server.URL})
+	agent := NewAgent(durableAgentTestConfig(t, server.URL))
 	agent.agentID = "agent-1"
+	agent.agentKey = "key-1"
 	agent.hostname = "endpoint-1"
 
 	wazuhPath := filepath.Join(t.TempDir(), "alerts.json")
@@ -135,4 +140,24 @@ func TestConsumeEngineJSONLineAlertFilePublishesWazuhYARARASP(t *testing.T) {
 			t.Fatalf("missing %s alert, seen=%v", engine, seen)
 		}
 	}
+}
+
+func durableAgentTestConfig(t *testing.T, api string) *Config {
+	t.Helper()
+	t.Setenv("LYFLOW_TRANSPORT_SPOOL_KEY", "3031323334353637383961626364656630313233343536373839616263646566")
+	return &Config{API: api, AgentKey: "key-1", SpoolEnabled: true, SpoolDir: t.TempDir(), SpoolMaxBytes: 1 << 20, SpoolFlushInterval: 60}
+}
+
+func decodeDurableAgentPayload(request *http.Request, destination interface{}) error {
+	var envelope struct {
+		Values map[string]interface{} `json:"values"`
+	}
+	if err := json.NewDecoder(request.Body).Decode(&envelope); err != nil {
+		return err
+	}
+	data, ok := envelope.Values["data"].(string)
+	if !ok {
+		return errors.New("durable payload data is not a string")
+	}
+	return json.Unmarshal([]byte(data), destination)
 }

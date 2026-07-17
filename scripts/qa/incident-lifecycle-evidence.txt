@@ -1,0 +1,20 @@
+Todo19 verifier evidence
+
+PASS bash scripts/qa/run-go-tests.sh incident-lifecycle
+PASS real server-process + disposable PostgreSQL stop/start lifecycle race/shuffle count10
+PASS GOWORK=off go vet ./incidentlifecycle ./cmd
+PASS GOWORK=off go build ./... in server
+PASS LSP diagnostics, shell syntax, harness self-test, gofmt, scoped diff whitespace, pure LOC, and container cleanup
+PASS real PostgreSQL create/assign/triage/process/suppress/resolve/restart scenario with 2 lineage rows and 6 applied audit rows
+PASS exhaustive RoleSystem role/action matrix: system is authorized only for explicit legacy snapshot import and is denied transition/assign/suppress
+PASS canonical command payload hashes cover incident, action, actor ID/role, expected version, reason, status, assignee, and suppression expiry
+PASS same key/same payload replay is idempotent; same key/different payload is HTTP 409 conflict with one immutable audit row
+PASS production admin checkpoint and post-drain graceful-shutdown hook snapshot the live pre-Todo19 incidentStatusStore to PostgreSQL with checksum, timestamp, importable fields, and explicit unrecoverable history counts; new-process startup refuses missing durable snapshots and never snapshots empty memory
+PASS snapshot import, incident mutation/audit, original imported/already/unrecoverable counts, and immutable cutover marker commit in one PostgreSQL transaction; injected after-audit and after-marker interruptions roll back fully, and retry/concurrent rerun returns the original report without double import
+PASS actual legacy HTTP server process -> admin checkpoint -> graceful shutdown -> PostgreSQL process stop/start -> new server import -> new server rerun preserves status, original counts, one snapshot audit, and one cutover marker
+PASS graceful checkpoint failure retains explicit degraded status/assignee/suppression/history counts with cutover_marked=false
+
+PASS concurrent Todo18 closed the shared blocker; whole-server race count10, vet, and build include Todo19 and server/xdr/replay successfully.
+Authoritative evidence: .omo/evidence/task-19-lyflow-commercial-defense-hardening.json
+
+RevisedDoneClaim: Todo19 migration lifecycle is production-reachable and crash-safe; live legacy checkpointing, durable-only startup import, atomic cutover, degraded shutdown reporting, real server/PostgreSQL restarts, idempotent rerun, and all requested gates pass.

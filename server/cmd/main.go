@@ -4,12 +4,14 @@ package main
 
 import (
 	"context"
+	"crypto/rand"
 	"crypto/sha256"
 	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -30,43 +32,65 @@ import (
 	"github.com/redis/go-redis/v9"
 
 	"github.com/lyflow/ly-flow-platform/contracts"
+	"github.com/lyflow/ly-flow-platform/server/advisoryresponse"
+	"github.com/lyflow/ly-flow-platform/server/agentidentity"
+	"github.com/lyflow/ly-flow-platform/server/agentpolicy"
 	wsapi "github.com/lyflow/ly-flow-platform/server/api/websocket"
+	"github.com/lyflow/ly-flow-platform/server/incidentlifecycle"
+	"github.com/lyflow/ly-flow-platform/server/ingestionauth"
+	"github.com/lyflow/ly-flow-platform/server/internal/redisconfig"
 	"github.com/lyflow/ly-flow-platform/server/models"
 	"github.com/lyflow/ly-flow-platform/server/modules/asset"
 	"github.com/lyflow/ly-flow-platform/server/modules/auth"
 	"github.com/lyflow/ly-flow-platform/server/modules/rasp"
 	"github.com/lyflow/ly-flow-platform/server/modules/trace"
+	"github.com/lyflow/ly-flow-platform/server/rulelifecycle"
 	"github.com/lyflow/ly-flow-platform/server/unified"
 	xdrprocessor "github.com/lyflow/ly-flow-platform/server/xdr"
 	xdrmodels "github.com/lyflow/ly-flow-platform/server/xdr/models"
 	xdrrules "github.com/lyflow/ly-flow-platform/server/xdr/rules"
+	transport "github.com/lyflow/ly-flow-platform/transportreliability"
 )
 
 // 配置结构体
 type Config struct {
-	DBHost           string
-	DBPort           int
-	DBUser           string
-	DBPassword       string
-	DBName           string
-	DBPool           *pgxpool.Pool
-	RedisAddr        string
-	Redis            *redis.Client
-	ServerPort       int
-	AgentID          string
-	AgentKey         string
-	AgentSelfEnroll  bool
-	HostNetClassPath string
+	DBHost             string
+	DBPort             int
+	DBUser             string
+	DBPassword         string
+	DBName             string
+	DBPool             *pgxpool.Pool
+	RedisAddr          string
+	Redis              *redis.Client
+	ServerPort         int
+	AgentID            string
+	AgentKey           string
+	AgentSelfEnroll    bool
+	AgentIdentity      *agentidentity.Manager
+	IngestionAuth      *ingestionauth.Authenticator
+	IngestionWriter    IngestionWriter
+	EventStorage       *StorageEventRuntime
+	XDRInput           xdrCanonicalInputSource
+	XDRGraph           *xdrGraphRuntime
+	Incidents          *incidentlifecycle.PostgresStore
+	AdvisoryResponses  *advisoryresponse.PostgresStore
+	IncidentSnapshot   *incidentSnapshotState
+	IncidentCheckpoint incidentLegacyCheckpointer
+	IncidentLegacyMode bool
+	TransportProducer  *transport.RedisProducer
+	HostNetClassPath   string
 
 	SecurityEngineEnabled       bool
 	SecurityEngineReloadURL     string
 	LegacyXDROperatorMatching   bool
 	RASPAutomaticInjection      bool
 	RASPBlockDefault            bool
+	RASPPolicy                  *agentpolicy.Manager
+	RuleLifecycle               *rulelifecycle.Manager
+	RuleVersionStatus           ruleVersionStatusCommitter
 	RuleDownloadRestrictedShown bool
 	XDRResponsePolicyPath       string
 
-	XDRV2Enabled               bool
 	XDRV2ResponsePolicyEnabled bool
 	XDRV2MaxDepth              int
 	XDRV2WindowHours           int
@@ -75,35 +99,37 @@ type Config struct {
 }
 
 func loadConfig() *Config {
+	if err := validateLegacyRASPEnvironment(); err != nil {
+		log.Fatalf("RASP policy configuration rejected: %v", err)
+	}
 	cfg := &Config{
-		DBHost:           getEnv("DB_HOST", "postgres"),
-		DBPort:           toInt(getEnv("DB_PORT", "5432")),
-		DBUser:           getEnv("DB_USER", "lyflow"),
-		DBPassword:       getEnv("DB_PASSWORD", "lyflow_secret_password"),
-		DBName:           getEnv("DB_NAME", "lyflow"),
-		RedisAddr:        getEnv("REDIS_ADDR", "redis:6379"),
-		ServerPort:       toInt(getEnv("SERVER_PORT", "8080")),
-		AgentID:          normalizeAgentID(getEnv("AGENT_ID", "")),
-		AgentKey:         getEnv("AGENT_KEY", ""),
-		AgentSelfEnroll:  toBool(getEnv("AGENT_SELF_ENROLL", "false")),
-		HostNetClassPath: getEnv("HOST_NET_CLASS_PATH", "/host/sys/class/net"),
+		DBHost:             getEnv("DB_HOST", "postgres"),
+		DBPort:             toInt(getEnv("DB_PORT", "5432")),
+		DBUser:             getEnv("DB_USER", "lyflow"),
+		DBPassword:         getEnv("DB_PASSWORD", "lyflow_secret_password"),
+		DBName:             getEnv("DB_NAME", "lyflow"),
+		RedisAddr:          getEnv("REDIS_ADDR", "redis:6379"),
+		ServerPort:         toInt(getEnv("SERVER_PORT", "8080")),
+		AgentID:            normalizeAgentID(getEnv("AGENT_ID", "")),
+		AgentKey:           getEnv("AGENT_KEY", ""),
+		AgentSelfEnroll:    toBool(getEnv("AGENT_SELF_ENROLL", "false")),
+		HostNetClassPath:   getEnv("HOST_NET_CLASS_PATH", "/host/sys/class/net"),
+		IncidentLegacyMode: toBool(getEnv("INCIDENT_LIFECYCLE_LEGACY_MODE", "false")),
 
 		SecurityEngineEnabled:       toBool(getEnv("SECURITY_ENGINE_ENABLED", "true")),
 		SecurityEngineReloadURL:     getEnv("SECURITY_ENGINE_RELOAD_URL", "http://ly-security-engine:8080/reload"),
 		LegacyXDROperatorMatching:   toBool(getEnv("LEGACY_XDR_COMPONENT_MATCHING", "false")),
 		RASPAutomaticInjection:      toBool(getEnv("RASP_AUTOMATIC_INJECTION", "true")),
-		RASPBlockDefault:            toBool(getEnv("RASP_BLOCK_BY_DEFAULT", "false")),
+		RASPBlockDefault:            false,
 		RuleDownloadRestrictedShown: toBool(getEnv("RULE_SOURCE_SHOW_RESTRICTED", "false")),
 		XDRResponsePolicyPath:       getEnv("XDR_RESPONSE_POLICY_PATH", ".sisyphus/runtime/xdr-response-policy.json"),
 
-		XDRV2Enabled:               toBool(getEnv("XDR_V2_ENABLED", "false")),
 		XDRV2ResponsePolicyEnabled: toBool(getEnv("XDR_V2_RESPONSE_POLICY_ENABLED", "false")),
 		XDRV2MaxDepth:              toInt(getEnv("XDR_V2_MAX_DEPTH", "6")),
 		XDRV2WindowHours:           toInt(getEnv("XDR_V2_WINDOW_HOURS", "24")),
 		XDRV2MaxPathsPerSeed:       toInt(getEnv("XDR_V2_MAX_PATHS_PER_SEED", "50")),
 		XDRDefaultTenant:           getEnv("XDR_DEFAULT_TENANT", "default"),
 	}
-
 	sslMode := getEnv("DB_SSLMODE", "disable")
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName, sslMode)
@@ -125,16 +151,76 @@ func loadConfig() *Config {
 		log.Fatalf("无法 Ping PostgreSQL: %v", err)
 	}
 	cfg.DBPool = pool
+	raspPolicy, err := newRASPPolicyRuntime(ctx, pool)
+	if err != nil {
+		log.Fatalf("无法初始化 RASP policy lifecycle: %v", err)
+	}
+	cfg.RASPPolicy = raspPolicy
+	ruleLifecycle, err := newRuleLifecycleRuntime(ctx, cfg.SecurityEngineReloadURL)
+	if err != nil {
+		log.Fatalf("无法初始化 rule lifecycle: %v", err)
+	}
+	cfg.RuleLifecycle = ruleLifecycle
+	identityStore := agentidentity.NewPostgresStore(pool)
+	if err := identityStore.EnsureSchema(ctx); err != nil {
+		log.Fatalf("无法初始化 Agent identity schema: %v", err)
+	}
+	ingestionAudit := ingestionauth.NewPostgresAudit(pool)
+	if err := ingestionAudit.EnsureSchema(ctx); err != nil {
+		log.Fatalf("无法初始化 Agent ingestion audit schema: %v", err)
+	}
+	cfg.AgentIdentity = agentidentity.NewPersistentManager(identityStore, identityStore, time.Now)
+	cfg.IngestionAuth = newIngestionAuthenticator(cfg, ingestionAudit)
+	if enrollmentToken := getEnv("AGENT_ENROLL_TOKEN", ""); enrollmentToken != "" && cfg.AgentID != "" {
+		if err := cfg.AgentIdentity.RegisterEnrollmentToken(cfg.AgentID, enrollmentToken, 15*time.Minute); err != nil {
+			log.Printf("agent enrollment token configuration rejected: %v", err)
+		}
+	}
 	log.Printf("PostgreSQL 连接成功 (max_conns=%d min_conns=%d idle=%s lifetime=%s)", poolCfg.MaxConns, poolCfg.MinConns, poolCfg.MaxConnIdleTime, poolCfg.MaxConnLifetime)
 
 	// 连接 Redis
-	cfg.Redis = redis.NewClient(&redis.Options{
-		Addr: cfg.RedisAddr,
-	})
+	cfg.Redis = redis.NewClient(redisconfig.Options(cfg.RedisAddr, 0))
 	if err := cfg.Redis.Ping(ctx).Err(); err != nil {
 		log.Printf("警告: Redis 未连接: %v", err)
 	} else {
 		log.Println("Redis 连接成功")
+	}
+	producerSpool, err := transport.RuntimeSpoolFromEnv("server-producer")
+	if err != nil {
+		log.Fatalf("无法初始化加密事件生产者 spool: %v", err)
+	}
+	if producerSpool == nil {
+		log.Fatal("无法初始化加密事件生产者 spool: key material unavailable")
+	}
+	cfg.TransportProducer, err = transport.NewRedisProducer(transport.ProducerConfig{
+		Client: cfg.Redis, Name: "server-consumer", Spool: producerSpool,
+		Retry: transport.RetryPolicy{MaxAttempts: 4, BaseDelay: 50 * time.Millisecond, MaxDelay: time.Second, Jitter: 0.2},
+	})
+	if err != nil {
+		log.Fatalf("无法初始化可靠事件生产者: %v", err)
+	}
+	if err := cfg.TransportProducer.Replay(ctx); err != nil {
+		log.Printf("可靠事件生产者启动重放暂停: %v", err)
+	}
+	storageRuntime, err := newProductionStorageEventRuntime(ctx, cfg.DBPool)
+	if err != nil {
+		log.Fatalf("无法初始化 ClickHouse 事件迁移: %v", err)
+	}
+	cfg.EventStorage = storageRuntime
+	cfg.XDRInput = storageRuntime
+	legacyWindowEnd, err := time.Parse(time.RFC3339, getEnv("XDR_LEGACY_READ_WINDOW_END", "2026-10-01T00:00:00Z"))
+	if err != nil {
+		log.Fatalf("XDR_LEGACY_READ_WINDOW_END must be RFC3339: %v", err)
+	}
+	cfg.XDRGraph, err = newXDRGraphRuntime(ctx, cfg.DBPool, newXDRCanonicalAdapter(time.Now, legacyWindowEnd))
+	if err != nil {
+		log.Fatalf("无法初始化持久化 XDR 图: %v", err)
+	}
+	if err = initializeIncidentLifecycleRuntime(ctx, cfg); err != nil {
+		log.Fatalf("无法初始化持久化 Incident 生命周期: %v", err)
+	}
+	if err = initializeAdvisoryResponseRuntime(cfg); err != nil {
+		log.Fatalf("无法初始化 advisory response 治理: %v", err)
 	}
 
 	return cfg
@@ -159,6 +245,24 @@ func toBool(s string) bool {
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lshortfile)
+	if os.Getenv("LYFLOW_INCIDENT_PROCESS_MODE") != "" {
+		if err := runIncidentLifecycleProcess(); err != nil {
+			log.Printf("incident lifecycle process failed: %v", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if handled, err := runBootstrapTokenCLI(os.Args); handled {
+		if err != nil {
+			log.Fatal(err)
+		}
+		return
+	}
+	serviceLock, err := acquireServiceLock(serviceLockPath())
+	if err != nil {
+		log.Fatalf("service lock: %v", err)
+	}
+	defer serviceLock.Close()
 	log.Println("正在启动 ly-server v2.0.0...")
 
 	cfg := loadConfig()
@@ -188,12 +292,9 @@ func main() {
 		log.Printf("警告: 初始化用户表失败: %v", err)
 	}
 
-	if err := auth.InitDefaultAdmin(userStore, authService); err != nil {
-		log.Printf("警告: 创建默认管理员失败: %v", err)
-	}
-
 	authHandler := auth.NewHandler(authService, userStore, sessionStore, cfg.DBPool)
-	authMiddleware := auth.NewMiddleware(authService, sessionStore)
+	authMiddleware := auth.NewMiddleware(authService, userStore, sessionStore)
+	bootstrapHandler := auth.NewBootstrapHandler(auth.NewBootstrapTokenManager(userStore, authService, io.Discard))
 
 	mux := http.NewServeMux()
 
@@ -203,37 +304,24 @@ func main() {
 	mux.HandleFunc("/api/v1/public/situation/global", publicGlobalSituationHandler(cfg))
 	mux.HandleFunc("/api/v1/stats", statsHandler(cfg))
 	mux.HandleFunc("/api/v1/events", eventsHandler(cfg))
+	mux.Handle("/api/v1/security-events", securityEventsHandler(cfg.EventStorage))
+	mux.Handle("/api/v1/security-events/", securityEventsHandler(cfg.EventStorage))
+	mux.Handle("/api/v1/event-migration", storageMigrationHandler(cfg.EventStorage))
 
-	// Auth API (公开)
-	mux.HandleFunc("/api/v1/auth/register", authHandler.Register)
+	// Auth API (public and protected)
 	mux.HandleFunc("/api/v1/auth/login", authHandler.Login)
-
-	// Auth API (需认证) - 直接使用精确路径匹配，避免前缀匹配覆盖问题
-	mux.Handle("/api/v1/auth/logout", authMiddleware.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHandler.Logout(w, r)
-	})))
-	mux.Handle("/api/v1/auth/profile", authMiddleware.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHandler.Profile(w, r)
-	})))
-	mux.Handle("/api/v1/auth/change-password", authMiddleware.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHandler.ChangePassword(w, r)
-	})))
-	mux.Handle("/api/v1/auth/users", authMiddleware.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHandler.ListUsers(w, r)
-	})))
-	mux.Handle("/api/v1/auth/users/password", authMiddleware.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		authHandler.ChangeUserPassword(w, r)
-	})))
-	// 用户ID路由 (必须在 /users 和 /users/password 之后注册，避免前缀匹配覆盖)
+	mux.HandleFunc("/api/v1/auth/register", authHandler.Register)
+	mux.HandleFunc("/api/v1/auth/bootstrap-token", bootstrapHandler.Consume)
+	mux.HandleFunc("/api/v1/auth/logout", authHandler.Logout)
+	mux.HandleFunc("/api/v1/auth/profile", authHandler.Profile)
+	mux.HandleFunc("/api/v1/auth/change-password", authHandler.ChangePassword)
+	mux.HandleFunc("/api/v1/auth/users", authHandler.ListUsers)
+	mux.HandleFunc("/api/v1/auth/users/password", authHandler.ChangeUserPassword)
 	mux.HandleFunc("/api/v1/auth/users/", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == http.MethodDelete {
-			authMiddleware.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				authHandler.DeleteUser(w, r)
-			})).ServeHTTP(w, r)
+			authHandler.DeleteUser(w, r)
 		} else {
-			authMiddleware.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-				authHandler.UpdateUser(w, r)
-			})).ServeHTTP(w, r)
+			authHandler.UpdateUser(w, r)
 		}
 	})
 
@@ -255,6 +343,8 @@ func main() {
 	mux.HandleFunc("/api/v1/rule-platform/active-bundle", rulePlatformActiveBundleHandler(cfg))
 	mux.HandleFunc("/api/v1/response/candidates", responseCandidatesHandler(cfg))
 	mux.HandleFunc("/api/v1/response/policy", responsePolicyHandler(cfg))
+	mux.HandleFunc("/api/v1/response/advisories", advisoryResponseHandler(cfg))
+	mux.HandleFunc("/api/v1/response/advisories/", advisoryResponseHandler(cfg))
 	mux.HandleFunc("/api/v1/debug/components", debugComponentsHandler(cfg))
 	mux.HandleFunc("/api/v1/rules/subscription", subscriptionHandler(cfg))
 	mux.HandleFunc("/api/v1/rules/categories", categoriesHandler(cfg))
@@ -290,6 +380,7 @@ func main() {
 	mux.HandleFunc("/api/v1/system/time", systemTimeHandler())
 	mux.HandleFunc("/api/v1/incidents/", incidentDetailHandler(cfg))
 	mux.HandleFunc("/api/v1/incidents", incidentsHandler(cfg))
+	mux.HandleFunc("/api/v1/admin/incident-lifecycle/checkpoint", incidentLifecycleCheckpointHandler(cfg))
 	mux.HandleFunc("/api/v1/timeline/", timelineDetailHandler(cfg))
 	mux.HandleFunc("/api/v1/timeline", timelineHandler(cfg))
 
@@ -328,10 +419,14 @@ func main() {
 	mux.HandleFunc("/api/v1/agent/enroll", agentEnrollHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/heartbeat", agentHeartbeatHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/config", agentConfigHandler(cfg))
+	mux.HandleFunc("/api/v1/agent/identity", agentIdentityControlHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/traffic-event", agentTrafficEventHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/task-result", agentTaskResultHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/component-alert", agentComponentAlertHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/runtime-event", agentRuntimeEventHandler(cfg))
+	agentRealtimeHub := wsapi.NewAgentHub(cfg.IngestionAuth, wsapi.AgentHubOptions{MessagesPerMinute: toInt(getEnv("AGENT_WEBSOCKET_MESSAGES_PER_MINUTE", "600"))})
+	go agentRealtimeHub.Run(context.Background())
+	mux.HandleFunc("/api/v1/agent/realtime", agentRealtimeHub.HandleWebSocket)
 	mux.HandleFunc("/api/v1/agent/install-config", agentInstallConfigHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/install.sh", agentInstallScriptHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/uninstall.sh", agentUninstallScriptHandler(cfg))
@@ -345,7 +440,13 @@ func main() {
 	mux.HandleFunc("/api/v1/agent/snapshot", agentSnapshotHandler(cfg))
 
 	// Realtime low-volume dashboard gateway
-	realtimeHub := wsapi.NewHub()
+	realtimeHub := wsapi.NewAuthenticatedHub(func(request *http.Request) (string, error) {
+		userID := auth.GetUserIDFromContext(request.Context())
+		if userID == 0 {
+			return "", wsapi.ErrUnauthenticated
+		}
+		return strconv.FormatInt(userID, 10), nil
+	})
 	go realtimeHub.Run(context.Background())
 	mux.HandleFunc("/api/v1/realtime", realtimeHub.HandleWebSocket)
 	go startRealtimePublisher(context.Background(), cfg, realtimeHub)
@@ -358,26 +459,47 @@ func main() {
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.ServerPort),
-		Handler:      mux,
+		Handler:      EnforceRoutePolicy(mux, authMiddleware),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
 
+	shutdownDone := make(chan error, 1)
 	go func() {
 		sig := make(chan os.Signal, 1)
+		defer signal.Stop(sig)
 		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 		<-sig
 		log.Println("正在关闭...")
 		ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-		defer cancel()
-		srv.Shutdown(ctx)
+		shutdownErr := srv.Shutdown(ctx)
+		cancel()
+		if shutdownErr != nil {
+			log.Printf("server graceful shutdown failed: %v", shutdownErr)
+		}
+		if cfg.IncidentLegacyMode {
+			checkpointCtx, checkpointCancel := context.WithTimeout(context.Background(), 10*time.Second)
+			report, err := checkpointIncidentLifecycleOnShutdown(checkpointCtx, cfg)
+			checkpointCancel()
+			if err != nil {
+				log.Printf("DEGRADED incident lifecycle shutdown checkpoint failed: captured=%d unrecoverable=%d cutover_marked=%v error=%v", report.Captured, report.Unrecoverable.Total(), report.CutoverMarked, err)
+				shutdownErr = errors.Join(shutdownErr, fmt.Errorf("incident lifecycle shutdown checkpoint: %w", err))
+			} else {
+				log.Printf("incident lifecycle shutdown checkpoint completed: captured=%d checksum=%s cutover_marked=%v", report.Captured, report.SnapshotChecksum, report.CutoverMarked)
+			}
+		}
 		cfg.DBPool.Close()
 		cfg.Redis.Close()
+		shutdownDone <- shutdownErr
 	}()
 
 	log.Printf("服务监听端口 :%d", cfg.ServerPort)
 	if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
 		log.Fatalf("服务错误: %v", err)
+	}
+	if err := <-shutdownDone; err != nil {
+		log.Printf("server shutdown completed with failure: %v", err)
+		os.Exit(1)
 	}
 }
 
@@ -392,11 +514,25 @@ func rootHandler(w http.ResponseWriter, r *http.Request) {
 func healthHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		response := map[string]interface{}{
 			"status":    "healthy",
 			"timestamp": time.Now().UTC().Format(time.RFC3339),
 			"service":   "ly-server",
-		})
+		}
+		if consumerState != nil && consumerState.reliable != nil {
+			if accounting, err := consumerState.reliable.AccountingContext(r.Context()); err == nil {
+				response["transport"] = accounting
+				response["transport_metrics"] = accounting.Metrics()
+			}
+		}
+		if cfg != nil && cfg.XDRGraph != nil {
+			xdrHealth := cfg.XDRGraph.Health()
+			response["xdr"] = xdrHealth
+			if xdrHealth.Status == xdrHealthDegraded {
+				response["status"] = string(xdrHealthDegraded)
+			}
+		}
+		json.NewEncoder(w).Encode(response)
 	}
 }
 
@@ -409,13 +545,17 @@ func publicGlobalSituationHandler(cfg *Config) http.HandlerFunc {
 			return
 		}
 		target := loadTargetLocationConfig()
-		events, _, _ := loadXDRComponentEvents(cfg, 5000)
-		chains := buildXDRChains(cfg, events, 20)
+		activeResult, err := xdrActiveChainsResponse(r.Context(), cfg, 20)
+		if err != nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "xdr_graph_degraded", err.Error())
+			return
+		}
+		chains := activeResult.activeChains()
 		attacks := make([]map[string]interface{}, 0, len(chains))
 		countries := map[string]int64{}
 		geoPoints := map[string]map[string]interface{}{}
 		for _, chain := range chains {
-			enriched := enrichGlobalSituationChain(chain, target)
+			enriched := enrichGlobalSituationChain(chain.jsonRow(), target)
 			if len(mapSlice(enriched["geo_routes"])) == 0 {
 				continue
 			}
@@ -455,51 +595,6 @@ func publicGlobalSituationHandler(cfg *Config) http.HandlerFunc {
 			},
 		})
 	}
-}
-
-func globalSituationThreatFallback(cfg *Config, target targetLocationConfig) ([]map[string]interface{}, map[string]map[string]interface{}) {
-	threats := loadTrafficHeuristicThreats(cfg, nil, nil)
-	attacks := make([]map[string]interface{}, 0, len(threats))
-	geoPoints := map[string]map[string]interface{}{}
-	for _, threat := range threats {
-		ip := xdrPickString(threat, "src_ip", "source_ip")
-		if !isPublicAttackIP(ip) {
-			continue
-		}
-		geo, ok := lookupPublicIPGeo(ip)
-		if !ok {
-			geo = fallbackPublicIPGeo(ip)
-		}
-		targetIP := firstNonEmpty(xdrPickString(threat, "dst_ip", "target_ip", "dest_ip", "destination_ip"), xdrPickString(threat, "entities.target_ip", "entities.dst_ip"))
-		route := map[string]interface{}{
-			"source_id":      geo.ID,
-			"source_ip":      ip,
-			"source_country": geo.Country,
-			"source_region":  geo.Region,
-			"source_city":    geo.City,
-			"source_lat":     geo.Lat,
-			"source_lon":     geo.Lon,
-			"target_country": target.Country,
-			"target_region":  target.Province,
-			"target_city":    targetCityLabel(target),
-			"target_lat":     target.Lat,
-			"target_lon":     target.Lon,
-			"target_ip":      targetIP,
-			"count":          1,
-			"severity":       xdrPickString(threat, "severity"),
-			"score":          xdrPickNumber(threat, "score", severityBaseScore(xdrPickString(threat, "severity"))),
-			"last_seen":      xdrPickString(threat, "timestamp"),
-		}
-		row := copyStringMap(threat)
-		row["geo_routes"] = []map[string]interface{}{route}
-		row["source_ips"] = []string{ip}
-		if targetIP != "" {
-			row["victim_ips"] = []string{targetIP}
-		}
-		attacks = append(attacks, row)
-		geoPoints[geo.ID] = route
-	}
-	return attacks, geoPoints
 }
 
 func enrichGlobalSituationChain(chain map[string]interface{}, target targetLocationConfig) map[string]interface{} {
@@ -881,39 +976,34 @@ func copyStringMap(input map[string]interface{}) map[string]interface{} {
 
 func statsHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		ctx := r.Context()
 		var total, critical, high, medium, low, newEvents int64
 		recent24h := int64(0)
-		xdrEvents, xdrTotal, xdrErr := loadXDRComponentEvents(cfg, 5000)
-		if xdrErr == nil && (len(xdrEvents) > 0 || xdrTotal > 0) {
-			total = int64(len(xdrEvents))
-			dayAgo := time.Now().Add(-24 * time.Hour)
-			for _, event := range xdrEvents {
-				switch strings.ToLower(xdrPickString(event, "severity")) {
-				case "critical":
-					critical++
-				case "high":
-					high++
-				case "medium":
-					medium++
-				default:
-					low++
-				}
-				if strings.EqualFold(firstNonEmpty(xdrPickString(event, "status"), "new"), "new") {
-					newEvents++
-				}
-				if t := parseXDRTime(xdrPickString(event, "created_at", "timestamp", "occurred_at")); !t.IsZero() && t.After(dayAgo) {
-					recent24h++
-				}
+		activeResult, err := xdrActiveChainsResponse(r.Context(), cfg, 100)
+		if err != nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "xdr_graph_degraded", err.Error())
+			return
+		}
+		chains := activeResult.activeChains()
+		dayAgo := time.Now().Add(-24 * time.Hour)
+		for _, chain := range chains {
+			count := int64(chain.EventCount)
+			total += count
+			switch strings.ToLower(chain.Severity) {
+			case "critical":
+				critical += count
+			case "high":
+				high += count
+			case "medium":
+				medium += count
+			default:
+				low += count
 			}
-		} else {
-			cfg.DBPool.QueryRow(ctx, "SELECT COUNT(*) FROM events").Scan(&total)
-			cfg.DBPool.QueryRow(ctx, "SELECT COUNT(*) FROM events WHERE severity='critical'").Scan(&critical)
-			cfg.DBPool.QueryRow(ctx, "SELECT COUNT(*) FROM events WHERE severity='high'").Scan(&high)
-			cfg.DBPool.QueryRow(ctx, "SELECT COUNT(*) FROM events WHERE severity='medium'").Scan(&medium)
-			cfg.DBPool.QueryRow(ctx, "SELECT COUNT(*) FROM events WHERE severity='low'").Scan(&low)
-			cfg.DBPool.QueryRow(ctx, "SELECT COUNT(*) FROM events WHERE status='new'").Scan(&newEvents)
-			recent24h = total
+			if chain.HypothesisStatus == xdrmodels.HypothesisStatusCandidate {
+				newEvents += count
+			}
+			if seen := parseXDRTime(chain.LastSeen); !seen.IsZero() && seen.After(dayAgo) {
+				recent24h += count
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -1053,10 +1143,11 @@ func loginHandler(w http.ResponseWriter, r *http.Request) {
 
 // 消费者状态
 type ConsumerState struct {
-	cfg     *Config
-	mu      sync.Mutex
-	running bool
-	stopCh  chan struct{}
+	cfg      *Config
+	mu       sync.Mutex
+	running  bool
+	stopCh   chan struct{}
+	reliable *transport.RedisConsumer
 }
 
 var consumerState *ConsumerState
@@ -1064,10 +1155,18 @@ var threatBackfillMu sync.Mutex
 var threatBackfillLast time.Time
 
 func startConsumer(cfg *Config) {
+	spool, err := transport.RuntimeSpoolFromEnv("server-main-consumer")
+	if err != nil {
+		log.Printf("configure encrypted transport spool: %v", err)
+	}
 	consumerState = &ConsumerState{
 		cfg:     cfg,
 		running: true,
 		stopCh:  make(chan struct{}),
+		reliable: transport.NewRedisConsumer(transport.ConsumerConfig{
+			Client: cfg.Redis, Group: "server-workers", Consumer: "server-consumer", Spool: spool,
+			Retry: transport.RetryPolicy{MaxAttempts: 4, BaseDelay: 50 * time.Millisecond, MaxDelay: time.Second, Jitter: 0.2},
+		}),
 	}
 
 	go consumerState.run()
@@ -1088,6 +1187,10 @@ func (c *ConsumerState) run() {
 
 func (c *ConsumerState) processAlerts() {
 	ctx := context.Background()
+	if err := transport.RegisterProducer(ctx, c.cfg.Redis, "server-consumer"); err != nil {
+		log.Printf("reliable producer registration failed: %v", err)
+		return
+	}
 
 	streams := []string{"flows:raw", "flows:semantic", "sessions:semantic", "alerts:dpi", "alerts:runtime", "alerts:rasp", "component_alerts:v2"}
 	if c.cfg.SecurityEngineEnabled {
@@ -1097,6 +1200,10 @@ func (c *ConsumerState) processAlerts() {
 
 	for _, stream := range streams {
 		c.cfg.Redis.XGroupCreateMkStream(ctx, stream, group, "0")
+		if err := c.reliable.Reclaim(ctx, stream, c.processDelivery); err != nil {
+			log.Printf("pending reclaim failed stream=%s err=%v", stream, err)
+			continue
+		}
 	}
 	c.cfg.Redis.XGroupCreateMkStream(ctx, "events:xdr", group, "0")
 	c.cfg.Redis.XGroupCreateMkStream(ctx, "events:dead-letter", group, "0")
@@ -1115,31 +1222,46 @@ func (c *ConsumerState) processAlerts() {
 		}
 
 		for _, sr := range result {
-			for _, msg := range sr.Messages {
-				if stream == "flows:raw" {
-					c.bridgeRawFlow(ctx, msg)
-					c.cfg.Redis.XAck(ctx, stream, group, msg.ID)
-					continue
-				}
-				if stream == "sessions:semantic" {
-					persistTrafficSession(ctx, c.cfg, msg)
-					c.cfg.Redis.XAck(ctx, stream, group, msg.ID)
-					continue
-				}
-				c.processMessage(ctx, stream, msg)
-				c.cfg.Redis.XAck(ctx, stream, group, msg.ID)
+			if err := c.reliable.Handle(ctx, sr.Stream, sr.Messages, c.processDelivery); err != nil {
+				log.Printf("durable handoff failed stream=%s err=%v", sr.Stream, err)
 			}
 		}
 	}
 }
 
-func (c *ConsumerState) bridgeRawFlow(ctx context.Context, msg redis.XMessage) {
+func (c *ConsumerState) processDelivery(ctx context.Context, delivery transport.Delivery) (transport.DurableOutcome, error) {
+	uid := transport.DeterministicUID("server_dispatch", delivery.Stream, delivery.MessageID)
+	processed, err := c.cfg.Redis.HExists(ctx, "transport_reliability:server_dispatch", uid).Result()
+	if err != nil {
+		return transport.DurableOutcome{}, fmt.Errorf("load server dispatch receipt: %w", err)
+	}
+	if processed {
+		return transport.DurableOutcome{UID: uid, Sink: "server_dispatch"}, nil
+	}
+	message := redis.XMessage{ID: delivery.MessageID, Values: delivery.Values}
+	switch delivery.Stream {
+	case "flows:raw":
+		err = c.bridgeRawFlow(ctx, message)
+	case "sessions:semantic":
+		err = persistTrafficSession(ctx, c.cfg, message)
+	default:
+		err = c.processMessage(ctx, delivery.Stream, message)
+	}
+	if err != nil {
+		return transport.DurableOutcome{}, err
+	}
+	if err := c.cfg.Redis.HSet(ctx, "transport_reliability:server_dispatch", uid, delivery.MessageID).Err(); err != nil {
+		return transport.DurableOutcome{}, fmt.Errorf("persist server dispatch receipt: %w", err)
+	}
+	return transport.DurableOutcome{UID: uid, Sink: "server_dispatch"}, nil
+}
+
+func (c *ConsumerState) bridgeRawFlow(ctx context.Context, msg redis.XMessage) error {
 	dataStr, ok := msg.Values["data"].(string)
 	if !ok || strings.TrimSpace(dataStr) == "" {
 		raw, err := json.Marshal(msg.Values)
 		if err != nil {
-			log.Printf("bridge flows:raw 序列化失败: %v", err)
-			return
+			return transport.Permanent(transport.ReasonInvalidPayload, err)
 		}
 		dataStr = string(raw)
 	}
@@ -1152,63 +1274,71 @@ func (c *ConsumerState) bridgeRawFlow(ctx context.Context, msg redis.XMessage) {
 		"bridged_at":        now,
 	}
 
-	if err := c.cfg.Redis.XAdd(ctx, &redis.XAddArgs{Stream: "flows:semantic", Values: flowValues}).Err(); err != nil {
-		log.Printf("bridge flows:raw -> flows:semantic 失败: %v", err)
+	encoded, err := json.Marshal(flowValues)
+	if err != nil {
+		return transport.Permanent(transport.ReasonInvalidPayload, err)
 	}
-	if err := c.cfg.Redis.XAdd(ctx, &redis.XAddArgs{Stream: "sessions:semantic", Values: flowValues}).Err(); err != nil {
-		log.Printf("bridge flows:raw -> sessions:semantic 失败: %v", err)
+	uid := transport.DeterministicUID("flow_bridge", "flows:raw", msg.ID)
+	if err := c.cfg.Redis.Eval(ctx, bridgeFlowScript, []string{"transport_reliability:flow_bridge", "flows:semantic", "sessions:semantic"}, uid, string(encoded), msg.ID, now).Err(); err != nil {
+		return fmt.Errorf("bridge raw flow: %w", err)
 	}
+	return nil
 }
 
-func (c *ConsumerState) processMessage(ctx context.Context, stream string, msg redis.XMessage) {
+const bridgeFlowScript = `
+if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1 then return redis.call('HGET', KEYS[1], ARGV[1]) end
+local first = redis.call('XADD', KEYS[2], '*', 'event_uid', ARGV[1], 'data', ARGV[2], 'bridge_from', 'flows:raw', 'bridge_message_id', ARGV[3], 'bridged_at', ARGV[4])
+redis.call('XADD', KEYS[3], '*', 'event_uid', ARGV[1], 'data', ARGV[2], 'bridge_from', 'flows:raw', 'bridge_message_id', ARGV[3], 'bridged_at', ARGV[4])
+redis.call('HSET', KEYS[1], ARGV[1], first)
+return first
+`
+
+func (c *ConsumerState) processMessage(ctx context.Context, stream string, msg redis.XMessage) error {
 	dataStr := streamDataString(msg.Values)
 
 	var payload map[string]interface{}
 	if err := json.Unmarshal([]byte(dataStr), &payload); err != nil {
-		log.Printf("解析告警失败: %v", err)
-		c.writeDeadLetter(ctx, stream, msg.ID, msg.Values, err)
-		return
+		return transport.Permanent(transport.ReasonInvalidPayload, err)
 	}
 
 	event := c.toUnifiedXDREvent(stream, msg.ID, payload)
 	eventBytes, err := event.ToJSON()
 	if err != nil {
-		log.Printf("序列化统一事件失败: %v", err)
-		return
+		return transport.Permanent(transport.ReasonInvalidPayload, err)
 	}
 
-	if err := c.cfg.Redis.XAdd(ctx, &redis.XAddArgs{
-		Stream: "events:xdr",
-		Values: map[string]interface{}{"data": string(eventBytes)},
-	}).Err(); err != nil {
-		log.Printf("写入 events:xdr 失败: %v", err)
+	uid := transport.DeterministicUID("events:xdr", stream, msg.ID)
+	if err := c.cfg.Redis.Eval(ctx, eventXDRScript, []string{"transport_reliability:events_xdr", "events:xdr"}, uid, string(eventBytes)).Err(); err != nil {
+		return fmt.Errorf("publish events:xdr: %w", err)
 	}
 
 	if normalized := normalizeComponentAlertStreamEvent(stream, msg.ID, payload); normalized != nil {
-		persistThreatEvent(ctx, c.cfg, normalized)
+		if err := persistThreatEvent(ctx, c.cfg, normalized); err != nil {
+			return err
+		}
 	}
+	return nil
 }
 
-func (c *ConsumerState) writeDeadLetter(ctx context.Context, stream, msgID string, values map[string]interface{}, cause error) {
-	if c == nil || c.cfg == nil || c.cfg.Redis == nil {
-		return
-	}
-	_ = c.cfg.Redis.XAdd(ctx, &redis.XAddArgs{
-		Stream: "events:dead-letter",
-		Values: buildDeadLetterValues(stream, msgID, values, cause),
-	}).Err()
-}
+const eventXDRScript = `
+if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1 then return redis.call('HGET', KEYS[1], ARGV[1]) end
+local id = redis.call('XADD', KEYS[2], '*', 'event_uid', ARGV[1], 'data', ARGV[2])
+redis.call('HSET', KEYS[1], ARGV[1], id)
+return id
+`
 
 func buildDeadLetterValues(stream, msgID string, values map[string]interface{}, cause error) map[string]interface{} {
 	raw, _ := json.Marshal(values)
-	reason := "unknown"
+	reason := string(transport.ReasonHandlerRejected)
+	detail := "delivery rejected"
 	if cause != nil {
-		reason = cause.Error()
+		detail = cause.Error()
 	}
 	return map[string]interface{}{
 		"source_stream":     stream,
 		"source_message_id": msgID,
 		"reason":            reason,
+		"detail":            detail,
 		"raw":               string(raw),
 		"created_at":        time.Now().UTC().Format(time.RFC3339Nano),
 	}
@@ -1687,12 +1817,12 @@ func responseCandidatesHandler(cfg *Config) http.HandlerFunc {
 		switch r.Method {
 		case http.MethodGet:
 			policy := loadXDRResponsePolicy(cfg)
-			events, _, err := loadXDRComponentEventsWithPolicy(cfg, 2000, policy)
+			activeResult, err := xdrActiveChainsResponse(r.Context(), cfg, 100)
 			if err != nil {
-				writeJSONError(w, http.StatusInternalServerError, "response_candidates_failed", err.Error())
+				writeJSONError(w, http.StatusServiceUnavailable, "response_candidates_failed", err.Error())
 				return
 			}
-			candidates := buildXDRResponseCandidates(events, 100)
+			candidates := responseCandidatesFromActiveXDR(activeResult)
 			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": candidates, "total": len(candidates), "candidate_only": true, "enforcement": "disabled", "policy": policy.PublicSummary()}})
 		default:
 			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Response candidates are read-only; enforcement endpoints are not implemented")
@@ -2617,38 +2747,39 @@ func xdrStatsHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 
-		events, total, err := loadXDRComponentEvents(cfg, 1000)
+		activeResult, err := xdrActiveChainsResponse(r.Context(), cfg, 100)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]interface{}{"code": 1, "message": err.Error()})
+			writeJSONError(w, http.StatusServiceUnavailable, "xdr_graph_degraded", err.Error())
 			return
 		}
+		chains := activeResult.activeChains()
 
 		today := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 0, 0, 0, 0, time.Now().Location())
 		topSources := make(map[string]int64)
 		severityCount := map[string]int64{"critical": 0, "high": 0, "medium": 0, "low": 0}
+		total := 0
 		eventsToday := int64(0)
 		sourcesSet := make(map[string]struct{})
 
-		for _, event := range events {
-			sev := strings.ToLower(xdrPickString(event, "severity"))
+		for _, chain := range chains {
+			count := int64(chain.EventCount)
+			total += int(count)
+			sev := strings.ToLower(chain.Severity)
 			switch sev {
 			case "critical", "high", "medium":
-				severityCount[sev]++
+				severityCount[sev] += count
 			default:
-				severityCount["low"]++
+				severityCount["low"] += count
 			}
 
-			source := xdrPickString(event, "source", "log_source")
-			if source == "" {
-				source = "unknown"
+			for _, source := range chain.SourceIPs {
+				topSources[source] += count
+				sourcesSet[source] = struct{}{}
 			}
-			topSources[source]++
-			sourcesSet[source] = struct{}{}
 
-			eventTime := parseXDRTime(xdrPickString(event, "created_at"))
+			eventTime := parseXDRTime(chain.LastSeen)
 			if !eventTime.IsZero() && eventTime.After(today) {
-				eventsToday++
+				eventsToday += count
 			}
 		}
 
@@ -2658,7 +2789,7 @@ func xdrStatsHandler(cfg *Config) http.HandlerFunc {
 		}
 		sort.Strings(sources)
 
-		posture := buildXDRPosture(events)
+		posture := xdrPostureFromChains(chains)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"code":    0,
 			"message": "success",
@@ -2863,59 +2994,52 @@ func xdrChainsHandler(cfg *Config) http.HandlerFunc {
 		if limit <= 0 || limit > 100 {
 			limit = 20
 		}
-		engine := strings.ToLower(r.URL.Query().Get("engine"))
-
-		if engine == "v2" && cfg.XDRV2Enabled {
-			chains := xdrV2ChainsResponse(cfg, limit)
-			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": chains, "total": len(chains), "limit": limit, "offset": 0, "engine": "v2"}})
-			return
+		engine := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("engine")))
+		switch engine {
+		case "", "v2", "v2-active":
+			result, err := xdrActiveChainsResponse(r.Context(), cfg, limit)
+			if err != nil {
+				writeJSONError(w, http.StatusServiceUnavailable, "xdr_graph_degraded", err.Error())
+				return
+			}
+			chains := result.activeChains()
+			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": chains.jsonRows(), "total": len(chains), "limit": limit, "offset": 0, "engine": xdrmodels.AlgorithmV2Active.String()}})
+		case "v3", "v3-shadow":
+			result, err := xdrShadowChainsResponse(r.Context(), cfg)
+			if err != nil {
+				writeJSONError(w, http.StatusServiceUnavailable, "xdr_graph_degraded", err.Error())
+				return
+			}
+			chains := result.shadowChains()
+			if len(chains) > limit {
+				chains = chains[:limit]
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": chains.jsonRows(), "total": len(chains), "limit": limit, "offset": 0, "engine": xdrmodels.AlgorithmV3Shadow.String()}})
+		default:
+			writeJSONError(w, http.StatusBadRequest, "unknown_xdr_algorithm", "unknown XDR algorithm")
 		}
-
-		events, _, err := loadXDRComponentEvents(cfg, 2000)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]interface{}{"code": 1, "message": err.Error()})
-			return
-		}
-		chains := buildXDRChains(cfg, events, limit)
-
-		engineTag := "v1"
-		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": chains, "total": len(chains), "limit": limit, "offset": 0, "engine": engineTag}})
 	}
 }
 
 func xdrPostureHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
-		engine := strings.ToLower(r.URL.Query().Get("engine"))
-
-		if engine == "v2" && cfg.XDRV2Enabled {
-			events, _, _ := loadXDRComponentEvents(cfg, 2000)
-			posture := buildXDRPosture(events)
-			canonicals := normalizeAndEnrich(cfg, events)
-			if len(canonicals) > 0 {
-				_, edges := buildGraphEdges(context.Background(), canonicals, cfg)
-				hypotheses := boundedPathSearch(canonicals, edges, cfg)
-				activeV2 := 0
-				for _, h := range hypotheses {
-					if h.HypothesisStatus == "candidate" {
-						activeV2++
-					}
-				}
-				posture["active_v2_chains"] = activeV2
-				posture["engine"] = "v2"
-			}
-			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": posture})
-			return
-		}
-
-		events, _, err := loadXDRComponentEvents(cfg, 2000)
+		activeResult, err := xdrActiveChainsResponse(r.Context(), cfg, 100)
 		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]interface{}{"code": 1, "message": err.Error()})
+			writeJSONError(w, http.StatusServiceUnavailable, "xdr_graph_degraded", err.Error())
 			return
 		}
-		posture := buildXDRPosture(events)
+		chains := activeResult.activeChains()
+		active := 0
+		for _, chain := range chains {
+			if chain.HypothesisStatus == xdrmodels.HypothesisStatusCandidate {
+				active++
+			}
+		}
+		posture := xdrPostureFromChains(chains)
+		posture["active_v2_chains"] = active
+		posture["engine"] = xdrmodels.AlgorithmV2Active.String()
+		posture["health"] = cfg.XDRGraph.Health()
 		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": posture})
 	}
 }
@@ -4873,7 +4997,10 @@ func deriveIncidents(events []map[string]interface{}) []map[string]interface{} {
 		}
 		sort.Strings(stages)
 		attackChain := buildAttackChainEvidence(b.events)
-		status := incidentStoredStatus(b.id)
+		status := "open"
+		if legacyStatus, exists := loadLegacyIncidentStatus(b.id); exists {
+			status = string(legacyStatus)
+		}
 		incidents = append(incidents, map[string]interface{}{
 			"id":               b.id,
 			"title":            incidentTitle(b),
@@ -4927,15 +5054,6 @@ func shouldHideOperationalAgentEvent(event map[string]interface{}) bool {
 	}
 	severity := strings.ToLower(xdrPickString(event, "severity"))
 	return severity == "" || severity == "info" || severity == "low"
-}
-
-func incidentStoredStatus(id string) string {
-	if value, ok := incidentStatusStore.Load(id); ok {
-		if status := strings.TrimSpace(fmt.Sprint(value)); status != "" {
-			return status
-		}
-	}
-	return "open"
 }
 
 func incidentStatusLabel(status string) string {
@@ -6201,7 +6319,9 @@ func backfillRecentThreatEvents(ctx context.Context, cfg *Config, limit int) {
 					payload = decoded
 				}
 			}
-			persistThreatEvent(ctx, cfg, normalizeComponentAlertStreamEvent(stream, msg.ID, payload))
+			if err := persistThreatEvent(ctx, cfg, normalizeComponentAlertStreamEvent(stream, msg.ID, payload)); err != nil {
+				log.Printf("threat event backfill failed stream=%s message_id=%s err=%v", stream, msg.ID, err)
+			}
 		}
 	}
 }
@@ -6302,30 +6422,30 @@ func applyTrafficNoisePolicy(event map[string]interface{}) {
 	event["metadata"] = metadata
 }
 
-func persistThreatEvent(ctx context.Context, cfg *Config, event map[string]interface{}) {
+func persistThreatEvent(ctx context.Context, cfg *Config, event map[string]interface{}) error {
 	if cfg == nil || cfg.DBPool == nil || event == nil || shouldHideOperationalAgentEvent(event) {
-		return
+		return nil
 	}
 	if shouldHideUnenrolledAgentThreatEvent(ctx, cfg, event) {
-		return
+		return nil
 	}
 	category := componentCategoryFromEvent(event)
 	if category == "" {
 		category = normalizeComponentCategory(xdrPickString(event, "category"))
 	}
 	if category != "traffic" && category != "runtime" && category != "rasp" && category != "log_audit" {
-		return
+		return nil
 	}
 	if shouldSuppressTrafficNoiseEvent(event) {
-		return
+		return nil
 	}
 	if trafficThreatHasNoFlowContext(event) {
-		return
+		return nil
 	}
 	applyTrafficNoisePolicy(event)
 	severity := strings.ToLower(xdrPickString(event, "severity"))
 	if severity == "" || severity == "info" || xdrEventIsSyntheticNoise(event) || xdrEventIsInformationalTelemetry(event) {
-		return
+		return nil
 	}
 	uid := firstNonEmpty(xdrPickString(event, "message_id"), xdrPickString(event, "id"))
 	if uid == "" {
@@ -6336,14 +6456,15 @@ func persistThreatEvent(ctx context.Context, cfg *Config, event map[string]inter
 	observed := parseThreatEventTime(event)
 	raw, err := json.Marshal(event)
 	if err != nil {
-		return
+		return transport.Permanent(transport.ReasonInvalidPayload, err)
 	}
 	_, err = cfg.DBPool.Exec(ctx, `INSERT INTO threat_events (event_uid, category, severity, source_engine, event_type, agent_id, src_ip, dst_ip, message, observed_at, raw_event, updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,NOW())
 		ON CONFLICT (event_uid) DO UPDATE SET category=EXCLUDED.category, severity=EXCLUDED.severity, source_engine=EXCLUDED.source_engine, event_type=EXCLUDED.event_type, agent_id=EXCLUDED.agent_id, src_ip=EXCLUDED.src_ip, dst_ip=EXCLUDED.dst_ip, message=EXCLUDED.message, observed_at=EXCLUDED.observed_at, raw_event=EXCLUDED.raw_event, updated_at=NOW()`, uid, category, severity, xdrPickString(event, "source_engine", "source"), xdrPickString(event, "event_type"), xdrPickString(event, "agent_id"), xdrPickString(event, "src_ip"), xdrPickString(event, "dst_ip"), xdrPickString(event, "message", "summary", "rule_name"), observed, string(raw))
 	if err != nil {
-		log.Printf("威胁日志持久化失败: uid=%s category=%s err=%v", uid, category, err)
+		return fmt.Errorf("materialize threat event uid=%s category=%s: %w", uid, category, err)
 	}
+	return nil
 }
 
 func shouldHideUnenrolledAgentThreatEvent(ctx context.Context, cfg *Config, event map[string]interface{}) bool {
@@ -6930,25 +7051,25 @@ func loadTrafficStream(cfg *Config, stream string, limit, offset int, query, age
 	return items, matched, nil
 }
 
-func persistTrafficSession(ctx context.Context, cfg *Config, msg redis.XMessage) {
+func persistTrafficSession(ctx context.Context, cfg *Config, msg redis.XMessage) error {
 	if cfg == nil || cfg.DBPool == nil {
-		return
+		return nil
 	}
 	item := trafficItemFromMessage(cfg, "sessions:semantic", msg)
 	if isContainerBridgeTrafficItem(item) {
-		return
+		return nil
 	}
 	agentInfos := activeTrafficAgentInfos(ctx, cfg)
 	if mirrorSessionOnlyEnabled() && !isConfiguredMirrorInterfaceItem(item) && !isMirrorCaptureItem(item) && !trafficItemHasRegisteredAgent(item, agentInfos) {
-		return
+		return nil
 	}
 	if !trafficItemBelongsToActiveAgent(item, agentInfos) {
-		return
+		return nil
 	}
 	attributeMirrorTrafficToAgent(item, agentInfos)
 	normalizeAgentSessionAggregate(item, agentInfos)
 	if isContainerBridgeTrafficItem(item) {
-		return
+		return nil
 	}
 	enrichTrafficItemDisplayName(item, agentInfos)
 	uid := firstNonEmpty(xdrPickString(item, "message_id"), xdrPickString(item, "id"))
@@ -6965,14 +7086,15 @@ func persistTrafficSession(ctx context.Context, cfg *Config, msg redis.XMessage)
 	observed := parseTrafficItemTime(item)
 	raw, err := json.Marshal(item)
 	if err != nil {
-		return
+		return transport.Permanent(transport.ReasonInvalidPayload, err)
 	}
 	_, err = cfg.DBPool.Exec(ctx, `INSERT INTO traffic_sessions (session_uid, observed_at, agent_id, src_ip, dst_ip, src_port, dst_port, protocol, raw_event, updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,NOW())
 		ON CONFLICT (session_uid) DO UPDATE SET observed_at=EXCLUDED.observed_at, agent_id=EXCLUDED.agent_id, src_ip=EXCLUDED.src_ip, dst_ip=EXCLUDED.dst_ip, src_port=EXCLUDED.src_port, dst_port=EXCLUDED.dst_port, protocol=EXCLUDED.protocol, raw_event=EXCLUDED.raw_event, updated_at=NOW()`, uid, observed, xdrPickString(item, "agent_id"), xdrPickString(item, "src_ip"), xdrPickString(item, "dst_ip"), int(xdrPickNumber(item, "src_port", 0)), int(xdrPickNumber(item, "dst_port", 0)), xdrPickString(item, "protocol"), string(raw))
 	if err != nil {
-		log.Printf("会话日志持久化失败: uid=%s err=%v", uid, err)
+		return fmt.Errorf("materialize traffic session uid=%s: %w", uid, err)
 	}
+	return nil
 }
 
 func loadPersistentTrafficSessions(ctx context.Context, cfg *Config, limit, offset int, query, agentID, srcIP, srcPort, dstIP, dstPort string, startTime, endTime *time.Time) ([]map[string]interface{}, int, error) {
@@ -7651,90 +7773,6 @@ func unifiedSearchHandler(cfg *Config) http.HandlerFunc {
 	}
 }
 
-func incidentsHandler(cfg *Config) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if r.Method != http.MethodGet {
-			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
-			return
-		}
-		limit := parseQueryInt(r.URL.Query().Get("limit"), 50)
-		offset := parseQueryInt(r.URL.Query().Get("offset"), 0)
-		if limit <= 0 {
-			limit = 50
-		}
-		if offset < 0 {
-			offset = 0
-		}
-
-		events, _, err := loadXDRComponentEvents(cfg, 5000)
-		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, "incident_load_failed", err.Error())
-			return
-		}
-		incidents := incidentsFromXDRChains(buildXDRChains(cfg, events, offset+limit+50))
-		total := len(incidents)
-		if offset > total {
-			offset = total
-		}
-		end := offset + limit
-		if end > total {
-			end = total
-		}
-		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": incidents[offset:end], "total": total, "limit": limit, "offset": offset}})
-	}
-}
-
-func incidentDetailHandler(cfg *Config) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		if r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/status") {
-			id := strings.TrimSuffix(strings.TrimPrefix(r.URL.Path, "/api/v1/incidents/"), "/status")
-			id = strings.Trim(id, "/")
-			if id == "" {
-				writeJSONError(w, http.StatusNotFound, "incident_not_found", "incident not found")
-				return
-			}
-			var req struct {
-				Status string `json:"status"`
-			}
-			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-				writeJSONError(w, http.StatusBadRequest, "invalid_json", "Invalid request")
-				return
-			}
-			status := strings.TrimSpace(req.Status)
-			if status == "" {
-				writeJSONError(w, http.StatusBadRequest, "status_required", "status required")
-				return
-			}
-			incidentStatusStore.Store(id, status)
-			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"id": id, "status": status, "status_label": incidentStatusLabel(status)}})
-			return
-		}
-		if r.Method != http.MethodGet {
-			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
-			return
-		}
-		id := strings.TrimPrefix(r.URL.Path, "/api/v1/incidents/")
-		if id == "" {
-			writeJSONError(w, http.StatusNotFound, "incident_not_found", "incident not found")
-			return
-		}
-		events, _, err := loadXDRComponentEvents(cfg, 5000)
-		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, "incident_load_failed", err.Error())
-			return
-		}
-		for _, incident := range incidentsFromXDRChains(buildXDRChains(cfg, events, 100)) {
-			if xdrPickString(incident, "id") == id {
-				json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": incident})
-				return
-			}
-		}
-		writeJSONError(w, http.StatusNotFound, "incident_not_found", "incident not found")
-	}
-}
-
 func incidentsFromXDRChains(chains []map[string]interface{}) []map[string]interface{} {
 	incidents := make([]map[string]interface{}, 0, len(chains))
 	for _, chain := range chains {
@@ -7743,7 +7781,10 @@ func incidentsFromXDRChains(chains []map[string]interface{}) []map[string]interf
 			continue
 		}
 		id := "inc-" + strings.TrimPrefix(xdrPickString(chain, "id"), "chain-")
-		status := incidentStoredStatus(id)
+		status := "open"
+		if legacyStatus, exists := loadLegacyIncidentStatus(id); exists {
+			status = string(legacyStatus)
+		}
 		if len(stages) == 0 {
 			for _, event := range asSlice(chain["event_evidence"]) {
 				stage := firstNonEmpty(normalizeXDRStage(xdrPickString(asMap(event), "stage_hint")), inferXDRStage(asMap(event)), incidentStage(asMap(event)))
@@ -8141,6 +8182,10 @@ func raspEnableProtectionHandler(cfg *Config) http.HandlerFunc {
 			http.Error(w, "agent_id is required", http.StatusBadRequest)
 			return
 		}
+		if req.BlockMode {
+			writeJSONError(w, http.StatusConflict, "rasp_policy_lifecycle_required", "block mode requires a signed canary policy and is disabled for production promotion")
+			return
+		}
 
 		agent, err := getOrInitRASPProtectionAgent(cfg, req.AgentID)
 		if err != nil {
@@ -8258,13 +8303,32 @@ func raspProtectionStatusHandler(cfg *Config) http.HandlerFunc {
 
 func raspReceiveEventHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		const surface = "http.rasp-event"
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		principal, ok := authenticateIngestion(w, r, cfg, surface)
+		if !ok {
+			return
+		}
 		var event map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&event); err != nil {
-			http.Error(w, "Invalid JSON", http.StatusBadRequest)
+		if !decodeIngestionJSON(w, r, cfg, principal, surface, &event) {
+			return
+		}
+		agentID, ok := bindIngestionPrincipal(w, r, cfg, principal, surface, xdrPickString(event, "agent_id"))
+		if !ok {
+			return
+		}
+		event["agent_id"] = agentID
+		if cfg.Redis == nil {
+			if !recordIngestionRejection(w, r, cfg, principal, surface, ingestionauth.OutcomeRejected, "redis unavailable") {
+				return
+			}
+			writeJSONError(w, http.StatusServiceUnavailable, "redis_unavailable", "redis unavailable")
+			return
+		}
+		if !acceptIngestion(w, r, cfg, principal, surface) {
 			return
 		}
 		event = rasp.NormalizeEventMap(event)
@@ -8305,7 +8369,10 @@ func raspReceiveEventHandler(cfg *Config) http.HandlerFunc {
 			telemetry.Source = "rasp-probe"
 		}
 		if data, err := json.Marshal(telemetry); err == nil {
-			_ = cfg.Redis.XAdd(r.Context(), &redis.XAddArgs{Stream: "telemetry:rasp", Values: map[string]interface{}{"data": string(data)}}).Err()
+			if err := writeIngestionStream(r.Context(), cfg, "telemetry:rasp", map[string]interface{}{"id": telemetry.ID, "data": string(data)}); err != nil {
+				writeJSONError(w, http.StatusServiceUnavailable, "rasp_telemetry_write_failed", err.Error())
+				return
+			}
 		}
 		if msgID, err := storeV2ComponentAlert(r.Context(), cfg, componentAlertFromRASPEvent(event, telemetry)); err == nil {
 			event["component_message_id"] = msgID
@@ -8313,7 +8380,6 @@ func raspReceiveEventHandler(cfg *Config) http.HandlerFunc {
 			log.Printf("[RASP] component alert store failed: %v", err)
 		}
 
-		agentID, _ := event["agent_id"].(string)
 		attackType, _ := event["attack_type"].(string)
 		log.Printf("[RASP] 收到事件: agent=%s type=%s mode=monitor → telemetry:rasp", agentID, attackType)
 		w.Header().Set("Content-Type", "application/json")
@@ -8578,6 +8644,7 @@ func agentEnrollHandler(cfg *Config) http.HandlerFunc {
 		}
 
 		var req struct {
+			EnrollmentToken string                 `json:"enrollment_token"`
 			Hostname        string                 `json:"hostname"`
 			IP              string                 `json:"ip"`
 			OS              string                 `json:"os"`
@@ -8591,18 +8658,27 @@ func agentEnrollHandler(cfg *Config) http.HandlerFunc {
 			http.Error(w, "Invalid request", http.StatusBadRequest)
 			return
 		}
-		if cfg == nil || !cfg.AgentSelfEnroll {
-			writeJSONError(w, http.StatusForbidden, "agent_self_enroll_disabled", "agent self enrollment is disabled")
+		if cfg == nil || cfg.AgentIdentity == nil || strings.TrimSpace(req.EnrollmentToken) == "" {
+			writeJSONError(w, http.StatusForbidden, "agent_enrollment_token_required", "valid agent enrollment token required")
 			return
 		}
 
-		hash := sha256.Sum256([]byte(req.Hostname + req.IP))
-		agentID := normalizeAgentID(fmt.Sprintf("agent-%s-%x", req.Hostname, hash[:4]))
-		agentKey := fmt.Sprintf("%08x%08x", time.Now().Unix(), time.Now().UnixNano()%0xFFFFFFFF)
+		agentKey, err := generateAgentCredential()
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, "agent_credential_generation_failed", "agent credential generation failed")
+			return
+		}
+		ctx := r.Context()
+		record, err := cfg.AgentIdentity.EnrollContext(ctx, strings.TrimSpace(req.EnrollmentToken), agentKey, agentidentity.EnabledTransports{HTTP: true})
+		if err != nil {
+			writeJSONError(w, http.StatusForbidden, "agent_enrollment_token_rejected", "valid agent enrollment token required")
+			return
+		}
+		agentID := record.ID().String()
 
 		agent := &models.Agent{
 			UUID:         agentID,
-			AgentKey:     agentKey,
+			AgentKey:     "",
 			Hostname:     req.Hostname,
 			IP:           req.IP,
 			OS:           req.OS,
@@ -8623,12 +8699,17 @@ func agentEnrollHandler(cfg *Config) http.HandlerFunc {
 		}
 		agent.LastHeartbeat = time.Now()
 
-		ctx := r.Context()
-		if err := upsertAgent(ctx, cfg, agent); err != nil {
-			log.Printf("Failed to upsert agent: %v", err)
+		if cfg.DBPool != nil {
+			if err := upsertAgent(ctx, cfg, agent); err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "agent_persistence_failed", "agent enrollment could not be persisted")
+				return
+			}
 		}
-		if err := upsertHostControlRecord(ctx, cfg, agent, req.CapabilityModel); err != nil {
-			log.Printf("Failed to upsert host control record: %v", err)
+		if cfg.DBPool != nil {
+			if err := upsertHostControlRecord(ctx, cfg, agent, req.CapabilityModel); err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "agent_host_persistence_failed", "agent host data could not be persisted")
+				return
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -8912,8 +8993,11 @@ func agentConfigHandler(cfg *Config) http.HandlerFunc {
 		}
 
 		var req struct {
-			AgentID  string `json:"agent_id"`
-			AgentKey string `json:"agent_key"`
+			AgentID            string                 `json:"agent_id"`
+			AgentKey           string                 `json:"agent_key"`
+			ACKPolicyVersion   uint64                 `json:"ack_policy_version"`
+			ACKPolicySignature string                 `json:"ack_policy_signature"`
+			Capabilities       map[string]interface{} `json:"capabilities"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			http.Error(w, "Invalid request", http.StatusBadRequest)
@@ -8946,6 +9030,29 @@ func agentConfigHandler(cfg *Config) http.HandlerFunc {
 			return
 		}
 		desiredStates := engineDesiredStatesForAgent(trafficEnabled, hidsEnabled, raspEnabled)
+		if cfg.RASPPolicy == nil {
+			http.Error(w, "RASP policy lifecycle unavailable", http.StatusServiceUnavailable)
+			return
+		}
+		if req.ACKPolicyVersion > 0 {
+			acknowledgement := agentpolicy.Acknowledgement{AgentID: agentID, Version: req.ACKPolicyVersion, Signature: req.ACKPolicySignature}
+			if err := cfg.RASPPolicy.Acknowledge(r.Context(), acknowledgement); err != nil {
+				writeJSONError(w, http.StatusConflict, "rasp_policy_ack_rejected", err.Error())
+				return
+			}
+		}
+		assignment, err := cfg.RASPPolicy.AssignCurrent(r.Context(), raspAssignmentTarget(agentID, req.Capabilities))
+		if err != nil {
+			log.Printf("RASP policy assignment failed: agent_id=%s err=%v", agentID, err)
+			http.Error(w, "RASP policy assignment failed", http.StatusServiceUnavailable)
+			return
+		}
+		raspConfig := raspPolicyConfig(assignment.Envelope.Policy)
+		for _, state := range desiredStates {
+			if asString(state["name"]) == "rasp" {
+				state["enabled"] = assignment.Envelope.Policy.Mode == agentpolicy.ModeMonitor
+			}
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -8953,16 +9060,17 @@ func agentConfigHandler(cfg *Config) http.HandlerFunc {
 			"message": "success",
 			"data": map[string]interface{}{
 				"agent_id":              agentID,
-				"policy_version":        1,
+				"policy_version":        assignment.Envelope.Policy.Version,
+				"rasp_policy":           assignment.Envelope,
 				"engine_desired_states": desiredStates,
 				"config": map[string]interface{}{
 					"task_poll_interval":    30,
 					"heartbeat_interval":    30,
 					"engine_desired_states": desiredStates,
 					"policy": map[string]interface{}{
-						"version":   1,
+						"version":   assignment.Envelope.Policy.Version,
 						"traffic":   map[string]interface{}{"enabled": trafficEnabled, "interface": "auto", "capture_engine": "auto", "bpf_filter": "", "promiscuous": true},
-						"rasp":      map[string]interface{}{"enabled": raspEnabled, "mode": "monitor", "languages": map[string]bool{"python": true, "java": false}, "block_on_hit": false},
+						"rasp":      raspConfig,
 						"runtime":   map[string]interface{}{"enabled": hidsEnabled, "backend": "auto", "include_paths": []string{"/etc", "/var/log"}, "exclude_paths": []string{"/proc", "/sys"}},
 						"asset":     map[string]interface{}{"interval_seconds": 60, "processes": true, "performance": true},
 						"retention": map[string]interface{}{"evidence_enabled": true, "max_file_mb": 128, "retain_days": 3},
@@ -8977,9 +9085,14 @@ func agentConfigHandler(cfg *Config) http.HandlerFunc {
 
 func agentTrafficEventHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		const surface = "http.traffic-event"
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method != http.MethodPost {
 			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+			return
+		}
+		principal, ok := authenticateIngestion(w, r, cfg, surface)
+		if !ok {
 			return
 		}
 		var req struct {
@@ -8990,21 +9103,19 @@ func agentTrafficEventHandler(cfg *Config) http.HandlerFunc {
 			Data     string                 `json:"data"`
 			Values   map[string]interface{} `json:"values"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			writeJSONError(w, http.StatusBadRequest, "invalid_traffic_event", "Invalid traffic event")
+		if !decodeIngestionJSON(w, r, cfg, principal, surface, &req) {
 			return
 		}
-		agentID := normalizeAgentID(req.AgentID)
+		agentID, ok := bindIngestionPrincipal(w, r, cfg, principal, surface, normalizeAgentID(req.AgentID))
+		if !ok {
+			return
+		}
 		stream := strings.TrimSpace(req.Stream)
-		if agentID == "" || stream == "" {
-			writeJSONError(w, http.StatusBadRequest, "invalid_traffic_event", "agent_id and stream are required")
+		if stream == "" {
+			writeJSONError(w, http.StatusBadRequest, "invalid_traffic_event", "stream is required")
 			return
 		}
-		if err := requireAgentKey(r.Context(), cfg, agentID, req.AgentKey); err != nil {
-			writeJSONError(w, http.StatusUnauthorized, "agent_auth_required", "valid agent key required")
-			return
-		}
-		if cfg == nil || cfg.Redis == nil {
+		if !ingestionWriterAvailable(cfg) {
 			writeJSONError(w, http.StatusServiceUnavailable, "redis_unavailable", "redis unavailable")
 			return
 		}
@@ -9018,9 +9129,19 @@ func agentTrafficEventHandler(cfg *Config) http.HandlerFunc {
 		if strings.TrimSpace(asString(values["type"])) == "" && strings.TrimSpace(req.Type) != "" {
 			values["type"] = req.Type
 		}
-		if err := cfg.Redis.XAdd(r.Context(), &redis.XAddArgs{Stream: stream, Values: values}).Err(); err != nil {
+		values["agent_id"] = agentID
+		if !acceptIngestion(w, r, cfg, principal, surface) {
+			return
+		}
+		if err := writeIngestionStream(r.Context(), cfg, stream, values); err != nil {
 			writeJSONError(w, http.StatusServiceUnavailable, "traffic_event_write_failed", err.Error())
 			return
+		}
+		if cfg.Redis != nil {
+			if err := transport.RegisterProducer(r.Context(), cfg.Redis, "agent-traffic"); err != nil {
+				writeJSONError(w, http.StatusServiceUnavailable, "traffic_event_registration_failed", err.Error())
+				return
+			}
 		}
 		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"ack": true}})
 	}
@@ -9090,8 +9211,13 @@ func defaultEngineDesiredStates() []map[string]interface{} {
 
 func agentTaskResultHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		const surface = "http.task-result"
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		principal, ok := authenticateIngestion(w, r, cfg, surface)
+		if !ok {
 			return
 		}
 
@@ -9103,35 +9229,33 @@ func agentTaskResultHandler(cfg *Config) http.HandlerFunc {
 			Result   map[string]interface{} `json:"result"`
 			ErrorMsg string                 `json:"error,omitempty"`
 		}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
+		if !decodeIngestionJSON(w, r, cfg, principal, surface, &req) {
 			return
 		}
-		agentID := normalizeAgentID(req.AgentID)
-		if agentID == "" {
-			http.Error(w, "agent_id is required", http.StatusBadRequest)
+		agentID, ok := bindIngestionPrincipal(w, r, cfg, principal, surface, normalizeAgentID(req.AgentID))
+		if !ok {
 			return
 		}
-		if err := requireAgentKey(r.Context(), cfg, agentID, req.AgentKey); err != nil {
-			writeJSONError(w, http.StatusUnauthorized, "agent_auth_required", "valid agent key required")
-			return
-		}
-		exists, err := agentExists(r.Context(), cfg, agentID)
-		if err != nil {
-			log.Printf("agent task result lookup failed: %v", err)
-			http.Error(w, "agent lookup failed", http.StatusInternalServerError)
-			return
-		}
-		if !exists {
-			http.Error(w, "agent not found", http.StatusNotFound)
-			return
-		}
-
-		if req.TaskID != "" {
-			log.Printf("agent task result received: agent_id=%s task_id=%s status=%s", agentID, req.TaskID, req.Status)
+		if cfg.DBPool != nil {
+			exists, err := agentExists(r.Context(), cfg, agentID)
+			if err != nil {
+				log.Printf("agent task result lookup failed: %v", err)
+				http.Error(w, "agent lookup failed", http.StatusInternalServerError)
+				return
+			}
+			if !exists {
+				http.Error(w, "agent not found", http.StatusNotFound)
+				return
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
+		if !acceptIngestion(w, r, cfg, principal, surface) {
+			return
+		}
+		if req.TaskID != "" {
+			log.Printf("agent task result received: agent_id=%s task_id=%s status=%s", agentID, req.TaskID, req.Status)
+		}
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"code":    0,
 			"message": "success",
@@ -9146,21 +9270,37 @@ func agentTaskResultHandler(cfg *Config) http.HandlerFunc {
 
 func agentComponentAlertHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		const surface = "http.component-alert"
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method != http.MethodPost {
 			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
 			return
 		}
-		var alert contracts.ComponentAlert
-		if err := json.NewDecoder(r.Body).Decode(&alert); err != nil {
-			writeJSONError(w, http.StatusBadRequest, "invalid_json", "Invalid JSON")
+		principal, ok := authenticateIngestion(w, r, cfg, surface)
+		if !ok {
 			return
 		}
+		var alert contracts.ComponentAlert
+		if !decodeIngestionJSON(w, r, cfg, principal, surface, &alert) {
+			return
+		}
+		agentID, ok := bindIngestionPrincipal(w, r, cfg, principal, surface, alert.Entities.AgentID)
+		if !ok {
+			return
+		}
+		alert.Entities.AgentID = agentID
 		if alert.Source == "" {
 			alert.Source = string(alert.SourceEngine)
 		}
 		if err := alert.Validate(); err != nil {
 			writeJSONError(w, http.StatusBadRequest, "invalid_component_alert", err.Error())
+			return
+		}
+		if cfg == nil || cfg.Redis == nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "redis_unavailable", "redis unavailable")
+			return
+		}
+		if !acceptIngestion(w, r, cfg, principal, surface) {
 			return
 		}
 		msgID, err := storeV2ComponentAlert(r.Context(), cfg, alert)
@@ -9173,22 +9313,14 @@ func agentComponentAlertHandler(cfg *Config) http.HandlerFunc {
 }
 
 func storeV2ComponentAlert(ctx context.Context, cfg *Config, alert contracts.ComponentAlert) (string, error) {
-	if cfg == nil || cfg.Redis == nil {
-		return "", fmt.Errorf("redis unavailable")
+	if cfg == nil || cfg.EventStorage == nil {
+		return "", fmt.Errorf("event migration runtime unavailable")
 	}
-	payload, err := json.Marshal(alert)
+	receipt, err := cfg.EventStorage.WriteComponentAlert(ctx, alert, time.Now().UTC())
 	if err != nil {
 		return "", err
 	}
-	return cfg.Redis.XAdd(ctx, &redis.XAddArgs{Stream: "component_alerts:v2", Values: map[string]interface{}{
-		"data":          string(payload),
-		"id":            alert.ID,
-		"category":      string(alert.Category),
-		"source_engine": string(alert.SourceEngine),
-		"rule_id":       alert.RuleID,
-		"severity":      string(alert.Severity),
-		"occurred_at":   alert.OccurredAt.Format(time.RFC3339Nano),
-	}}).Result()
+	return receipt.EventUID, nil
 }
 
 func upsertAgent(ctx context.Context, cfg *Config, agent *models.Agent) error {
@@ -9355,7 +9487,15 @@ func requireAgentKey(ctx context.Context, cfg *Config, agentID, agentKey string)
 		return fmt.Errorf("agent key required")
 	}
 	if cfg == nil || cfg.DBPool == nil {
+		if cfg != nil && cfg.AgentIdentity != nil {
+			return cfg.AgentIdentity.Authenticate(agentID, agentKey, agentidentity.TransportHTTP)
+		}
 		return fmt.Errorf("agent store unavailable")
+	}
+	if cfg.AgentIdentity != nil {
+		if err := cfg.AgentIdentity.Authenticate(agentID, agentKey, agentidentity.TransportHTTP); err == nil {
+			return nil
+		}
 	}
 	var storedKey string
 	if err := cfg.DBPool.QueryRow(ctx, "SELECT COALESCE(agent_key, '') FROM agents WHERE uuid = $1", agentID).Scan(&storedKey); err != nil {
@@ -9364,7 +9504,29 @@ func requireAgentKey(ctx context.Context, cfg *Config, agentID, agentKey string)
 	if !sameSecret(storedKey, agentKey) {
 		return fmt.Errorf("invalid agent key")
 	}
+	if cfg.AgentIdentity != nil {
+		id, err := agentidentity.NewAgentID(agentID)
+		if err != nil {
+			return err
+		}
+		record, err := agentidentity.NewLegacyRecord(id, storedKey, agentidentity.EnabledTransports{HTTP: true})
+		if err != nil {
+			return err
+		}
+		if err := cfg.AgentIdentity.Store(record); err != nil && !errors.Is(err, agentidentity.ErrInvalidTransition) {
+			return err
+		}
+		return cfg.AgentIdentity.Authenticate(agentID, agentKey, agentidentity.TransportHTTP)
+	}
 	return nil
+}
+
+func generateAgentCredential() (string, error) {
+	raw := make([]byte, 32)
+	if _, err := rand.Read(raw); err != nil {
+		return "", fmt.Errorf("generate agent credential: %w", err)
+	}
+	return hex.EncodeToString(raw), nil
 }
 
 func sameSecret(a, b string) bool {
@@ -9386,12 +9548,31 @@ func ensureConfiguredAgent(ctx context.Context, cfg *Config, agentID, agentKey s
 	if cfg == nil || cfg.DBPool == nil {
 		return fmt.Errorf("agent store unavailable")
 	}
+	if cfg.AgentIdentity != nil {
+		if err := cfg.AgentIdentity.Authenticate(agentID, agentKey, agentidentity.TransportHTTP); err == nil {
+			return nil
+		}
+	}
 
 	var storedKey string
 	err := cfg.DBPool.QueryRow(ctx, "SELECT COALESCE(agent_key, '') FROM agents WHERE uuid = $1", agentID).Scan(&storedKey)
 	if err == nil {
-		if storedKey != agentKey {
+		if !sameSecret(storedKey, agentKey) {
 			return fmt.Errorf("invalid agent key")
+		}
+		if cfg.AgentIdentity != nil {
+			id, idErr := agentidentity.NewAgentID(agentID)
+			if idErr != nil {
+				return idErr
+			}
+			record, recordErr := agentidentity.NewLegacyRecord(id, storedKey, agentidentity.EnabledTransports{HTTP: true})
+			if recordErr != nil {
+				return recordErr
+			}
+			if storeErr := cfg.AgentIdentity.Store(record); storeErr != nil && !errors.Is(storeErr, agentidentity.ErrInvalidTransition) {
+				return storeErr
+			}
+			return cfg.AgentIdentity.Authenticate(agentID, agentKey, agentidentity.TransportHTTP)
 		}
 		return nil
 	}
@@ -9405,7 +9586,7 @@ func ensureConfiguredAgent(ctx context.Context, cfg *Config, agentID, agentKey s
 	capabilityModel := normalizeCapabilityModel(capabilities)
 	agent := &models.Agent{
 		UUID:           agentID,
-		AgentKey:       agentKey,
+		AgentKey:       "",
 		Hostname:       agentID,
 		Status:         "online",
 		TrafficEnabled: boolFromMap(capabilityModel, "traffic"),
@@ -9418,6 +9599,19 @@ func ensureConfiguredAgent(ctx context.Context, cfg *Config, agentID, agentKey s
 	}
 	if err := upsertHostControlRecord(ctx, cfg, agent, capabilityModel); err != nil {
 		return err
+	}
+	if cfg.AgentIdentity != nil {
+		id, idErr := agentidentity.NewAgentID(agentID)
+		if idErr != nil {
+			return idErr
+		}
+		record, recordErr := agentidentity.NewLegacyRecord(id, agentKey, agentidentity.EnabledTransports{HTTP: true})
+		if recordErr != nil {
+			return recordErr
+		}
+		if storeErr := cfg.AgentIdentity.Store(record); storeErr != nil {
+			return storeErr
+		}
 	}
 	log.Printf("agent auto-enrolled from configured credentials: agent_id=%s", agentID)
 	return nil
@@ -9514,14 +9708,33 @@ func updateAgentHeartbeat(ctx context.Context, cfg *Config, agentID, heartbeatSt
 
 func agentRuntimeEventHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		const surface = "http.runtime-event"
 		if r.Method != http.MethodPost {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
+		principal, ok := authenticateIngestion(w, r, cfg, surface)
+		if !ok {
+			return
+		}
 
 		var req map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "Invalid request", http.StatusBadRequest)
+		if !decodeIngestionJSON(w, r, cfg, principal, surface, &req) {
+			return
+		}
+		agentID, ok := bindIngestionPrincipal(w, r, cfg, principal, surface, xdrPickString(req, "agent_id"))
+		if !ok {
+			return
+		}
+		req["agent_id"] = agentID
+		if cfg.Redis == nil {
+			if !recordIngestionRejection(w, r, cfg, principal, surface, ingestionauth.OutcomeRejected, "redis unavailable") {
+				return
+			}
+			writeJSONError(w, http.StatusServiceUnavailable, "redis_unavailable", "redis unavailable")
+			return
+		}
+		if !acceptIngestion(w, r, cfg, principal, surface) {
 			return
 		}
 
@@ -9546,10 +9759,7 @@ func agentRuntimeEventHandler(cfg *Config) http.HandlerFunc {
 		}
 
 		if !isAuthEvent {
-			if err := cfg.Redis.XAdd(r.Context(), &redis.XAddArgs{
-				Stream: "alerts:runtime",
-				Values: map[string]interface{}{"data": string(payload)},
-			}).Err(); err != nil {
+			if err := writeIngestionStream(r.Context(), cfg, "alerts:runtime", map[string]interface{}{"id": xdrPickString(req, "id"), "data": string(payload)}); err != nil {
 				log.Printf("runtime event publish failed: %v", err)
 				http.Error(w, "publish failed", http.StatusInternalServerError)
 				return
@@ -9584,7 +9794,10 @@ func agentRuntimeEventHandler(cfg *Config) http.HandlerFunc {
 			telemetry.Source = "ly-agent-runtime"
 		}
 		if data, err := json.Marshal(telemetry); err == nil {
-			_ = cfg.Redis.XAdd(r.Context(), &redis.XAddArgs{Stream: "telemetry:runtime", Values: map[string]interface{}{"data": string(data)}}).Err()
+			if err := writeIngestionStream(r.Context(), cfg, "telemetry:runtime", map[string]interface{}{"id": telemetry.ID, "data": string(data)}); err != nil {
+				writeJSONError(w, http.StatusServiceUnavailable, "runtime_telemetry_write_failed", err.Error())
+				return
+			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")

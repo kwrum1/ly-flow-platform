@@ -205,8 +205,9 @@ CREATE TABLE IF NOT EXISTS rule_source_versions (
     snapshot_path TEXT,
     sync_status VARCHAR(32) NOT NULL DEFAULT 'pending',
     synced_at TIMESTAMP DEFAULT NOW(),
-    UNIQUE(source_id, version, content_hash)
+    UNIQUE(source_id, version)
 );
+CREATE UNIQUE INDEX IF NOT EXISTS idx_rule_source_versions_immutable ON rule_source_versions(source_id, version);
 
 CREATE TABLE IF NOT EXISTS detection_rules (
     id VARCHAR(160) PRIMARY KEY,
@@ -319,73 +320,6 @@ CREATE INDEX IF NOT EXISTS idx_traffic_sessions_src_ip ON traffic_sessions(src_i
 CREATE INDEX IF NOT EXISTS idx_traffic_sessions_dst_ip ON traffic_sessions(dst_ip);
 CREATE INDEX IF NOT EXISTS idx_traffic_sessions_raw ON traffic_sessions USING GIN(raw_event);
 CREATE INDEX IF NOT EXISTS idx_traffic_sessions_raw_text_trgm ON traffic_sessions USING GIN ((raw_event::text) gin_trgm_ops);
-
-CREATE TABLE IF NOT EXISTS xdr_graph_nodes (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id VARCHAR(64) NOT NULL DEFAULT 'default',
-    node_uid VARCHAR(128) NOT NULL,
-    event_uid VARCHAR(128) REFERENCES xdr_events_v2(event_uid) ON DELETE CASCADE,
-    asset_id VARCHAR(64),
-    ip VARCHAR(45),
-    hostname VARCHAR(255),
-    identity VARCHAR(255),
-    technique_id VARCHAR(32),
-    tactic_id VARCHAR(32),
-    metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(tenant_id, node_uid)
-);
-CREATE INDEX IF NOT EXISTS idx_xdr_graph_nodes_tenant ON xdr_graph_nodes(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_xdr_graph_nodes_ip ON xdr_graph_nodes(ip);
-
-CREATE TABLE IF NOT EXISTS xdr_graph_edges (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id VARCHAR(64) NOT NULL DEFAULT 'default',
-    edge_uid VARCHAR(128) NOT NULL,
-    from_node_uid VARCHAR(128) NOT NULL,
-    to_node_uid VARCHAR(128) NOT NULL,
-    edge_type VARCHAR(32) NOT NULL,
-    strength DECIMAL(4,2) NOT NULL DEFAULT 0.50,
-    evidence_event_uids JSONB DEFAULT '[]',
-    temporal_proximity_secs INT,
-    metadata JSONB DEFAULT '{}',
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(tenant_id, edge_uid)
-);
-CREATE INDEX IF NOT EXISTS idx_xdr_graph_edges_tenant ON xdr_graph_edges(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_xdr_graph_edges_from ON xdr_graph_edges(from_node_uid);
-CREATE INDEX IF NOT EXISTS idx_xdr_graph_edges_to ON xdr_graph_edges(to_node_uid);
-CREATE INDEX IF NOT EXISTS idx_xdr_graph_edges_type ON xdr_graph_edges(edge_type);
-
-CREATE TABLE IF NOT EXISTS xdr_chain_hypotheses (
-    id BIGSERIAL PRIMARY KEY,
-    tenant_id VARCHAR(64) NOT NULL DEFAULT 'default',
-    hypothesis_uid VARCHAR(128) NOT NULL,
-    seed_node_uid VARCHAR(128),
-    path_node_uids JSONB DEFAULT '[]',
-    path_edge_uids JSONB DEFAULT '[]',
-    risk_score DECIMAL(6,2) DEFAULT 0,
-    confidence_score DECIMAL(6,2) DEFAULT 0,
-    impact_score DECIMAL(6,2) DEFAULT 0,
-    path_continuity_score DECIMAL(6,2) DEFAULT 0,
-    chain_score DECIMAL(6,2) DEFAULT 0,
-    score_detail JSONB DEFAULT '{}',
-    severity VARCHAR(16) DEFAULT 'low',
-    path_evidence JSONB DEFAULT '{}',
-    hypothesis_status VARCHAR(32) DEFAULT 'candidate',
-    rejection_reason VARCHAR(128),
-    evaluation_version VARCHAR(16) NOT NULL DEFAULT 'xdr-eval.v2',
-    attack_mapping_version VARCHAR(16),
-    first_seen TIMESTAMPTZ,
-    last_seen TIMESTAMPTZ,
-    truncated_candidates INT DEFAULT 0,
-    traversal_depth INT DEFAULT 0,
-    created_at TIMESTAMPTZ DEFAULT NOW(),
-    UNIQUE(tenant_id, hypothesis_uid)
-);
-CREATE INDEX IF NOT EXISTS idx_xdr_chains_tenant ON xdr_chain_hypotheses(tenant_id);
-CREATE INDEX IF NOT EXISTS idx_xdr_chains_score ON xdr_chain_hypotheses(chain_score DESC);
-CREATE INDEX IF NOT EXISTS idx_xdr_chains_status ON xdr_chain_hypotheses(hypothesis_status);
 
 CREATE TABLE IF NOT EXISTS xdr_attack_transitions (
     id BIGSERIAL PRIMARY KEY,

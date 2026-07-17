@@ -107,14 +107,10 @@ func (h *Handler) Register(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 默认角色
-	role := RoleViewer
-	if req.Role != "" {
-		if !ValidateRole(req.Role) {
-			h.Error(w, http.StatusBadRequest, "invalid role")
-			return
-		}
-		role = UserRole(req.Role)
+	role, err := NormalizeRegistrationRole(req.Role)
+	if err != nil {
+		h.Error(w, http.StatusBadRequest, err.Error())
+		return
 	}
 
 	// 哈希密码

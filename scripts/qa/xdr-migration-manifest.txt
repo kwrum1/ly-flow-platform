@@ -1,0 +1,19 @@
+# Todo 16 persistent XDR migration QA
+active_algorithm=v2-active
+shadow_algorithm=v3-shadow
+incident_eligible=v2-active-only
+canonical_input=lyflow.security_event.v1
+legacy_read_adapter=lyflow.security_event.v0-measured-window
+legacy_window_env=XDR_LEGACY_READ_WINDOW_END
+graph_persistence=xdr_graph_nodes_versioned+xdr_graph_edges_versioned
+chain_persistence=xdr_chain_hypotheses_versioned
+checkpoints=xdr_algorithm_checkpoints
+partition_key=tenant_id+algorithm_version
+quarantine=xdr_input_quarantine(reason+schema_version+source+redacted_record+quarantined_at)
+persistence_failure=degraded+no-route-promotion
+shadow_writers=compile-time-interface-exclusion+typed-route-results+ast-route-scan
+placeholder_routes=removed
+required_scenarios=old-new-replay,old-new-route-restart,restart-idempotence,version-isolation,mixed-order-checksum,unknown-schema-route-quarantine,redacted-quarantine-record,quarantine-audit-failure-closed,persistence-failure,degraded-health,no-incident-promotion,interruption,dirty-version-preservation,route-fail-closed,no-fallback-route-scan,typed-shadow-surface-isolation
+real_stores=task-owned-cached-postgres+redis+clickhouse
+runner=bash scripts/qa/run-go-tests.sh xdr-migration
+evidence=.omo/evidence/task-16-lyflow-commercial-defense-hardening.txt

@@ -1,67 +1,90 @@
 package agentpolicy
 
-import "fmt"
+import (
+	"errors"
+	"fmt"
+	"strings"
+	"time"
 
-type Policy struct {
-	ID              string                 `json:"id"`
-	Version         int                    `json:"version"`
-	Traffic         TrafficPolicy          `json:"traffic"`
-	RASP            RASPPolicy             `json:"rasp"`
-	Runtime         RuntimePolicy          `json:"runtime"`
-	Asset           AssetPolicy            `json:"asset"`
-	Retention       RetentionPolicy        `json:"retention"`
-	Streams         map[string]string      `json:"streams"`
-	LastAppliedBy   string                 `json:"last_applied_by,omitempty"`
-	LastAckVersion  int                    `json:"last_ack_version,omitempty"`
-	Metadata        map[string]interface{} `json:"metadata,omitempty"`
-}
+	shared "github.com/lyflow/ly-flow-platform/rasppolicy"
+)
 
-type TrafficPolicy struct {
-	Enabled       bool   `json:"enabled"`
-	Interface     string `json:"interface"`
-	CaptureEngine string `json:"capture_engine"`
-	BPFFilter     string `json:"bpf_filter"`
-	Promiscuous   bool   `json:"promiscuous"`
-}
+type Policy = shared.Policy
+type SignedPolicy = shared.SignedPolicy
+type Mode = shared.Mode
+type Selectors = shared.Selectors
+type Limits = shared.Limits
+type CanaryPolicy = shared.CanaryPolicy
+type RollbackPolicy = shared.RollbackPolicy
+type FailBehavior = shared.FailBehavior
+type Language = shared.Language
 
-type RASPPolicy struct {
-	Mode       string          `json:"mode"`
-	Languages  map[string]bool `json:"languages"`
-	BlockOnHit bool            `json:"block_on_hit"`
-}
+const (
+	ModeOff     = shared.ModeOff
+	ModeMonitor = shared.ModeMonitor
+	ModeBlock   = shared.ModeBlock
+	FailMonitor = shared.FailMonitor
+	FailDisable = shared.FailDisable
+)
 
-type RuntimePolicy struct {
-	Enabled      bool     `json:"enabled"`
-	Backend      string   `json:"backend"`
-	IncludePaths []string `json:"include_paths"`
-	ExcludePaths []string `json:"exclude_paths"`
-}
+var (
+	ErrNotFound                = errors.New("rasp policy: not found")
+	ErrSignature               = errors.New("rasp policy: invalid signature")
+	ErrStaleVersion            = errors.New("rasp policy: stale version")
+	ErrInvalidTransition       = errors.New("rasp policy: invalid lifecycle transition")
+	ErrExpired                 = errors.New("rasp policy: expired")
+	ErrSelectorMismatch        = errors.New("rasp policy: selector mismatch")
+	ErrMissingACK              = errors.New("rasp policy: required acknowledgement missing")
+	ErrCanaryFailed            = errors.New("rasp policy: canary failed")
+	ErrReplayMetricsRequired   = errors.New("rasp policy: replay metrics required")
+	ErrOwnerRequired           = errors.New("rasp policy: explicit owner required")
+	ErrRollbackRequired        = errors.New("rasp policy: rollback policy required")
+	ErrProductionBlockDisabled = errors.New("rasp policy: production block promotion disabled")
+	ErrSameVersionReplacement  = errors.New("rasp policy: same-version replacement rejected")
+)
 
-type AssetPolicy struct {
-	IntervalSeconds int  `json:"interval_seconds"`
-	Processes       bool `json:"processes"`
-	Performance     bool `json:"performance"`
-}
-
-type RetentionPolicy struct {
-	EvidenceEnabled bool `json:"evidence_enabled"`
-	MaxFileMB       int  `json:"max_file_mb"`
-	RetainDays      int  `json:"retain_days"`
-}
-
-func DefaultPolicy(agentID string) Policy {
+func DefaultPolicy(now time.Time, owner, auditLink string) Policy {
 	return Policy{
-		ID:      fmt.Sprintf("policy-%s", agentID),
-		Version: 1,
-		Traffic: TrafficPolicy{Enabled: true, Interface: "auto", CaptureEngine: "auto", BPFFilter: "tcp or udp", Promiscuous: true},
-		RASP:    RASPPolicy{Mode: "monitor", Languages: map[string]bool{"python": true, "java": false}, BlockOnHit: false},
-		Runtime: RuntimePolicy{Enabled: true, Backend: "auto", IncludePaths: []string{"/etc", "/var/log"}, ExcludePaths: []string{"/proc", "/sys"}},
-		Asset:   AssetPolicy{IntervalSeconds: 60, Processes: true, Performance: true},
-		Retention: RetentionPolicy{EvidenceEnabled: true, MaxFileMB: 128, RetainDays: 3},
-		Streams: map[string]string{"raw": "flows:raw", "semantic": "flows:semantic", "runtime": "alerts:runtime", "rasp": "alerts:rasp"},
+		ID: "rasp-monitor-default", Version: 1, Owner: owner, Mode: ModeMonitor,
+		Selectors: Selectors{}, ExpiresAt: now.Add(365 * 24 * time.Hour), FailBehavior: FailMonitor,
+		Limits: Limits{MaxEventsPerSecond: 100, ReplayMinSamples: 1000, ReplayMaxFalsePositiveRate: 0.01},
+		Canary: CanaryPolicy{RequiredACKs: 1}, AuditLink: auditLink,
 	}
 }
 
-func DriftDetected(policy Policy, lastAppliedVersion int) bool {
-	return policy.Version > 0 && lastAppliedVersion > 0 && policy.Version != lastAppliedVersion
+func validatePolicy(policy Policy, now time.Time) error {
+	if strings.TrimSpace(policy.ID) == "" || policy.Version == 0 || strings.TrimSpace(policy.AuditLink) == "" {
+		return fmt.Errorf("identity, version, and audit link are required: %w", ErrInvalidTransition)
+	}
+	if strings.TrimSpace(policy.Owner) == "" {
+		return ErrOwnerRequired
+	}
+	if !policy.ExpiresAt.After(now) {
+		return ErrExpired
+	}
+	switch policy.Mode {
+	case ModeOff, ModeMonitor, ModeBlock:
+	default:
+		return fmt.Errorf("mode %q: %w", policy.Mode, ErrInvalidTransition)
+	}
+	switch policy.FailBehavior {
+	case FailMonitor, FailDisable:
+	default:
+		return fmt.Errorf("fail behavior %q: %w", policy.FailBehavior, ErrInvalidTransition)
+	}
+	if policy.Limits.MaxEventsPerSecond <= 0 || policy.Canary.RequiredACKs <= 0 {
+		return fmt.Errorf("limits and required acknowledgements must be positive: %w", ErrInvalidTransition)
+	}
+	if policy.Mode == ModeBlock {
+		if policy.FailBehavior != FailMonitor {
+			return fmt.Errorf("block policy must fail to monitor: %w", ErrInvalidTransition)
+		}
+		if policy.Limits.MaxBlocksPerMinute <= 0 || policy.Limits.ReplayMinSamples <= 0 || policy.Limits.ReplayMaxFalsePositiveRate <= 0 {
+			return fmt.Errorf("block and replay limits must be positive: %w", ErrInvalidTransition)
+		}
+		if policy.Rollback.TargetVersion == 0 || !policy.Rollback.Deadline.After(now) {
+			return ErrRollbackRequired
+		}
+	}
+	return nil
 }

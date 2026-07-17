@@ -2,7 +2,7 @@ package security
 
 import "strings"
 
-var secretKeys = []string{"agent_key", "jwt_secret", "password", "token", "secret", "authorization"}
+var secretKeys = []string{"agent_key", "private_key", "signing_key", "jwt_secret", "password", "token", "secret", "authorization"}
 
 func RedactMap(input map[string]interface{}) map[string]interface{} {
 	output := map[string]interface{}{}
@@ -11,13 +11,24 @@ func RedactMap(input map[string]interface{}) map[string]interface{} {
 			output[key] = "***REDACTED***"
 			continue
 		}
-		if nested, ok := value.(map[string]interface{}); ok {
-			output[key] = RedactMap(nested)
-			continue
-		}
-		output[key] = value
+		output[key] = redactValue(value)
 	}
 	return output
+}
+
+func redactValue(value interface{}) interface{} {
+	switch nested := value.(type) {
+	case map[string]interface{}:
+		return RedactMap(nested)
+	case []interface{}:
+		redacted := make([]interface{}, len(nested))
+		for index, item := range nested {
+			redacted[index] = redactValue(item)
+		}
+		return redacted
+	default:
+		return value
+	}
 }
 
 func isSecretKey(key string) bool {

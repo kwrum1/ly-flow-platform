@@ -1,0 +1,27 @@
+# Todo 14 bounded Java RASP instrumentation QA
+authoritative_source=agent/rasp/java
+legacy_excluded=probe/rasp/java
+runtime=OpenJDK-17.0.19
+build_tool=Apache-Maven-3.9.9
+compiler_release=17
+junit=org.junit.jupiter:junit-jupiter:5.13.4
+surefire=org.apache.maven.plugins:maven-surefire-plugin:3.5.3
+failsafe=org.apache.maven.plugins:maven-failsafe-plugin:3.5.3
+asm=org.ow2.asm:asm:9.7.1+org.ow2.asm:asm-commons:9.7.1
+gson=com.google.code.gson:gson:2.11.0
+instrumentation_scope=explicit-application-package-allowlist
+default_scope=com.lyflow.rasp.fixture
+contracts=jdbc-statement,command-execution,file-api,object-deserialization
+mode=monitor-only
+result_contract=application-output-identical-with-and-without-agent
+unsupported_contract=no-transform
+event_schema=lyflow.rasp_bridge_event.v1
+queue_capacity=128
+log_capacity_bytes=1048576
+http_response_capacity_bytes=65536
+fallback_schema=lyflow.rasp_fallback.v1
+production_package=excluded
+prevention_activation=disabled
+required_scenarios=allowlist,unsupported-package,unsupported-bytecode,sql,command,file,deserialization,canonical-evidence,exporter-outage,queue-saturation,reproducible-jar,package-exclusion
+runner=bash scripts/qa/run-java-rasp-conformance.sh --iterations 10
+evidence=.omo/evidence/task-14-lyflow-commercial-defense-hardening.txt

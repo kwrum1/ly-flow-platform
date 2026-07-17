@@ -21,3 +21,34 @@ func TestValidateAudit(t *testing.T) {
 		t.Fatal("expected incomplete audit entry to fail")
 	}
 }
+
+func TestRedactMapRemovesPrivateSigningKeyMaterial(t *testing.T) {
+	// Given
+	input := map[string]interface{}{"private_key": "pem-data", "signing_key": "raw-key", "public_fingerprint": "safe"}
+
+	// When
+	redacted := RedactMap(input)
+
+	// Then
+	if redacted["private_key"] != "***REDACTED***" || redacted["signing_key"] != "***REDACTED***" {
+		t.Fatalf("private signer material was not redacted: %#v", redacted)
+	}
+	if redacted["public_fingerprint"] != "safe" {
+		t.Fatalf("public fingerprint must remain visible: %#v", redacted)
+	}
+}
+
+func TestRedactMapRemovesSecretsInsideNestedSlices(t *testing.T) {
+	// Given
+	input := map[string]interface{}{"changes": []interface{}{map[string]interface{}{"token": "secret-value"}}}
+
+	// When
+	redacted := RedactMap(input)
+
+	// Then
+	changes := redacted["changes"].([]interface{})
+	item := changes[0].(map[string]interface{})
+	if item["token"] != "***REDACTED***" {
+		t.Fatalf("nested slice secret was not redacted: %#v", redacted)
+	}
+}

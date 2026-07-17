@@ -11,6 +11,9 @@ YELLOW='\033[1;33m'
 NC='\033[0m'
 
 REDIS_ADDR="${REDIS_ADDR:-localhost:6379}"
+REDIS_ACL_USERNAME="${REDIS_ACL_USERNAME:-}"
+REDIS_ACL_PASSWORD="${REDIS_ACL_PASSWORD:-}"
+REDIS_PASSWORD="${REDIS_PASSWORD:-}"
 DURATION="${DURATION:-60}"
 RATE="${RATE:-1000}"  # 每秒消息数
 
@@ -20,6 +23,18 @@ log() {
 
 log_info() { log "${GREEN}[INFO]${NC} $1"; }
 log_warn() { log "${YELLOW}[WARN]${NC} $1"; }
+
+redis_cli() {
+    local host="${REDIS_ADDR%:*}"
+    local port="${REDIS_ADDR##*:}"
+    local auth=()
+    if [[ -n "$REDIS_ACL_USERNAME" && -n "$REDIS_ACL_PASSWORD" ]]; then
+        auth=(--user "$REDIS_ACL_USERNAME" --pass "$REDIS_ACL_PASSWORD")
+    elif [[ -n "$REDIS_PASSWORD" ]]; then
+        auth=(--pass "$REDIS_PASSWORD")
+    fi
+    redis-cli -h "$host" -p "$port" "${auth[@]}" "$@"
+}
 
 echo "========================================"
 echo "  流影平台性能压测"
@@ -34,7 +49,7 @@ echo ""
 
 # 清理旧数据
 log_info "清理 Redis Stream..."
-redis-cli DEL flows:raw alerts:dpi > /dev/null 2>&1 || true
+redis_cli DEL flows:raw alerts:dpi > /dev/null 2>&1 || true
 
 # 生成测试流量
 generate_flows() {
@@ -46,7 +61,7 @@ generate_flows() {
         local domains=("pool.btc.com" "ethermine.org" "legit-site.com" "cdn.jsdelivr.net")
         local domain=${domains[$((RANDOM % ${#domains[@]}))]}
 
-        redis-cli XADD flows:raw "*" \
+        redis_cli XADD flows:raw "*" \
             src_ip "192.168.$((RANDOM % 256)).$((RANDOM % 256))" \
             dst_ip "$((RANDOM % 256)).$((RANDOM % 256)).$((RANDOM % 256)).$((RANDOM % 256))" \
             dst_port "$((RANDOM % 2 == 0 ? 443 : 80))" \
@@ -72,13 +87,13 @@ monitor_streams() {
     echo ""
 
     local start_time=$(date +%s)
-    local initial_flows=$(redis-cli XLEN flows:raw 2>/dev/null || echo 0)
-    local initial_alerts=$(redis-cli XLEN alerts:dpi 2>/dev/null || echo 0)
+    local initial_flows=$(redis_cli XLEN flows:raw 2>/dev/null || echo 0)
+    local initial_alerts=$(redis_cli XLEN alerts:dpi 2>/dev/null || echo 0)
 
     for i in $(seq 1 $DURATION); do
         local elapsed=$(($(date +%s) - start_time))
-        local flows=$(redis-cli XLEN flows:raw 2>/dev/null || echo 0)
-        local alerts=$(redis-cli XLEN alerts:dpi 2>/dev/null || echo 0)
+        local flows=$(redis_cli XLEN flows:raw 2>/dev/null || echo 0)
+        local alerts=$(redis_cli XLEN alerts:dpi 2>/dev/null || echo 0)
 
         printf "\r[%3ds] flows:raw=%-8s | alerts:dpi=%-8s | rate=%s/s   " \
             "$elapsed" "$flows" "$alerts" "$RATE"
@@ -94,8 +109,8 @@ show_stats() {
     log_info "压测结果统计"
     echo ""
 
-    local flows_count=$(redis-cli XLEN flows:raw 2>/dev/null || echo 0)
-    local alerts_count=$(redis-cli XLEN alerts:dpi 2>/dev/null || echo 0)
+    local flows_count=$(redis_cli XLEN flows:raw 2>/dev/null || echo 0)
+    local alerts_count=$(redis_cli XLEN alerts:dpi 2>/dev/null || echo 0)
 
     log "flows:raw 总数: $flows_count"
     log "alerts:dpi 总数: $alerts_count"
@@ -108,18 +123,18 @@ show_stats() {
     # Redis 内存使用
     echo ""
     log_info "Redis 内存状态:"
-    redis-cli INFO memory | grep -E "used_memory_human|maxmemory_human" || true
+    redis_cli INFO memory | grep -E "used_memory_human|maxmemory_human" || true
 
     # 延迟统计
     echo ""
     log_info "Redis 延迟:"
-    redis-cli --latency-history 2>/dev/null | tail -5 || true
+    redis_cli --latency-history 2>/dev/null | tail -5 || true
 }
 
 # 清理函数
 cleanup() {
     log_info "清理测试数据..."
-    redis-cli XTRIM flows:raw MAXLEN 100 > /dev/null 2>&1 || true
+    redis_cli XTRIM flows:raw MAXLEN 100 > /dev/null 2>&1 || true
 }
 
 # 主流程

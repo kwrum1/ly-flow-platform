@@ -1,0 +1,5 @@
+{
+  "schema_version": "lyflow.inert-replay-rules.v1",
+  "match_ids": [],
+  "match_all": true
+}

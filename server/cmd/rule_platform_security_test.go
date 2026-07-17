@@ -1,28 +1,29 @@
 package main
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/lyflow/ly-flow-platform/server/guardmode"
 )
 
-func TestValidateRuleSourceURLRejectsLocalSchemesAndMetadata(t *testing.T) {
-	for _, raw := range []string{
-		"file:///etc/passwd",
-		"/tmp/rules.yaml",
-		"http://127.0.0.1/rules.yaml",
-		"http://localhost/rules.yaml",
-		"http://169.254.169.254/latest/meta-data",
-		"gopher://example.com/rules",
-	} {
-		t.Run(raw, func(t *testing.T) {
-			if err := validateRuleSourceURL(raw); err == nil {
-				t.Fatalf("expected %q to be rejected", raw)
-			}
-		})
+func TestRulePlatformSyncHandler_rejects_oversized_inline_body_before_persistence(t *testing.T) {
+	// Given
+	body := append([]byte(`{"source_id":"custom-rasp-rules","version":"v1","sha256":"`+strings.Repeat("0", 64)+`","content":"`), bytes.Repeat([]byte("x"), int(rulePlatformSyncBodyLimit)+1)...)
+	body = append(body, []byte(`"}`)...)
+	request := httptest.NewRequest(http.MethodPost, "/api/v1/rule-platform/sync", bytes.NewReader(body))
+	recorder := httptest.NewRecorder()
+
+	// When
+	rulePlatformSyncHandler(&Config{}).ServeHTTP(recorder, request)
+
+	// Then
+	if recorder.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status=%d body=%s, want 413", recorder.Code, recorder.Body.String())
 	}
 }
 

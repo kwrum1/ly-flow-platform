@@ -10,6 +10,7 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 -- =====================================================
 CREATE TABLE IF NOT EXISTS events (
     id BIGSERIAL PRIMARY KEY,
+    event_uid VARCHAR(160),
     timestamp TIMESTAMPTZ NOT NULL,
     event_type VARCHAR(32) NOT NULL,
     source VARCHAR(64),
@@ -33,6 +34,8 @@ CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp DESC);
 CREATE INDEX IF NOT EXISTS idx_events_severity ON events(severity);
 CREATE INDEX IF NOT EXISTS idx_events_tags ON events USING GIN(tags);
 CREATE INDEX IF NOT EXISTS idx_events_src_ip ON events(src_ip);
+ALTER TABLE events ADD COLUMN IF NOT EXISTS event_uid VARCHAR(160);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_events_uid ON events(event_uid);
 CREATE INDEX IF NOT EXISTS idx_events_dst_ip ON events(dst_ip);
 CREATE INDEX IF NOT EXISTS idx_events_status ON events(status);
 
@@ -133,6 +136,37 @@ CREATE TABLE IF NOT EXISTS agents (
 
 CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status);
 CREATE INDEX IF NOT EXISTS idx_agents_uuid ON agents(uuid);
+
+CREATE TABLE IF NOT EXISTS agent_identities (
+    agent_id TEXT PRIMARY KEY,
+    state TEXT NOT NULL,
+    legacy_hash BYTEA NOT NULL,
+    new_hash BYTEA,
+    overlap_until TIMESTAMPTZ,
+    http_enabled BOOLEAN NOT NULL DEFAULT true,
+    grpc_enabled BOOLEAN NOT NULL DEFAULT false,
+    http_confirmed BOOLEAN NOT NULL DEFAULT false,
+    grpc_confirmed BOOLEAN NOT NULL DEFAULT false,
+    version BIGINT NOT NULL,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS agent_identity_tokens (
+    token_hash BYTEA PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    expires_at TIMESTAMPTZ NOT NULL,
+    used BOOLEAN NOT NULL DEFAULT false,
+    updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+CREATE TABLE IF NOT EXISTS agent_identity_events (
+    id BIGSERIAL PRIMARY KEY,
+    agent_id TEXT NOT NULL,
+    state TEXT NOT NULL,
+    version BIGINT NOT NULL,
+    occurred_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
 CREATE TABLE IF NOT EXISTS agent_tasks (
     id BIGSERIAL PRIMARY KEY,

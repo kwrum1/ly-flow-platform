@@ -1,6 +1,16 @@
 package main
 
-import "testing"
+import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"testing"
+
+	"github.com/lyflow/ly-flow-platform/server/modules/auth"
+)
 
 func TestArchitectureRouteSnapshotCoversGatewayGroups(t *testing.T) {
 	groups := RouteGroups()
@@ -11,14 +21,159 @@ func TestArchitectureRouteSnapshotCoversGatewayGroups(t *testing.T) {
 	}
 }
 
-func TestArchitectureRouteSnapshotPreservesCorePaths(t *testing.T) {
-	paths := map[string]bool{}
-	for _, route := range ArchitectureRouteSnapshot {
-		paths[route.Path] = true
+func TestRouteRegistryCoversEveryMountedPath(t *testing.T) {
+	// Given
+	file, err := parser.ParseFile(token.NewFileSet(), "main.go", nil, 0)
+	if err != nil {
+		t.Fatalf("parse main.go: %v", err)
 	}
-	for _, path := range []string{"/api/v1/events", "/api/v1/incidents", "/api/v1/timeline", "/api/v1/assets", "/api/v1/agents"} {
-		if !paths[path] {
-			t.Fatalf("core route %s missing", path)
+	registered := make(map[string]bool, len(ArchitectureRouteSnapshot))
+	for _, route := range ArchitectureRouteSnapshot {
+		if registered[route.Path] {
+			t.Fatalf("duplicate route policy for %s", route.Path)
+		}
+		registered[route.Path] = true
+	}
+
+	// When
+	var missing []string
+	ast.Inspect(file, func(node ast.Node) bool {
+		call, ok := node.(*ast.CallExpr)
+		if !ok || len(call.Args) == 0 {
+			return true
+		}
+		selector, ok := call.Fun.(*ast.SelectorExpr)
+		if !ok || selector.Sel.Name != "Handle" && selector.Sel.Name != "HandleFunc" {
+			return true
+		}
+		identifier, identifierOK := selector.X.(*ast.Ident)
+		literal, literalOK := call.Args[0].(*ast.BasicLit)
+		if !identifierOK || identifier.Name != "mux" || !literalOK || literal.Kind != token.STRING {
+			return true
+		}
+		path, unquoteErr := strconv.Unquote(literal.Value)
+		if unquoteErr != nil {
+			t.Fatalf("unquote route path: %v", unquoteErr)
+		}
+		if !registered[path] {
+			missing = append(missing, path)
+		}
+		return true
+	})
+
+	// Then
+	if len(missing) != 0 {
+		t.Fatalf("mounted paths missing policy: %v", missing)
+	}
+}
+
+func TestRouteRegistryDenyByDefaultAndEnforcesRoles(t *testing.T) {
+	// Given
+	unknown := httptest.NewRequest(http.MethodGet, "/api/v1/not-registered", nil)
+	response := httptest.NewRecorder()
+	handler := EnforceRoutePolicy(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("unknown route reached handler")
+	}), nil)
+
+	// When
+	handler.ServeHTTP(response, unknown)
+	register, registerFound := findRouteSpec("/api/v1/auth/register")
+	events, eventsFound := findRouteSpec("/api/v1/events")
+	health, healthFound := findRouteSpec("/api/v1/health")
+	global, globalFound := findRouteSpec("/api/v1/public/situation/global")
+
+	// Then
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("unknown route status=%d", response.Code)
+	}
+	if !registerFound || !rolesEqual(register.WriteRoles, adminRoles) {
+		t.Fatalf("register policy=%#v", register)
+	}
+	if !eventsFound || rolePresent(events.WriteRoles, auth.RoleViewer) || !rolePresent(events.WriteRoles, auth.RoleAnalyst) {
+		t.Fatalf("events policy=%#v", events)
+	}
+	if !healthFound || !health.Public || !globalFound || global.Public {
+		t.Fatalf("public policies health=%#v global=%#v", health, global)
+	}
+}
+
+func TestArchitectureRouteSnapshotMarksPublicAndProtectedRoutes(t *testing.T) {
+	publicCount := 0
+	agentCredentialPaths := map[string]bool{
+		"/api/v1/agent/enroll":          true,
+		"/api/v1/agent/heartbeat":       true,
+		"/api/v1/agent/config":          true,
+		"/api/v1/agent/traffic-event":   true,
+		"/api/v1/agent/task-result":     true,
+		"/api/v1/agent/component-alert": true,
+		"/api/v1/agent/runtime-event":   true,
+		"/api/v1/agent/realtime":        true,
+		"/api/v1/rasp/event":            true,
+	}
+	for _, route := range ArchitectureRouteSnapshot {
+		if route.Public {
+			publicCount++
+			if route.Path != "/api/v1/health" && route.Path != "/api/v1/auth/login" {
+				t.Fatalf("unexpected public route: %s", route.Path)
+			}
+			continue
+		}
+		if route.LoopbackOnly {
+			if route.Path != "/api/v1/auth/bootstrap-token" {
+				t.Fatalf("unexpected loopback route: %s", route.Path)
+			}
+			continue
+		}
+		if route.AgentCredential {
+			if !agentCredentialPaths[route.Path] {
+				t.Fatalf("unexpected Agent credential route: %s", route.Path)
+			}
+			continue
+		}
+		if len(route.ReadRoles) == 0 && len(route.WriteRoles) == 0 {
+			t.Fatalf("protected route has no roles: %s", route.Path)
 		}
 	}
+	if publicCount != 2 {
+		t.Fatalf("public route count=%d, want 2", publicCount)
+	}
+}
+
+func TestRuleLifecycleMutationRoutes_require_admin(t *testing.T) {
+	// Given
+	paths := []string{
+		"/api/v1/rules", "/api/v1/rules/items/example", "/api/v1/rules/sources", "/api/v1/rules/sources/example",
+		"/api/v1/rules/update", "/api/v1/rules/test", "/api/v1/rule-platform/sources", "/api/v1/rule-platform/sync",
+		"/api/v1/rule-platform/compile-preview", "/api/v1/rule-platform/active-bundle", "/api/v1/rule-platform/rollback",
+		"/api/v1/engine-rules", "/api/v1/engine-rules/update", "/api/v1/rasp/rules",
+	}
+
+	// When / Then
+	for _, path := range paths {
+		spec, found := findRouteSpec(path)
+		if !found || !rolesEqual(spec.WriteRoles, adminRoles) {
+			t.Fatalf("rule mutation route %s is not admin-only: %#v", path, spec)
+		}
+	}
+}
+
+func rolePresent(roles []auth.UserRole, expected auth.UserRole) bool {
+	for _, role := range roles {
+		if role == expected {
+			return true
+		}
+	}
+	return false
+}
+
+func rolesEqual(left, right []auth.UserRole) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for index := range left {
+		if left[index] != right[index] {
+			return false
+		}
+	}
+	return true
 }

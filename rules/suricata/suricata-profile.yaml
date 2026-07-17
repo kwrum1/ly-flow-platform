@@ -1,0 +1,60 @@
+%YAML 1.1
+---
+vars:
+  address-groups:
+    HOME_NET: "[10.0.0.0/8,172.16.0.0/12,192.168.0.0/16]"
+    EXTERNAL_NET: "!$HOME_NET"
+  port-groups:
+    HTTP_PORTS: "80"
+    SHELLCODE_PORTS: "!80"
+    ORACLE_PORTS: "1521"
+    SSH_PORTS: "22"
+
+default-log-dir: /var/log/suricata
+default-rule-path: /var/lib/suricata/rules
+rule-files:
+  - lyflow-suricata.rules
+
+stream:
+  checksum-validation: yes
+
+app-layer:
+  protocols:
+    dns:
+      enabled: yes
+    http:
+      enabled: yes
+    tls:
+      enabled: yes
+    ssh:
+      enabled: no
+    smb:
+      enabled: no
+    krb5:
+      enabled: no
+
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      threaded: false
+      community-id: true
+      community-id-seed: 0
+      metadata: yes
+      pcap-file: false
+      types:
+        - flow
+        - alert:
+            metadata: yes
+            tagged-packets: no
+        - dns:
+            version: 2
+            enabled: yes
+            requests: yes
+            responses: yes
+        - http:
+            extended: yes
+        - tls:
+            extended: yes
+            session-resumption: yes

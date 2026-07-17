@@ -1,0 +1,26 @@
+# Redis client inventory for Todo 4 bridge and retired phases.
+# A dash is valid only when a path is not applicable. "none" records a searched
+# surface with no Redis client.
+# id|class|source|compose_service|address_path|new_username_path|new_password_path|legacy_password_path
+server-main|active|server/cmd/main.go|ly-server|REDIS_ADDR|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+server-xdr|active|server/xdr/xdr.go|ly-server|REDIS_ADDR|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+agent-center|active|server/agentcenter/server.go|agent-center|REDIS_ADDR|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+security-engine|active|security-engine/config/config.go|ly-security-engine|REDIS_ADDR|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+legacy-dpi|active|dpi-engine/config/config.go|ly-dpi-engine|REDIS_ADDR|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+agent-main-publishers|active|agent/cmd/main.go|ly-agent|REDIS_SERVER|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+agent-local-mirror|active|agent/cmd/main.go|ly-local-mirror|REDIS_SERVER|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+agent-afpacket-linux|active|agent/cmd/afpacket_linux.go|ly-agent|REDIS_SERVER|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+agent-pcap-windows|active|agent/cmd/pcap_windows.go|ly-agent|REDIS_SERVER|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+python-rasp|active|agent/rasp/python/ly_rasp/reporter.py|-|RASP_SERVER|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+java-rasp|inactive|agent/rasp/java/src/main/java/com/lyflow/rasp/java/exporter/RedisExporter.java|-|RASPConfig.serverAddr|-|-|-
+server-websocket-helper|helper|server/api/websocket/websocket.go|-|constructor argument|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+server-consumer-helper|helper|server/consumer/consumer.go|-|constructor argument|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+server-unified-consumer-helper|helper|server/consumer/unified.go|-|constructor argument|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+server-rasp-protection-helper|helper|server/modules/rasp/protection.go|-|constructor argument|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+redis-healthcheck|healthcheck|docker-compose.yml|redis|redis service|--user|--pass|-
+script-test-e2e|script|scripts/test-e2e.sh|-|REDIS_ADDR|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+script-test-perf|script|scripts/test-perf.sh|-|REDIS_ADDR|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+script-validate-stream-bus|script|scripts/validate-stream-bus.sh|-|REDIS_ADDR/REDIS_CONTAINER|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+agent-spool-integration-test|test|agent/cmd/main_test.go|-|LYFLOW_REDIS_INTEGRATION_ADDR|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
+python-rasp-integration-test|test|agent/rasp/python/tests/test_integration.py|-|RASPConfig.server_addr|RASPConfig.redis_username|RASPConfig.redis_password|RASPConfig.redis_legacy_password
+engine-lab-adapters|none|containers/security-engines|-|-|-|-|-

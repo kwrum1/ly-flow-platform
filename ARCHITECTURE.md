@@ -111,7 +111,9 @@ ly-local-mirror
 | `traffic_sessions` | 语义流量会话，支持关键字和 Agent 查询 |
 | `threat_events` | 统一威胁事件，按 category 聚合展示 |
 | Redis Streams | 热路径事件总线与异步解耦 |
-| ClickHouse | 分析型数据预留与扩展 |
+| ClickHouse | 版本化 UID 去重的事件分析存储；仅在校验和一致且完成读切换后成为搜索权威 |
+
+ClickHouse 事件迁移的阶段权威、显式一致性和回滚约束见 [ClickHouse event-storage migration](docs/CLICKHOUSE_EVENT_MIGRATION.md)。
 
 ## 6. 部署包架构
 

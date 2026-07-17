@@ -1,0 +1,19 @@
+# Todo 19 persistent incident lifecycle QA
+task=19
+active_input=v2-active-only
+shadow_storage=xdr-versioned-v3-shadow-queryable-no-incident-writer
+incident_authority=postgres-incidents
+schema_migration=incident_lifecycle_schema_migrations:19
+lineage=incident_evidence_lineage-immutable
+suppression=incident_suppressions-expiring-history-preserved
+dedup=sha256-tenant+v2-active+source-chain
+audit=incident_lifecycle_audit-immutable-idempotency-key+canonical-command-payload-hash
+transitions=open>triaged|processing,triaged>processing,processing>resolved,resolved>processing|closed
+concurrency=postgres-row-lock+advisory-idempotency-lock+expected-version
+sla=acknowledge_due_at+resolve_due_at+acknowledged_at+resolved_at
+legacy_snapshot=actual-incidentStatusStore+legacy-PUT-writer+admin-pre-upgrade-checkpoint+post-drain-graceful-shutdown-checkpoint+durable-postgres-snapshot+sha256+timestamp+importable-fields+unrecoverable-history-counts+new-process-durable-import-only+v2-active-evidence-recovery
+cutover_atomicity=one-postgres-transaction(snapshot-import+incident-audit+immutable-original-counts+cutover-marker)+advisory-lock+injected-after-audit-and-after-marker-rollback+idempotent-retry
+rbac=admin+analyst-write,viewer-read-only,system-explicit-legacy-snapshot-import-only
+required_scenarios=restart-persistence,legal-transition-matrix,exhaustive-role-action-matrix,concurrent-idempotency,payload-key-conflict,concurrent-conflict-no-lost-history,suppression-expiry,dedup-stability,evidence-lineage,v2-only-input,shadow-isolation,rbac-audit,actual-legacy-writer-checkpoint,durable-snapshot-metadata,new-process-rejects-missing-snapshot,atomic-cutover-interruptions,immutable-original-counts,graceful-failure-degraded-no-marker,real-server-process-restart,real-postgres-process-restart,idempotent-new-process-rerun,real-postgres-create-assign-suppress-resolve
+runner=bash scripts/qa/run-go-tests.sh incident-lifecycle
+evidence=.omo/evidence/task-19-lyflow-commercial-defense-hardening.json

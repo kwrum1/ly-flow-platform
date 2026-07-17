@@ -1,0 +1,16 @@
+{
+  "manifest_revision": "detection-replay.v1",
+  "v2_active": {
+    "true_positive": 3,
+    "false_positive": 0,
+    "true_negative": 4,
+    "false_negative": 1,
+    "precision_bps": 10000,
+    "recall_bps": 7500,
+    "false_positive_rate_bps": 0,
+    "completeness_bps": 9375
+  },
+  "minimum_shadow_recall_bps": 10000,
+  "minimum_completeness_bps": 9375,
+  "maximum_shadow_false_positive_rate_bps": 0
+}

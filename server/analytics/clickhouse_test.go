@@ -11,7 +11,7 @@ func TestEventTableDDLKeepsTimelineAndTopologyColumns(t *testing.T) {
 			t.Fatalf("DDL missing column %s: %s", column, EventTableDDL)
 		}
 	}
-	if !strings.Contains(EventTableDDL, "MergeTree") || !strings.Contains(EventTableDDL, "ORDER BY (timestamp, source_module, event_id)") {
+	if !strings.Contains(EventTableDDL, "ReplacingMergeTree") || !strings.Contains(EventTableDDL, "ORDER BY (event_id)") {
 		t.Fatalf("DDL missing analytics ordering: %s", EventTableDDL)
 	}
 }

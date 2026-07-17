@@ -1,0 +1,11 @@
+{
+  "schema_version": "lyflow.suricata_rules.v1",
+  "rule_pack_version": "lyflow-suricata-profile-rules-v1",
+  "engine_version": "7.0.11",
+  "rules_path": "rules/suricata/et-open.rules",
+  "rules_sha256": "0845b83497f89690acfe1af2e2c11ae6972c24392d765ea87c1766391c8fd352",
+  "validated_at": "2026-07-15T00:00:00Z",
+  "valid_until": "2026-10-15T00:00:00Z",
+  "update_mode": "offline-reviewed",
+  "enabled_by_default": false
+}

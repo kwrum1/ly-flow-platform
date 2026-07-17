@@ -59,6 +59,20 @@ func (s *PostgresStore) InitSchema(ctx context.Context) error {
 		)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_user_id ON auth_sessions(user_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_sessions_expires_at ON auth_sessions(expires_at)`,
+		`CREATE TABLE IF NOT EXISTS bootstrap_tokens (
+			state_key SMALLINT PRIMARY KEY CHECK (state_key = 1),
+			token_hash BYTEA NOT NULL,
+			expires_at TIMESTAMPTZ NOT NULL,
+			used_at TIMESTAMPTZ,
+			recovered BOOLEAN NOT NULL DEFAULT false,
+			created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+		)`,
+		`CREATE TABLE IF NOT EXISTS bootstrap_audit (
+			id BIGSERIAL PRIMARY KEY,
+			action TEXT NOT NULL,
+			occurred_at TIMESTAMPTZ NOT NULL
+		)`,
 	}
 
 	for _, stmt := range stmts {

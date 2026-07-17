@@ -1,0 +1,8 @@
+{"id":"positive-a","expected_detection":true,"entity":"host-a","source":"wazuh"}
+{"id":"positive-b","expected_detection":true,"entity":"host-b","source":"suricata"}
+{"id":"positive-c","expected_detection":true,"entity":"host-c","source":"falco"}
+{"id":"positive-d","expected_detection":true,"entity":"host-d","source":"auditd"}
+{"id":"negative-a","expected_detection":false,"entity":"host-e","source":"wazuh"}
+{"id":"negative-b","expected_detection":false,"entity":"host-f","source":"suricata"}
+{"id":"negative-c","expected_detection":false,"entity":"host-g","source":"falco"}
+{"id":"negative-d","expected_detection":false,"entity":"host-h","source":""}

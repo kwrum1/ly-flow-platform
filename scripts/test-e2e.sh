@@ -12,7 +12,22 @@ NC='\033[0m'
 
 SERVER_URL="${SERVER_URL:-http://localhost:8080}"
 REDIS_ADDR="${REDIS_ADDR:-localhost:6379}"
+REDIS_ACL_USERNAME="${REDIS_ACL_USERNAME:-}"
+REDIS_ACL_PASSWORD="${REDIS_ACL_PASSWORD:-}"
+REDIS_PASSWORD="${REDIS_PASSWORD:-}"
 LOG_FILE="/tmp/ly-e2e-test.log"
+
+redis_cli() {
+    local host="${REDIS_ADDR%:*}"
+    local port="${REDIS_ADDR##*:}"
+    local auth=()
+    if [[ -n "$REDIS_ACL_USERNAME" && -n "$REDIS_ACL_PASSWORD" ]]; then
+        auth=(--user "$REDIS_ACL_USERNAME" --pass "$REDIS_ACL_PASSWORD")
+    elif [[ -n "$REDIS_PASSWORD" ]]; then
+        auth=(--pass "$REDIS_PASSWORD")
+    fi
+    redis-cli -h "$host" -p "$port" "${auth[@]}" "$@"
+}
 
 log() {
     echo -e "[$(date '+%Y-%m-%d %H:%M:%S')] $1"
@@ -56,7 +71,7 @@ test_case "ly-server API 健康检查" \
     "curl -s -f $SERVER_URL/api/v1/health"
 
 test_case "PostgreSQL 连接" \
-    "redis-cli -h $REDIS_ADDR PING"
+    "redis_cli PING"
 
 # ============================================
 # 2. 数据流测试
@@ -67,7 +82,7 @@ echo "=== 2. Redis Stream 数据流测试 ==="
 # 生成测试流量
 test_flow() {
     local flow_id="test-$(date +%s)-$$"
-    redis-cli XADD flows:raw "*" \
+    redis_cli XADD flows:raw "*" \
         src_ip "192.168.1.100" \
         dst_ip "8.8.8.8" \
         dst_port "443" \
@@ -84,7 +99,7 @@ sleep 2
 
 # 检查 alerts:dpi 是否有告警
 test_case "alerts:dpi 消费者" \
-    "redis-cli XLEN alerts:dpi | grep -qE '[0-9]+'"
+    "redis_cli XLEN alerts:dpi | grep -qE '[0-9]+'"
 
 # ============================================
 # 3. API 功能测试
@@ -127,7 +142,7 @@ echo "=== 5. 数据库测试 ==="
 
 # 检查 events 表
 test_case "events 表查询" \
-    "redis-cli --no-raw INFO stats | grep -q instantaneous_ops_per_sec"
+    "redis_cli --no-raw INFO stats | grep -q instantaneous_ops_per_sec"
 
 # ============================================
 # 测试报告

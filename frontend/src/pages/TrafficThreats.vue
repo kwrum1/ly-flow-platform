@@ -80,7 +80,7 @@ let resizeObserver = null
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
 function params() { return { ...filters.value, limit: pageSize.value, offset: (page.value - 1) * pageSize.value } }
-function apiCategory() { return { application: 'rasp', log: 'log_audit', runtime: 'log_audit', log: 'log_audit', system: 'runtime' }[props.category] || props.category }
+function apiCategory() { return { application: 'rasp', log: 'log_audit', runtime: 'log_audit', system: 'runtime' }[props.category] || props.category }
 function formatTime(value) { return value ? formatChinaDateTime(value) : '-' }
 function occurrenceCount(item) { return Number(item?.occurrence_count || item?.count || 1) || 1 }
 function entity(item, key) { return item?.entities?.[key] || item?.[key] || '' }

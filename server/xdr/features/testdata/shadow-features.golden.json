@@ -1,0 +1,204 @@
+{
+  "tenant_id": "default",
+  "algorithm_version": "v3-shadow",
+  "feature_version": "xdr-features.v1",
+  "input_checksum": "fixture-input",
+  "detail_uid": "feature-e04cdc5c515bb568b757507d5e342a13",
+  "detail_checksum": "e04cdc5c515bb568b757507d5e342a13c7c28ea3a14343371f3d0f877d349a32",
+  "entities": {
+    "entity_count": 1,
+    "alias_count": 4,
+    "normalized_entities": [
+      {
+        "id": "host:host-1",
+        "aliases": [
+          "agent:agent-1",
+          "asset:web-01",
+          "host:host-1",
+          "ip:10.0.0.8"
+        ],
+        "event_uids": [
+          "event-1",
+          "event-2",
+          "event-3"
+        ]
+      }
+    ]
+  },
+  "provenance": {
+    "source_count": 3,
+    "adapter_count": 3,
+    "native_schema_count": 1,
+    "single_source": false,
+    "sources": [
+      "adapter.wazuh",
+      "agent.rasp",
+      "agent.traffic"
+    ]
+  },
+  "time": {
+    "first_observed_at": "2026-07-16T10:00:00Z",
+    "last_observed_at": "2026-07-16T11:00:00Z",
+    "evaluation_at": "2026-07-16T12:00:00Z",
+    "span_seconds": 3600,
+    "max_observation_age_seconds": 7200,
+    "max_ingest_lag_seconds": 7200
+  },
+  "transitions": {
+    "total": 2,
+    "allowed": 2,
+    "weak": 0,
+    "reverse": 0,
+    "invalid": 0,
+    "unknown": 0,
+    "sequence": [
+      {
+        "from_event_uid": "event-1",
+        "to_event_uid": "event-2",
+        "from_technique": "T1190",
+        "to_technique": "T1059",
+        "class": "allowed"
+      },
+      {
+        "from_event_uid": "event-2",
+        "to_event_uid": "event-3",
+        "from_technique": "T1059",
+        "to_technique": "T1003",
+        "class": "allowed"
+      }
+    ]
+  },
+  "diversity": {
+    "source_count": 3,
+    "stage_count": 3,
+    "technique_count": 3,
+    "entity_count": 1
+  },
+  "duplicates": {
+    "record_count": 3,
+    "unique_payload_count": 3,
+    "duplicate_group_count": 0,
+    "duplicate_record_count": 0,
+    "duplicate_ratio": 0
+  },
+  "staleness": {
+    "max_observation_age_seconds": 7200,
+    "max_ingest_lag_seconds": 7200,
+    "threshold_applied": false
+  },
+  "continuity": {
+    "edge_count": 0,
+    "strong_edge_count": 0,
+    "moderate_edge_count": 0,
+    "weak_edge_count": 0,
+    "average_edge_strength": 0,
+    "connected_event_count": 0
+  },
+  "criticality": {
+    "max_severity_rank": 4,
+    "critical_event_count": 1,
+    "high_event_count": 1,
+    "average_risk_score": 70
+  },
+  "explanations": [
+    {
+      "name": "entity.alias_count",
+      "value": "4",
+      "source": "canonical_entity_aliases",
+      "definition": "distinct normalized aliases joined by shared entity identifiers",
+      "evidence_uids": [
+        "event-1",
+        "event-2",
+        "event-3"
+      ]
+    },
+    {
+      "name": "provenance.source_count",
+      "value": "3",
+      "source": "canonical_event.provenance.source",
+      "definition": "distinct canonical provenance sources",
+      "evidence_uids": [
+        "event-1",
+        "event-2",
+        "event-3"
+      ]
+    },
+    {
+      "name": "time.max_observation_age_seconds",
+      "value": "7200",
+      "source": "canonical_event.timestamps",
+      "definition": "maximum exact age from observation to deterministic evaluation time",
+      "evidence_uids": [
+        "event-1",
+        "event-2",
+        "event-3"
+      ]
+    },
+    {
+      "name": "transition.allowed",
+      "value": "2",
+      "source": "attack-mapping.v1",
+      "definition": "allowed transitions in the versioned attack mapping",
+      "evidence_uids": [
+        "event-1",
+        "event-2",
+        "event-3"
+      ]
+    },
+    {
+      "name": "diversity.stage_count",
+      "value": "3",
+      "source": "canonical_graph.stage_hint",
+      "definition": "distinct normalized attack stages",
+      "evidence_uids": [
+        "event-1",
+        "event-2",
+        "event-3"
+      ]
+    },
+    {
+      "name": "duplicate.record_count",
+      "value": "0",
+      "source": "canonical_event.provenance.payload_sha256",
+      "definition": "records beyond the first occurrence of each payload digest",
+      "evidence_uids": [
+        "event-1",
+        "event-2",
+        "event-3"
+      ]
+    },
+    {
+      "name": "staleness.max_observation_age_seconds",
+      "value": "7200",
+      "source": "canonical_event.timestamps",
+      "definition": "exact observation age without a production threshold",
+      "evidence_uids": [
+        "event-1",
+        "event-2",
+        "event-3"
+      ]
+    },
+    {
+      "name": "continuity.average_edge_strength",
+      "value": "0.000000",
+      "source": "versioned_graph.edges",
+      "definition": "arithmetic mean of deterministic graph edge strengths",
+      "evidence_uids": [
+        "event-1",
+        "event-2",
+        "event-3"
+      ]
+    },
+    {
+      "name": "criticality.max_severity_rank",
+      "value": "4",
+      "source": "canonical_event.severity",
+      "definition": "maximum ordinal severity where low=1 and critical=4",
+      "evidence_uids": [
+        "event-1",
+        "event-2",
+        "event-3"
+      ]
+    }
+  ]
+}

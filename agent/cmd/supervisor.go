@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"sync"
 	"time"
 )
 
@@ -81,6 +82,7 @@ func (r *EngineRegistry) Snapshot(ctx context.Context) map[EngineName]EngineStat
 }
 
 type staticEngineSupervisor struct {
+	mu     sync.RWMutex
 	name   EngineName
 	status EngineStatus
 }
@@ -92,6 +94,8 @@ func newStaticEngineSupervisor(name EngineName) *staticEngineSupervisor {
 func (s *staticEngineSupervisor) Name() EngineName { return s.name }
 
 func (s *staticEngineSupervisor) Apply(_ context.Context, desired EngineDesiredState) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.status.Name = s.name
 	s.status.Running = desired.Enabled
 	s.status.RulePackVersion = desired.RulePackVersion
@@ -99,4 +103,8 @@ func (s *staticEngineSupervisor) Apply(_ context.Context, desired EngineDesiredS
 	return nil
 }
 
-func (s *staticEngineSupervisor) Status(context.Context) EngineStatus { return s.status }
+func (s *staticEngineSupervisor) Status(context.Context) EngineStatus {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.status
+}

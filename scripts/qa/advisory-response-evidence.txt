@@ -1,0 +1,12 @@
+Todo20 verifier evidence
+
+PASS bash scripts/qa/run-go-tests.sh advisory-response
+PASS real local PostgreSQL fake apply+rollback, approval persistence, immutable audit, concurrent idempotency, and denial verification
+PASS package-isolated GOWORK=off go test -race -shuffle=on -count=10: advisoryresponse, guardmode, and full cmd
+PASS GOWORK=off go vet ./... and GOWORK=off go build ./... in server and agent
+PASS zero LSP diagnostics, shell syntax, harness self-test, gofmt, diff whitespace, pure LOC, manual API/SQL QA, and container/volume cleanup
+PASS v3-shadow rejected by constructor, PostgreSQL constraint, and HTTP boundary; unsupported host actions rejected by constructor, PostgreSQL constraint, and HTTP boundary
+PASS production routes expose list/submit/approve advisory records only; no verify/execute/dispatch route or production simulation adapter exists
+PASS repository AST/route/registry/import gate and removed agent/firewall package prove no response path dispatches firewall/process/file/account/namespace actions
+
+Authoritative evidence: .omo/evidence/task-20-lyflow-commercial-defense-hardening.txt

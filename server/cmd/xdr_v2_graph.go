@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -11,9 +10,9 @@ import (
 )
 
 type edgeCandidate struct {
-	from, to int
-	edgeType string
-	strength float64
+	from, to  int
+	edgeType  string
+	strength  float64
 	evidence  []string
 	proximity int
 }
@@ -60,15 +59,15 @@ func buildGraphEdges(ctx context.Context, events []*models.CanonicalEventV2, con
 	edges := make([]*models.GraphEdgeV2, 0, len(candidates))
 	for _, cand := range candidates {
 		edge := &models.GraphEdgeV2{
-			TenantID:             nodes[cand.from].TenantID,
-			EdgeUID:              fmt.Sprintf("edge-%s-%s-%s", nodes[cand.from].NodeUID, nodes[cand.to].NodeUID, cand.edgeType),
-			FromNodeUID:          nodes[cand.from].NodeUID,
-			ToNodeUID:            nodes[cand.to].NodeUID,
-			EdgeType:             cand.edgeType,
-			Strength:             cand.strength,
-			EvidenceEventUIDs:    cand.evidence,
+			TenantID:              nodes[cand.from].TenantID,
+			EdgeUID:               fmt.Sprintf("edge-%s-%s-%s", nodes[cand.from].NodeUID, nodes[cand.to].NodeUID, cand.edgeType),
+			FromNodeUID:           nodes[cand.from].NodeUID,
+			ToNodeUID:             nodes[cand.to].NodeUID,
+			EdgeType:              cand.edgeType,
+			Strength:              cand.strength,
+			EvidenceEventUIDs:     cand.evidence,
 			TemporalProximitySecs: cand.proximity,
-			CreatedAt:            time.Now().UTC(),
+			CreatedAt:             time.Now().UTC(),
 		}
 		edges = append(edges, edge)
 	}
@@ -175,40 +174,5 @@ func classifyEdge(a, b *models.CanonicalEventV2) *edgeCandidate {
 		}
 	}
 
-	return nil
-}
-
-func persistGraphNodes(ctx context.Context, nodes []*models.GraphNodeV2, config *Config) error {
-	if config.DBPool == nil || len(nodes) == 0 {
-		return nil
-	}
-	for _, node := range nodes {
-		_, err := config.DBPool.Exec(ctx,
-			`INSERT INTO xdr_graph_nodes (tenant_id, node_uid, event_uid, asset_id, ip, hostname, identity, technique_id, tactic_id, created_at)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
-			 ON CONFLICT (tenant_id, node_uid) DO UPDATE SET ip=EXCLUDED.ip, hostname=EXCLUDED.hostname, created_at=NOW()`,
-			node.TenantID, node.NodeUID, node.EventUID, node.AssetID, node.IP, node.Hostname, node.Identity, node.TechniqueID, node.TacticID, node.CreatedAt)
-		if err != nil {
-			return fmt.Errorf("insert graph node %s: %w", node.NodeUID, err)
-		}
-	}
-	return nil
-}
-
-func persistGraphEdges(ctx context.Context, edges []*models.GraphEdgeV2, config *Config) error {
-	if config.DBPool == nil || len(edges) == 0 {
-		return nil
-	}
-	for _, edge := range edges {
-		evidenceJSON, _ := json.Marshal(edge.EvidenceEventUIDs)
-		_, err := config.DBPool.Exec(ctx,
-			`INSERT INTO xdr_graph_edges (tenant_id, edge_uid, from_node_uid, to_node_uid, edge_type, strength, evidence_event_uids, temporal_proximity_secs, created_at)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9)
-			 ON CONFLICT (tenant_id, edge_uid) DO UPDATE SET strength=EXCLUDED.strength, created_at=NOW()`,
-			edge.TenantID, edge.EdgeUID, edge.FromNodeUID, edge.ToNodeUID, edge.EdgeType, edge.Strength, evidenceJSON, edge.TemporalProximitySecs, edge.CreatedAt)
-		if err != nil {
-			return fmt.Errorf("insert graph edge %s: %w", edge.EdgeUID, err)
-		}
-	}
 	return nil
 }

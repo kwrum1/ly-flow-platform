@@ -1,4 +1,4 @@
-ARG RUNTIME_IMAGE=ly-flow/dpi-engine:latest
+ARG RUNTIME_IMAGE=ly-flow/dpi-engine@sha256:480680c4d2ab620aeb5852a52c472d6b7439777a52bcd27b4ccc32e02f5f5260
 
 FROM ${RUNTIME_IMAGE}
 

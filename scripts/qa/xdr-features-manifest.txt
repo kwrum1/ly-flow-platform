@@ -1,0 +1,18 @@
+# Todo 17 deterministic XDR feature QA
+active_algorithm=v2-active-unchanged
+shadow_algorithm=v3-shadow-only
+feature_version=xdr-features.v1
+feature_families=entity+provenance+time+transition+diversity+duplicate+staleness+continuity+criticality
+entity_normalization=lowercase-trimmed-alias-components
+time_reference=max-canonical-ingested-at
+staleness_threshold=none
+scoring_method=deterministic-explainable-inputs-no-opaque-ml
+production_thresholds=none-added
+shadow_writers=incident-none+suppression-none+response-candidate-none
+detail_persistence=xdr_scoring_input_details_versioned
+detail_mutation=database-trigger-rejects-update-delete
+detail_identity=tenant+algorithm+feature-version+input-checksum+detail-checksum
+required_scenarios=entity-aliasing,transition-classes,time-boundaries,monotonic-independent-evidence,duplicates,staleness,explanation-fields,feature-versioning,side-by-side-v2-v3,no-incident-change,no-shadow-writer-interface,duplicate-single-source-stale-no-promotion,postgres-replay-restart-checksum,append-only-details
+golden=server/xdr/features/testdata/shadow-features.golden.json
+runner=bash scripts/qa/run-go-tests.sh xdr-features
+evidence=.omo/evidence/task-17-lyflow-commercial-defense-hardening.json

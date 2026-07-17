@@ -1,0 +1,9 @@
+Todo16 verifier evidence
+
+PASS bash scripts/qa/run-go-tests.sh xdr-migration
+PASS GOWORK=off go test -race -shuffle=on -count=10 ./... in server
+PASS GOWORK=off go vet ./... and GOWORK=off go build ./... in server
+PASS shell syntax, harness self-test, LSP diagnostics, gofmt, diff whitespace, and artifact cleanup
+PASS live local server /api/v1/health against task-owned Postgres, Redis, and ClickHouse
+
+Authoritative evidence: .omo/evidence/task-16-lyflow-commercial-defense-hardening.txt

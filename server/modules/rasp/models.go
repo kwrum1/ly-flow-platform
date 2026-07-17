@@ -2,7 +2,6 @@ package rasp
 
 import (
 	"encoding/json"
-	"os"
 	"strings"
 	"time"
 )
@@ -62,7 +61,6 @@ func NormalizeEventMap(event map[string]interface{}) map[string]interface{} {
 	for key, value := range event {
 		normalized[key] = value
 	}
-
 	attackType := getMapString(normalized, "attack_type")
 	if attackType == "" {
 		attackType = getMapString(normalized, "type")
@@ -75,7 +73,6 @@ func NormalizeEventMap(event map[string]interface{}) map[string]interface{} {
 	case "":
 		attackType = "unknown"
 	}
-
 	blocked, _ := normalized["blocked"].(bool)
 	action := getMapString(normalized, "action")
 	if action == "" {
@@ -85,7 +82,6 @@ func NormalizeEventMap(event map[string]interface{}) map[string]interface{} {
 			action = string(ActionLog)
 		}
 	}
-
 	normalized["type"] = "rasp.attack"
 	normalized["attack_type"] = attackType
 	if getMapString(normalized, "language") == "" {
@@ -115,8 +111,8 @@ func NormalizeEventMap(event map[string]interface{}) map[string]interface{} {
 	return normalized
 }
 
-func getMapString(m map[string]interface{}, key string) string {
-	if value, ok := m[key].(string); ok {
+func getMapString(values map[string]interface{}, key string) string {
+	if value, ok := values[key].(string); ok {
 		return value
 	}
 	return ""
@@ -132,12 +128,12 @@ type Request struct {
 	ClientIP string            `json:"client_ip"`
 }
 
-func (e *RASPEvent) ToJSON() ([]byte, error) {
-	return json.Marshal(e)
+func (event *RASPEvent) ToJSON() ([]byte, error) {
+	return json.Marshal(event)
 }
 
-func (e *RASPEvent) FromJSON(data []byte) error {
-	return json.Unmarshal(data, e)
+func (event *RASPEvent) FromJSON(data []byte) error {
+	return json.Unmarshal(data, event)
 }
 
 type RASPEventInput struct {
@@ -156,50 +152,34 @@ type RASPEventInput struct {
 	StackTrace string                 `json:"stack_trace"`
 }
 
-func (i *RASPEventInput) ToRASPEvent() (*RASPEvent, error) {
+func (input *RASPEventInput) ToRASPEvent() (*RASPEvent, error) {
 	event := &RASPEvent{
-		ID:         "rasp-" + time.Now().Format("20060102150405"),
-		AgentID:    i.AgentID,
-		Hostname:   i.Hostname,
-		Language:   Language(i.Language),
-		AttackType: AttackType(i.AttackType),
-		Severity:   i.Severity,
-		Action:     Action(i.Action),
-		Blocked:    i.Blocked,
-		User:       i.User,
-		SessionID:  i.SessionID,
-		StackTrace: i.StackTrace,
+		ID: "rasp-" + time.Now().Format("20060102150405"), AgentID: input.AgentID, Hostname: input.Hostname,
+		Language: Language(input.Language), AttackType: AttackType(input.AttackType), Severity: input.Severity,
+		Action: Action(input.Action), Blocked: input.Blocked, User: input.User, SessionID: input.SessionID, StackTrace: input.StackTrace,
 	}
-
-	if i.Timestamp != "" {
-		if ts, err := time.Parse(time.RFC3339, i.Timestamp); err == nil {
-			event.Timestamp = ts
+	if input.Timestamp != "" {
+		if timestamp, err := time.Parse(time.RFC3339, input.Timestamp); err == nil {
+			event.Timestamp = timestamp
 		}
 	}
-
-	if i.Request != nil {
-		event.Request = Request{
-			Method:   getString(i.Request, "method"),
-			URL:      getString(i.Request, "url"),
-			ClientIP: getString(i.Request, "client_ip"),
-		}
-
-		if params, ok := i.Request["param"].(map[string]interface{}); ok {
+	if input.Request != nil {
+		event.Request = Request{Method: getString(input.Request, "method"), URL: getString(input.Request, "url"), ClientIP: getString(input.Request, "client_ip")}
+		if parameters, ok := input.Request["param"].(map[string]interface{}); ok {
 			event.Request.Param = make(map[string]string)
-			for k, v := range params {
-				if s, ok := v.(string); ok {
-					event.Request.Param[k] = s
+			for key, value := range parameters {
+				if text, ok := value.(string); ok {
+					event.Request.Param[key] = text
 				}
 			}
 		}
 	}
-
 	return event, nil
 }
 
-func getString(m map[string]interface{}, key string) string {
-	if v, ok := m[key].(string); ok {
-		return v
+func getString(values map[string]interface{}, key string) string {
+	if value, ok := values[key].(string); ok {
+		return value
 	}
 	return ""
 }
@@ -217,148 +197,4 @@ type RASPStats struct {
 	Low          int64            `json:"low"`
 	TopAttackers map[string]int64 `json:"top_attackers"`
 	TopTargets   map[string]int64 `json:"top_targets"`
-}
-
-type RASPRule struct {
-	ID          int        `json:"id"`
-	Name        string     `json:"name"`
-	Language    Language   `json:"language"`
-	AttackType  AttackType `json:"attack_type"`
-	Pattern     string     `json:"pattern"`
-	Action      Action     `json:"action"`
-	Enabled     bool       `json:"enabled"`
-	Severity    string     `json:"severity"`
-	Description string     `json:"description"`
-}
-
-type RASPConfig struct {
-	AgentID   string   `json:"agent_id"`
-	Language  Language `json:"language"`
-	Rules     []int    `json:"rules"`
-	BlockMode bool     `json:"block_mode"`
-	LogLevel  string   `json:"log_level"`
-}
-
-type ElkeidRule struct {
-	ID          string    `json:"id"`
-	Category    string    `json:"category"`
-	Name        string    `json:"name"`
-	Severity    string    `json:"severity"`
-	Languages   []string  `json:"languages,omitempty"`
-	Runtime     string    `json:"runtime,omitempty"`
-	Description string    `json:"description"`
-	HookType    string    `json:"hook_type"`
-	Patterns    []Pattern `json:"patterns"`
-	Mitre       MitreInfo `json:"mitre"`
-	Action      string    `json:"action"`
-	Enabled     bool      `json:"enabled"`
-}
-
-type Pattern struct {
-	Type        string `json:"type"`
-	Value       string `json:"value"`
-	Description string `json:"description"`
-}
-
-type MitreInfo struct {
-	Tactic    string `json:"tactic"`
-	Technique string `json:"technique"`
-}
-
-type Ruleset struct {
-	Version    string       `json:"version"`
-	Source     string       `json:"source"`
-	Updated    string       `json:"updated"`
-	Categories []Category   `json:"categories"`
-	Rules      []ElkeidRule `json:"rules"`
-}
-
-type Category struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-}
-
-func LoadElkeidRules(path string) (*Ruleset, error) {
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return nil, err
-	}
-
-	var ruleset Ruleset
-	if err := json.Unmarshal(data, &ruleset); err != nil {
-		return nil, err
-	}
-
-	return &ruleset, nil
-}
-
-func ConvertToRuleset(rs *Ruleset) []RASPRule {
-	var rules []RASPRule
-	for _, r := range rs.Rules {
-		if !r.Enabled {
-			continue
-		}
-
-		action := ActionBlock
-		if r.Action == "detect" {
-			action = ActionLog
-		} else if r.Action == "ignore" {
-			action = ActionIgnore
-		}
-
-		var lang Language
-		if len(r.Languages) > 0 {
-			switch r.Languages[0] {
-			case "java":
-				lang = LangJava
-			case "python":
-				lang = LangPython
-			case "nodejs":
-				lang = LangNodeJS
-			case "php":
-				lang = LangPHP
-			case "dotnet":
-				lang = LangDotNet
-			}
-		}
-
-		var attackType AttackType
-		switch r.Category {
-		case "injection", "command_exec":
-			attackType = AttackCommandInjection
-		case "xss":
-			attackType = AttackXSS
-		case "file_ops", "path_traversal":
-			attackType = AttackPathTraversal
-		case "ssrf":
-			attackType = AttackSSRF
-		case "xxe":
-			attackType = AttackXXE
-		case "deserialization":
-			attackType = AttackDeserialization
-		default:
-			attackType = AttackSQLInjection
-		}
-
-		var pattern string
-		for _, p := range r.Patterns {
-			if p.Type == "regex" {
-				pattern = p.Value
-				break
-			}
-		}
-
-		rules = append(rules, RASPRule{
-			Name:        r.Name,
-			Language:    lang,
-			AttackType:  attackType,
-			Pattern:     pattern,
-			Action:      action,
-			Enabled:     r.Enabled,
-			Severity:    r.Severity,
-			Description: r.Description,
-		})
-	}
-	return rules
 }

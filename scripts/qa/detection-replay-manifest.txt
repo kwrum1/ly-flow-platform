@@ -1,0 +1,19 @@
+# Todo 18 immutable detection replay QA
+task=18
+active=v2-active
+shadow=v3-shadow-structurally-non-promotable
+corpus=fixtures/detection-replay/v1/corpus.jsonl
+integrity=sha256-manifest+corpus+baseline+workflow+algorithm-descriptors+inert-rules
+metrics=precision+recall+false-positive-rate+completeness+basis-points
+deltas=v3-shadow-minus-v2-active
+baseline=immutable-revision-bound-regression-gates
+representative_gate=approved+redacted+input-bound+time-bounded-metadata
+default_qualification=synthetic-regression
+representative_qualification=representative-calibration
+prevention_authorization=forbidden
+commercial_efficacy_authorization=forbidden
+promotion=v3-shadow-structurally-forbidden
+reports=deterministic-json+markdown
+failure_scenarios=integrity+malformed+stale-baseline+incomplete-corpus+stale-review+overbroad-rule+cancelled-context
+runner=bash scripts/qa/run-detection-replay.sh
+evidence=.omo/evidence/task-18-lyflow-commercial-defense-hardening.json

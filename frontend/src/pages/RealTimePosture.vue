@@ -55,7 +55,7 @@
               <div class="chain-core">
                 <b>{{ chain.entity || chain.victim || '未知实体' }}<i v-if="chain.standalone_alert" class="solo-flag">独立告警</i><i v-if="chain.partial_chain" class="partial-flag">部分链</i></b>
                 <div class="chain-stage-flow">
-                  <span v-for="(stage, i) in v3StageFlow(chain)" :key="stage.key" :class="['flow-step', stageClass(stage.key), { missing: stage.missing }]">
+                  <span v-for="stage in v3StageFlow(chain)" :key="stage.key" :class="['flow-step', stageClass(stage.key), { missing: stage.missing }]">
                     {{ stageLabel(stage.key) }}
                     <i v-if="stage.hasArrow" class="flow-arrow">→</i>
                   </span>
@@ -70,7 +70,9 @@
 
             <div v-if="expanded === chain.id" class="chain-detail">
               <div class="detail-strip">
-                <span v-if="chain.categories?.length" v-for="cat in chain.categories" :key="cat" class="cat-tag">{{ catLabel(cat) }}</span>
+                <template v-if="chain.categories?.length">
+                  <span v-for="cat in chain.categories" :key="cat" class="cat-tag">{{ catLabel(cat) }}</span>
+                </template>
                 <span v-if="chain.seed_stage" class="seed-tag">种子 → {{ stageLabel(chain.seed_stage) }}</span>
                 <span v-if="chain.partial_chain" class="partial-warn">缺少 {{ (chain.missing_stages || []).length }} 阶段</span>
                 <span v-if="chain.standalone_alert" class="standalone-warn">独立告警（无关联 IP）</span>
@@ -238,7 +240,7 @@ const activeStageCount = computed(() => stageDistribution.value.filter(s => s.co
 const topRules = computed(() => {
   const map = {}
   chains.value.forEach(c => {
-    ;(c.evidence || []).forEach(ev => {
+    (c.evidence || []).forEach(ev => {
       const name = ev.rule_name
       if (!name) return
       map[name] = (map[name] || 0) + 1

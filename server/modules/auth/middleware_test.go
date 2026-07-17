@@ -1,6 +1,7 @@
 package auth
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -10,7 +11,7 @@ import (
 )
 
 func TestAuthenticateRejectsInvalidTokenWithJSON(t *testing.T) {
-	middleware := NewMiddleware(NewService("test-secret", time.Hour), nil)
+	middleware := NewMiddleware(NewService("test-secret", time.Hour), nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
 	req.Header.Set("Authorization", "Bearer not-a-valid-token")
 	rec := httptest.NewRecorder()
@@ -34,8 +35,29 @@ func TestAuthenticateRejectsInvalidTokenWithJSON(t *testing.T) {
 	}
 }
 
+func TestAuthenticateRejectsMissingAuthorizationWithJSON(t *testing.T) {
+	middleware := NewMiddleware(NewService("test-secret", time.Hour), nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	rec := httptest.NewRecorder()
+
+	middleware.Authenticate(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not be called")
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("status=%d, want 401", rec.Code)
+	}
+	var payload map[string]interface{}
+	if err := json.Unmarshal(rec.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("response is not JSON: %v", err)
+	}
+	if payload["error_code"] != "missing_authorization" {
+		t.Fatalf("unexpected payload: %#v", payload)
+	}
+}
+
 func TestRequireRoleWithoutUserReturnsJSON(t *testing.T) {
-	middleware := NewMiddleware(NewService("test-secret", time.Hour), nil)
+	middleware := NewMiddleware(NewService("test-secret", time.Hour), nil, nil)
 	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
 	rec := httptest.NewRecorder()
 	middleware.RequireRole(RoleAdmin)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -51,5 +73,21 @@ func TestRequireRoleWithoutUserReturnsJSON(t *testing.T) {
 	}
 	if payload["error_code"] != "unauthorized" {
 		t.Fatalf("unexpected payload: %#v", payload)
+	}
+}
+
+func TestRequireRoleRejectsViewerWithForbidden(t *testing.T) {
+	middleware := NewMiddleware(NewService("test-secret", time.Hour), nil, nil)
+	req := httptest.NewRequest(http.MethodGet, "/protected", nil)
+	ctx := context.WithValue(req.Context(), UserContextKey, int64(42))
+	req = req.WithContext(context.WithValue(ctx, RoleContextKey, RoleViewer))
+	rec := httptest.NewRecorder()
+
+	middleware.RequireRole(RoleAdmin)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		t.Fatal("next handler should not be called")
+	})).ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("status=%d, want 403", rec.Code)
 	}
 }

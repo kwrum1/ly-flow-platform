@@ -5,13 +5,18 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync"
+	"time"
 )
 
 type externalEngineSupervisor struct {
+	mu            sync.RWMutex
 	name          EngineName
 	binary        string
 	defaultOutput string
@@ -40,7 +45,9 @@ func newRASPSupervisor() EngineSupervisor {
 
 func (s *externalEngineSupervisor) Name() EngineName { return s.name }
 
-func (s *externalEngineSupervisor) Apply(_ context.Context, desired EngineDesiredState) error {
+func (s *externalEngineSupervisor) Apply(ctx context.Context, desired EngineDesiredState) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.status.Name = s.name
 	s.status.OutputPath = firstNonEmpty(desired.Settings["output_path"], s.defaultOutput)
 	s.status.RulePackVersion = desired.RulePackVersion
@@ -53,7 +60,7 @@ func (s *externalEngineSupervisor) Apply(_ context.Context, desired EngineDesire
 		s.status.Running = true
 		s.status.Version = "ly-agent-adapter"
 	}
-	if version := commandVersion(s.binary); version != "" {
+	if version := commandVersion(ctx, s.binary); version != "" {
 		s.status.Version = version
 	}
 	if s.status.OutputPath != "" {
@@ -64,9 +71,11 @@ func (s *externalEngineSupervisor) Apply(_ context.Context, desired EngineDesire
 	return nil
 }
 
-func (s *externalEngineSupervisor) Status(context.Context) EngineStatus {
+func (s *externalEngineSupervisor) Status(ctx context.Context) EngineStatus {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
 	status := s.status
-	if runtimeStatus, ok := engineRuntimeStatusFromFile(s.name); ok {
+	if runtimeStatus, ok := engineRuntimeStatusFromFile(ctx, s.name); ok {
 		status.Installed = runtimeStatus.Installed
 		status.Running = runtimeStatus.Running
 		status.Version = firstNonEmpty(runtimeStatus.Version, status.Version)
@@ -103,17 +112,26 @@ type engineRuntimeStatusFile struct {
 	} `json:"engines"`
 }
 
-func engineRuntimeStatusFromFile(name EngineName) (EngineStatus, bool) {
+func engineRuntimeStatusFromFile(ctx context.Context, name EngineName) (EngineStatus, bool) {
 	path := firstNonEmpty(os.Getenv("ENGINE_STATUS_FILE"), "/opt/ly-engine-lab/runtime/status.json")
-	data, err := os.ReadFile(path)
+	if ctx.Err() != nil {
+		return EngineStatus{}, false
+	}
+	handle, err := os.Open(path)
 	if err != nil {
 		return EngineStatus{}, false
 	}
-	var file engineRuntimeStatusFile
-	if err := json.Unmarshal(data, &file); err != nil {
+	defer handle.Close()
+	info, err := handle.Stat()
+	if err != nil || info.Size() > int64(agentRuntimeLimits().MemoryBytes) || info.Size() > int64(agentRuntimeLimits().ReadBytes) {
 		return EngineStatus{}, false
 	}
-	row, ok := file.Engines[string(name)]
+	var statusFile engineRuntimeStatusFile
+	decoder := json.NewDecoder(io.LimitReader(handle, int64(agentRuntimeLimits().ReadBytes)+1))
+	if err := decoder.Decode(&statusFile); err != nil {
+		return EngineStatus{}, false
+	}
+	row, ok := statusFile.Engines[string(name)]
 	if !ok {
 		return EngineStatus{}, false
 	}
@@ -132,15 +150,28 @@ func commandExists(binary string) bool {
 	return err == nil
 }
 
-func commandVersion(binary string) string {
+func commandVersion(parent context.Context, binary string) string {
 	if !commandExists(binary) {
 		return ""
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 2_000_000_000)
+	ctx, cancel := context.WithTimeout(parent, 2*time.Second)
 	defer cancel()
 	cmd := hiddenCommandContext(ctx, binary, "--version")
-	out, err := cmd.Output()
+	stdout, err := cmd.StdoutPipe()
 	if err != nil {
+		return ""
+	}
+	cmd.Stderr = io.Discard
+	if err := cmd.Start(); err != nil {
+		return ""
+	}
+	limit := int64(min(agentRuntimeLimits().ReadBytes, agentRuntimeLimits().MemoryBytes))
+	out, readErr := io.ReadAll(io.LimitReader(stdout, limit+1))
+	if int64(len(out)) > limit {
+		cancel()
+	}
+	waitErr := cmd.Wait()
+	if readErr != nil || waitErr != nil || int64(len(out)) > limit || errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return ""
 	}
 	return strings.TrimSpace(strings.SplitN(string(out), "\n", 2)[0])

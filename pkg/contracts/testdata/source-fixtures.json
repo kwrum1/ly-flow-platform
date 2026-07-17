@@ -1,0 +1,68 @@
+[
+  {
+    "source": "agent.traffic",
+    "schema_version": "lyflow.security_event.v1",
+    "native_schema": "lyflow.telemetry.v1",
+    "payload": {"schema_version":"lyflow.telemetry.v1","id":"flow-1","category":"traffic","event_type":"traffic.flow","observed_at":"2026-07-13T09:59:00Z","source":"agent","source_engine":"agent","entities":{"agent_id":"agent-1"},"fields":{"severity":"medium","src_ip":"192.0.2.10","dst_ip":"198.51.100.20"}}
+  },
+  {
+    "source": "agent.runtime",
+    "schema_version": "lyflow.security_event.v1",
+    "native_schema": "lyflow.telemetry.v1",
+    "payload": {"schema_version":"lyflow.telemetry.v1","id":"runtime-1","category":"runtime","event_type":"runtime.process","observed_at":"2026-07-13T09:59:01Z","source":"agent","source_engine":"runtime","entities":{"agent_id":"agent-1","process_id":"4242"},"fields":{"severity":"high","executable":"/usr/bin/example"}}
+  },
+  {
+    "source": "agent.log_audit",
+    "schema_version": "lyflow.security_event.v1",
+    "native_schema": "lyflow.telemetry.v1",
+    "payload": {"schema_version":"lyflow.telemetry.v1","id":"log-1","category":"log_audit","event_type":"log.audit","observed_at":"2026-07-13T09:59:02Z","source":"agent","source_engine":"log_audit","entities":{"agent_id":"agent-1"},"fields":{"severity":"low","facility":"auth"},"excerpt":"inert audit record"}
+  },
+  {
+    "source": "agent.rasp",
+    "schema_version": "lyflow.security_event.v1",
+    "native_schema": "lyflow.telemetry.v1",
+    "payload": {"schema_version":"lyflow.telemetry.v1","id":"rasp-1","category":"rasp","event_type":"rasp.sql","observed_at":"2026-07-13T09:59:03Z","source":"java-probe","source_engine":"rasp","entities":{"agent_id":"agent-1","application":"orders"},"fields":{"severity":"critical","query_class":"union"}}
+  },
+  {
+    "source": "adapter.suricata",
+    "schema_version": "lyflow.security_event.v1",
+    "native_schema": "suricata.eve.v7",
+    "payload": {"timestamp":"2026-07-13T09:59:04Z","event_type":"alert","src_ip":"192.0.2.12","dest_ip":"198.51.100.22","alert":{"signature_id":2100498,"signature":"GPL ATTACK_RESPONSE id check returned root","severity":2},"agent_id":"agent-1"}
+  },
+  {
+    "source": "adapter.wazuh",
+    "schema_version": "lyflow.security_event.v1",
+    "native_schema": "wazuh.alert.v4",
+    "payload": {"id":"wazuh-1","timestamp":"2026-07-13T09:59:05Z","agent":{"id":"agent-1"},"rule":{"id":"5710","level":8,"description":"sshd authentication failed"},"full_log":"inert failed login"}
+  },
+  {
+    "source": "adapter.yara",
+    "schema_version": "lyflow.security_event.v1",
+    "native_schema": "yara.match.v1",
+    "payload": {"match_id":"yara-1","agent_id":"agent-1","rule":"inert_webshell_marker","namespace":"fixtures","file_path":"/tmp/inert.txt","file_hash":"00000000000000000000000000000000","tags":["fixture"],"matched_at":"2026-07-13T09:59:06Z"}
+  },
+  {
+    "source": "dpi_engine",
+    "schema_version": "lyflow.security_event.v1",
+    "native_schema": "lyflow.dpi_alert.v1",
+    "payload": {"id":1001,"timestamp":"2026-07-13T09:59:07Z","type":"dpi","src_ip":"192.0.2.14","dst_ip":"198.51.100.24","src_port":49152,"dst_port":443,"protocol":"tcp","signature":"inert fixture signature","category":"rule","severity":3,"score":75,"status":"new","sensor_id":"agent-1","domain":"fixture.invalid","data":"inert fixture payload"}
+  },
+  {
+    "source": "security_engine",
+    "schema_version": "lyflow.security_event.v1",
+    "native_schema": "lyflow.component_alert.v1",
+    "payload": {"schema_version":"lyflow.component_alert.v1","id":"engine-1","category":"host","source_engine":"lyflow","rule_id":"fixture-rule","rule_name":"Inert fixture rule","severity":"high","score_hint":75,"occurred_at":"2026-07-13T09:59:08Z","source":"security-engine","entities":{"agent_id":"agent-1"},"summary":"inert component alert","candidate_only":true}
+  },
+  {
+    "source": "server.unified_legacy",
+    "schema_version": "lyflow.security_event.v1",
+    "native_schema": "lyflow.unified.v1",
+    "payload": {"id":"unified-1","event_type":"xdr.event","severity":"high","timestamp":"2026-07-13T09:59:09Z","created_at":"2026-07-13T09:59:10Z","agent_id":"agent-1","mitre_tactic":"TA0001","mitre_technique":"T1190"}
+  },
+  {
+    "source": "server.xdr_v2",
+    "schema_version": "lyflow.security_event.v1",
+    "native_schema": "xdr-eval.v2",
+    "payload": {"event_uid":"xdr-1","agent_id":"agent-1","observed_at":"2026-07-13T09:59:11Z","ingested_at":"2026-07-13T09:59:12Z","event_type":"xdr.graph","technique_id":"T1059.001","tactic_id":"TA0002","risk_score":95,"source_component":"server-xdr"}
+  }
+]

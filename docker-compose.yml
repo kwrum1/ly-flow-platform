@@ -2,8 +2,6 @@
 # 版本: v2.0.1
 # 更新日期: 2026-05-08
 
-version: '3.8'
-
 services:
   # =====================================================
   # PostgreSQL 数据库
@@ -21,7 +19,7 @@ services:
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
       - ./server/sql/asset_tables.sql:/docker-entrypoint-initdb.d/02-asset-tables.sql:ro
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U lyflow -d lyflow"]
       interval: 10s
@@ -37,13 +35,24 @@ services:
     image: redis:7-alpine
     container_name: ly-redis
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory ${REDIS_MAXMEMORY:-8gb} --maxmemory-policy ${REDIS_MAXMEMORY_POLICY:-noeviction}
+    environment:
+      REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
+      REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    command:
+      - /bin/sh
+      - -ec
+      - >-
+        exec redis-server --appendonly yes --maxmemory "${REDIS_MAXMEMORY:-8gb}"
+        --maxmemory-policy "${REDIS_MAXMEMORY_POLICY:-noeviction}"
+        --requirepass "$$REDIS_PASSWORD"
+        --user "$$REDIS_ACL_USERNAME" on ">$$REDIS_ACL_PASSWORD" "~*" "&*" "+@all"
     volumes:
       - redis_data:/data
     ports:
-      - "6379:6379"
+      - "127.0.0.1:6379:6379"
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli --user \"$$REDIS_ACL_USERNAME\" --pass \"$$REDIS_ACL_PASSWORD\" ping"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -61,8 +70,8 @@ services:
     volumes:
       - clickhouse_data:/var/lib/clickhouse
     ports:
-      - "8123:8123"
-      - "9000:9000"
+      - "127.0.0.1:8123:8123"
+      - "127.0.0.1:9000:9000"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8123/ping"]
       interval: 10s
@@ -83,36 +92,42 @@ services:
     restart: unless-stopped
     command: ["/app/ly-server"]
     environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=lyflow
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-lyflow_secret_password}
-      - DB_NAME=lyflow
-      - DB_SSLMODE=disable
-      - DB_MAX_CONNS=10
-      - DB_MIN_CONNS=2
-      - DB_MAX_CONN_LIFETIME_MINUTES=30
-      - DB_MAX_CONN_IDLE_MINUTES=5
-      - DB_HEALTH_CHECK_SECONDS=30
-      - REDIS_ADDR=redis:6379
-      - REDIS_PASSWORD=
-      - CLICKHOUSE_ADDR=http://clickhouse:8123
-      - CLICKHOUSE_DB=lyflow
-      - CLICKHOUSE_USER=lyflow
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-lyflow_clickhouse_password}
-      - SERVER_PORT=8080
-      - JWT_SECRET=${JWT_SECRET:-change_this_in_production}
-      - DEFAULT_ADMIN_PASSWORD=${DEFAULT_ADMIN_PASSWORD:-password}
-      - LYFLOW_RESET_ADMIN_PASSWORD=${LYFLOW_RESET_ADMIN_PASSWORD:-true}
-      - LYFLOW_FORCE_FIRST_LOGIN_PASSWORD_CHANGE=${LYFLOW_FORCE_FIRST_LOGIN_PASSWORD_CHANGE:-true}
-      - AGENT_SELF_ENROLL=${AGENT_SELF_ENROLL:-true}
-      - XDR_RULES_DIR=/etc/ly/rules/xdr
-      - SECURITY_ENGINE_RELOAD_URL=http://ly-security-engine:8080/reload
-      - ENGINE_RULE_ROOT=/app/rules
-      - ENGINE_STATUS_FILE=/app/.sisyphus/runtime/engine-outputs/status/status.json
-      - RASP_BLOCK_BY_DEFAULT=true
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: lyflow
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-lyflow_secret_password}
+      DB_NAME: lyflow
+      DB_SSLMODE: disable
+      DB_MAX_CONNS: "10"
+      DB_MIN_CONNS: "2"
+      DB_MAX_CONN_LIFETIME_MINUTES: "30"
+      DB_MAX_CONN_IDLE_MINUTES: "5"
+      DB_HEALTH_CHECK_SECONDS: "30"
+      REDIS_ADDR: redis:6379
+      REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
+      REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      CLICKHOUSE_ADDR: http://clickhouse:8123
+      CLICKHOUSE_DB: lyflow
+      CLICKHOUSE_USER: lyflow
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-lyflow_clickhouse_password}
+      SERVER_PORT: "8080"
+      JWT_SECRET: ${JWT_SECRET:-change_this_in_production}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-password}
+      LYFLOW_RESET_ADMIN_PASSWORD: ${LYFLOW_RESET_ADMIN_PASSWORD:-true}
+      LYFLOW_FORCE_FIRST_LOGIN_PASSWORD_CHANGE: ${LYFLOW_FORCE_FIRST_LOGIN_PASSWORD_CHANGE:-true}
+      AGENT_SELF_ENROLL: ${AGENT_SELF_ENROLL:-false}
+      XDR_RULES_DIR: /etc/ly/rules/xdr
+      SECURITY_ENGINE_RELOAD_URL: http://ly-security-engine:8080/reload
+      SECURITY_ENGINE_CONTROL_TOKEN: ${SECURITY_ENGINE_CONTROL_TOKEN:?SECURITY_ENGINE_CONTROL_TOKEN must be set}
+      RULE_LIFECYCLE_DIR: /app/rules/security-engine/lifecycle
+      ENGINE_RULE_ROOT: /app/rules
+      ENGINE_STATUS_FILE: /app/.sisyphus/runtime/engine-outputs/status/status.json
+      POLICY_TRUST_DIR: /var/lib/lyflow/policy/trust
+      POLICY_KEY_DIR: /var/lib/lyflow/policy/keys
+      RASP_POLICY_OWNER: ${RASP_POLICY_OWNER:-lyflow-platform}
     ports:
-      - "8080:8080"
+      - "127.0.0.1:8080:8080"
     depends_on:
       postgres:
         condition: service_healthy
@@ -125,6 +140,7 @@ services:
       - ./rules:/app/rules
       - ./.sisyphus:/app/.sisyphus
       - /sys:/host/sys:ro
+      - policy_trust:/var/lib/lyflow/policy
     networks:
       - ly-network
 
@@ -141,18 +157,20 @@ services:
     restart: unless-stopped
     command: ["/app/ly-dpi-engine"]
     environment:
-      - REDIS_ADDR=redis:6379
-      - REDIS_PASSWORD=
-      - REDIS_STREAM_IN=flows:raw
-      - REDIS_STREAM_OUT=alerts:dpi
-      - CONSUMER_GROUP=dpi-workers
-      - CONSUMER_NAME=dpi-engine
-      - WORKERS=4
-      - DOMAIN_MINING=/etc/ly/rules/domain/mining.txt
-      - DOMAIN_FRAUD=/etc/ly/rules/domain/fraud.txt
-      - DOMAIN_CUSTOM=/etc/ly/rules/domain/custom.txt
-      - RULES_FILE=/etc/ly/rules/suricata/et-open.rules
-      - DATABASE_RULES_PATH=/etc/ly/dpi-rules/database
+      REDIS_ADDR: redis:6379
+      REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
+      REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_STREAM_IN: flows:raw
+      REDIS_STREAM_OUT: alerts:dpi
+      CONSUMER_GROUP: dpi-workers
+      CONSUMER_NAME: dpi-engine
+      WORKERS: "4"
+      DOMAIN_MINING: /etc/ly/rules/domain/mining.txt
+      DOMAIN_FRAUD: /etc/ly/rules/domain/fraud.txt
+      DOMAIN_CUSTOM: /etc/ly/rules/domain/custom.txt
+      RULES_FILE: /etc/ly/rules/suricata/et-open.rules
+      DATABASE_RULES_PATH: /etc/ly/dpi-rules/database
     volumes:
       - ./rules:/etc/ly/rules:ro
       - ./dpi-engine/rules:/etc/ly/dpi-rules:ro
@@ -174,19 +192,26 @@ services:
     restart: unless-stopped
     command: ["/app/ly-security-engine"]
     environment:
-      - REDIS_ADDR=redis:6379
-      - REDIS_PASSWORD=
-      - SECURITY_ENGINE_GROUP=security-engine-workers
-      - SECURITY_ENGINE_NAME=security-engine-1
-      - SECURITY_ENGINE_INPUT_STREAMS=telemetry:traffic,telemetry:runtime,telemetry:rasp,telemetry:log_audit
-      - ALERTS_DPI_STREAM=alerts:dpi
-      - ALERTS_RUNTIME_STREAM=alerts:runtime
-      - ALERTS_RASP_STREAM=alerts:rasp
-      - ALERTS_LOG_AUDIT_STREAM=alerts:log_audit
-      - SECURITY_ENGINE_BUNDLE=/app/rules/security-engine/active-bundle.json
-      - RASP_BLOCK_BY_DEFAULT=false
+      REDIS_ADDR: redis:6379
+      REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
+      REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      SECURITY_ENGINE_GROUP: security-engine-workers
+      SECURITY_ENGINE_NAME: security-engine-1
+      SECURITY_ENGINE_INPUT_STREAMS: telemetry:traffic,telemetry:runtime,telemetry:rasp,telemetry:log_audit
+      ALERTS_DPI_STREAM: alerts:dpi
+      ALERTS_RUNTIME_STREAM: alerts:runtime
+      ALERTS_RASP_STREAM: alerts:rasp
+      ALERTS_LOG_AUDIT_STREAM: alerts:log_audit
+      SECURITY_ENGINE_LIFECYCLE_MANIFEST: /app/rules/security-engine/lifecycle/active-manifest.json
+      SECURITY_ENGINE_RULE_TRUST_ROOT: /var/lib/lyflow/policy/trust/rule-root.pem
+      SECURITY_ENGINE_BUNDLE_ROOT: /app/rules
+      SECURITY_ENGINE_CONTROL_TOKEN: ${SECURITY_ENGINE_CONTROL_TOKEN:?SECURITY_ENGINE_CONTROL_TOKEN must be set}
+      SECURITY_ENGINE_RELOAD_AUDIT_PATH: /var/lib/lyflow/audit/reload.jsonl
     volumes:
       - ./rules:/app/rules:ro
+      - policy_trust:/var/lib/lyflow/policy:ro
+      - security_engine_audit:/var/lib/lyflow/audit
     depends_on:
       redis:
         condition: service_healthy
@@ -247,6 +272,32 @@ services:
     networks:
       - ly-network
 
+  ly-suricata-sensor:
+    profiles:
+      - suricata-profile
+    image: ly-flow/suricata-profile:7.0.11
+    build:
+      context: .
+      dockerfile: containers/security-engines/Dockerfile
+      target: suricata-profile
+      args:
+        SURICATA_PROFILE_IMAGE: docker.io/jasonish/suricata@sha256:73cf099d6299f75dda2d9d6edcfb8238b7a7322566d6189a69d46442a366b7fa
+    container_name: ly-suricata-sensor
+    restart: unless-stopped
+    network_mode: host
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+      - SYS_NICE
+    command: ["-c", "/etc/suricata/lyflow-suricata-profile.yaml", "-i", "${SURICATA_INTERFACE:-eth0}"]
+    volumes:
+      - ./.sisyphus/runtime/engine-outputs/suricata-profile:/var/log/suricata
+    healthcheck:
+      test: ["CMD-SHELL", "suricata --build-info | grep -F 'Suricata 7.0.11' >/dev/null && pgrep -x suricata >/dev/null"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
   # =====================================================
   # AgentCenter (Agent管理服务，gRPC)
   # =====================================================
@@ -259,13 +310,16 @@ services:
     restart: unless-stopped
     command: ["/app/ly-agent-center"]
     environment:
-      - DB_HOST=postgres
-      - DB_PORT=5432
-      - DB_USER=lyflow
-      - DB_PASSWORD=${POSTGRES_PASSWORD:-lyflow_secret_password}
-      - DB_NAME=lyflow
-      - REDIS_ADDR=redis:6379
-      - GRPC_PORT=8081
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_USER: lyflow
+      DB_PASSWORD: ${POSTGRES_PASSWORD:-lyflow_secret_password}
+      DB_NAME: lyflow
+      REDIS_ADDR: redis:6379
+      REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
+      REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      GRPC_PORT: "8081"
     ports:
       - "8081:8081"
     depends_on:
@@ -291,29 +345,34 @@ services:
       - NET_RAW
       - NET_ADMIN
     environment:
-      - AGENT_MODE=local-mirror
-      - LOCAL_MIRROR_MODE=true
-      - API_SERVER=http://127.0.0.1:8080
-      - REDIS_SERVER=127.0.0.1:6379
-      - TRAFFIC_ENABLED=true
-      - TRAFFIC_INTERFACE=${LOCAL_MIRROR_INTERFACE:-auto}
-      - CAPTURE_ENGINE=af_packet
-      - PROMISCUOUS=true
-      - TRAFFIC_MAX_EVENTS_PER_SECOND=${LOCAL_MIRROR_MAX_EVENTS_PER_SECOND:-0}
-      - HIDS_ENABLED=false
-      - RASP_ENABLED=false
-      - ASSET_ENABLED=false
-      - SESSION_STREAM=sessions:semantic
-      - RAW_STREAM=flows:raw
-      - SEMANTIC_STREAM=flows:semantic
-      - TELEMETRY_TRAFFIC_STREAM=telemetry:traffic
-      - RETENTION_ENABLED=false
-      - SPOOL_ENABLED=true
-      - SPOOL_DIR=/opt/ly-agent/data/spool
-      - SPOOL_MAX_BYTES=${LOCAL_MIRROR_SPOOL_MAX_BYTES:-10737418240}
-      - LOG_FILE=/opt/ly-agent/logs/local-mirror.log
+      AGENT_MODE: local-mirror
+      LOCAL_MIRROR_MODE: "true"
+      API_SERVER: http://127.0.0.1:8080
+      REDIS_SERVER: 127.0.0.1:6379
+      REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
+      REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      TRAFFIC_ENABLED: "true"
+      TRAFFIC_INTERFACE: ${LOCAL_MIRROR_INTERFACE:-auto}
+      CAPTURE_ENGINE: af_packet
+      PROMISCUOUS: "true"
+      TRAFFIC_MAX_EVENTS_PER_SECOND: ${LOCAL_MIRROR_MAX_EVENTS_PER_SECOND:-0}
+      HIDS_ENABLED: "false"
+      RASP_ENABLED: "false"
+      RASP_POLICY_ROOT: /var/lib/lyflow/policy/trust/policy-root.pem
+      ASSET_ENABLED: "false"
+      SESSION_STREAM: sessions:semantic
+      RAW_STREAM: flows:raw
+      SEMANTIC_STREAM: flows:semantic
+      TELEMETRY_TRAFFIC_STREAM: telemetry:traffic
+      RETENTION_ENABLED: "false"
+      SPOOL_ENABLED: "true"
+      SPOOL_DIR: /opt/ly-agent/data/spool
+      SPOOL_MAX_BYTES: ${LOCAL_MIRROR_SPOOL_MAX_BYTES:-10737418240}
+      LOG_FILE: /opt/ly-agent/logs/local-mirror.log
     volumes:
       - agent_spool:/opt/ly-agent/data
+      - policy_trust:/var/lib/lyflow/policy:ro
     depends_on:
       ly-server:
         condition: service_started
@@ -326,6 +385,7 @@ services:
   ly-agent:
     profiles:
       - container-agent
+      - suricata-profile
     image: ly-flow/agent:latest
     build:
       context: .
@@ -333,26 +393,35 @@ services:
     container_name: ly-agent
     restart: unless-stopped
     environment:
-      - API_SERVER=http://ly-server:8080
-      - REDIS_SERVER=redis:6379
-      - AGENT_ID=ly-container-agent
-      - AGENT_KEY=ly-container-agent-key
-      - TRAFFIC_ENABLED=false
-      - HIDS_ENABLED=true
-      - RASP_ENABLED=true
-      - ASSET_ENABLED=true
-      - SPOOL_ENABLED=true
-      - SPOOL_DIR=/opt/ly-agent/data/spool
-      - SPOOL_MAX_BYTES=${AGENT_SPOOL_MAX_BYTES:-10737418240}
-      - ENGINE_STATUS_FILE=/opt/ly-engine-lab/runtime/status.json
-      - LOG_FILE=/opt/ly-agent/logs/agent.log
+      API_SERVER: http://ly-server:8080
+      REDIS_SERVER: redis:6379
+      REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
+      REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      AGENT_ID: ly-container-agent
+      AGENT_KEY: ly-container-agent-key
+      TRAFFIC_ENABLED: "false"
+      HIDS_ENABLED: "true"
+      RASP_ENABLED: "true"
+      RASP_POLICY_ROOT: /var/lib/lyflow/policy/trust/policy-root.pem
+      ASSET_ENABLED: "true"
+      SPOOL_ENABLED: "true"
+      SPOOL_DIR: /opt/ly-agent/data/spool
+      SPOOL_MAX_BYTES: ${AGENT_SPOOL_MAX_BYTES:-10737418240}
+      ENGINE_STATUS_FILE: /opt/ly-engine-lab/runtime/status.json
+      SURICATA_PROFILE_ENABLED: "true"
+      SURICATA_EVE: /var/log/suricata-profile/eve.json
+      SURICATA_DEAD_LETTER_PATH: /var/log/suricata-profile/dead-letter.jsonl
+      LOG_FILE: /opt/ly-agent/logs/agent.log
     volumes:
       - ./.sisyphus/runtime/engine-outputs/suricata:/var/log/suricata
+      - ./.sisyphus/runtime/engine-outputs/suricata-profile:/var/log/suricata-profile
       - ./.sisyphus/runtime/engine-outputs/wazuh:/var/ossec/logs/alerts
       - ./.sisyphus/runtime/engine-outputs/yara:/opt/ly-agent/yara
       - ./.sisyphus/runtime/engine-outputs/rasp:/opt/ly-agent/rasp
       - ./.sisyphus/runtime/engine-outputs/status:/opt/ly-engine-lab/runtime:ro
       - agent_spool:/opt/ly-agent/data
+      - policy_trust:/var/lib/lyflow/policy:ro
     depends_on:
       ly-server:
         condition: service_started
@@ -382,4 +451,8 @@ volumes:
   clickhouse_data:
     driver: local
   agent_spool:
+    driver: local
+  policy_trust:
+    driver: local
+  security_engine_audit:
     driver: local

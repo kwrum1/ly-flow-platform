@@ -22,31 +22,31 @@ func NewElkeidConverter(rulesDir string) *ElkeidConverter {
 }
 
 type ElkeidRuleset struct {
-	RulesetID   string `yaml:"ruleset_id"`
-	RulesetName string `yaml:"ruleset_name"`
-	Type        string `yaml:"type"`
-	Discard     bool   `yaml:"undetected_discard"`
+	RulesetID   string       `yaml:"ruleset_id"`
+	RulesetName string       `yaml:"ruleset_name"`
+	Type        string       `yaml:"type"`
+	Discard     bool         `yaml:"undetected_discard"`
 	Rules       []ElkeidRule `yaml:"rules"`
 }
 
 type ElkeidRule struct {
-	RuleID     string         `yaml:"rule_id"`
-	Author     string         `yaml:"author"`
-	Type       string         `yaml:"type"`
-	RuleName   string         `yaml:"rule_name"`
-	AlertData  bool           `yaml:"alert_data"`
-	HarmLevel  string         `yaml:"harm_level"`
-	Desc       string         `yaml:"desc"`
-	Filter     string         `yaml:"filter"`
-	CheckList  []CheckNode    `yaml:"check_list"`
+	RuleID    string      `yaml:"rule_id"`
+	Author    string      `yaml:"author"`
+	Type      string      `yaml:"type"`
+	RuleName  string      `yaml:"rule_name"`
+	AlertData bool        `yaml:"alert_data"`
+	HarmLevel string      `yaml:"harm_level"`
+	Desc      string      `yaml:"desc"`
+	Filter    string      `yaml:"filter"`
+	CheckList []CheckNode `yaml:"check_list"`
 }
 
 type CheckNode struct {
-	Type      string    `yaml:"type"`
-	Field     string    `yaml:"field"`
-	Operator  string    `yaml:"operator"`
-	Value     string    `yaml:"value"`
-	Preset    string    `yaml:"preset"`
+	Type      string      `yaml:"type"`
+	Field     string      `yaml:"field"`
+	Operator  string      `yaml:"operator"`
+	Value     string      `yaml:"value"`
+	Preset    string      `yaml:"preset"`
 	CheckList []CheckNode `yaml:"check_list"`
 }
 
@@ -255,8 +255,8 @@ func (c *ElkeidConverter) createBuiltInRules() {
 	}
 
 	yamlData, _ := yaml.Marshal(struct {
-		Source string          `yaml:"source"`
-		Rules  []models.Rule  `yaml:"rules"`
+		Source string        `yaml:"source"`
+		Rules  []models.Rule `yaml:"rules"`
 	}{
 		Source: "elkeid",
 		Rules:  builtinRules,
@@ -278,8 +278,8 @@ func (c *ElkeidConverter) convertRulesets(rulesets []ElkeidRuleset) {
 	}
 
 	yamlData, _ := yaml.Marshal(struct {
-		Source string          `yaml:"source"`
-		Rules  []models.Rule  `yaml:"rules"`
+		Source string        `yaml:"source"`
+		Rules  []models.Rule `yaml:"rules"`
 	}{
 		Source: "elkeid",
 		Rules:  allRules,

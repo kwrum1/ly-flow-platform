@@ -1,0 +1,62 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lyflow.local/contracts/control-health/v1/schema.json",
+  "title": "LyFlow control health v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_type",
+    "runtime",
+    "status",
+    "reason",
+    "prevention_enabled",
+    "fail_policy",
+    "limits",
+    "restart_count",
+    "watchdog_at",
+    "publication"
+  ],
+  "properties": {
+    "schema_version": {"const": "lyflow.control_health.v1"},
+    "event_type": {"const": "control.health"},
+    "runtime": {"type": "string", "minLength": 1},
+    "status": {"enum": ["healthy", "degraded"]},
+    "reason": {"type": "string"},
+    "prevention_enabled": {"type": "boolean"},
+    "fail_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["observation", "integrity", "authorization"],
+      "properties": {
+        "observation": {"const": "fail_open"},
+        "integrity": {"const": "fail_closed"},
+        "authorization": {"const": "fail_closed"}
+      }
+    },
+    "limits": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["queue_capacity", "read_bytes", "cpu_budget_ms", "memory_bytes", "restart_budget"],
+      "properties": {
+        "queue_capacity": {"type": "integer", "minimum": 1},
+        "read_bytes": {"type": "integer", "minimum": 1},
+        "cpu_budget_ms": {"type": "integer", "minimum": 1},
+        "memory_bytes": {"type": "integer", "minimum": 1},
+        "restart_budget": {"type": "integer", "minimum": 1}
+      }
+    },
+    "restart_count": {"type": "integer", "minimum": 0},
+    "watchdog_at": {"type": "string", "format": "date-time"},
+    "publication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "retry_count", "last_error"],
+      "properties": {
+        "status": {"enum": ["healthy", "degraded"]},
+        "retry_count": {"type": "integer", "minimum": 0},
+        "last_error": {"type": "string"}
+      }
+    }
+  }
+}

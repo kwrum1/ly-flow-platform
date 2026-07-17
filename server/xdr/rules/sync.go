@@ -3,32 +3,32 @@ package rules
 import "fmt"
 
 type SyncSource struct {
-	Name string `json:"name"`
-	Label string `json:"label"`
-	Updatable bool `json:"updatable"`
-	Static bool `json:"static"`
-	License string `json:"license"`
+	Name       string `json:"name"`
+	Label      string `json:"label"`
+	Updatable  bool   `json:"updatable"`
+	Static     bool   `json:"static"`
+	License    string `json:"license"`
 	Activation string `json:"activation"`
 }
 
 type SyncResult struct {
-	Source string `json:"source"`
-	DryRun bool `json:"dry_run"`
-	Added int `json:"added"`
-	Changed int `json:"changed"`
-	Unchanged int `json:"unchanged"`
-	Failed int `json:"failed"`
-	Message string `json:"message"`
-	RequiresApproval bool `json:"requires_approval"`
+	Source           string `json:"source"`
+	DryRun           bool   `json:"dry_run"`
+	Added            int    `json:"added"`
+	Changed          int    `json:"changed"`
+	Unchanged        int    `json:"unchanged"`
+	Failed           int    `json:"failed"`
+	Message          string `json:"message"`
+	RequiresApproval bool   `json:"requires_approval"`
 }
 
 type LifecycleState struct {
-	RuleID string `json:"rule_id"`
-	Version int `json:"version"`
-	Enabled bool `json:"enabled"`
-	HitCount int64 `json:"hit_count"`
-	Source string `json:"source"`
-	Audit []string `json:"audit"`
+	RuleID   string   `json:"rule_id"`
+	Version  int      `json:"version"`
+	Enabled  bool     `json:"enabled"`
+	HitCount int64    `json:"hit_count"`
+	Source   string   `json:"source"`
+	Audit    []string `json:"audit"`
 }
 
 func DefaultSyncSources() []SyncSource {

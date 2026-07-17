@@ -1,0 +1,8 @@
+kind	source_path	excluded_tree	runtime	os	monitor_mode	gates	declared_status	gate
+python	agent/rasp/python	none	CPython 3.10	Ubuntu 22.04	monitor	compile,inert-command,inert-file,inert-sql,canonical-events,missing-policy,exporter-outage,artifact-exclusions	candidate	required
+python	agent/rasp/python	none	CPython 3.11	Ubuntu 22.04	monitor	compile,inert-command,inert-file,inert-sql,canonical-events,missing-policy,exporter-outage,artifact-exclusions	candidate	required
+python	agent/rasp/python	none	CPython 3.12	Ubuntu 24.04	monitor	compile,inert-command,inert-file,inert-sql,canonical-events,missing-policy,exporter-outage,artifact-exclusions	candidate	required
+java	agent/rasp/java	probe/rasp/java	JVM 17	experimental-profile	monitor	todo15-runtime,watchdog,tamper,outage,artifact-exclusions	experimental	Todo15-experimental
+node	none	probe/rasp/nodejs	Node.js	deferred	off	pilot-exclusion	unsupported/deferred	deferred
+php	none	probe/rasp/php	PHP	deferred	off	pilot-exclusion	unsupported/deferred	deferred
+dotnet	none	probe/rasp/dotnet	.NET	deferred	off	pilot-exclusion	unsupported/deferred	deferred

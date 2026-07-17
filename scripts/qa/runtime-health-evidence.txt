@@ -1,0 +1,14 @@
+Todo15 verifier evidence
+
+PASS canonical schema contracts/control-health/v1/schema.json and byte fixture shared by Agent, Agent bridge, security-engine, authoritative Python, and experimental Java
+PASS exact field/type set includes typed publication {status,retry_count,last_error}; schema and generated fixture conformance passed across all four runtimes
+PASS bounded three-attempt control-health publication with 10ms/20ms backoff, retained typed errors, degraded state, and recovery in Agent, security-engine, Python, and Java
+PASS prevention_enabled follows acknowledged signed policy mode; healthy and observation/export outage preserve enabled=true, while integrity/config/auth/restart exhaustion disable false
+PASS bounded queue, read, CPU, memory, watchdog, restart budget, signed config, and binary/lifecycle tamper paths
+PASS Agent Go ./cmd race+shuffle count=10, vet, build, gopls, runtime-health manifest, signed release self-test, production image boot, and tamper gate
+PASS security-engine Go ./config ./engine ./cmd race+shuffle count=10, vet, build, gopls, publication recovery, supervision, snapshot, and lifecycle integrity
+PASS Python runtime-health, bridge, conformance, and watchdog suites repeated count=10 (20 tests/run), compileall, publication outage/recovery, and policy-mode gates
+PASS Java experimental-runtime profile Maven javac -Xlint:all -Werror, JUnit count=10 (25 unit + 1 integration/run), reproducible classified JAR, javaagent boot, watchdog, tamper, outage, recovery, and schema conformance
+PASS experimental Java artifact sha256=0a5b536092041c27c980a3b10b2461ecc02ff204812024070270523c31ceb9c8; Java remains excluded from default and pilot artifacts and is not claimed as pilot-supported
+PASS shell syntax/LSP, update-rules shell regression, schema runner, diff whitespace, manifest references, package reproducibility, and generated-artifact cleanup
+INFO basedpyright and jdtls remain unavailable; Python compileall/count10 tests and Maven javac/JUnit/count10 supplied language compile diagnostics

@@ -1,0 +1,9 @@
+{
+  "schema_version": "lyflow.representative-data-workflow.v1",
+  "required_data_class": "redacted-representative",
+  "required_status": "approved",
+  "authority": "calibration-only",
+  "promotion": "structurally-forbidden",
+  "prevention_authorization": false,
+  "commercial_efficacy_authorization": false
+}

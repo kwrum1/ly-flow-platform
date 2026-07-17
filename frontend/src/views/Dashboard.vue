@@ -187,6 +187,7 @@ import { normalizeList } from '../api/adapters'
 import { aggregateLifecycleMetrics, aggregateStatusPipeline, formatDurationLabel } from '../domain/ops-metrics'
 import { createPollingScheduler } from '../data/polling/scheduler'
 import { createPollingFreshnessTracker } from '../data/polling/freshness'
+import { formatChinaDateTime, formatChinaTime } from '../shared/time'
 
 const router = useRouter()
 const loading = ref(true)

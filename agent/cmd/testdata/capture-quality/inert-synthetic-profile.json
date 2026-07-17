@@ -1,0 +1,12 @@
+{
+  "schema_version": "lyflow.capture-benchmark.v1",
+  "name": "inert-test-net-tcp",
+  "inert": true,
+  "packets": 4096,
+  "max_packets_per_cpu": 4096,
+  "source_ip": "192.0.2.10",
+  "destination_ip": "198.51.100.20",
+  "source_port": 49152,
+  "destination_port": 443,
+  "description": "Offline Ethernet/IPv4/TCP SYN records using RFC 5737 TEST-NET addresses. No socket transmission or production traffic is performed. Reported loss is offline parser loss only; kernel and deployment packet loss are not measured by this profile."
+}

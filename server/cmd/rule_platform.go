@@ -7,13 +7,13 @@ import (
 	"compress/gzip"
 	"context"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -21,8 +21,42 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jackc/pgx/v5"
 	"gopkg.in/yaml.v3"
+
+	"github.com/lyflow/ly-flow-platform/server/rulelifecycle"
 )
+
+const rulePlatformSyncBodyLimit int64 = 65 << 20
+
+type ruleVersionStatusCommitter interface {
+	MarkSynced(ctx context.Context, sourceID, version, digest string) error
+}
+
+type postgresRuleVersionStatus struct {
+	pool interface {
+		Begin(ctx context.Context) (pgx.Tx, error)
+	}
+}
+
+func (s postgresRuleVersionStatus) MarkSynced(ctx context.Context, sourceID, version, digest string) error {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return fmt.Errorf("begin rule version status transaction: %w", err)
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
+	result, err := tx.Exec(ctx, `UPDATE rule_source_versions SET sync_status='synced', synced_at=NOW() WHERE source_id=$1 AND version=$2 AND content_hash=$3`, sourceID, version, digest)
+	if err != nil {
+		return fmt.Errorf("mark rule version synced: %w", err)
+	}
+	if result.RowsAffected() != 1 {
+		return fmt.Errorf("mark rule version synced affected %d rows: %w", result.RowsAffected(), rulelifecycle.ErrRevision)
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return fmt.Errorf("commit rule version status: %w", err)
+	}
+	return nil
+}
 
 func rulePlatformSourcesHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -37,7 +71,12 @@ func rulePlatformSourcesHandler(cfg *Config) http.HandlerFunc {
 			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": items, "total": len(items)}})
 		case http.MethodPost:
 			var req map[string]interface{}
-			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
+				var sizeErr *http.MaxBytesError
+				if errors.As(err, &sizeErr) {
+					writeJSONError(w, http.StatusRequestEntityTooLarge, "source_body_too_large", "Request body exceeds 1 MiB")
+					return
+				}
 				writeJSONError(w, http.StatusBadRequest, "invalid_source", "Invalid request body")
 				return
 			}
@@ -77,7 +116,12 @@ func rulePlatformSyncHandler(cfg *Config) http.HandlerFunc {
 			return
 		}
 		var req map[string]interface{}
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, rulePlatformSyncBodyLimit)).Decode(&req); err != nil {
+			var sizeErr *http.MaxBytesError
+			if errors.As(err, &sizeErr) {
+				writeJSONError(w, http.StatusRequestEntityTooLarge, "sync_body_too_large", "Request body exceeds 65 MiB")
+				return
+			}
 			writeJSONError(w, http.StatusBadRequest, "invalid_sync_request", "Invalid request body")
 			return
 		}
@@ -97,7 +141,7 @@ func rulePlatformCompilePreviewHandler(cfg *Config) http.HandlerFunc {
 			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
 			return
 		}
-		preview, err := previewSecurityBundle(r.Context(), cfg)
+		preview, err := stageSecurityBundlePreview(r.Context(), cfg)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, "compile_preview_failed", err.Error())
 			return
@@ -196,8 +240,21 @@ func upsertRulePlatformSource(ctx context.Context, cfg *Config, req map[string]i
 	origin := firstNonEmpty(asString(req["origin"]), "external_subscription")
 	license := asString(req["license"])
 	url := asString(req["url"])
+	if id == "" {
+		id = slugifyRulePlatformID(name)
+	}
+	if cfg.RuleLifecycle == nil {
+		return nil, errors.New("secure rule lifecycle is unavailable")
+	}
+	actor := ruleLifecycleActor(ctx)
+	if err := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.upsert.attempt", id, rulelifecycle.AuditResultSucceeded, map[string]interface{}{"has_url": url != ""}); err != nil {
+		return nil, err
+	}
 	if url != "" {
-		if err := validateRuleSourceURL(url); err != nil {
+		if err := cfg.RuleLifecycle.ValidateSourceURL(ctx, url); err != nil {
+			if auditErr := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.upsert", id, rulelifecycle.AuditResultFailed, map[string]interface{}{"error": err.Error()}); auditErr != nil {
+				return nil, auditErr
+			}
 			return nil, err
 		}
 	}
@@ -205,11 +262,14 @@ func upsertRulePlatformSource(ctx context.Context, cfg *Config, req map[string]i
 	connector := asBool(req["connector"])
 	restricted := asBool(req["restricted"])
 	updatable := asBool(req["updatable"])
-	if id == "" {
-		id = slugifyRulePlatformID(name)
-	}
 	_, err := cfg.DBPool.Exec(ctx, `INSERT INTO rule_sources (id, name, category, origin, license, url, bundled, connector, restricted, updatable, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW()) ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, category=EXCLUDED.category, origin=EXCLUDED.origin, license=EXCLUDED.license, url=EXCLUDED.url, bundled=EXCLUDED.bundled, connector=EXCLUDED.connector, restricted=EXCLUDED.restricted, updatable=EXCLUDED.updatable, updated_at=NOW()`, id, name, category, origin, license, url, bundled, connector, restricted, updatable)
 	if err != nil {
+		if auditErr := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.upsert", id, rulelifecycle.AuditResultFailed, map[string]interface{}{"error": err.Error()}); auditErr != nil {
+			return nil, auditErr
+		}
+		return nil, err
+	}
+	if err := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.upsert", id, rulelifecycle.AuditResultSucceeded, map[string]interface{}{"has_url": url != ""}); err != nil {
 		return nil, err
 	}
 	return map[string]interface{}{"id": id, "name": name, "category": category, "origin": origin, "license": license, "url": url, "bundled": bundled, "connector": connector, "restricted": restricted, "updatable": updatable}, nil
@@ -313,7 +373,40 @@ func previewSecurityBundle(ctx context.Context, cfg *Config) (map[string]interfa
 	return map[string]interface{}{"version": bundle.Version, "bundle_hash": hex.EncodeToString(sum[:]), "rule_count": len(rules), "rule_counts": counts, "would_activate": false}, nil
 }
 
+func stageSecurityBundlePreview(ctx context.Context, cfg *Config) (map[string]interface{}, error) {
+	if cfg.RuleLifecycle == nil {
+		return nil, errors.New("secure rule lifecycle is unavailable")
+	}
+	if err := ensureDefaultDetectionRules(ctx, cfg); err != nil {
+		return nil, err
+	}
+	rules, err := loadEnabledDetectionRules(ctx, cfg)
+	if err != nil {
+		return nil, err
+	}
+	version := "preview-" + time.Now().UTC().Format("20060102150405.000000000")
+	data, err := json.Marshal(compiledBundleFile{Version: version, Rules: rules})
+	if err != nil {
+		return nil, err
+	}
+	digest := sha256.Sum256(data)
+	preview, err := cfg.RuleLifecycle.StageLocal(ctx, ruleLifecycleActor(ctx), rulelifecycle.LocalSource{
+		SourceID: "database-detection-rules", Revision: version, SHA256: hex.EncodeToString(digest[:]), Content: data,
+	})
+	if err != nil {
+		return nil, err
+	}
+	counts := map[string]int{"traffic": 0, "runtime": 0, "rasp": 0, "log_audit": 0}
+	for _, rule := range rules {
+		counts[rule.Category]++
+	}
+	return map[string]interface{}{"version": preview.Revision, "bundle_hash": preview.Digest, "rule_count": preview.RuleCount, "rule_counts": counts, "would_activate": preview.WouldActivate}, nil
+}
+
 func compileDefaultSecurityBundle(ctx context.Context, cfg *Config) (map[string]interface{}, error) {
+	if cfg.RuleLifecycle == nil {
+		return nil, errors.New("secure rule lifecycle is unavailable")
+	}
 	if err := ensureDefaultDetectionRules(ctx, cfg); err != nil {
 		return nil, err
 	}
@@ -327,31 +420,29 @@ func compileDefaultSecurityBundle(ctx context.Context, cfg *Config) (map[string]
 	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll("rules/security-engine/compiled", 0o775); err != nil {
-		return nil, err
-	}
-	target := filepath.Join("rules/security-engine/compiled", version+".json")
-	if err := os.WriteFile(target, data, 0o664); err != nil {
-		return nil, err
-	}
-	_ = os.Chmod(target, 0o644)
-	if err := os.WriteFile("rules/security-engine/active-bundle.json", data, 0o664); err != nil {
-		return nil, err
-	}
-	_ = os.Chmod("rules/security-engine/active-bundle.json", 0o644)
 	sum := sha256.Sum256(data)
 	hash := hex.EncodeToString(sum[:])
+	actor := ruleLifecycleActor(ctx)
+	preview, err := cfg.RuleLifecycle.StageLocal(ctx, actor, rulelifecycle.LocalSource{
+		SourceID: "database-detection-rules", Revision: version, SHA256: hash, Content: data,
+	})
+	if err != nil {
+		return nil, err
+	}
+	manifest, err := cfg.RuleLifecycle.Activate(ctx, actor, version)
+	if err != nil {
+		return nil, err
+	}
 	if _, err := cfg.DBPool.Exec(ctx, `UPDATE rule_bundles SET status='inactive' WHERE status='active'`); err != nil {
 		return nil, err
 	}
-	if _, err := cfg.DBPool.Exec(ctx, `INSERT INTO rule_bundles (version, status, bundle_hash, bundle_path, activated_at) VALUES ($1,'active',$2,$3,NOW()) ON CONFLICT (version) DO UPDATE SET status='active', bundle_hash=EXCLUDED.bundle_hash, bundle_path=EXCLUDED.bundle_path, activated_at=NOW()`, version, hash, target); err != nil {
+	if _, err := cfg.DBPool.Exec(ctx, `INSERT INTO rule_bundles (version, status, bundle_hash, bundle_path, activated_at) VALUES ($1,'active',$2,$3,NOW()) ON CONFLICT (version) DO UPDATE SET status='active', bundle_hash=EXCLUDED.bundle_hash, bundle_path=EXCLUDED.bundle_path, activated_at=NOW()`, version, hash, manifest.BundlePath); err != nil {
 		return nil, err
 	}
-	reloadStatus := reloadSecurityEngine(ctx, cfg, target)
-	if _, err := cfg.DBPool.Exec(ctx, `INSERT INTO rule_hot_reload_events (bundle_version, target, status, message) VALUES ($1,$2,$3,$4)`, version, "ly-security-engine", reloadStatus["status"], reloadStatus["message"]); err != nil {
+	if _, err := cfg.DBPool.Exec(ctx, `INSERT INTO rule_hot_reload_events (bundle_version, target, status, message) VALUES ($1,$2,'ok',$3)`, version, "ly-security-engine", manifest.BundlePath); err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"version": version, "status": "active", "bundle_hash": hash, "bundle_path": target, "activated_at": time.Now().UTC().Format(time.RFC3339), "rule_count": len(rules), "reload": reloadStatus}, nil
+	return map[string]interface{}{"version": version, "status": "active", "bundle_hash": hash, "bundle_path": manifest.BundlePath, "manifest_signature": manifest.Signature, "activated_at": manifest.ActivatedAt.Format(time.RFC3339), "rule_count": preview.RuleCount, "reload": map[string]interface{}{"status": "ok", "message": manifest.BundlePath}}, nil
 }
 
 func ensureDefaultDetectionRules(ctx context.Context, cfg *Config) error {
@@ -399,7 +490,7 @@ func loadEnabledDetectionRules(ctx context.Context, cfg *Config) ([]compiledRunt
 			return nil, err
 		}
 		if !compiledRuntimeRuleValid(rule) {
-			continue
+			return nil, fmt.Errorf("rule %s failed strict runtime validation", id)
 		}
 		rules = append(rules, rule)
 	}
@@ -510,29 +601,6 @@ func appendCategoryGuards(category string, spec map[string]interface{}, conditio
 	return conditions
 }
 
-func reloadSecurityEngine(ctx context.Context, cfg *Config, bundlePath string) map[string]interface{} {
-	if strings.TrimSpace(cfg.SecurityEngineReloadURL) == "" {
-		return map[string]interface{}{"status": "skipped", "message": "reload URL not configured"}
-	}
-	enginePath := strings.TrimPrefix(bundlePath, "rules/")
-	enginePath = "/app/rules/" + enginePath
-	body, _ := json.Marshal(map[string]string{"path": enginePath})
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, cfg.SecurityEngineReloadURL, strings.NewReader(string(body)))
-	if err != nil {
-		return map[string]interface{}{"status": "failed", "message": err.Error()}
-	}
-	req.Header.Set("Content-Type", "application/json")
-	resp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		return map[string]interface{}{"status": "failed", "message": err.Error()}
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return map[string]interface{}{"status": "failed", "message": resp.Status}
-	}
-	return map[string]interface{}{"status": "ok", "message": enginePath}
-}
-
 func firstNonZero(value, fallback int) int {
 	if value != 0 {
 		return value
@@ -639,20 +707,120 @@ func syncRulePlatformSource(ctx context.Context, cfg *Config, req map[string]int
 	if isRestrictedRuleLicense(license) && !asBool(source["connector"]) && !cfg.RuleDownloadRestrictedShown {
 		return nil, fmt.Errorf("source %s license %s requires user-provided connector", sourceID, asString(source["license"]))
 	}
-	version := firstNonEmpty(asString(req["version"]), time.Now().UTC().Format("20060102150405"))
+	version := strings.TrimSpace(asString(req["version"]))
+	if version == "" {
+		return nil, errors.New("pinned source version is required")
+	}
 	if asString(req["url"]) == "" {
 		req["url"] = externalSourceURL(source, req)
 	}
-	rawRules := rulePlatformRulesFromRequestOrCatalog(sourceID, req)
+	if cfg.RuleLifecycle == nil {
+		return nil, errors.New("secure rule lifecycle is unavailable")
+	}
+	actor := ruleLifecycleActor(ctx)
+	inlineRequest := len(mapSlice(req["rules"])) > 0 || strings.TrimSpace(asString(req["content"])) != ""
+	resource := sourceID + ":" + version
+	if inlineRequest {
+		if err := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.inline.attempt", resource, rulelifecycle.AuditResultSucceeded, map[string]interface{}{"source_type": "local"}); err != nil {
+			return nil, err
+		}
+	}
+	rawRules, _, sourceDigest, sourceLocation, inline, err := rulePlatformSourceMaterial(ctx, cfg, actor, sourceID, req)
+	if err != nil {
+		if inlineRequest {
+			if auditErr := recordRuleInlineFailure(ctx, cfg, actor, resource, inlineFailureStage(err), err); auditErr != nil {
+				return nil, auditErr
+			}
+		}
+		if auditErr := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.sync", sourceID+":"+version, rulelifecycle.AuditResultFailed, map[string]interface{}{"error": err.Error()}); auditErr != nil {
+			return nil, auditErr
+		}
+		return nil, err
+	}
+	if !validRulePlatformPathSegment(sourceID) || !validRulePlatformPathSegment(version) {
+		if inlineRequest {
+			if auditErr := recordRuleInlineFailure(ctx, cfg, actor, resource, "conflict", rulelifecycle.ErrRevision); auditErr != nil {
+				return nil, auditErr
+			}
+		}
+		return nil, rulelifecycle.ErrRevision
+	}
+	var existingDigest string
+	existingErr := cfg.DBPool.QueryRow(ctx, `SELECT content_hash FROM rule_source_versions WHERE source_id=$1 AND version=$2`, sourceID, version).Scan(&existingDigest)
+	if existingErr == nil && existingDigest != sourceDigest {
+		if inlineRequest {
+			if auditErr := recordRuleInlineFailure(ctx, cfg, actor, resource, "conflict", rulelifecycle.ErrRevision); auditErr != nil {
+				return nil, auditErr
+			}
+		}
+		if auditErr := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.persist", sourceID+":"+version, rulelifecycle.AuditResultFailed, map[string]interface{}{"error": rulelifecycle.ErrRevision.Error(), "existing_digest": existingDigest, "candidate_digest": sourceDigest}); auditErr != nil {
+			return nil, auditErr
+		}
+		return nil, rulelifecycle.ErrRevision
+	}
+	if existingErr != nil && !errors.Is(existingErr, pgx.ErrNoRows) {
+		return nil, existingErr
+	}
+	if len(rawRules) == 0 {
+		err := errors.New("rule source produced no strictly parseable rules")
+		if inline {
+			if auditErr := recordRuleInlineFailure(ctx, cfg, actor, resource, "parse", err); auditErr != nil {
+				return nil, auditErr
+			}
+		}
+		if auditErr := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.parse", sourceID+":"+version, rulelifecycle.AuditResultFailed, map[string]interface{}{"error": err.Error()}); auditErr != nil {
+			return nil, auditErr
+		}
+		return nil, err
+	}
+	if err := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.parse", sourceID+":"+version, rulelifecycle.AuditResultSucceeded, map[string]interface{}{"digest": sourceDigest, "rule_count": len(rawRules), "source": sourceLocation}); err != nil {
+		return nil, err
+	}
 	converted, report := convertRulePlatformRules(source, version, rawRules)
-	if err := os.MkdirAll("rules/security-engine/sources", 0o775); err != nil {
+	lifecycleRevision := slugifyRulePlatformID(sourceID + "-" + version)
+	runtimeRules := make([]compiledRuntimeRule, 0, len(converted))
+	for _, convertedRule := range converted {
+		rawRule, err := json.Marshal(convertedRule)
+		if err != nil {
+			return nil, fmt.Errorf("marshal converted rule: %w", err)
+		}
+		runtimeRule, err := compileDetectionRule(asString(convertedRule["id"]), asString(convertedRule["category"]), asString(convertedRule["name"]), string(rawRule))
+		if err != nil || !compiledRuntimeRuleValid(runtimeRule) {
+			if err == nil {
+				err = errors.New("converted rule failed strict validation")
+			}
+			return nil, fmt.Errorf("compile converted rule %s: %w", asString(convertedRule["id"]), err)
+		}
+		runtimeRules = append(runtimeRules, runtimeRule)
+	}
+	bundleData, err := json.Marshal(compiledBundleFile{Version: lifecycleRevision, Rules: runtimeRules})
+	if err != nil {
+		return nil, err
+	}
+	bundleDigestBytes := sha256.Sum256(bundleData)
+	bundleDigest := hex.EncodeToString(bundleDigestBytes[:])
+	preview, err := cfg.RuleLifecycle.StageLocal(ctx, actor, rulelifecycle.LocalSource{SourceID: sourceID, Revision: lifecycleRevision, SHA256: bundleDigest, Content: bundleData})
+	if err != nil {
+		if inline {
+			if auditErr := recordRuleInlineFailure(ctx, cfg, actor, resource, inlineFailureStage(err), err); auditErr != nil {
+				return nil, auditErr
+			}
+		}
+		if auditErr := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.sync", sourceID+":"+version, rulelifecycle.AuditResultFailed, map[string]interface{}{"error": err.Error()}); auditErr != nil {
+			return nil, auditErr
+		}
 		return nil, err
 	}
 	snapshot := map[string]interface{}{
-		"source":             source,
+		"source": map[string]interface{}{
+			"id": source["id"], "name": source["name"], "category": source["category"], "origin": source["origin"],
+			"license": source["license"], "url": source["url"], "bundled": source["bundled"], "connector": source["connector"],
+			"restricted": source["restricted"], "updatable": source["updatable"],
+		},
 		"version":            version,
 		"mode":               firstNonEmpty(asString(req["mode"]), "sync_convert"),
-		"synced_at":          time.Now().UTC().Format(time.RFC3339),
+		"source_type":        map[bool]string{true: "local", false: "remote"}[inline],
+		"source_location":    sourceLocation,
 		"rule_count":         len(rawRules),
 		"converted_count":    report.Converted,
 		"deduplicated_count": report.Duplicates,
@@ -671,27 +839,105 @@ func syncRulePlatformSource(ctx context.Context, cfg *Config, req map[string]int
 		copySnapshot["rules_total"] = len(converted)
 		snapshotForDisk = copySnapshot
 	}
+	snapshotForDisk["source_revision"] = version
+	snapshotForDisk["source_content_digest"] = sourceDigest
 	data, err := json.MarshalIndent(snapshotForDisk, "", "  ")
 	if err != nil {
+		if inline {
+			if auditErr := recordRuleInlineFailure(ctx, cfg, actor, resource, "persistence", err); auditErr != nil {
+				return nil, auditErr
+			}
+		}
 		return nil, err
 	}
-	sum := sha256.Sum256(data)
-	hash := hex.EncodeToString(sum[:])
-	snapshotPath := filepath.Join("rules/security-engine/sources", sourceID+"-"+version+".json")
-	if err := os.WriteFile(snapshotPath, data, 0o664); err != nil {
+	snapshotPath := filepath.Join("rules/security-engine/sources", sourceID, version, sourceDigest+".json")
+	if err := writeImmutableRuleSnapshot(snapshotPath, data); err != nil {
+		if auditErr := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.persist", sourceID+":"+version, rulelifecycle.AuditResultFailed, map[string]interface{}{"error": err.Error()}); auditErr != nil {
+			return nil, auditErr
+		}
 		return nil, err
 	}
-	if _, err := cfg.DBPool.Exec(ctx, `INSERT INTO rule_source_versions (source_id, version, content_hash, snapshot_path, sync_status, synced_at) VALUES ($1,$2,$3,$4,'synced',NOW()) ON CONFLICT (source_id, version, content_hash) DO UPDATE SET snapshot_path=EXCLUDED.snapshot_path, sync_status='synced', synced_at=NOW()`, sourceID, version, hash, snapshotPath); err != nil {
+	if _, err := cfg.DBPool.Exec(ctx, `INSERT INTO rule_source_versions (source_id, version, content_hash, snapshot_path, sync_status, synced_at) VALUES ($1,$2,$3,$4,'staged',NOW()) ON CONFLICT (source_id, version) DO NOTHING`, sourceID, version, sourceDigest, snapshotPath); err != nil {
+		if auditErr := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.persist", sourceID+":"+version, rulelifecycle.AuditResultFailed, map[string]interface{}{"error": err.Error()}); auditErr != nil {
+			return nil, auditErr
+		}
 		return nil, err
 	}
 	inserted, duplicates, unsupported, err := upsertConvertedDetectionRules(ctx, cfg, sourceID, converted)
 	if err != nil {
+		if auditErr := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.persist", sourceID+":"+version, rulelifecycle.AuditResultFailed, map[string]interface{}{"error": err.Error()}); auditErr != nil {
+			return nil, auditErr
+		}
 		return nil, err
 	}
 	report.Inserted = inserted
 	report.Duplicates += duplicates
 	report.Unsupported = unsupported
-	return map[string]interface{}{"source_id": sourceID, "version": version, "content_hash": hash, "snapshot_path": snapshotPath, "status": "synced", "restricted": asBool(source["restricted"]), "license": asString(source["license"]), "rule_count": len(rawRules), "converted_count": report.Converted, "inserted_count": report.Inserted, "duplicate_count": report.Duplicates, "unsupported_count": report.Unsupported, "support": report.SupportCounts, "dedup_report": report.DedupGroups}, nil
+	if err := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.persist", sourceID+":"+version, rulelifecycle.AuditResultSucceeded, map[string]interface{}{"digest": sourceDigest, "snapshot_path": snapshotPath}); err != nil {
+		return nil, err
+	}
+	statusCommitter := cfg.RuleVersionStatus
+	if statusCommitter == nil {
+		statusCommitter = postgresRuleVersionStatus{pool: cfg.DBPool}
+	}
+	manifest, err := cfg.RuleLifecycle.ActivateWithCommit(ctx, actor, lifecycleRevision, func() error {
+		return statusCommitter.MarkSynced(ctx, sourceID, version, sourceDigest)
+	})
+	if err != nil {
+		if inline {
+			if auditErr := recordRuleInlineFailure(ctx, cfg, actor, resource, "persistence", err); auditErr != nil {
+				return nil, auditErr
+			}
+		}
+		if auditErr := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.sync", sourceID+":"+version, rulelifecycle.AuditResultFailed, map[string]interface{}{"error": err.Error()}); auditErr != nil {
+			return nil, auditErr
+		}
+		return nil, err
+	}
+	if inline {
+		if err := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.inline.outcome", resource, rulelifecycle.AuditResultSucceeded, map[string]interface{}{"stage": "activated", "digest": sourceDigest, "active_digest": manifest.Digest}); err != nil {
+			return nil, err
+		}
+		if err := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.inline", sourceID+":"+version, rulelifecycle.AuditResultSucceeded, map[string]interface{}{"digest": sourceDigest, "active_digest": manifest.Digest}); err != nil {
+			return nil, err
+		}
+	}
+	if err := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.sync", sourceID+":"+version, rulelifecycle.AuditResultSucceeded, map[string]interface{}{"digest": sourceDigest, "active_digest": manifest.Digest}); err != nil {
+		return nil, err
+	}
+	return map[string]interface{}{"source_id": sourceID, "version": version, "content_hash": sourceDigest, "snapshot_path": snapshotPath, "status": "synced", "restricted": asBool(source["restricted"]), "license": asString(source["license"]), "rule_count": len(rawRules), "converted_count": report.Converted, "inserted_count": report.Inserted, "duplicate_count": report.Duplicates, "unsupported_count": report.Unsupported, "support": report.SupportCounts, "dedup_report": report.DedupGroups, "bundle_hash": preview.Digest, "manifest_signature": manifest.Signature}, nil
+}
+
+func recordRuleInlineFailure(ctx context.Context, cfg *Config, actor rulelifecycle.Actor, resource, stage string, cause error) error {
+	return cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.inline.outcome", resource, rulelifecycle.AuditResultFailed, map[string]interface{}{"stage": stage, "error_code": inlineFailureCode(cause)})
+}
+
+func inlineFailureStage(err error) string {
+	switch {
+	case errors.Is(err, rulelifecycle.ErrDigestMismatch):
+		return "digest"
+	case errors.Is(err, rulelifecycle.ErrSizeLimit):
+		return "size"
+	case errors.Is(err, rulelifecycle.ErrRevision):
+		return "conflict"
+	default:
+		return "parse"
+	}
+}
+
+func inlineFailureCode(err error) string {
+	switch {
+	case errors.Is(err, rulelifecycle.ErrDigestMismatch):
+		return "digest_mismatch"
+	case errors.Is(err, rulelifecycle.ErrSizeLimit):
+		return "size_limit"
+	case errors.Is(err, rulelifecycle.ErrRevision):
+		return "revision_conflict"
+	case errors.Is(err, rulelifecycle.ErrCompile):
+		return "compile_failed"
+	default:
+		return "inline_failed"
+	}
 }
 
 type ruleSyncReport struct {
@@ -732,107 +978,125 @@ func ensureRuleSourceCatalog(ctx context.Context, cfg *Config) error {
 		sum := sha256.Sum256(raw)
 		hash := hex.EncodeToString(sum[:])
 		snapshotPath := firstNonEmpty(asString(row["url"]), "lyflow://rules/source/"+asString(row["id"]))
-		if _, err := cfg.DBPool.Exec(ctx, `INSERT INTO rule_source_versions (source_id, version, content_hash, snapshot_path, sync_status, synced_at) VALUES ($1,$2,$3,$4,'synced',NOW()) ON CONFLICT (source_id, version, content_hash) DO UPDATE SET snapshot_path=EXCLUDED.snapshot_path, sync_status='synced', synced_at=NOW()`, row["id"], version, hash, snapshotPath); err != nil {
+		if _, err := cfg.DBPool.Exec(ctx, `INSERT INTO rule_source_versions (source_id, version, content_hash, snapshot_path, sync_status, synced_at) VALUES ($1,$2,$3,$4,'synced',NOW()) ON CONFLICT (source_id, version) DO NOTHING`, row["id"], version, hash, snapshotPath); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func rulePlatformRulesFromRequestOrCatalog(sourceID string, req map[string]interface{}) []map[string]interface{} {
+func rulePlatformSourceMaterial(ctx context.Context, cfg *Config, actor rulelifecycle.Actor, sourceID string, req map[string]interface{}) ([]map[string]interface{}, []byte, string, string, bool, error) {
 	if rules := mapSlice(req["rules"]); len(rules) > 0 {
-		return rules
+		content, err := json.Marshal(rules)
+		if err != nil {
+			return nil, nil, "", "", true, fmt.Errorf("marshal inline rules: %w", err)
+		}
+		if len(content) > 64<<20 {
+			return nil, nil, "", "", true, rulelifecycle.ErrSizeLimit
+		}
+		digest, err := verifyCallerDigest(content, req)
+		if err != nil {
+			return nil, nil, "", "", true, err
+		}
+		return rules, content, digest, "local://" + sourceID, true, nil
 	}
 	if inline := asString(req["content"]); strings.TrimSpace(inline) != "" {
-		return parseExternalRuleSource(sourceID, inline)
+		content := []byte(inline)
+		if len(content) > 64<<20 {
+			return nil, nil, "", "", true, rulelifecycle.ErrSizeLimit
+		}
+		digest, err := verifyCallerDigest(content, req)
+		if err != nil {
+			return nil, nil, "", "", true, err
+		}
+		return parseExternalRuleSource(sourceID, inline), content, digest, "local://" + sourceID, true, nil
 	}
 	switch sourceID {
 	case "lyflow-compiled-local":
-		return loadLocalCompiledRuleCorpus()
+		rules := loadLocalCompiledRuleCorpus()
+		content, err := json.Marshal(rules)
+		if err != nil {
+			return nil, nil, "", "", false, err
+		}
+		digest := sha256.Sum256(content)
+		return rules, content, hex.EncodeToString(digest[:]), "local://compiled-corpus", false, nil
 	case "custom-rasp-rules":
-		return []map[string]interface{}{}
+		return nil, nil, "", "", false, errors.New("custom rule sync requires pinned inline rules or content")
 	}
 	sourceURL := asString(req["url"])
 	if sourceURL == "" {
-		return loadCachedExternalRuleSource(sourceID)
-	}
-	if err := validateRuleSourceURL(sourceURL); err != nil {
-		return nil
+		return nil, nil, "", "", false, errors.New("external rule source URL is required")
 	}
 	checksum := firstNonEmpty(asString(req["sha256"]), asString(req["checksum"]), asString(req["content_hash"]))
-	content, err := fetchExternalRuleSource(sourceID, sourceURL, checksum)
+	if checksum == "" {
+		return nil, nil, "", "", false, errors.New("external rule source sha256 is required")
+	}
+	if cfg.RuleLifecycle == nil {
+		return nil, nil, "", "", false, errors.New("secure rule lifecycle is unavailable")
+	}
+	fetched, err := cfg.RuleLifecycle.FetchSource(ctx, actor, rulelifecycle.SourcePin{URL: sourceURL, Revision: asString(req["version"]), SHA256: checksum})
 	if err != nil {
-		return loadCachedExternalRuleSource(sourceID)
+		return nil, nil, "", "", false, err
+	}
+	content, err := decodeRuleSourceBody(fetched.Content)
+	if err != nil {
+		if auditErr := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.parse", sourceID+":"+asString(req["version"]), rulelifecycle.AuditResultFailed, map[string]interface{}{"error": err.Error()}); auditErr != nil {
+			return nil, nil, "", "", false, auditErr
+		}
+		return nil, nil, "", "", false, err
 	}
 	rules := parseExternalRuleSource(sourceID, content)
-	if len(rules) == 0 {
-		return loadCachedExternalRuleSource(sourceID)
+	return rules, fetched.Content, strings.ToLower(checksum), fetched.FinalURL, false, nil
+}
+
+func verifyCallerDigest(content []byte, req map[string]interface{}) (string, error) {
+	expectedHex := strings.ToLower(firstNonEmpty(asString(req["sha256"]), asString(req["checksum"]), asString(req["content_hash"])))
+	expected, err := hex.DecodeString(expectedHex)
+	if err != nil || len(expected) != sha256.Size {
+		return "", rulelifecycle.ErrDigestMismatch
 	}
-	return rules
+	actual := sha256.Sum256(content)
+	if subtle.ConstantTimeCompare(actual[:], expected) != 1 {
+		return "", rulelifecycle.ErrDigestMismatch
+	}
+	return expectedHex, nil
 }
 
 func externalSourceURL(source map[string]interface{}, req map[string]interface{}) string {
 	return firstNonEmpty(asString(req["url"]), asString(source["url"]))
 }
 
-func fetchExternalRuleSource(sourceID, sourceURL, checksum string) (string, error) {
-	if err := validateRuleSourceURL(sourceURL); err != nil {
-		return "", err
-	}
-	client := &http.Client{Timeout: 45 * time.Second}
-	req, err := http.NewRequest(http.MethodGet, sourceURL, nil)
-	if err != nil {
-		return "", err
-	}
-	req.Header.Set("User-Agent", "ly-flow-rule-connector/1.0")
-	resp, err := client.Do(req)
-	if err != nil {
-		return "", err
-	}
-	defer resp.Body.Close()
-	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return "", fmt.Errorf("fetch %s failed: %s", sourceURL, resp.Status)
-	}
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 64<<20))
-	if err != nil {
-		return "", err
-	}
-	if checksum != "" {
-		sum := sha256.Sum256(body)
-		got := hex.EncodeToString(sum[:])
-		if !strings.EqualFold(strings.TrimSpace(checksum), got) {
-			return "", fmt.Errorf("rule source checksum mismatch: got %s", got)
-		}
-	}
-	if err := os.MkdirAll("rules/security-engine/remote-cache", 0o775); err == nil {
-		_ = os.WriteFile(filepath.Join("rules/security-engine/remote-cache", sourceID+".raw"), body, 0o664)
-	}
-	return decodeRuleSourceBody(body)
-}
-
 func decodeRuleSourceBody(body []byte) (string, error) {
+	const maxDecodedSize = 64 << 20
 	if len(body) >= 2 && body[0] == 0x1f && body[1] == 0x8b {
 		gz, err := gzip.NewReader(bytes.NewReader(body))
 		if err != nil {
 			return "", err
 		}
 		defer gz.Close()
-		data, err := io.ReadAll(io.LimitReader(gz, 128<<20))
+		data, err := io.ReadAll(io.LimitReader(gz, maxDecodedSize+1))
 		if err != nil {
 			return "", err
 		}
-		if text, ok := readRuleTarText(data); ok {
+		if len(data) > maxDecodedSize {
+			return "", errors.New("decoded rule source exceeds 64 MiB")
+		}
+		if text, ok, err := readRuleTarText(data, maxDecodedSize); err != nil {
+			return "", err
+		} else if ok {
 			return text, nil
 		}
 		return string(data), nil
 	}
-	if text, ok := readRuleTarText(body); ok {
+	if text, ok, err := readRuleTarText(body, maxDecodedSize); err != nil {
+		return "", err
+	} else if ok {
 		return text, nil
 	}
 	return string(body), nil
 }
 
-func readRuleTarText(data []byte) (string, bool) {
+func readRuleTarText(data []byte, maxBytes int64) (string, bool, error) {
 	tr := tar.NewReader(bytes.NewReader(data))
 	var b strings.Builder
 	readAny := false
@@ -842,7 +1106,7 @@ func readRuleTarText(data []byte) (string, bool) {
 			break
 		}
 		if err != nil {
-			return "", false
+			return "", false, nil
 		}
 		if header == nil || header.Typeflag != tar.TypeReg {
 			continue
@@ -851,91 +1115,22 @@ func readRuleTarText(data []byte) (string, bool) {
 		if !strings.HasSuffix(name, ".rules") && !strings.HasSuffix(name, ".conf") && !strings.HasSuffix(name, ".txt") {
 			continue
 		}
-		chunk, err := io.ReadAll(io.LimitReader(tr, 32<<20))
+		remaining := maxBytes - int64(b.Len())
+		if remaining <= 0 || header.Size > remaining {
+			return "", false, errors.New("archived rule source exceeds 64 MiB")
+		}
+		chunk, err := io.ReadAll(io.LimitReader(tr, remaining+1))
 		if err != nil {
-			return "", false
+			return "", false, err
+		}
+		if int64(len(chunk)) > remaining {
+			return "", false, errors.New("archived rule source exceeds 64 MiB")
 		}
 		b.WriteByte('\n')
 		b.Write(chunk)
 		readAny = true
 	}
-	return b.String(), readAny
-}
-
-func validateRuleSourceURL(sourceURL string) error {
-	parsed, err := url.Parse(strings.TrimSpace(sourceURL))
-	if err != nil || parsed.Scheme == "" {
-		return fmt.Errorf("rule source URL must be absolute https/http URL")
-	}
-	if parsed.Scheme != "https" && parsed.Scheme != "http" {
-		return fmt.Errorf("rule source URL scheme %q is not allowed", parsed.Scheme)
-	}
-	host := parsed.Hostname()
-	if host == "" {
-		return fmt.Errorf("rule source URL host is required")
-	}
-	if strings.EqualFold(host, "localhost") {
-		return fmt.Errorf("rule source URL host localhost is not allowed")
-	}
-	ips, err := net.LookupIP(host)
-	if err != nil {
-		return fmt.Errorf("rule source URL host lookup failed: %w", err)
-	}
-	for _, ip := range ips {
-		if ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() || ip.IsMulticast() {
-			return fmt.Errorf("rule source URL host resolves to non-public address %s", ip.String())
-		}
-	}
-	return nil
-}
-
-func loadCachedExternalRuleSource(sourceID string) []map[string]interface{} {
-	if rules := loadLatestRuleSourceSnapshot(sourceID); len(rules) > 0 {
-		return rules
-	}
-	paths := []string{
-		filepath.Join("rules/security-engine/remote-cache", sourceID+".raw"),
-		defaultLocalConnectorPath(sourceID),
-	}
-	for _, path := range paths {
-		if path == "" {
-			continue
-		}
-		data, err := os.ReadFile(path)
-		if err == nil && len(data) > 0 {
-			return parseExternalRuleSource(sourceID, string(data))
-		}
-	}
-	return nil
-}
-
-func loadLatestRuleSourceSnapshot(sourceID string) []map[string]interface{} {
-	paths, err := filepath.Glob(filepath.Join("rules/security-engine/sources", sourceID+"-*.json"))
-	if err != nil || len(paths) == 0 {
-		return nil
-	}
-	sort.Slice(paths, func(i, j int) bool { return paths[i] > paths[j] })
-	for _, path := range paths {
-		var snapshot map[string]interface{}
-		if err := readJSONFile(path, &snapshot); err != nil {
-			continue
-		}
-		if rules := mapSlice(snapshot["rules"]); len(rules) > 0 {
-			return rules
-		}
-	}
-	return nil
-}
-
-func defaultLocalConnectorPath(sourceID string) string {
-	switch sourceID {
-	case "openrasp-derived":
-		return "rules/rasp/elkeid_rasp_rules.yaml"
-	case "et-open-connector":
-		return "rules/suricata/et-open.rules"
-	default:
-		return ""
-	}
+	return b.String(), readAny, nil
 }
 
 func parseExternalRuleSource(sourceID, content string) []map[string]interface{} {
@@ -1745,6 +1940,9 @@ func loadRulePlatformVersions(ctx context.Context, cfg *Config, sourceID string)
 }
 
 func rollbackRulePlatformBundle(ctx context.Context, cfg *Config, requestedVersion string) (map[string]interface{}, error) {
+	if cfg.RuleLifecycle == nil {
+		return nil, errors.New("secure rule lifecycle is unavailable")
+	}
 	rows, err := loadRulePlatformBundles(ctx, cfg)
 	if err != nil {
 		return nil, err
@@ -1773,10 +1971,10 @@ func rollbackRulePlatformBundle(ctx context.Context, cfg *Config, requestedVersi
 	if path == "" {
 		return nil, fmt.Errorf("bundle %s has no path", version)
 	}
-	reloadStatus := reloadSecurityEngine(ctx, cfg, path)
-	if reloadStatus["status"] != "ok" {
-		_, _ = cfg.DBPool.Exec(ctx, `INSERT INTO rule_hot_reload_events (bundle_version, target, status, message) VALUES ($1,$2,$3,$4)`, version, "ly-security-engine", "rollback_failed", reloadStatus["message"])
-		return nil, fmt.Errorf("reload rollback bundle failed: %v", reloadStatus["message"])
+	manifest, err := cfg.RuleLifecycle.Rollback(ctx, ruleLifecycleActor(ctx), version)
+	if err != nil {
+		_, _ = cfg.DBPool.Exec(ctx, `INSERT INTO rule_hot_reload_events (bundle_version, target, status, message) VALUES ($1,$2,$3,$4)`, version, "ly-security-engine", "rollback_failed", err.Error())
+		return nil, err
 	}
 	if _, err := cfg.DBPool.Exec(ctx, `UPDATE rule_bundles SET status='inactive' WHERE status='active'`); err != nil {
 		return nil, err
@@ -1787,7 +1985,9 @@ func rollbackRulePlatformBundle(ctx context.Context, cfg *Config, requestedVersi
 	_, _ = cfg.DBPool.Exec(ctx, `INSERT INTO rule_hot_reload_events (bundle_version, target, status, message) VALUES ($1,$2,$3,$4)`, version, "ly-security-engine", "rollback_ok", "rolled back from "+active)
 	target["status"] = "active"
 	target["rollback_from"] = active
-	target["reload"] = reloadStatus
+	target["bundle_path"] = manifest.BundlePath
+	target["manifest_signature"] = manifest.Signature
+	target["reload"] = map[string]interface{}{"status": "ok", "message": manifest.BundlePath}
 	return target, nil
 }
 

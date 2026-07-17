@@ -1,18 +1,20 @@
-# LyFlow Java RASP Packaging
+# LyFlow Java RASP
 
-Java RASP is packaged as a JVM agent roadmap-compatible surface modeled after Elkeid `premain/agentmain` and OpenRASP-style hook/rule concepts.
+This module provides bounded, monitor-only JVM call-site instrumentation for explicitly allowlisted fixture or application packages. It observes JDBC statement execution, command execution, selected file APIs, and Java object deserialization while preserving the original invocation and result.
 
-Current production claim: **monitor-capability packaging contract only**. Protect/block mode must remain disabled unless an agent-executed QA run verifies blocking behavior for the target JVM and hook set.
+The agent never instruments broad JDK packages. The default allowlist contains only `com.lyflow.rasp.fixture`; applications must pass their package roots with a semicolon-separated `packages` agent option. System, JDK, and agent packages are rejected. Unsupported classes and unsupported bytecode return the JVM no-transform result.
 
-Required manifest entry points for future implementation:
+Build and test with the pinned OpenJDK 17.0.19 and Maven 3.9.9 toolchain:
 
-- `Premain-Class: com.lyflow.rasp.Agent`
-- `Agent-Class: com.lyflow.rasp.Agent`
-- `Can-Redefine-Classes: true`
-- `Can-Retransform-Classes: true`
+```bash
+mvn -q -Pexperimental-runtime clean verify
+bash ../../../scripts/qa/run-java-rasp-conformance.sh --iterations 10
+```
 
-Policy mapping:
+Example monitor attachment:
 
-- `rasp.mode=off`: do not attach hooks.
-- `rasp.mode=monitor`: attach hooks and report events without blocking.
-- `rasp.mode=protect`: attach hooks and block only rules with verified block actions.
+```text
+-javaagent:ly-rasp-java-1.0.0.jar=mode=monitor,policyVersion=14,policyId=policy-id,agentId=agent-id,packages=com.example.app
+```
+
+The optional `experimental-runtime` Maven profile emits the reproducible `ly-rasp-java-1.0.0-experimental.jar`. Its conformance gate boots that artifact with `-javaagent` and runs watchdog exhaustion, binary tamper, publication outage/recovery, and canonical health checks. This profile is experimental verification only: the Java agent remains excluded from default and pilot production packages.

@@ -76,7 +76,7 @@ func ConvertRuleToBehavior(rule models.Rule, sourceFormat string) (BehaviorRuleP
 			Tags:        rule.Groups,
 			Description: rule.Description,
 		},
-		Match: BehaviorMatch{When: []BehaviorCondition{{Field: "message", Operator: operator, Value: rule.Match}}, Where: sourceConditions(rule)},
+		Match:    BehaviorMatch{When: []BehaviorCondition{{Field: "message", Operator: operator, Value: rule.Match}}, Where: sourceConditions(rule)},
 		Sequence: []BehaviorStep{{Name: "matched_behavior", Required: true, Window: fmt.Sprintf("%ds", maxInt(rule.Timeframe, 300)), Match: []BehaviorCondition{{Field: "source_module", Operator: "eq", Value: sourceModule(rule.Source)}}}},
 		Entities: []string{"agent_id", "host_id", "user", "src_ip", "process"},
 		Score:    BehaviorScore{BaseScore: rule.Level, Severity: severity},

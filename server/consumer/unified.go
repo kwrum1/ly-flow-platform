@@ -10,19 +10,24 @@ import (
 
 	"github.com/redis/go-redis/v9"
 
+	"github.com/lyflow/ly-flow-platform/server/internal/redisconfig"
 	"github.com/lyflow/ly-flow-platform/server/unified"
+	transport "github.com/lyflow/ly-flow-platform/transportreliability"
 )
 
 type UnifiedConsumer struct {
 	client     *redis.Client
-	redisAddr   string
-	streams     []string
-	group       string
-	ctx         context.Context
-	cancel      context.CancelFunc
-	wg          sync.WaitGroup
-	eventStats  *unified.EventStats
-	statsMu     sync.RWMutex
+	redisAddr  string
+	streams    []string
+	group      string
+	ctx        context.Context
+	cancel     context.CancelFunc
+	wg         sync.WaitGroup
+	eventStats *unified.EventStats
+	statsMu    sync.RWMutex
+	spool      *transport.EncryptedSpool
+	reliable   *transport.RedisConsumer
+	producer   *transport.RedisProducer
 }
 
 func NewUnifiedConsumer(redisAddr string, streams []string, group string) (*UnifiedConsumer, error) {
@@ -38,16 +43,30 @@ func NewUnifiedConsumer(redisAddr string, streams []string, group string) (*Unif
 		log.Printf("[Consumer] Redis 连接失败: %v", err)
 		return nil, err
 	}
+	spool, err := transport.RuntimeSpoolFromEnv("server-unified-consumer")
+	if err != nil {
+		return nil, fmt.Errorf("configure encrypted transport spool: %w", err)
+	}
+	uc.spool = spool
+	uc.reliable = transport.NewRedisConsumer(transport.ConsumerConfig{
+		Client: uc.client, Group: uc.group, Consumer: "unified-consumer", Spool: spool,
+		Retry: transport.RetryPolicy{MaxAttempts: 4, BaseDelay: 50 * time.Millisecond, MaxDelay: time.Second, Jitter: 0.2},
+	})
+	if spool != nil {
+		uc.producer, err = transport.NewRedisProducer(transport.ProducerConfig{
+			Client: uc.client, Name: "server-unified", Spool: spool,
+			Retry: transport.RetryPolicy{MaxAttempts: 4, BaseDelay: 50 * time.Millisecond, MaxDelay: time.Second, Jitter: 0.2},
+		})
+		if err != nil {
+			return nil, fmt.Errorf("configure reliable unified producer: %w", err)
+		}
+	}
 
 	return uc, nil
 }
 
 func (c *UnifiedConsumer) initRedis() error {
-	c.client = redis.NewClient(&redis.Options{
-		Addr:     c.redisAddr,
-		Password: "",
-		DB:       0,
-	})
+	c.client = redis.NewClient(redisconfig.Options(c.redisAddr, 0))
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
@@ -61,6 +80,9 @@ func (c *UnifiedConsumer) initRedis() error {
 		if err != nil && err.Error() != "BUSYGROUP Consumer Group name already exists" {
 			log.Printf("[Consumer] 创建消费者组失败 %s: %v", stream, err)
 		}
+	}
+	if err := transport.RegisterProducer(ctx, c.client, "server-unified"); err != nil {
+		return err
 	}
 
 	log.Printf("[Consumer] Redis 连接成功, 消费流: %v", c.streams)
@@ -104,8 +126,16 @@ func (c *UnifiedConsumer) consumeLoop() {
 
 func (c *UnifiedConsumer) consumeAllStreams() {
 	ctx := c.ctx
+	if err := transport.RegisterProducer(ctx, c.client, "server-unified"); err != nil {
+		log.Printf("[Consumer] reliable producer lease renewal failed: %v", err)
+		return
+	}
 
 	for _, stream := range c.streams {
+		if err := c.reliable.Reclaim(ctx, stream, c.processDelivery); err != nil {
+			log.Printf("[Consumer] pending reclaim failed stream=%s err=%v", stream, err)
+			continue
+		}
 		streams, err := c.client.XReadGroup(ctx, &redis.XReadGroupArgs{
 			Group:    c.group,
 			Consumer: "unified-consumer",
@@ -119,33 +149,31 @@ func (c *UnifiedConsumer) consumeAllStreams() {
 		}
 
 		for _, s := range streams {
-			for _, msg := range s.Messages {
-				c.processMessage(msg)
-				c.client.XAck(ctx, stream, c.group, msg.ID)
+			if err := c.reliable.Handle(ctx, s.Stream, s.Messages, c.processDelivery); err != nil {
+				log.Printf("[Consumer] durable handoff failed stream=%s err=%v", s.Stream, err)
 			}
 		}
 	}
 }
 
-func (c *UnifiedConsumer) processMessage(msg redis.XMessage) {
-	data, ok := msg.Values["data"]
+func (c *UnifiedConsumer) processDelivery(ctx context.Context, delivery transport.Delivery) (transport.DurableOutcome, error) {
+	data, ok := delivery.Values["data"]
 	if !ok {
-		return
+		return transport.DurableOutcome{}, transport.Permanent(transport.ReasonInvalidPayload, fmt.Errorf("data field is required"))
 	}
 
 	dataStr, ok := data.(string)
 	if !ok {
-		return
+		return transport.DurableOutcome{}, transport.Permanent(transport.ReasonInvalidPayload, fmt.Errorf("data field is not a string"))
 	}
 
 	var event unified.UnifiedEvent
 	if err := json.Unmarshal([]byte(dataStr), &event); err != nil {
-		log.Printf("[Consumer] 解析事件失败: %v", err)
-		return
+		return transport.DurableOutcome{}, transport.Permanent(transport.ReasonInvalidPayload, err)
 	}
 
 	if event.ID == "" {
-		event.ID = msg.ID
+		event.ID = transport.DeterministicUID("unified_event_stats", delivery.Stream, delivery.MessageID)
 	}
 	if event.CreatedAt.IsZero() {
 		event.CreatedAt = time.Now()
@@ -163,12 +191,19 @@ func (c *UnifiedConsumer) processMessage(msg redis.XMessage) {
 		}
 	}
 	if event.RawReference == nil {
-		event.RawReference = &unified.RawReference{MessageID: msg.ID}
+		event.RawReference = &unified.RawReference{MessageID: delivery.MessageID}
 	}
 
-	c.updateStats(&event)
+	newDelivery, err := c.client.HSetNX(ctx, "transport_reliability:unified_event_stats", event.ID, delivery.MessageID).Result()
+	if err != nil {
+		return transport.DurableOutcome{}, fmt.Errorf("persist unified event receipt: %w", err)
+	}
+	if newDelivery {
+		c.updateStats(&event)
+	}
 
 	log.Printf("[Consumer] 处理事件: [%s] %s - %s", event.Module, event.EventType, event.Message)
+	return transport.DurableOutcome{UID: event.ID, Sink: "unified_event_stats"}, nil
 }
 
 func (c *UnifiedConsumer) updateStats(event *unified.UnifiedEvent) {
@@ -213,18 +248,18 @@ func (c *UnifiedConsumer) GetStats() *unified.EventStats {
 	defer c.statsMu.RUnlock()
 
 	stats := &unified.EventStats{
-		TotalEvents:    c.eventStats.TotalEvents,
-		TodayEvents:    c.eventStats.TodayEvents,
-		TotalAlerts:    c.eventStats.TotalAlerts,
-		TodayAlerts:    c.eventStats.TodayAlerts,
+		TotalEvents:   c.eventStats.TotalEvents,
+		TodayEvents:   c.eventStats.TodayEvents,
+		TotalAlerts:   c.eventStats.TotalAlerts,
+		TodayAlerts:   c.eventStats.TodayAlerts,
 		CriticalCount: c.eventStats.CriticalCount,
-		HighCount:      c.eventStats.HighCount,
-		MediumCount:    c.eventStats.MediumCount,
-		LowCount:       c.eventStats.LowCount,
-		ByModule:       make(map[unified.ModuleType]int64),
+		HighCount:     c.eventStats.HighCount,
+		MediumCount:   c.eventStats.MediumCount,
+		LowCount:      c.eventStats.LowCount,
+		ByModule:      make(map[unified.ModuleType]int64),
 		BySeverity:    make(map[unified.Severity]int64),
-		BySource:       make(map[string]int64),
-		BySrcIP:        make(map[string]int64),
+		BySource:      make(map[string]int64),
+		BySrcIP:       make(map[string]int64),
 	}
 
 	for k, v := range c.eventStats.ByModule {
@@ -259,17 +294,14 @@ func (c *UnifiedConsumer) PublishEvent(event *unified.UnifiedEvent) error {
 		return err
 	}
 
-	ctx := context.Background()
-	return c.client.XAdd(ctx, &redis.XAddArgs{
-		Stream: "events:unified",
-		MaxLen: 10000,
-		Approx: true,
-		Values: map[string]interface{}{
-			"module":     string(event.Module),
-			"event_type": event.EventType,
-			"severity":   string(event.Severity),
-			"data":       string(data),
-			"timestamp":  event.Timestamp.Format(time.RFC3339),
-		},
-	}).Err()
+	if c.producer == nil {
+		return fmt.Errorf("encrypted durable unified producer is unavailable")
+	}
+	return c.producer.Publish(context.Background(), "events:unified", event.ID, map[string]interface{}{
+		"module":     string(event.Module),
+		"event_type": event.EventType,
+		"severity":   string(event.Severity),
+		"data":       string(data),
+		"timestamp":  event.Timestamp.Format(time.RFC3339),
+	})
 }

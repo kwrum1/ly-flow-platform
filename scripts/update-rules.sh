@@ -56,7 +56,7 @@ CUSTOM_COUNT=$(find "$RULES_DIR/ly-custom" -name "*.rules" 2>/dev/null | wc -l)
 log "自定义规则文件: $CUSTOM_COUNT 个"
 
 TOTAL_RULES=0
-for rules_file in "$RULES_DIR"/*.rules "$RULES_DIR"/**/*.rules 2>/dev/null; do
+for rules_file in "$RULES_DIR"/*.rules "$RULES_DIR"/**/*.rules; do
     if [ -f "$rules_file" ]; then
         RULE_COUNT=$(grep -c "^alert " "$rules_file" 2>/dev/null || echo 0)
         TOTAL_RULES=$((TOTAL_RULES + RULE_COUNT))
@@ -81,7 +81,7 @@ for enabled in $(grep -r "enabled: true" "$CONFIG_FILE" 2>/dev/null | cut -d: -f
     fi
 done
 
-for custom in "$RULES_DIR/ly-custom"/*.rules 2>/dev/null; do
+for custom in "$RULES_DIR/ly-custom"/*.rules; do
     if [ -f "$custom" ]; then
         custom_name=$(basename "$custom")
         cat "$custom" >> "$RULES_DIR/combined/active.rules"

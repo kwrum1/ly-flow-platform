@@ -1,0 +1,41 @@
+[
+  {
+    "action": "log",
+    "agent_id": "conformance-agent",
+    "app": "conformance-fixture",
+    "attack_type": "command_injection",
+    "blocked": false,
+    "language": "python",
+    "mode": "monitor",
+    "policy_version": 13,
+    "rule_id": "python-command_injection",
+    "severity": "high",
+    "type": "rasp.attack"
+  },
+  {
+    "action": "log",
+    "agent_id": "conformance-agent",
+    "app": "conformance-fixture",
+    "attack_type": "path_traversal",
+    "blocked": false,
+    "language": "python",
+    "mode": "monitor",
+    "policy_version": 13,
+    "rule_id": "python-path_traversal",
+    "severity": "medium",
+    "type": "rasp.attack"
+  },
+  {
+    "action": "log",
+    "agent_id": "conformance-agent",
+    "app": "conformance-fixture",
+    "attack_type": "sql_injection",
+    "blocked": false,
+    "language": "python",
+    "mode": "monitor",
+    "policy_version": 13,
+    "rule_id": "python-sql_injection",
+    "severity": "high",
+    "type": "rasp.attack"
+  }
+]

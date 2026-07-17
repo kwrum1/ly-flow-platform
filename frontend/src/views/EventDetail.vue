@@ -261,6 +261,7 @@ import {
   normalizeAttackQueueItems,
 } from '../domain/attack-queue'
 import { computeLifecycleDurations, formatDurationLabel, normalizePipelineStage, stageLabel } from '../domain/ops-metrics'
+import { formatChinaDateTime } from '../shared/time'
 import { formatMaskedJson } from '../utils/security-display'
 
 const route = useRoute()

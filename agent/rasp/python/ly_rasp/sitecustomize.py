@@ -6,7 +6,10 @@ Invalid policy modes safely fall back to monitor mode in config.normalize_mode.
 
 import os
 
-if os.environ.get("LY_RASP_AUTOLOAD", "false").lower() == "true":
+if (
+    os.environ.get("LY_RASP_AUTOLOAD", "false").lower() == "true"
+    and os.environ.get("RASP_POLICY_VERIFIED_ACK", "false").lower() == "true"
+):
     from ly_rasp import enable
 
     enable()

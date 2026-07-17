@@ -2,7 +2,7 @@
   "schema_version": "v1",
   "source_id": "yara-signature-base",
   "name": "YARA Signature-Base rules",
-  "category": "file",
+  "category": "hids",
   "source_type": "external_subscription",
   "update_mode": "manual_fetch_then_convert",
   "vendor": "Neo23x0 Signature-Base",
@@ -10,7 +10,7 @@
   "source_url": "https://github.com/Neo23x0/signature-base/tree/master/yara",
   "raw_path": "rules/yara",
   "converted_path": "rules/subscriptions/yara-signature-base/converted/",
-  "compiled_path": "rules/compiled/file/yara-signature-base.json",
+  "compiled_path": "rules/compiled/hids/yara-signature-base.json",
   "enabled_by_default": false,
   "conversion": {
     "converter": "yara-file-formatter",

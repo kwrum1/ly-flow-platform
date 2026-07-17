@@ -28,6 +28,10 @@ func main() {
 	log.Printf("ly-dpi-engine %s (%s) 正在启动...", version, commit)
 
 	cfg := config.Load()
+	redisUsername, redisPassword := cfg.Redis.Username, cfg.Redis.Password
+	if redisUsername == "" || redisPassword == "" {
+		redisUsername, redisPassword = "", cfg.Redis.LegacyPassword
+	}
 
 	// 初始化域名审计器
 	auditor := domain.New()
@@ -57,7 +61,8 @@ func main() {
 	// 初始化 Redis 消费者
 	consumer := redis.NewConsumer(
 		cfg.Redis.Addr,
-		cfg.Redis.Password,
+		redisUsername,
+		redisPassword,
 		cfg.Redis.DB,
 		cfg.Input.Stream,
 		cfg.Output.Stream,
@@ -138,6 +143,7 @@ func setupRoutes(mux *http.ServeMux, eng *engine.Engine) {
 		flows, alerts, matched := eng.Stats()
 		proc, alrt, err := eng.ConsumerStats()
 		sent, outErr := eng.OutputStats()
+		transportAccounting, _ := eng.TransportAccounting(r.Context())
 
 		fmt.Fprintf(w, "# HELP dpi_engine_flows_total 已处理的总流量数\n")
 		fmt.Fprintf(w, "# TYPE dpi_engine_flows_total counter\n")
@@ -160,6 +166,9 @@ func setupRoutes(mux *http.ServeMux, eng *engine.Engine) {
 		fmt.Fprintf(w, "# HELP dpi_engine_output_errors_total 输出错误总数\n")
 		fmt.Fprintf(w, "# TYPE dpi_engine_output_errors_total counter\n")
 		fmt.Fprintf(w, "dpi_engine_output_errors_total %d\n", outErr)
+		for name, value := range transportAccounting.Metrics() {
+			fmt.Fprintf(w, "%s %d\n", name, value)
+		}
 		_ = alrt
 	})
 }

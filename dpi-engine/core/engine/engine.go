@@ -1,12 +1,15 @@
 package engine
 
 import (
+	"context"
 	"encoding/json"
+	"fmt"
+	"hash/fnv"
 	"log"
-	"sync"
 	"sync/atomic"
 	"time"
 
+	transport "github.com/lyflow/ly-flow-platform/transportreliability"
 	"ly-flow-platform/dpi-engine/core/domain"
 	"ly-flow-platform/dpi-engine/core/output"
 	"ly-flow-platform/dpi-engine/core/redis"
@@ -46,10 +49,10 @@ func (e *Engine) Start() error {
 		return nil
 	}
 
-	e.consumer.OnFlow(func(msg redis.XMessage) {
+	e.consumer.OnFlowReliable(func(_ context.Context, msg redis.XMessage) error {
 		flow := e.parseFlow(msg)
 		if flow == nil {
-			return
+			return transport.Permanent(transport.ReasonInvalidPayload, fmt.Errorf("parse flow %s", msg.ID))
 		}
 
 		atomic.AddUint64(&e.stats.Flows, 1)
@@ -64,17 +67,22 @@ func (e *Engine) Start() error {
 		}
 
 		if err := e.output.SendSemanticFlow(buildSemanticFlow(flow, domainResult, matchedRules)); err != nil {
-			log.Printf("[engine] semantic flow output failed: %v", err)
+			return fmt.Errorf("semantic flow output: %w", err)
 		}
 
 		if domainResult.Match {
-			e.emitDomainAlert(flow, domainResult)
+			if err := e.emitDomainAlert(flow, domainResult, msg.ID); err != nil {
+				return err
+			}
 			atomic.AddUint64(&e.stats.Alerts, 1)
 		}
 
 		if len(matchedRules) > 0 {
-			e.emitRuleAlerts(flow, matchedRules)
+			if err := e.emitRuleAlerts(flow, matchedRules, msg.ID); err != nil {
+				return err
+			}
 		}
+		return nil
 	})
 
 	if err := e.consumer.Start(); err != nil {
@@ -112,6 +120,10 @@ func (e *Engine) ConsumerStats() (processed, alerts, errors uint64) {
 // OutputStats returns output statistics
 func (e *Engine) OutputStats() (sent, errors uint64) {
 	return e.output.Stats()
+}
+
+func (e *Engine) TransportAccounting(ctx context.Context) (transport.AccountingSnapshot, error) {
+	return e.consumer.TransportAccounting(ctx)
 }
 
 func (e *Engine) parseFlow(msg redis.XMessage) *model.FlowData {
@@ -354,10 +366,10 @@ func stringPort(port uint16) string {
 	return string(buf[i:])
 }
 
-func (e *Engine) emitDomainAlert(flow *model.FlowData, result *domain.AuditResult) {
+func (e *Engine) emitDomainAlert(flow *model.FlowData, result *domain.AuditResult, messageID string) error {
 	alert := &output.Alert{
-		ID:        generateID(),
-		Timestamp: time.Now().Format(time.RFC3339),
+		ID:        deterministicAlertID(messageID, "domain:"+result.Label),
+		Timestamp: flow.Time().UTC().Format(time.RFC3339),
 		Type:      model.AlertTypeDPI,
 		SrcIP:     flow.SrcIP,
 		DstIP:     flow.DstIP,
@@ -372,37 +384,43 @@ func (e *Engine) emitDomainAlert(flow *model.FlowData, result *domain.AuditResul
 		SensorID:  flow.SensorID,
 		Domain:    result.Domain,
 	}
-	e.output.SendDirect(alert)
+	if err := e.output.SendDirect(alert); err != nil {
+		return fmt.Errorf("domain alert output: %w", err)
+	}
+	return nil
 }
 
-func (e *Engine) emitRuleAlerts(flow *model.FlowData, matchedRules []*rules.Rule) {
-	var wg sync.WaitGroup
+func (e *Engine) emitRuleAlerts(flow *model.FlowData, matchedRules []*rules.Rule, messageID string) error {
 	for _, rule := range matchedRules {
-		wg.Add(1)
-		go func(r *rules.Rule) {
-			defer wg.Done()
-			alert := &output.Alert{
-				ID:        generateID(),
-				Timestamp: time.Now().Format(time.RFC3339),
-				Type:      model.AlertTypeDPI,
-				SrcIP:     flow.SrcIP,
-				DstIP:     flow.DstIP,
-				SrcPort:   flow.SrcPort,
-				DstPort:   flow.DstPort,
-				Protocol:  flow.Protocol,
-				Signature: r.Msg,
-				Category:  "rule",
-				Severity:  2,
-				Score:     70,
-				Status:    model.StatusNew,
-				SensorID:  flow.SensorID,
-				Domain:    flow.GetDomain(),
-			}
-			e.output.SendDirect(alert)
-		}(rule)
+		alert := &output.Alert{
+			ID:        deterministicAlertID(messageID, fmt.Sprintf("rule:%d", rule.SID)),
+			Timestamp: flow.Time().UTC().Format(time.RFC3339),
+			Type:      model.AlertTypeDPI,
+			SrcIP:     flow.SrcIP,
+			DstIP:     flow.DstIP,
+			SrcPort:   flow.SrcPort,
+			DstPort:   flow.DstPort,
+			Protocol:  flow.Protocol,
+			Signature: rule.Msg,
+			Category:  "rule",
+			Severity:  2,
+			Score:     70,
+			Status:    model.StatusNew,
+			SensorID:  flow.SensorID,
+			Domain:    flow.GetDomain(),
+		}
+		if err := e.output.SendDirect(alert); err != nil {
+			return fmt.Errorf("rule alert %d output: %w", rule.SID, err)
+		}
 	}
-	wg.Wait()
 	atomic.AddUint64(&e.stats.Alerts, uint64(len(matchedRules)))
+	return nil
+}
+
+func deterministicAlertID(messageID, discriminator string) uint64 {
+	hash := fnv.New64a()
+	_, _ = hash.Write([]byte(messageID + "\x00" + discriminator))
+	return hash.Sum64()
 }
 
 func severityFromScore(score int) uint8 {
@@ -425,17 +443,15 @@ func generateID() uint64 {
 }
 
 func parsePort(s string) (uint16, error) {
-	var port uint16
-	_, err := parseUint64WithBase(s, 10, &port)
-	return port, err
+	_, err := parseUint64WithBase(s, 10)
+	return 0, err
 }
 
 func parseUint64(s string) (uint64, error) {
-	var v uint64
-	return parseUint64WithBase(s, 10, &v)
+	return parseUint64WithBase(s, 10)
 }
 
-func parseUint64WithBase(s string, base int, out interface{}) (uint64, error) {
+func parseUint64WithBase(s string, base int) (uint64, error) {
 	var n uint64
 	for _, c := range s {
 		n = n*uint64(base) + uint64(c-'0')

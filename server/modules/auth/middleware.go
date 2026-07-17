@@ -14,20 +14,23 @@ type contextKey string
 const (
 	UserContextKey  contextKey = "user"
 	TokenContextKey contextKey = "token"
+	RoleContextKey  contextKey = "role"
 )
 
 // Middleware JWT中间件
 type Middleware struct {
 	authService  *Service
-	sessionStore *SessionStore
+	userStore    Store
+	sessionStore sessionReader
+}
+
+type sessionReader interface {
+	GetSessionByToken(context.Context, string) (*Session, error)
 }
 
 // NewMiddleware 创建中间件
-func NewMiddleware(authService *Service, sessionStore *SessionStore) *Middleware {
-	return &Middleware{
-		authService:  authService,
-		sessionStore: sessionStore,
-	}
+func NewMiddleware(authService *Service, userStore Store, sessionStore sessionReader) *Middleware {
+	return &Middleware{authService: authService, userStore: userStore, sessionStore: sessionStore}
 }
 
 // Authenticate 认证中间件
@@ -35,32 +38,40 @@ func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
 		if authHeader == "" {
-			writeAuthError(w, "missing_authorization", "missing authorization header")
+			writeAuthError(w, http.StatusUnauthorized, "missing_authorization", "missing authorization header")
 			return
 		}
 
 		parts := strings.SplitN(authHeader, " ", 2)
 		if len(parts) != 2 || parts[0] != "Bearer" {
-			writeAuthError(w, "invalid_authorization", "invalid authorization header")
+			writeAuthError(w, http.StatusUnauthorized, "invalid_authorization", "invalid authorization header")
 			return
 		}
 
 		token := parts[1]
-
 		if err := m.authService.ValidateToken(token); err != nil {
-			writeAuthError(w, "invalid_token", "invalid token")
+			writeAuthError(w, http.StatusUnauthorized, "invalid_token", "invalid token")
+			return
+		}
+		if m.sessionStore == nil || m.userStore == nil {
+			writeAuthError(w, http.StatusUnauthorized, "invalid_token", "invalid token")
 			return
 		}
 
 		session, err := m.sessionStore.GetSessionByToken(r.Context(), token)
 		if err != nil {
-			writeAuthError(w, "token_expired_or_invalid", "token expired or invalid")
+			writeAuthError(w, http.StatusUnauthorized, "token_expired_or_invalid", "token expired or invalid")
 			return
 		}
-		userID := session.UserID
+		user, err := m.userStore.GetUserByID(r.Context(), session.UserID)
+		if err != nil {
+			writeAuthError(w, http.StatusUnauthorized, "token_expired_or_invalid", "token expired or invalid")
+			return
+		}
 
 		ctx := context.WithValue(r.Context(), TokenContextKey, token)
-		ctx = context.WithValue(ctx, UserContextKey, userID)
+		ctx = context.WithValue(ctx, UserContextKey, user.ID)
+		ctx = context.WithValue(ctx, RoleContextKey, user.Role)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
 }
@@ -69,16 +80,16 @@ func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 func (m *Middleware) RequireRole(allowedRoles ...UserRole) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// 从Context获取用户ID
-			userID := r.Context().Value(UserContextKey)
-			if userID == nil {
-				writeAuthError(w, "unauthorized", "unauthorized")
+			userID := GetUserIDFromContext(r.Context())
+			if userID == 0 {
+				writeAuthError(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
 				return
 			}
-
-			// TODO: 从数据库获取用户角色进行验证
-			// 这里需要注入store来查询用户角色
-
+			role := GetRoleFromContext(r.Context())
+			if !roleAllowed(role, allowedRoles) {
+				writeAuthError(w, http.StatusForbidden, "forbidden", "forbidden")
+				return
+			}
 			next.ServeHTTP(w, r)
 		})
 	}
@@ -88,25 +99,33 @@ func (m *Middleware) RequireRole(allowedRoles ...UserRole) func(http.Handler) ht
 func (m *Middleware) RequirePermission(permission string) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			// 从Context获取用户信息
-			userID := r.Context().Value(UserContextKey)
-			if userID == nil {
-				writeAuthError(w, "unauthorized", "unauthorized")
+			userID := GetUserIDFromContext(r.Context())
+			if userID == 0 {
+				writeAuthError(w, http.StatusUnauthorized, "unauthorized", "unauthorized")
 				return
 			}
-
-			// TODO: 实现权限检查
-			// 需要注入userStore来获取用户角色
-
+			if !HasPermission(GetRoleFromContext(r.Context()), permission) {
+				writeAuthError(w, http.StatusForbidden, "forbidden", "forbidden")
+				return
+			}
 			next.ServeHTTP(w, r)
 		})
 	}
 }
 
-func writeAuthError(w http.ResponseWriter, errorCode, message string) {
+func roleAllowed(role UserRole, allowedRoles []UserRole) bool {
+	for _, allowed := range allowedRoles {
+		if role == allowed {
+			return true
+		}
+	}
+	return false
+}
+
+func writeAuthError(w http.ResponseWriter, status int, errorCode, message string) {
 	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(http.StatusUnauthorized)
-	_ = json.NewEncoder(w).Encode(map[string]interface{}{"code": http.StatusUnauthorized, "error_code": errorCode, "message": message})
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]interface{}{"code": status, "error_code": errorCode, "message": message})
 }
 
 // GetTokenFromContext 从Context获取Token
@@ -119,6 +138,12 @@ func GetTokenFromContext(ctx context.Context) string {
 func GetUserIDFromContext(ctx context.Context) int64 {
 	id, _ := ctx.Value(UserContextKey).(int64)
 	return id
+}
+
+// GetRoleFromContext 从Context获取角色
+func GetRoleFromContext(ctx context.Context) UserRole {
+	role, _ := ctx.Value(RoleContextKey).(UserRole)
+	return role
 }
 
 // CORSMiddleware CORS中间件
@@ -140,6 +165,5 @@ func CORSMiddleware(next http.Handler) http.Handler {
 
 // RateLimitMiddleware 简易限流中间件
 func RateLimitMiddleware(next http.Handler, maxRequests int, window time.Duration) http.Handler {
-	// 简单实现，实际生产环境应使用更复杂的限流算法
 	return next
 }

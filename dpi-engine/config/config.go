@@ -8,9 +8,11 @@ import (
 // Config holds all configuration for the DPI engine
 type Config struct {
 	Redis struct {
-		Addr     string
-		Password string
-		DB       int
+		Addr           string
+		Username       string
+		Password       string
+		LegacyPassword string
+		DB             int
 	}
 	Engine struct {
 		Workers      int
@@ -48,7 +50,9 @@ func Load() *Config {
 
 	// Redis config
 	cfg.Redis.Addr = getEnv("REDIS_ADDR", "localhost:6379")
-	cfg.Redis.Password = getEnv("REDIS_PASSWORD", "")
+	cfg.Redis.Username = getEnv("REDIS_ACL_USERNAME", "")
+	cfg.Redis.Password = getEnv("REDIS_ACL_PASSWORD", "")
+	cfg.Redis.LegacyPassword = getEnv("REDIS_PASSWORD", "")
 	cfg.Redis.DB = getEnvInt("REDIS_DB", 0)
 
 	// Engine config

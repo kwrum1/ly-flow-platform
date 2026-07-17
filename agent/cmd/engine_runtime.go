@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -10,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/lyflow/ly-flow-platform/contracts"
@@ -19,17 +21,29 @@ func (a *Agent) runEngineAdapters() {
 	if a.engines != nil {
 		a.engines.Apply(a.ctx, defaultEngineDesiredStatesFromConfig(a.cfg))
 	}
-	go a.runSuricataEVEAdapter()
-	if a.cfg.HIDSEnabled {
-		go a.runWazuhAlertAdapter()
-		go a.runYARAArtifactAdapter()
+	if suricataProfileEnabled() {
+		health := newRuntimeControlHealth("agent-suricata-adapter", agentRuntimeLimits(), time.Now)
+		go runSupervisedRuntime(a.ctx, health, runtimeSupervisorConfig{
+			Name: "suricata", Run: func(ctx context.Context) { a.runSuricataEVEAdapterContext(withRuntimeHealth(ctx, health)) }, OnHealth: a.handleControlHealth,
+		})
 	}
-	if a.cfg.RASPEnabled {
-		go a.runRASPEventAdapter()
+	if a.cfg.HIDSEnabled {
+		wazuhHealth := newRuntimeControlHealth("agent-wazuh-adapter", agentRuntimeLimits(), time.Now)
+		go runSupervisedRuntime(a.ctx, wazuhHealth, runtimeSupervisorConfig{
+			Name: "wazuh", Run: func(ctx context.Context) { a.runWazuhAlertAdapterContext(withRuntimeHealth(ctx, wazuhHealth)) }, OnHealth: a.handleControlHealth,
+		})
+		yaraHealth := newRuntimeControlHealth("agent-yara-adapter", agentRuntimeLimits(), time.Now)
+		go runSupervisedRuntime(a.ctx, yaraHealth, runtimeSupervisorConfig{
+			Name: "yara", Run: func(ctx context.Context) { a.runYARAArtifactAdapterContext(withRuntimeHealth(ctx, yaraHealth)) }, OnHealth: a.handleControlHealth,
+		})
 	}
 }
 
 func (a *Agent) runSuricataEVEAdapter() {
+	a.runSuricataEVEAdapterContext(a.ctx)
+}
+
+func (a *Agent) runSuricataEVEAdapterContext(ctx context.Context) {
 	path := a.suricataEVEPath()
 	if path == "" {
 		return
@@ -37,19 +51,22 @@ func (a *Agent) runSuricataEVEAdapter() {
 	var offset int64
 	for {
 		select {
-		case <-a.ctx.Done():
+		case <-ctx.Done():
 			return
 		default:
 		}
-		next, err := a.consumeSuricataEVEFile(path, offset)
+		next, err := a.consumeSuricataEVEFileContext(ctx, path, offset)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			fmt.Printf("[suricata] eve adapter warning: %v\n", err)
+		}
+		if isRuntimeBudgetError(err) {
+			return
 		}
 		if next >= 0 {
 			offset = next
 		}
 		select {
-		case <-a.ctx.Done():
+		case <-ctx.Done():
 			return
 		case <-time.After(2 * time.Second):
 		}
@@ -57,6 +74,10 @@ func (a *Agent) runSuricataEVEAdapter() {
 }
 
 func (a *Agent) consumeSuricataEVEFile(path string, offset int64) (int64, error) {
+	return a.consumeSuricataEVEFileContext(a.ctx, path, offset)
+}
+
+func (a *Agent) consumeSuricataEVEFileContext(ctx context.Context, path string, offset int64) (int64, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return offset, err
@@ -72,29 +93,66 @@ func (a *Agent) consumeSuricataEVEFile(path string, offset int64) (int64, error)
 	if _, err := f.Seek(offset, io.SeekStart); err != nil {
 		return offset, err
 	}
-	reader := bufio.NewReader(f)
+	reader := bufio.NewReaderSize(f, 64*1024)
 	current := offset
+	budget := newRuntimeBudget(agentRuntimeLimits(), time.Now)
 	for {
-		line, err := reader.ReadBytes('\n')
-		if len(strings.TrimSpace(string(line))) > 0 {
-			raw := contracts.RawReference{Path: path, Offset: current, SourceEngine: contracts.SourceEngineSuricata}
-			alert, ok, parseErr := componentAlertFromSuricataEVE(line, a, raw)
+		health := a.runtimeHealthFor(ctx)
+		health.TouchWatchdog()
+		if !budget.Allow(ctx, 0) {
+			health.Degrade("cpu_or_read_budget_exceeded", false)
+			return current, errRuntimeCPUBudget
+		}
+		line, err := readBoundedSuricataLine(reader)
+		if err != nil {
+			return current, err
+		}
+		if line.bytesRead == 0 {
+			break
+		}
+		if line.oversized {
+			health.Degrade("read_or_memory_budget_exceeded", false)
+			atomic.AddUint64(&a.suricataProfile.oversizedLines, 1)
+			a.deadLetterSuricata(path, current, line, "line_too_large")
+			current += line.bytesRead
+			continue
+		}
+		if !budget.Allow(ctx, int(line.bytesRead)) {
+			health.Degrade("cpu_or_read_budget_exceeded", false)
+			if budget.read > agentRuntimeLimits().ReadBytes {
+				return current, errRuntimeReadLimit
+			}
+			return current, errRuntimeCPUBudget
+		}
+		if !line.complete {
+			atomic.AddUint64(&a.suricataProfile.truncatedLines, 1)
+			if a.suricataProfile.observePartial(current, line.bytesRead) {
+				return current, nil
+			}
+			a.deadLetterSuricata(path, current, line, "truncated_line")
+			current += line.bytesRead
+			break
+		}
+		a.suricataProfile.clearPartial()
+		trimmed := bytes.TrimSpace(line.data)
+		if len(trimmed) > 0 {
+			context := newSuricataProfileContext(a.agentID, a.hostname).withRaw(contracts.RawReference{Path: path, Offset: current})
+			record, parseErr := parseSuricataProfileLine(trimmed, context)
 			if parseErr != nil {
+				reason := a.noteSuricataParseError(parseErr)
+				a.deadLetterSuricata(path, current, line, reason)
 				fmt.Printf("[suricata] eve parse warning offset=%d err=%v\n", current, parseErr)
-			} else if ok {
-				if err := a.publishComponentAlert(alert); err != nil {
-					fmt.Printf("[suricata] component alert publish failed: %v\n", err)
+			} else {
+				atomic.AddUint64(&a.suricataProfile.parsedLines, 1)
+				atomic.StoreInt64(&a.suricataProfile.lastEventUnix, record.eventTime().Unix())
+				if err := a.publishSuricataRecord(record); err != nil {
+					atomic.AddUint64(&a.suricataProfile.publishErrors, 1)
+					a.suricataProfile.lastError.Store(err.Error())
+					fmt.Printf("[suricata] profile record publish failed: %v\n", err)
 				}
 			}
 		}
-		current += int64(len(line))
-		if err == nil {
-			continue
-		}
-		if errors.Is(err, io.EOF) {
-			break
-		}
-		return current, err
+		current += line.bytesRead
 	}
 	return current, nil
 }
@@ -106,15 +164,15 @@ func (a *Agent) publishComponentAlert(alert contracts.ComponentAlert) error {
 	if a.hostname != "" && alert.Entities.Hostname == "" {
 		alert.Entities.Hostname = a.hostname
 	}
-	body, err := json.Marshal(alert)
-	if err != nil {
-		return err
-	}
-	_, err = httpPost(a.cfg.API+"/api/v1/agent/component-alert", body)
-	return err
+	return a.publishAgentStream(a.ctx, "component_alerts:v2", structToMap(alert), "component_alert")
 }
 
 func (a *Agent) suricataEVEPath() string {
+	if suricataProfileEnabled() {
+		if path := strings.TrimSpace(os.Getenv("SURICATA_EVE")); path != "" {
+			return path
+		}
+	}
 	if a.engines != nil {
 		if status, ok := a.engines.Snapshot(context.Background())[EngineSuricata]; ok && status.OutputPath != "" {
 			return status.OutputPath
@@ -124,7 +182,11 @@ func (a *Agent) suricataEVEPath() string {
 }
 
 func (a *Agent) runWazuhAlertAdapter() {
-	a.runJSONLineAdapter(EngineWazuh, a.wazuhAlertPath(), func(values map[string]interface{}, raw contracts.RawReference) (contracts.ComponentAlert, bool, error) {
+	a.runWazuhAlertAdapterContext(a.ctx)
+}
+
+func (a *Agent) runWazuhAlertAdapterContext(ctx context.Context) {
+	a.runJSONLineAdapterContext(ctx, EngineWazuh, a.wazuhAlertPath(), func(values map[string]interface{}, raw contracts.RawReference) (contracts.ComponentAlert, bool, error) {
 		input := wazuhAlertInput{
 			RuleID:    firstNonEmpty(jsonString(values, "rule.id"), jsonString(values, "rule_id"), jsonString(values, "id")),
 			RuleName:  firstNonEmpty(jsonString(values, "rule.description"), jsonString(values, "description"), jsonString(values, "rule_name")),
@@ -143,7 +205,11 @@ func (a *Agent) runWazuhAlertAdapter() {
 }
 
 func (a *Agent) runYARAArtifactAdapter() {
-	a.runJSONLineAdapter(EngineYARA, a.yaraResultPath(), func(values map[string]interface{}, raw contracts.RawReference) (contracts.ComponentAlert, bool, error) {
+	a.runYARAArtifactAdapterContext(a.ctx)
+}
+
+func (a *Agent) runYARAArtifactAdapterContext(ctx context.Context) {
+	a.runJSONLineAdapterContext(ctx, EngineYARA, a.yaraResultPath(), func(values map[string]interface{}, raw contracts.RawReference) (contracts.ComponentAlert, bool, error) {
 		input := yaraMatchInput{
 			Rule:      firstNonEmpty(jsonString(values, "rule"), jsonString(values, "rule_id"), jsonString(values, "name")),
 			Namespace: jsonString(values, "namespace"),
@@ -161,7 +227,16 @@ func (a *Agent) runYARAArtifactAdapter() {
 }
 
 func (a *Agent) runRASPEventAdapter() {
-	a.runJSONLineAdapter(EngineRASP, a.raspEventPath(), func(values map[string]interface{}, raw contracts.RawReference) (contracts.ComponentAlert, bool, error) {
+	a.runRASPEventAdapterContext(a.ctx)
+}
+
+func (a *Agent) runRASPEventAdapterContext(ctx context.Context) {
+	a.runJSONLineAdapterContext(ctx, EngineRASP, a.raspEventPath(), func(values map[string]interface{}, raw contracts.RawReference) (contracts.ComponentAlert, bool, error) {
+		now := time.Now().UTC()
+		a.enforceRASPPolicyExpiry(now)
+		if !a.raspPolicyEnabled() || !a.allowRASPEvent(now) {
+			return contracts.ComponentAlert{}, false, nil
+		}
 		input := raspEventInput{
 			RuleID:      firstNonEmpty(jsonString(values, "rule_id"), jsonString(values, "rule.id"), jsonString(values, "id")),
 			RuleName:    firstNonEmpty(jsonString(values, "rule_name"), jsonString(values, "rule.name"), jsonString(values, "name")),
@@ -182,25 +257,32 @@ func (a *Agent) runRASPEventAdapter() {
 }
 
 func (a *Agent) runJSONLineAdapter(engine EngineName, path string, convert func(map[string]interface{}, contracts.RawReference) (contracts.ComponentAlert, bool, error)) {
+	a.runJSONLineAdapterContext(a.ctx, engine, path, convert)
+}
+
+func (a *Agent) runJSONLineAdapterContext(ctx context.Context, engine EngineName, path string, convert func(map[string]interface{}, contracts.RawReference) (contracts.ComponentAlert, bool, error)) {
 	if path == "" {
 		return
 	}
 	var offset int64
 	for {
 		select {
-		case <-a.ctx.Done():
+		case <-ctx.Done():
 			return
 		default:
 		}
-		next, err := a.consumeJSONLineAlertFile(engine, path, offset, convert)
+		next, err := a.consumeJSONLineAlertFileContext(ctx, engine, path, offset, convert)
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			fmt.Printf("[%s] adapter warning: %v\n", engine, err)
+		}
+		if isRuntimeBudgetError(err) {
+			return
 		}
 		if next >= 0 {
 			offset = next
 		}
 		select {
-		case <-a.ctx.Done():
+		case <-ctx.Done():
 			return
 		case <-time.After(2 * time.Second):
 		}
@@ -208,6 +290,12 @@ func (a *Agent) runJSONLineAdapter(engine EngineName, path string, convert func(
 }
 
 func (a *Agent) consumeJSONLineAlertFile(engine EngineName, path string, offset int64, convert func(map[string]interface{}, contracts.RawReference) (contracts.ComponentAlert, bool, error)) (int64, error) {
+	return a.consumeJSONLineAlertFileContext(a.ctx, engine, path, offset, convert)
+}
+
+func (a *Agent) consumeJSONLineAlertFileContext(ctx context.Context, engine EngineName, path string, offset int64, convert func(map[string]interface{}, contracts.RawReference) (contracts.ComponentAlert, bool, error)) (int64, error) {
+	health := a.runtimeHealthFor(ctx)
+	health.TouchWatchdog()
 	f, err := os.Open(path)
 	if err != nil {
 		return offset, err
@@ -223,10 +311,24 @@ func (a *Agent) consumeJSONLineAlertFile(engine EngineName, path string, offset 
 	if _, err := f.Seek(offset, io.SeekStart); err != nil {
 		return offset, err
 	}
-	reader := bufio.NewReader(f)
+	reader := bufio.NewReaderSize(f, 64*1024)
 	current := offset
+	budget := newRuntimeBudget(agentRuntimeLimits(), time.Now)
 	for {
-		line, err := reader.ReadBytes('\n')
+		health.TouchWatchdog()
+		bounded, err := readBoundedSuricataLine(reader)
+		line := bounded.data
+		if bounded.oversized || int(bounded.bytesRead) > agentRuntimeLimits().MemoryBytes {
+			health.Degrade("read_or_memory_budget_exceeded", false)
+			return current, errRuntimeReadLimit
+		}
+		if !budget.Allow(ctx, int(bounded.bytesRead)) {
+			health.Degrade("cpu_or_read_budget_exceeded", false)
+			if budget.read > agentRuntimeLimits().ReadBytes {
+				return current, errRuntimeReadLimit
+			}
+			return current, errRuntimeCPUBudget
+		}
 		if len(strings.TrimSpace(string(line))) > 0 {
 			var values map[string]interface{}
 			if parseErr := json.Unmarshal(line, &values); parseErr == nil {
@@ -241,16 +343,19 @@ func (a *Agent) consumeJSONLineAlertFile(engine EngineName, path string, offset 
 				}
 			}
 		}
-		current += int64(len(line))
-		if err == nil {
-			continue
+		current += bounded.bytesRead
+		if err != nil {
+			return current, err
 		}
-		if errors.Is(err, io.EOF) {
+		if !bounded.complete {
 			break
 		}
-		return current, err
 	}
 	return current, nil
+}
+
+func isRuntimeBudgetError(err error) bool {
+	return errors.Is(err, errRuntimeReadLimit) || errors.Is(err, errRuntimeCPUBudget) || errors.Is(err, errRuntimeMemoryLimit)
 }
 
 func (a *Agent) wazuhAlertPath() string {
@@ -274,7 +379,7 @@ func (a *Agent) engineOutputPath(engine EngineName, fallback string) string {
 
 func defaultEngineDesiredStatesFromConfig(cfg *Config) []EngineDesiredState {
 	return []EngineDesiredState{
-		{Name: EngineSuricata, Enabled: cfg == nil || cfg.TrafficEnabled, Mode: "suricata_live", RulePackVersion: "et-open-active", Settings: map[string]string{"output_path": "/var/log/suricata/eve.json"}},
+		{Name: EngineSuricata, Enabled: suricataProfileEnabled(), Mode: "suricata_eve_profile", ConfigVersion: suricataProfileNativeSchema, RulePackVersion: suricataProfileRulePack, Settings: map[string]string{"output_path": "/var/log/suricata/eve.json", "engine_version": suricataProfileVersion}},
 		{Name: EngineWazuh, Enabled: cfg == nil || cfg.HIDSEnabled, Mode: "headless-agent", RulePackVersion: "wazuh-default", Settings: map[string]string{"output_path": "/var/ossec/logs/alerts/alerts.json"}},
 		{Name: EngineYARA, Enabled: cfg == nil || cfg.HIDSEnabled, Mode: "artifact-scan", RulePackVersion: "yara-security", Settings: map[string]string{"output_path": "/opt/ly-agent/yara/last-scan.json"}},
 		{Name: EngineRASP, Enabled: cfg != nil && cfg.RASPEnabled, Mode: "audit-only", RulePackVersion: "rasp-active", Settings: map[string]string{"output_path": "/opt/ly-agent/rasp/events.jsonl"}},

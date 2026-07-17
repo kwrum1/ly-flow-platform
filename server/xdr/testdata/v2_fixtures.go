@@ -114,11 +114,11 @@ var MissingEnrichmentEvents = []models.CanonicalEventV2{
 }
 
 var TrustedProxyXFFCases = []struct {
-	Name       string
-	RemoteAddr string
-	XFF        string
+	Name         string
+	RemoteAddr   string
+	XFF          string
 	TrustedCIDRs []string
-	Expected   string
+	Expected     string
 }{
 	{
 		Name: "trusted-chain", RemoteAddr: "10.0.0.10",
@@ -139,11 +139,11 @@ var TrustedProxyXFFCases = []struct {
 
 func AllFixtures() map[string][]models.CanonicalEventV2 {
 	return map[string][]models.CanonicalEventV2{
-		"true_multi_step_same_host":  TrueMultiStepSameHost,
-		"false_same_source_no_cont":  FalseSameSourceNoContinuity,
-		"out_of_order_kill_chain":    OutOfOrderKillChain,
-		"stale_event_decay":          StaleEventDecay,
-		"cross_host_lateral":         CrossHostLateralMovements,
-		"missing_enrichment":         MissingEnrichmentEvents,
+		"true_multi_step_same_host": TrueMultiStepSameHost,
+		"false_same_source_no_cont": FalseSameSourceNoContinuity,
+		"out_of_order_kill_chain":   OutOfOrderKillChain,
+		"stale_event_decay":         StaleEventDecay,
+		"cross_host_lateral":        CrossHostLateralMovements,
+		"missing_enrichment":        MissingEnrichmentEvents,
 	}
 }

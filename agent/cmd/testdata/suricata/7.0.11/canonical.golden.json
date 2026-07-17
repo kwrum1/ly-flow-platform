@@ -1,0 +1,418 @@
+[
+  {
+    "kind": "alert",
+    "correlation_id": "suricata-flow-123456789",
+    "alert": {
+      "schema_version": "lyflow.component_alert.v1",
+      "id": "alert-10dbe80ff8fc0e3c",
+      "category": "network",
+      "source_engine": "suricata",
+      "rule_id": "1:9000001",
+      "rule_name": "LYFLOW INERT pinned profile verification",
+      "native_rule": {
+        "engine": "suricata",
+        "id": "9000001",
+        "revision": "1",
+        "category": "Misc activity",
+        "source": "suricata",
+        "attributes": {
+          "action": "allowed",
+          "app_proto": "",
+          "gid": "1"
+        }
+      },
+      "severity": "medium",
+      "score_hint": 55,
+      "occurred_at": "2026-07-13T10:00:00Z",
+      "source": "suricata",
+      "engine_version": "7.0.11",
+      "rule_pack": "lyflow-suricata-profile-rules-v1",
+      "entities": {
+        "agent_id": "agent-1",
+        "hostname": "sensor-1",
+        "source_ip": "10.0.0.11",
+        "target_ip": "203.0.113.53",
+        "trace_id": "suricata-flow-123456789"
+      },
+      "raw_reference": {
+        "path": "testdata/suricata/7.0.11/eve.jsonl",
+        "hash": "ee4b65ed74554333f058291108150b8c1d49f52c8ca60f39620a5b2bd8e5753b",
+        "source_engine": "suricata",
+        "event_type": "alert"
+      },
+      "summary": "LYFLOW INERT pinned profile verification 10.0.0.11:53001 -\u003e 203.0.113.53:53",
+      "details": {
+        "action": "allowed",
+        "category": "Misc activity",
+        "community_id": "1:+YF/pLbBGG/R4+Q2ISmD4a8SliA=",
+        "dest_ip": "203.0.113.53",
+        "dest_port": 53,
+        "flow_id": "123456789",
+        "proto": "UDP",
+        "src_ip": "10.0.0.11",
+        "src_port": 53001
+      },
+      "tags": [
+        "community_id:1:+YF/pLbBGG/R4+Q2ISmD4a8SliA=",
+        "src_private"
+      ],
+      "action": "audit",
+      "policy_state": "audit_only",
+      "candidate_only": true
+    }
+  },
+  {
+    "kind": "telemetry",
+    "correlation_id": "suricata-flow-123456789",
+    "telemetry": {
+      "schema_version": "lyflow.telemetry.v1",
+      "id": "suricata-eve-123456789-dns",
+      "category": "network",
+      "event_type": "network.dns",
+      "observed_at": "2026-07-13T10:00:00Z",
+      "received_at": "0001-01-01T00:00:00Z",
+      "source": "suricata-eve",
+      "source_engine": "suricata",
+      "engine_version": "7.0.11",
+      "rule_pack": "lyflow-suricata-profile-rules-v1",
+      "entities": {
+        "agent_id": "agent-1",
+        "hostname": "sensor-1",
+        "source_ip": "10.0.0.11",
+        "target_ip": "203.0.113.53",
+        "trace_id": "suricata-flow-123456789"
+      },
+      "raw_reference": {
+        "path": "testdata/suricata/7.0.11/eve.jsonl",
+        "offset": 827,
+        "hash": "ece82ae51bb72f671045e81adbe299731abd654d77e20bdfa27ce19b3515525b",
+        "source_engine": "suricata",
+        "event_type": "dns"
+      },
+      "fields": {
+        "app_proto": "",
+        "community_id": "1:+YF/pLbBGG/R4+Q2ISmD4a8SliA=",
+        "dest_ip": "203.0.113.53",
+        "dest_port": 53,
+        "dns": {
+          "type": "query",
+          "id": 19545,
+          "rrname": "profile.test",
+          "rrtype": "A",
+          "rcode": ""
+        },
+        "flow_id": "123456789",
+        "proto": "UDP",
+        "src_ip": "10.0.0.11",
+        "src_port": 53001
+      }
+    }
+  },
+  {
+    "kind": "telemetry",
+    "correlation_id": "suricata-flow-123456789",
+    "telemetry": {
+      "schema_version": "lyflow.telemetry.v1",
+      "id": "suricata-eve-123456789-dns",
+      "category": "network",
+      "event_type": "network.dns",
+      "observed_at": "2026-07-13T10:00:00.1Z",
+      "received_at": "0001-01-01T00:00:00Z",
+      "source": "suricata-eve",
+      "source_engine": "suricata",
+      "engine_version": "7.0.11",
+      "rule_pack": "lyflow-suricata-profile-rules-v1",
+      "entities": {
+        "agent_id": "agent-1",
+        "hostname": "sensor-1",
+        "source_ip": "10.0.0.11",
+        "target_ip": "203.0.113.53",
+        "trace_id": "suricata-flow-123456789"
+      },
+      "raw_reference": {
+        "path": "testdata/suricata/7.0.11/eve.jsonl",
+        "offset": 1221,
+        "hash": "bfcd12a9a19967703d8271a38a6692a3c5f943a4013c632712a82f5672cd57c3",
+        "source_engine": "suricata",
+        "event_type": "dns"
+      },
+      "fields": {
+        "app_proto": "",
+        "community_id": "1:+YF/pLbBGG/R4+Q2ISmD4a8SliA=",
+        "dest_ip": "203.0.113.53",
+        "dest_port": 53,
+        "dns": {
+          "type": "answer",
+          "id": 19545,
+          "rrname": "profile.test",
+          "rrtype": "A",
+          "rcode": "NOERROR"
+        },
+        "flow_id": "123456789",
+        "proto": "UDP",
+        "src_ip": "10.0.0.11",
+        "src_port": 53001
+      }
+    }
+  },
+  {
+    "kind": "telemetry",
+    "correlation_id": "suricata-flow-223456789",
+    "telemetry": {
+      "schema_version": "lyflow.telemetry.v1",
+      "id": "suricata-eve-223456789-http",
+      "category": "network",
+      "event_type": "network.http",
+      "observed_at": "2026-07-13T10:00:00.7Z",
+      "received_at": "0001-01-01T00:00:00Z",
+      "source": "suricata-eve",
+      "source_engine": "suricata",
+      "engine_version": "7.0.11",
+      "rule_pack": "lyflow-suricata-profile-rules-v1",
+      "entities": {
+        "agent_id": "agent-1",
+        "hostname": "sensor-1",
+        "source_ip": "10.0.0.12",
+        "target_ip": "203.0.113.80",
+        "trace_id": "suricata-flow-223456789"
+      },
+      "raw_reference": {
+        "path": "testdata/suricata/7.0.11/eve.jsonl",
+        "offset": 1785,
+        "hash": "2bb5fa2696ac138822573b8cc889eace910ebe730e320f2c5aeb82f860346eab",
+        "source_engine": "suricata",
+        "event_type": "http"
+      },
+      "fields": {
+        "app_proto": "",
+        "community_id": "1:4ac+7qyEzXxIFfHO0b7vQJbvQgc=",
+        "dest_ip": "203.0.113.80",
+        "dest_port": 80,
+        "flow_id": "223456789",
+        "http": {
+          "hostname": "profile.test",
+          "url": "/fixture",
+          "http_user_agent": "lyflow-inert-fixture",
+          "http_content_type": "text/plain",
+          "http_method": "GET",
+          "protocol": "HTTP/1.1",
+          "status": 200,
+          "length": 7
+        },
+        "proto": "TCP",
+        "src_ip": "10.0.0.12",
+        "src_port": 53002
+      }
+    }
+  },
+  {
+    "kind": "telemetry",
+    "correlation_id": "suricata-flow-323456789",
+    "telemetry": {
+      "schema_version": "lyflow.telemetry.v1",
+      "id": "suricata-eve-323456789-tls",
+      "category": "network",
+      "event_type": "network.tls",
+      "observed_at": "2026-07-13T10:00:01.9Z",
+      "received_at": "0001-01-01T00:00:00Z",
+      "source": "suricata-eve",
+      "source_engine": "suricata",
+      "engine_version": "7.0.11",
+      "rule_pack": "lyflow-suricata-profile-rules-v1",
+      "entities": {
+        "agent_id": "agent-1",
+        "hostname": "sensor-1",
+        "source_ip": "10.0.0.13",
+        "target_ip": "203.0.113.43",
+        "trace_id": "suricata-flow-323456789"
+      },
+      "raw_reference": {
+        "path": "testdata/suricata/7.0.11/eve.jsonl",
+        "offset": 2278,
+        "hash": "dcff63730029ad4bda3e5ee9cb4025a853397c564e0d20fa012887c2c4859a90",
+        "source_engine": "suricata",
+        "event_type": "tls"
+      },
+      "fields": {
+        "app_proto": "",
+        "community_id": "1:jG9qECXnupN0I+n6Z5mpZZo2414=",
+        "dest_ip": "203.0.113.43",
+        "dest_port": 443,
+        "flow_id": "323456789",
+        "proto": "TCP",
+        "src_ip": "10.0.0.13",
+        "src_port": 53003,
+        "tls": {
+          "subject": "",
+          "issuerdn": "",
+          "serial": "",
+          "fingerprint": "",
+          "sni": "profile.test",
+          "version": "TLS 1.3",
+          "ja3": {
+            "hash": ""
+          },
+          "ja3s": {
+            "hash": ""
+          }
+        }
+      }
+    }
+  },
+  {
+    "kind": "telemetry",
+    "correlation_id": "suricata-flow-123456789",
+    "telemetry": {
+      "schema_version": "lyflow.telemetry.v1",
+      "id": "suricata-eve-123456789-flow",
+      "category": "network",
+      "event_type": "network.flow",
+      "observed_at": "2026-07-13T10:00:01.9Z",
+      "received_at": "0001-01-01T00:00:00Z",
+      "source": "suricata-eve",
+      "source_engine": "suricata",
+      "engine_version": "7.0.11",
+      "rule_pack": "lyflow-suricata-profile-rules-v1",
+      "entities": {
+        "agent_id": "agent-1",
+        "hostname": "sensor-1",
+        "source_ip": "10.0.0.11",
+        "target_ip": "203.0.113.53",
+        "trace_id": "suricata-flow-123456789"
+      },
+      "raw_reference": {
+        "path": "testdata/suricata/7.0.11/eve.jsonl",
+        "offset": 2619,
+        "hash": "ae4b34d8de9f0f29fc3f79ae6191590e3baa1151eeee36c519130bd1cff8abb6",
+        "source_engine": "suricata",
+        "event_type": "flow"
+      },
+      "fields": {
+        "app_proto": "dns",
+        "community_id": "1:+YF/pLbBGG/R4+Q2ISmD4a8SliA=",
+        "dest_ip": "203.0.113.53",
+        "dest_port": 53,
+        "flow": {
+          "pkts_toserver": 1,
+          "pkts_toclient": 1,
+          "bytes_toserver": 72,
+          "bytes_toclient": 100,
+          "start": "2026-07-13T10:00:00.000000+0000",
+          "end": "2026-07-13T10:00:00.100000+0000",
+          "age": 0,
+          "state": "established",
+          "reason": "shutdown",
+          "alerted": true
+        },
+        "flow_id": "123456789",
+        "proto": "UDP",
+        "src_ip": "10.0.0.11",
+        "src_port": 53001
+      }
+    }
+  },
+  {
+    "kind": "telemetry",
+    "correlation_id": "suricata-flow-223456789",
+    "telemetry": {
+      "schema_version": "lyflow.telemetry.v1",
+      "id": "suricata-eve-223456789-flow",
+      "category": "network",
+      "event_type": "network.flow",
+      "observed_at": "2026-07-13T10:00:01.9Z",
+      "received_at": "0001-01-01T00:00:00Z",
+      "source": "suricata-eve",
+      "source_engine": "suricata",
+      "engine_version": "7.0.11",
+      "rule_pack": "lyflow-suricata-profile-rules-v1",
+      "entities": {
+        "agent_id": "agent-1",
+        "hostname": "sensor-1",
+        "source_ip": "10.0.0.12",
+        "target_ip": "203.0.113.80",
+        "trace_id": "suricata-flow-223456789"
+      },
+      "raw_reference": {
+        "path": "testdata/suricata/7.0.11/eve.jsonl",
+        "offset": 3126,
+        "hash": "a6f49f84217ecd0f1c68144b9dc947d0be179d24f36f14f53697860ea1688f41",
+        "source_engine": "suricata",
+        "event_type": "flow"
+      },
+      "fields": {
+        "app_proto": "http",
+        "community_id": "1:4ac+7qyEzXxIFfHO0b7vQJbvQgc=",
+        "dest_ip": "203.0.113.80",
+        "dest_port": 80,
+        "flow": {
+          "pkts_toserver": 6,
+          "pkts_toclient": 3,
+          "bytes_toserver": 452,
+          "bytes_toclient": 264,
+          "start": "2026-07-13T10:00:00.200000+0000",
+          "end": "2026-07-13T10:00:01.000000+0000",
+          "age": 1,
+          "state": "closed",
+          "reason": "shutdown",
+          "alerted": false
+        },
+        "flow_id": "223456789",
+        "proto": "TCP",
+        "src_ip": "10.0.0.12",
+        "src_port": 53002
+      }
+    }
+  },
+  {
+    "kind": "telemetry",
+    "correlation_id": "suricata-flow-323456789",
+    "telemetry": {
+      "schema_version": "lyflow.telemetry.v1",
+      "id": "suricata-eve-323456789-flow",
+      "category": "network",
+      "event_type": "network.flow",
+      "observed_at": "2026-07-13T10:00:01.9Z",
+      "received_at": "0001-01-01T00:00:00Z",
+      "source": "suricata-eve",
+      "source_engine": "suricata",
+      "engine_version": "7.0.11",
+      "rule_pack": "lyflow-suricata-profile-rules-v1",
+      "entities": {
+        "agent_id": "agent-1",
+        "hostname": "sensor-1",
+        "source_ip": "10.0.0.13",
+        "target_ip": "203.0.113.43",
+        "trace_id": "suricata-flow-323456789"
+      },
+      "raw_reference": {
+        "path": "testdata/suricata/7.0.11/eve.jsonl",
+        "offset": 3795,
+        "hash": "228fdeebca2af6b66662dec5e9b4a37a14eeea5cc0aa295bdd939aaf79678b5c",
+        "source_engine": "suricata",
+        "event_type": "flow"
+      },
+      "fields": {
+        "app_proto": "tls",
+        "community_id": "1:jG9qECXnupN0I+n6Z5mpZZo2414=",
+        "dest_ip": "203.0.113.43",
+        "dest_port": 443,
+        "flow": {
+          "pkts_toserver": 6,
+          "pkts_toclient": 3,
+          "bytes_toserver": 434,
+          "bytes_toclient": 229,
+          "start": "2026-07-13T10:00:01.100000+0000",
+          "end": "2026-07-13T10:00:01.900000+0000",
+          "age": 0,
+          "state": "closed",
+          "reason": "shutdown",
+          "alerted": false
+        },
+        "flow_id": "323456789",
+        "proto": "TCP",
+        "src_ip": "10.0.0.13",
+        "src_port": 53003
+      }
+    }
+  }
+]

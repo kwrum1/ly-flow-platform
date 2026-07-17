@@ -1,9 +1,6 @@
-ARG RUNTIME_IMAGE=redis:7-alpine
+ARG RUNTIME_IMAGE=redis@sha256:9de71018be8413f419688ac34e19dbac432d1c6d9593d2ded99a82eebefeb18f
 
 FROM ${RUNTIME_IMAGE}
-
-RUN apk add --no-cache ca-certificates tzdata \
-    && true
 
 WORKDIR /app
 

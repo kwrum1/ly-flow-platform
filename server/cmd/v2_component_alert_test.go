@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -12,9 +11,10 @@ import (
 )
 
 func TestAgentComponentAlertHandlerRejectsInvalidAlert(t *testing.T) {
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/agent/component-alert", bytes.NewBufferString(`{"schema_version":"bad"}`))
+	cfg, _ := ingestionTestConfig(t, 10)
+	req := authenticatedIngestionRequest(http.MethodPost, "/api/v1/agent/component-alert", `{"schema_version":"bad"}`)
 	rec := httptest.NewRecorder()
-	agentComponentAlertHandler(&Config{}).ServeHTTP(rec, req)
+	agentComponentAlertHandler(cfg).ServeHTTP(rec, req)
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status=%d body=%s", rec.Code, rec.Body.String())
 	}

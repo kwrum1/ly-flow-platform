@@ -32,7 +32,7 @@ func ParseDecision(payload []byte) (Decision, error) {
 }
 
 func Allowed(decision Decision, ctx SafetyContext, threshold float64) bool {
-	if decision.Action != "temporary_block" && decision.Action != "notify_only" {
+	if decision.Action != "notify_only" {
 		return false
 	}
 	if decision.Confidence < threshold || !ctx.AllowedWindow || !ctx.RuleHit || !ctx.MultiSignal || !ctx.WhitelistPassed {

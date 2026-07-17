@@ -23,6 +23,9 @@ def enable(server_addr: Optional[str] = None, agent_id: Optional[str] = None) ->
     """
     global _config, _reporter
 
+    if _reporter is not None:
+        disable()
+
     # 加载配置，优先使用传入参数
     env_server = os.environ.get('RASP_SERVER')
     env_agent_id = os.environ.get('RASP_AGENT_ID')
@@ -39,6 +42,7 @@ def enable(server_addr: Optional[str] = None, agent_id: Optional[str] = None) ->
 
     # 初始化上报器
     _reporter = Reporter(_config)
+    _reporter.start()
 
     # 注册清理函数
     atexit.register(disable)
@@ -53,7 +57,12 @@ def enable(server_addr: Optional[str] = None, agent_id: Optional[str] = None) ->
 
 def disable() -> None:
     """禁用 RASP 防护"""
+    global _reporter
     sys.settrace(None)
+
+    if _reporter is not None:
+        _reporter.shutdown()
+        _reporter = None
 
     # 卸载 Hook
     from . import hooks

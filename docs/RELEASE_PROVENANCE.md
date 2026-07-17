@@ -1,0 +1,33 @@
+# Release provenance
+
+Offline releases are fail-closed. The builder does not pull images, update scanner databases, resolve modules, or fetch package metadata. Every required base image must already exist locally and be supplied as a `repository@sha256:digest` reference.
+
+## Required inputs
+
+- `RELEASE_SIGNING_KEY`: external Ed25519 private key. The corresponding public `release-root.pem` is distributed out of band and must not be placed in the package.
+- `RELEASE_ID` and `SOURCE_DATE_EPOCH`: stable release identity and archive timestamp. They default to the current Git commit only for local verification.
+- `NGINX_IMAGE` and `SURICATA_PROFILE_IMAGE`: locally present digest references.
+- For non-amd64 releases, architecture-specific digest references in `DB_POSTGRES_IMAGE`, `DB_REDIS_IMAGE`, and `DB_CLICKHOUSE_IMAGE`.
+- Local, versioned advisory databases for npm, Python, Go, and image scanners. Missing database identity blocks release.
+
+The builder runs `scripts/qa/generate-release-evidence.sh` before compilation. Any `BLOCKED` or `FAIL` scanner row stops the build. An empty scanner response without a locally provable database version is `BLOCKED`, not clean.
+
+## Produced evidence
+
+The package contains deterministic CycloneDX 1.5 SBOMs for npm, Go, Python, Java, and container inputs. Raw scanner output and `scanner-summary.json` record tool and database versions. Reachable high or critical findings block release unless listed in the validated exception document.
+
+Each exception requires an ID, component, high/critical severity, owner, reachability evidence, compensating control, expiry after evidence generation but no more than 30 days later, and scanner name/version/database version. `scripts/release-provenance.sh validate-exceptions` enforces the schema.
+
+## Signature chain
+
+1. `rules/rules-manifest.sha256` covers every packaged rule file and is signed as `rules-manifest.sha256.sig`.
+2. `release-manifest.sha256` covers the rule manifest/signature and every other package payload file, excluding only itself and its signature.
+3. `release-manifest.sha256.sig` is a raw Ed25519 signature over the exact manifest bytes.
+4. The outer normalized archive has a `.sha256` sidecar and raw Ed25519 `.sha256.sig` sidecar.
+5. `install-offline.sh --trust-root /external/release-root.pem` installs the external public root, verifies the release and rule manifests, and only then checks Docker, copies files, loads images, or starts services.
+
+## Reproducibility limits
+
+Normalized tar ordering, numeric ownership, timestamps, POSIX metadata, and gzip headers make the same staged package byte-identical. This does not establish that two clean application builds are identical.
+
+The remaining non-reproducible layers are Docker save metadata/order below the normalized outer gzip, certificate generation in the frontend Dockerfile, APK repository state when a base is not digest-pinned, the externally supplied CGO ARM agent, and any locally cached application image accepted by the CI cache path. Two clean builds with identical digest inputs must compare all image and archive digests before a full reproducibility claim is allowed.

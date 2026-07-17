@@ -1,0 +1,695 @@
+{
+  "adapter.suricata": {
+    "schema_version": "lyflow.security_event.v1",
+    "event_uid": "evt-a04864bcc6c4f4bb652bde25b2b736c9",
+    "correlation_id": "corr-a04864bcc6c4f4bb652bde25b2b736c9",
+    "event_type": "network.signature",
+    "severity": "high",
+    "identity": {
+      "principal_id": "agent-1",
+      "agent_id": "agent-1",
+      "component": "adapter.suricata"
+    },
+    "timestamps": {
+      "event_at": "2026-07-13T09:59:04Z",
+      "observed_at": "2026-07-13T09:59:04Z",
+      "ingested_at": "2026-07-13T10:00:00Z"
+    },
+    "provenance": {
+      "source": "adapter.suricata",
+      "native_schema": "suricata.eve.v7",
+      "native_event_id": "2100498",
+      "adapter": "contracts.suricataEVEAdapter",
+      "payload_sha256": "d7c3098b719925c134d18e7babdf7a350fc88bd88f9a1aa2d13e426d8de959f8"
+    },
+    "attack": {
+      "version": "enterprise-attack.v16"
+    },
+    "quality_flags": [
+      "normalized",
+      "principal_bound"
+    ],
+    "governance": {
+      "classification": "restricted",
+      "retention": {
+        "policy_id": "security-event-30d",
+        "expires_at": "2026-08-12T10:00:00Z",
+        "legal_hold": false
+      },
+      "encryption": {
+        "required": true,
+        "algorithm": "AES-256-GCM",
+        "key_ref": "event-data-current"
+      },
+      "access_policy_id": "security-event-read",
+      "deletion_policy_id": "security-event-delete",
+      "export_policy_id": "security-event-export",
+      "redacted_fields": []
+    },
+    "payload": {
+      "agent_id": "agent-1",
+      "alert": {
+        "severity": 2,
+        "signature": "GPL ATTACK_RESPONSE id check returned root",
+        "signature_id": 2100498
+      },
+      "dest_ip": "198.51.100.22",
+      "event_type": "alert",
+      "src_ip": "192.0.2.12",
+      "timestamp": "2026-07-13T09:59:04Z"
+    }
+  },
+  "adapter.wazuh": {
+    "schema_version": "lyflow.security_event.v1",
+    "event_uid": "evt-32930fea46f899c116acd7e56326d32b",
+    "correlation_id": "corr-32930fea46f899c116acd7e56326d32b",
+    "event_type": "host.rule",
+    "severity": "high",
+    "identity": {
+      "principal_id": "agent-1",
+      "agent_id": "agent-1",
+      "component": "adapter.wazuh"
+    },
+    "timestamps": {
+      "event_at": "2026-07-13T09:59:05Z",
+      "observed_at": "2026-07-13T09:59:05Z",
+      "ingested_at": "2026-07-13T10:00:00Z"
+    },
+    "provenance": {
+      "source": "adapter.wazuh",
+      "native_schema": "wazuh.alert.v4",
+      "native_event_id": "wazuh-1",
+      "adapter": "contracts.wazuhAlertAdapter",
+      "payload_sha256": "bb834af162b214750f45bfe51f6be6cf65666dcb95180a8616836f2786cf4967"
+    },
+    "attack": {
+      "version": "enterprise-attack.v16"
+    },
+    "quality_flags": [
+      "normalized",
+      "principal_bound"
+    ],
+    "governance": {
+      "classification": "restricted",
+      "retention": {
+        "policy_id": "security-event-30d",
+        "expires_at": "2026-08-12T10:00:00Z",
+        "legal_hold": false
+      },
+      "encryption": {
+        "required": true,
+        "algorithm": "AES-256-GCM",
+        "key_ref": "event-data-current"
+      },
+      "access_policy_id": "security-event-read",
+      "deletion_policy_id": "security-event-delete",
+      "export_policy_id": "security-event-export",
+      "redacted_fields": []
+    },
+    "payload": {
+      "agent": {
+        "id": "agent-1"
+      },
+      "full_log": "inert failed login",
+      "id": "wazuh-1",
+      "rule": {
+        "description": "sshd authentication failed",
+        "id": "5710",
+        "level": 8
+      },
+      "timestamp": "2026-07-13T09:59:05Z"
+    }
+  },
+  "adapter.yara": {
+    "schema_version": "lyflow.security_event.v1",
+    "event_uid": "evt-6d99ed94d19f8213c54cd7abe44d4420",
+    "correlation_id": "corr-6d99ed94d19f8213c54cd7abe44d4420",
+    "event_type": "artifact.match",
+    "severity": "high",
+    "identity": {
+      "principal_id": "agent-1",
+      "agent_id": "agent-1",
+      "component": "adapter.yara"
+    },
+    "timestamps": {
+      "event_at": "2026-07-13T09:59:06Z",
+      "observed_at": "2026-07-13T09:59:06Z",
+      "ingested_at": "2026-07-13T10:00:00Z"
+    },
+    "provenance": {
+      "source": "adapter.yara",
+      "native_schema": "yara.match.v1",
+      "native_event_id": "yara-1",
+      "adapter": "contracts.yaraMatchAdapter",
+      "payload_sha256": "b788fd4def54602f48c6e3831f548803a3f7d8623b41efb941baf7cff8b394c4"
+    },
+    "attack": {
+      "version": "enterprise-attack.v16"
+    },
+    "quality_flags": [
+      "normalized",
+      "principal_bound"
+    ],
+    "governance": {
+      "classification": "restricted",
+      "retention": {
+        "policy_id": "security-event-30d",
+        "expires_at": "2026-08-12T10:00:00Z",
+        "legal_hold": false
+      },
+      "encryption": {
+        "required": true,
+        "algorithm": "AES-256-GCM",
+        "key_ref": "event-data-current"
+      },
+      "access_policy_id": "security-event-read",
+      "deletion_policy_id": "security-event-delete",
+      "export_policy_id": "security-event-export",
+      "redacted_fields": []
+    },
+    "payload": {
+      "agent_id": "agent-1",
+      "file_hash": "00000000000000000000000000000000",
+      "file_path": "/tmp/inert.txt",
+      "match_id": "yara-1",
+      "matched_at": "2026-07-13T09:59:06Z",
+      "namespace": "fixtures",
+      "rule": "inert_webshell_marker",
+      "tags": [
+        "fixture"
+      ]
+    }
+  },
+  "agent.log_audit": {
+    "schema_version": "lyflow.security_event.v1",
+    "event_uid": "evt-fd1add596b3874697348bdbf84b528a2",
+    "correlation_id": "corr-fd1add596b3874697348bdbf84b528a2",
+    "event_type": "log.audit",
+    "severity": "low",
+    "identity": {
+      "principal_id": "agent-1",
+      "agent_id": "agent-1",
+      "component": "agent.log_audit"
+    },
+    "timestamps": {
+      "event_at": "2026-07-13T09:59:02Z",
+      "observed_at": "2026-07-13T09:59:02Z",
+      "ingested_at": "2026-07-13T10:00:00Z"
+    },
+    "provenance": {
+      "source": "agent.log_audit",
+      "native_schema": "lyflow.telemetry.v1",
+      "native_event_id": "log-1",
+      "adapter": "contracts.telemetryEnvelopeAdapter",
+      "payload_sha256": "636fd8cb96e5d61af3af2800166c3ceefcb867baa19533f4fd2f80ef77a8ebb4"
+    },
+    "attack": {
+      "version": "enterprise-attack.v16"
+    },
+    "quality_flags": [
+      "normalized",
+      "principal_bound"
+    ],
+    "governance": {
+      "classification": "restricted",
+      "retention": {
+        "policy_id": "security-event-30d",
+        "expires_at": "2026-08-12T10:00:00Z",
+        "legal_hold": false
+      },
+      "encryption": {
+        "required": true,
+        "algorithm": "AES-256-GCM",
+        "key_ref": "event-data-current"
+      },
+      "access_policy_id": "security-event-read",
+      "deletion_policy_id": "security-event-delete",
+      "export_policy_id": "security-event-export",
+      "redacted_fields": []
+    },
+    "payload": {
+      "category": "log_audit",
+      "entities": {
+        "agent_id": "agent-1"
+      },
+      "event_type": "log.audit",
+      "excerpt": "inert audit record",
+      "fields": {
+        "facility": "auth",
+        "severity": "low"
+      },
+      "id": "log-1",
+      "observed_at": "2026-07-13T09:59:02Z",
+      "schema_version": "lyflow.telemetry.v1",
+      "source": "agent",
+      "source_engine": "log_audit"
+    }
+  },
+  "agent.rasp": {
+    "schema_version": "lyflow.security_event.v1",
+    "event_uid": "evt-cf30ea7053c77151d14cf61675147728",
+    "correlation_id": "corr-cf30ea7053c77151d14cf61675147728",
+    "event_type": "rasp.sql",
+    "severity": "critical",
+    "identity": {
+      "principal_id": "agent-1",
+      "agent_id": "agent-1",
+      "component": "agent.rasp"
+    },
+    "timestamps": {
+      "event_at": "2026-07-13T09:59:03Z",
+      "observed_at": "2026-07-13T09:59:03Z",
+      "ingested_at": "2026-07-13T10:00:00Z"
+    },
+    "provenance": {
+      "source": "agent.rasp",
+      "native_schema": "lyflow.telemetry.v1",
+      "native_event_id": "rasp-1",
+      "adapter": "contracts.telemetryEnvelopeAdapter",
+      "payload_sha256": "07ac06e9770e3d86b381d9321928ee1a2e9282c1f5b757986bca947ab5ed9982"
+    },
+    "attack": {
+      "version": "enterprise-attack.v16"
+    },
+    "quality_flags": [
+      "normalized",
+      "principal_bound"
+    ],
+    "governance": {
+      "classification": "restricted",
+      "retention": {
+        "policy_id": "security-event-30d",
+        "expires_at": "2026-08-12T10:00:00Z",
+        "legal_hold": false
+      },
+      "encryption": {
+        "required": true,
+        "algorithm": "AES-256-GCM",
+        "key_ref": "event-data-current"
+      },
+      "access_policy_id": "security-event-read",
+      "deletion_policy_id": "security-event-delete",
+      "export_policy_id": "security-event-export",
+      "redacted_fields": []
+    },
+    "payload": {
+      "category": "rasp",
+      "entities": {
+        "agent_id": "agent-1",
+        "application": "orders"
+      },
+      "event_type": "rasp.sql",
+      "fields": {
+        "query_class": "union",
+        "severity": "critical"
+      },
+      "id": "rasp-1",
+      "observed_at": "2026-07-13T09:59:03Z",
+      "schema_version": "lyflow.telemetry.v1",
+      "source": "java-probe",
+      "source_engine": "rasp"
+    }
+  },
+  "agent.runtime": {
+    "schema_version": "lyflow.security_event.v1",
+    "event_uid": "evt-905158aa4b7aaf63769f384a5bcd62ba",
+    "correlation_id": "corr-905158aa4b7aaf63769f384a5bcd62ba",
+    "event_type": "runtime.process",
+    "severity": "high",
+    "identity": {
+      "principal_id": "agent-1",
+      "agent_id": "agent-1",
+      "component": "agent.runtime"
+    },
+    "timestamps": {
+      "event_at": "2026-07-13T09:59:01Z",
+      "observed_at": "2026-07-13T09:59:01Z",
+      "ingested_at": "2026-07-13T10:00:00Z"
+    },
+    "provenance": {
+      "source": "agent.runtime",
+      "native_schema": "lyflow.telemetry.v1",
+      "native_event_id": "runtime-1",
+      "adapter": "contracts.telemetryEnvelopeAdapter",
+      "payload_sha256": "e953ba08d1e480f6f7fbe08ca47098e1d345eee2c2d06d15b29d35af7b786ca1"
+    },
+    "attack": {
+      "version": "enterprise-attack.v16"
+    },
+    "quality_flags": [
+      "normalized",
+      "principal_bound"
+    ],
+    "governance": {
+      "classification": "restricted",
+      "retention": {
+        "policy_id": "security-event-30d",
+        "expires_at": "2026-08-12T10:00:00Z",
+        "legal_hold": false
+      },
+      "encryption": {
+        "required": true,
+        "algorithm": "AES-256-GCM",
+        "key_ref": "event-data-current"
+      },
+      "access_policy_id": "security-event-read",
+      "deletion_policy_id": "security-event-delete",
+      "export_policy_id": "security-event-export",
+      "redacted_fields": []
+    },
+    "payload": {
+      "category": "runtime",
+      "entities": {
+        "agent_id": "agent-1",
+        "process_id": "4242"
+      },
+      "event_type": "runtime.process",
+      "fields": {
+        "executable": "/usr/bin/example",
+        "severity": "high"
+      },
+      "id": "runtime-1",
+      "observed_at": "2026-07-13T09:59:01Z",
+      "schema_version": "lyflow.telemetry.v1",
+      "source": "agent",
+      "source_engine": "runtime"
+    }
+  },
+  "agent.traffic": {
+    "schema_version": "lyflow.security_event.v1",
+    "event_uid": "evt-4468cc4b2549de36f9339a255bbac2c8",
+    "correlation_id": "corr-4468cc4b2549de36f9339a255bbac2c8",
+    "event_type": "traffic.flow",
+    "severity": "medium",
+    "identity": {
+      "principal_id": "agent-1",
+      "agent_id": "agent-1",
+      "component": "agent.traffic"
+    },
+    "timestamps": {
+      "event_at": "2026-07-13T09:59:00Z",
+      "observed_at": "2026-07-13T09:59:00Z",
+      "ingested_at": "2026-07-13T10:00:00Z"
+    },
+    "provenance": {
+      "source": "agent.traffic",
+      "native_schema": "lyflow.telemetry.v1",
+      "native_event_id": "flow-1",
+      "adapter": "contracts.telemetryEnvelopeAdapter",
+      "payload_sha256": "d575be10f7c3c372b79a2a855538755ff4c867c72b87f3c2c53c80769d0604c4"
+    },
+    "attack": {
+      "version": "enterprise-attack.v16"
+    },
+    "quality_flags": [
+      "normalized",
+      "principal_bound"
+    ],
+    "governance": {
+      "classification": "restricted",
+      "retention": {
+        "policy_id": "security-event-30d",
+        "expires_at": "2026-08-12T10:00:00Z",
+        "legal_hold": false
+      },
+      "encryption": {
+        "required": true,
+        "algorithm": "AES-256-GCM",
+        "key_ref": "event-data-current"
+      },
+      "access_policy_id": "security-event-read",
+      "deletion_policy_id": "security-event-delete",
+      "export_policy_id": "security-event-export",
+      "redacted_fields": []
+    },
+    "payload": {
+      "category": "traffic",
+      "entities": {
+        "agent_id": "agent-1"
+      },
+      "event_type": "traffic.flow",
+      "fields": {
+        "dst_ip": "198.51.100.20",
+        "severity": "medium",
+        "src_ip": "192.0.2.10"
+      },
+      "id": "flow-1",
+      "observed_at": "2026-07-13T09:59:00Z",
+      "schema_version": "lyflow.telemetry.v1",
+      "source": "agent",
+      "source_engine": "agent"
+    }
+  },
+  "dpi_engine": {
+    "schema_version": "lyflow.security_event.v1",
+    "event_uid": "evt-837c36b3c93820a0b3871ef00f9923ad",
+    "correlation_id": "corr-837c36b3c93820a0b3871ef00f9923ad",
+    "event_type": "dpi",
+    "severity": "medium",
+    "identity": {
+      "principal_id": "agent-1",
+      "agent_id": "agent-1",
+      "component": "dpi_engine"
+    },
+    "timestamps": {
+      "event_at": "2026-07-13T09:59:07Z",
+      "observed_at": "2026-07-13T09:59:07Z",
+      "ingested_at": "2026-07-13T10:00:00Z"
+    },
+    "provenance": {
+      "source": "dpi_engine",
+      "native_schema": "lyflow.dpi_alert.v1",
+      "native_event_id": "1001",
+      "adapter": "contracts.dpiAlertAdapter",
+      "payload_sha256": "0798fde3a9b1b6a17f62af5777370305849f34b6800c7b69a5e91f73d5b94a3d"
+    },
+    "attack": {
+      "version": "enterprise-attack.v16"
+    },
+    "quality_flags": [
+      "normalized",
+      "principal_bound"
+    ],
+    "governance": {
+      "classification": "restricted",
+      "retention": {
+        "policy_id": "security-event-30d",
+        "expires_at": "2026-08-12T10:00:00Z",
+        "legal_hold": false
+      },
+      "encryption": {
+        "required": true,
+        "algorithm": "AES-256-GCM",
+        "key_ref": "event-data-current"
+      },
+      "access_policy_id": "security-event-read",
+      "deletion_policy_id": "security-event-delete",
+      "export_policy_id": "security-event-export",
+      "redacted_fields": []
+    },
+    "payload": {
+      "category": "rule",
+      "data": "inert fixture payload",
+      "domain": "fixture.invalid",
+      "dst_ip": "198.51.100.24",
+      "dst_port": 443,
+      "id": 1001,
+      "protocol": "tcp",
+      "score": 75,
+      "sensor_id": "agent-1",
+      "severity": 3,
+      "signature": "inert fixture signature",
+      "src_ip": "192.0.2.14",
+      "src_port": 49152,
+      "status": "new",
+      "timestamp": "2026-07-13T09:59:07Z",
+      "type": "dpi"
+    }
+  },
+  "security_engine": {
+    "schema_version": "lyflow.security_event.v1",
+    "event_uid": "evt-bcb68d5b974fc21504bc8ddd944d5020",
+    "correlation_id": "corr-bcb68d5b974fc21504bc8ddd944d5020",
+    "event_type": "component.alert",
+    "severity": "high",
+    "identity": {
+      "principal_id": "agent-1",
+      "agent_id": "agent-1",
+      "component": "security_engine"
+    },
+    "timestamps": {
+      "event_at": "2026-07-13T09:59:08Z",
+      "observed_at": "2026-07-13T09:59:08Z",
+      "ingested_at": "2026-07-13T10:00:00Z"
+    },
+    "provenance": {
+      "source": "security_engine",
+      "native_schema": "lyflow.component_alert.v1",
+      "native_event_id": "engine-1",
+      "adapter": "contracts.componentAlertAdapter",
+      "payload_sha256": "0a4f88299f5fad2461f9313f2d6086b386aa8096f3455a1a74851eb23cb17afd"
+    },
+    "attack": {
+      "version": "enterprise-attack.v16"
+    },
+    "quality_flags": [
+      "normalized",
+      "principal_bound"
+    ],
+    "governance": {
+      "classification": "restricted",
+      "retention": {
+        "policy_id": "security-event-30d",
+        "expires_at": "2026-08-12T10:00:00Z",
+        "legal_hold": false
+      },
+      "encryption": {
+        "required": true,
+        "algorithm": "AES-256-GCM",
+        "key_ref": "event-data-current"
+      },
+      "access_policy_id": "security-event-read",
+      "deletion_policy_id": "security-event-delete",
+      "export_policy_id": "security-event-export",
+      "redacted_fields": []
+    },
+    "payload": {
+      "candidate_only": true,
+      "category": "host",
+      "entities": {
+        "agent_id": "agent-1"
+      },
+      "id": "engine-1",
+      "occurred_at": "2026-07-13T09:59:08Z",
+      "rule_id": "fixture-rule",
+      "rule_name": "Inert fixture rule",
+      "schema_version": "lyflow.component_alert.v1",
+      "score_hint": 75,
+      "severity": "high",
+      "source": "security-engine",
+      "source_engine": "lyflow",
+      "summary": "inert component alert"
+    }
+  },
+  "server.unified_legacy": {
+    "schema_version": "lyflow.security_event.v1",
+    "event_uid": "evt-dd25cc36e4838dbdafa0bb958aec7fb6",
+    "correlation_id": "corr-dd25cc36e4838dbdafa0bb958aec7fb6",
+    "event_type": "xdr.event",
+    "severity": "high",
+    "identity": {
+      "principal_id": "agent-1",
+      "agent_id": "agent-1",
+      "component": "server.unified_legacy"
+    },
+    "timestamps": {
+      "event_at": "2026-07-13T09:59:09Z",
+      "observed_at": "2026-07-13T09:59:09Z",
+      "ingested_at": "2026-07-13T10:00:00Z"
+    },
+    "provenance": {
+      "source": "server.unified_legacy",
+      "native_schema": "lyflow.unified.v1",
+      "native_event_id": "unified-1",
+      "adapter": "contracts.unifiedEventAdapter",
+      "payload_sha256": "fdf927f3733d35a5ff5a2960c6809b37b2e247ee3d97867417dd1164d855cfe6"
+    },
+    "attack": {
+      "tactic_id": "TA0001",
+      "technique_id": "T1190",
+      "version": "enterprise-attack.v16"
+    },
+    "quality_flags": [
+      "normalized",
+      "principal_bound"
+    ],
+    "governance": {
+      "classification": "restricted",
+      "retention": {
+        "policy_id": "security-event-30d",
+        "expires_at": "2026-08-12T10:00:00Z",
+        "legal_hold": false
+      },
+      "encryption": {
+        "required": true,
+        "algorithm": "AES-256-GCM",
+        "key_ref": "event-data-current"
+      },
+      "access_policy_id": "security-event-read",
+      "deletion_policy_id": "security-event-delete",
+      "export_policy_id": "security-event-export",
+      "redacted_fields": []
+    },
+    "payload": {
+      "agent_id": "agent-1",
+      "created_at": "2026-07-13T09:59:10Z",
+      "event_type": "xdr.event",
+      "id": "unified-1",
+      "mitre_tactic": "TA0001",
+      "mitre_technique": "T1190",
+      "severity": "high",
+      "timestamp": "2026-07-13T09:59:09Z"
+    }
+  },
+  "server.xdr_v2": {
+    "schema_version": "lyflow.security_event.v1",
+    "event_uid": "evt-081681d160736f6e7d0dd16fe2864e89",
+    "correlation_id": "corr-081681d160736f6e7d0dd16fe2864e89",
+    "event_type": "xdr.graph",
+    "severity": "critical",
+    "identity": {
+      "principal_id": "agent-1",
+      "agent_id": "agent-1",
+      "component": "server.xdr_v2"
+    },
+    "timestamps": {
+      "event_at": "2026-07-13T09:59:11Z",
+      "observed_at": "2026-07-13T09:59:11Z",
+      "ingested_at": "2026-07-13T10:00:00Z"
+    },
+    "provenance": {
+      "source": "server.xdr_v2",
+      "native_schema": "xdr-eval.v2",
+      "native_event_id": "xdr-1",
+      "adapter": "contracts.xdrV2Adapter",
+      "payload_sha256": "784892d334ed9b998027e2575a1bca6087588b9d10d43ee05e76ec6d99f29d78"
+    },
+    "attack": {
+      "tactic_id": "TA0002",
+      "technique_id": "T1059.001",
+      "version": "enterprise-attack.v16"
+    },
+    "quality_flags": [
+      "normalized",
+      "principal_bound"
+    ],
+    "governance": {
+      "classification": "restricted",
+      "retention": {
+        "policy_id": "security-event-30d",
+        "expires_at": "2026-08-12T10:00:00Z",
+        "legal_hold": false
+      },
+      "encryption": {
+        "required": true,
+        "algorithm": "AES-256-GCM",
+        "key_ref": "event-data-current"
+      },
+      "access_policy_id": "security-event-read",
+      "deletion_policy_id": "security-event-delete",
+      "export_policy_id": "security-event-export",
+      "redacted_fields": []
+    },
+    "payload": {
+      "agent_id": "agent-1",
+      "event_type": "xdr.graph",
+      "event_uid": "xdr-1",
+      "ingested_at": "2026-07-13T09:59:12Z",
+      "observed_at": "2026-07-13T09:59:11Z",
+      "risk_score": 95,
+      "source_component": "server-xdr",
+      "tactic_id": "TA0002",
+      "technique_id": "T1059.001"
+    }
+  }
+}

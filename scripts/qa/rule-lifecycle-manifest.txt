@@ -1,0 +1,29 @@
+# Todo 21 secure rule lifecycle QA
+authoritative_source=server/rulelifecycle
+runtime_digest_gate=security-engine/engine/loader.go+signed-active-manifest
+trust_role=rule
+audit_store=controlaudit-signed-anchor-ledger
+rbac=admin-only-mutations
+source_pin=revision+sha256
+source_policy=https+domain-allowlist+all-resolved-addresses
+blocked_addresses=loopback+private+link-local+multicast+unspecified+metadata
+redirect_policy=revalidate-every-hop
+fetch_caps=bytes+deadline+redirect-count
+compile=strict-json+known-fields+typed-conditions+re2
+untrusted_execution=forbidden
+activation=staged+signed-manifest+atomic-pointer
+runtime_health=version+digest
+failure_recovery=atomic-exact-runtime-snapshot-restore+health
+revision_policy=immutable
+inline_policy=bounded-http+typed-local-source+caller-digest+strict-stage+signed-activation
+snapshot_policy=content-addressed+immutable
+audit_sequence=source-upsert+inline+fetch-attempt+fetch-outcome+parse+persist+activate
+category_policy=typed-runtime-categories+yara-runtime-mapping+unsupported-reject
+reload_control=authenticated-admin-principal+durable-redacted-engine-audit
+manifest_revision_policy=source_revision-equals-revision
+post_activation_commit=transactional-db-status+exact-runtime-manifest-compensation
+
+required_scenarios=rbac,audit,allowlisted-redirect,dns-ip,digest,size,timeout,strict-compile,yara-category,signature,source-revision-equality,atomic-activation,reload,reload-control-auth,manual-rollback,health-auto-rollback,first-activation-runtime-restore,inline-cap,inline-early-outcomes,immutable-source-version,post-activation-db-compensation,process-startup-reload,postgres,redis
+runner=bash scripts/qa/run-go-tests.sh rule-lifecycle
+engine_digest_test=cd security-engine && GOWORK=off GOPROXY=off go test ./config ./engine ./cmd
+evidence=scripts/qa/rule-lifecycle-evidence.txt
