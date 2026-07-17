@@ -1,0 +1,144 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
+workflow="$root/.gitea/workflows/docker-build.yml"
+
+python3 - "$workflow" <<'PY'
+from __future__ import annotations
+
+import subprocess
+import sys
+from pathlib import Path
+
+import yaml
+
+
+def validate(document: str, source: str) -> list[str]:
+    errors: list[str] = []
+    loaded = yaml.load(document, Loader=yaml.BaseLoader)
+    if not isinstance(loaded, dict):
+        return [f"{source}: workflow root must be a mapping"]
+
+    if "permissions" in loaded:
+        errors.append(f"{source}: top-level permissions are unsupported by Gitea Actions")
+
+    jobs = loaded.get("jobs")
+    if not isinstance(jobs, dict) or not jobs:
+        return errors + [f"{source}: jobs must be a non-empty mapping"]
+
+    for job_name, job in jobs.items():
+        if not isinstance(job, dict):
+            errors.append(f"{source}: job {job_name} must be a mapping")
+            continue
+
+        runs_on = job.get("runs-on")
+        valid_runner = isinstance(runs_on, str) or (
+            isinstance(runs_on, list)
+            and bool(runs_on)
+            and all(isinstance(label, str) for label in runs_on)
+        )
+        if not valid_runner:
+            errors.append(
+                f"{source}: job {job_name} runs-on must be a string or string array"
+            )
+        for unsupported in ("environment", "permissions"):
+            if unsupported in job:
+                errors.append(
+                    f"{source}: job {job_name} uses unsupported {unsupported}"
+                )
+
+        job_env = job.get("env", {})
+        if isinstance(job_env, dict) and "LYFLOW_GITEA_TOKEN" in job_env:
+            errors.append(
+                f"{source}: job {job_name} exposes the release token to non-upload steps"
+            )
+
+        steps = job.get("steps")
+        if not isinstance(steps, list):
+            errors.append(f"{source}: job {job_name} steps must be an array")
+            continue
+        for step_number, step in enumerate(steps, start=1):
+            if not isinstance(step, dict):
+                errors.append(
+                    f"{source}: job {job_name} step {step_number} must be a mapping"
+                )
+                continue
+            run = step.get("run")
+            if isinstance(run, str):
+                result = subprocess.run(
+                    ["bash", "-n"],
+                    input=run,
+                    text=True,
+                    capture_output=True,
+                    check=False,
+                )
+                if result.returncode != 0:
+                    errors.append(
+                        f"{source}: job {job_name} step {step_number} is invalid shell: "
+                        f"{result.stderr.strip()}"
+                    )
+
+    return errors
+
+
+invalid_cases = {
+    "mapping runner": "jobs:\n  build:\n    runs-on:\n      labels: [docker]\n    steps: []\n",
+    "GitHub environment": "jobs:\n  build:\n    runs-on: docker\n    environment: release\n    steps: []\n",
+    "GitHub permissions": "permissions:\n  id-token: write\njobs:\n  build:\n    runs-on: docker\n    steps: []\n",
+}
+for case_name, fixture in invalid_cases.items():
+    if not validate(fixture, case_name):
+        raise SystemExit(f"invalid fixture was accepted: {case_name}")
+
+workflow_path = Path(sys.argv[1])
+text = workflow_path.read_text(encoding="utf-8")
+workflow_errors = validate(text, str(workflow_path))
+loaded_workflow = yaml.load(text, Loader=yaml.BaseLoader)
+jobs = loaded_workflow.get("jobs", {}) if isinstance(loaded_workflow, dict) else {}
+checkout_pin = "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683"
+for job_name in ("release-amd64", "release-arm64"):
+    job = jobs.get(job_name, {}) if isinstance(jobs, dict) else {}
+    steps = job.get("steps", []) if isinstance(job, dict) else []
+    first_step = steps[0] if isinstance(steps, list) and steps else {}
+    if not isinstance(first_step, dict) or first_step.get("uses") != checkout_pin:
+        workflow_errors.append(
+            f"{workflow_path}: job {job_name} must start with pinned {checkout_pin}"
+        )
+for required in (
+    "mktemp -d",
+    "if: always()",
+    "github.event_name != 'pull_request'",
+    "bash scripts/qa/install-offline_test.sh",
+    "bash scripts/qa/container-smoke_test.sh",
+    "bash scripts/qa/gitea-workflow_test.sh",
+    "bash scripts/container-smoke.sh",
+    "go build -o ly-agent-arm64 ./cmd",
+    'test "$(go env GOARCH)" = arm64',
+):
+    if required not in text:
+        workflow_errors.append(f"{workflow_path}: missing concurrency safeguard {required!r}")
+if "/tmp/lyflow-actions-workspace" in text:
+    workflow_errors.append(f"{workflow_path}: checkout uses a shared temporary directory")
+if "git clone" in text:
+    workflow_errors.append(f"{workflow_path}: runner workspace must not be replaced by a manual clone")
+if 'mktemp -d "${TMPDIR:-/tmp}' in text:
+    workflow_errors.append(f"{workflow_path}: temporary paths must be workspace-scoped")
+if "/root/ly-flow-platform" in text:
+    workflow_errors.append(f"{workflow_path}: workflow depends on a host-specific workspace")
+arm64_job = jobs.get("release-arm64", {}) if isinstance(jobs, dict) else {}
+if not isinstance(arm64_job, dict) or arm64_job.get("runs-on") != ["docker", "arm64"]:
+    workflow_errors.append(f"{workflow_path}: arm64 job must use [docker, arm64]")
+if "if [ -f agent/ly-agent-arm64 ]" in text:
+    workflow_errors.append(f"{workflow_path}: arm64 job relies on a pre-existing agent binary")
+token_binding = "LYFLOW_GITEA_TOKEN: ${{ secrets.LYFLOW_GITEA_TOKEN }}"
+if text.count(token_binding) != 2:
+    workflow_errors.append(
+        f"{workflow_path}: each upload step must bind LYFLOW_GITEA_TOKEN exactly once"
+    )
+
+if workflow_errors:
+    raise SystemExit("\n".join(workflow_errors))
+PY
+
+printf 'Gitea workflow validation passed\n'

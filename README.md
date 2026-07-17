@@ -19,7 +19,9 @@
 ```bash
 tar -xzf lyflow-offline-install-*.tar.gz
 cd lyflow-offline-install-*
-sudo bash scripts/install-offline.sh
+sudo bash scripts/install-offline.sh \
+  --trust-root /path/outside/package/release-root.pem \
+  --generate-admin-password
 ```
 
 安装完成后访问：
@@ -28,13 +30,17 @@ sudo bash scripts/install-offline.sh
 https://<服务器IP>/
 ```
 
-默认账号：`admin / password`，首次登录要求修改密码。
+管理员账号为 `admin`。安装器生成初始密码并写入权限为 `0600` 的
+`initial-admin-credentials`，首次登录要求修改密码。
 
 ## 开发与验收构建
 
 ```bash
 # 构建离线验收包
 scripts/build-offline-release.sh
+
+# 使用本地镜像执行隔离容器烟雾测试
+scripts/container-smoke.sh
 
 # 后端测试
 cd server && GOWORK=off go test ./...
@@ -53,6 +59,7 @@ cd frontend && npm run build
 - [软件架构](ARCHITECTURE.md)
 - [API 文档](docs/API.md)
 - [白皮书](docs/WHITEPAPER.md)
+- [发布来源、签名与可复现性](docs/RELEASE_PROVENANCE.md)
 
 ## 默认运行拓扑
 
