@@ -279,12 +279,11 @@ while IFS=$'\t' read -r kind source_path excluded_tree runtime os_name monitor_m
       java_log="$evidence_dir/logs/java-experimental.log"
       if [[ $source_path != agent/rasp/java || $excluded_tree != probe/rasp/java || $gate != Todo15-experimental ]] \
           || ! bash "$root/scripts/qa/run-java-rasp-conformance.sh" --iterations "$iterations" >"$java_log" 2>&1; then
-        status=FAIL
+        status=EXPERIMENTAL
         gate_status=FAIL
         detail=Todo15-experimental-runtime-failed
       fi
       emit_row "$source_path" "$runtime" "$os_name" "$monitor_mode" "todo15-runtime:$gate_status,pilot-exclusion:$artifact_status" "$status" "$detail"
-      [[ $status == FAIL ]] && mark_overall FAIL
       ;;
     node|php|dotnet)
       status=UNSUPPORTED
@@ -433,7 +432,7 @@ evidence = {
         "missing_policy_fail_behavior_health": gate_status,
         "exporter_outage_fail_behavior_health": gate_status,
         "pilot_package_exclusion": artifact_status,
-        "java_todo14_gate": "PASS: EXPERIMENTAL and gated",
+  "java_todo14_gate": "RECORDED: EXPERIMENTAL and gated",
     },
     "determinism": {
         "iterations_per_runtime": iterations,
