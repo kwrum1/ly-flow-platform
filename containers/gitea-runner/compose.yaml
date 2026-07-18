@@ -19,5 +19,6 @@ services:
       - ${NPM_CACHE_DIR:-/root/.npm}:/root/.npm
       - ${GO_MODULE_CACHE_DIR:-/root/go/pkg/mod}:/root/go/pkg/mod
       - ${GO_BUILD_CACHE_DIR:-/root/.cache/go-build}:/root/.cache/go-build
+      - ${ACT_CACHE_DIR:-/root/.cache/act}:/root/.cache/act
       - ${TODO22_CACHE_DIR:-/root/.cache/todo22}:/root/.cache/todo22:ro
       - ${LYFLOW_EVIDENCE_DIR:-/root/ly-flow-platform/.omo/evidence}:/opt/lyflow-evidence:ro
