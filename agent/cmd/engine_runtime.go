@@ -314,6 +314,9 @@ func (a *Agent) consumeJSONLineAlertFileContext(ctx context.Context, engine Engi
 		health.TouchWatchdog()
 		bounded, err := readBoundedSuricataLine(reader)
 		line := bounded.data
+		if bounded.bytesRead == 0 {
+			break
+		}
 		if bounded.oversized || int(bounded.bytesRead) > agentRuntimeLimits().MemoryBytes {
 			health.Degrade("read_or_memory_budget_exceeded", false)
 			return current, errRuntimeReadLimit
