@@ -1,0 +1,24 @@
+services:
+  runner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: lyflow/gitea-runner:toolchain
+    container_name: lyflow-act-runner
+    restart: unless-stopped
+    environment:
+      GITEA_INSTANCE_URL: ${GITEA_INSTANCE_URL:-http://gitea:3000}
+      GITEA_RUNNER_LABELS: docker:host
+      GITEA_RUNNER_NAME: lyflow-local
+      GITEA_RUNNER_REGISTRATION_TOKEN: ${GITEA_RUNNER_REGISTRATION_TOKEN:-}
+    volumes:
+      - ${GITEA_RUNNER_DATA_DIR:-/opt/1panel/apps/gitea/gitea/runner-data}:/data
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${NPM_CACHE_DIR:-/root/.npm}:/root/.npm
+      - ${GO_MODULE_CACHE_DIR:-/root/go/pkg/mod}:/root/go/pkg/mod
+      - ${GO_BUILD_CACHE_DIR:-/root/.cache/go-build}:/root/.cache/go-build
+
+networks:
+  default:
+    name: ${GITEA_NETWORK:-1panel-network}
+    external: true
