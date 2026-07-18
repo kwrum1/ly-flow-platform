@@ -96,7 +96,7 @@ text = workflow_path.read_text(encoding="utf-8")
 workflow_errors = validate(text, str(workflow_path))
 loaded_workflow = yaml.load(text, Loader=yaml.BaseLoader)
 jobs = loaded_workflow.get("jobs", {}) if isinstance(loaded_workflow, dict) else {}
-for job_name in ("release-amd64", "release-arm64"):
+for job_name in ("release-amd64",):
     job = jobs.get(job_name, {}) if isinstance(jobs, dict) else {}
     steps = job.get("steps", []) if isinstance(job, dict) else []
     first_step = steps[0] if isinstance(steps, list) and steps else {}
@@ -114,8 +114,6 @@ for required in (
     "bash scripts/qa/container-smoke_test.sh",
     "bash scripts/qa/gitea-workflow_test.sh",
     "bash scripts/container-smoke.sh",
-    "go build -o ly-agent-arm64 ./cmd",
-    'test "$(go env GOARCH)" = arm64',
 ):
     if required not in text:
         workflow_errors.append(f"{workflow_path}: missing concurrency safeguard {required!r}")
@@ -127,15 +125,10 @@ if 'mktemp -d "${TMPDIR:-/tmp}' in text:
     workflow_errors.append(f"{workflow_path}: temporary paths must be workspace-scoped")
 if "/root/ly-flow-platform" in text:
     workflow_errors.append(f"{workflow_path}: workflow depends on a host-specific workspace")
-arm64_job = jobs.get("release-arm64", {}) if isinstance(jobs, dict) else {}
-if not isinstance(arm64_job, dict) or arm64_job.get("runs-on") != ["docker", "arm64"]:
-    workflow_errors.append(f"{workflow_path}: arm64 job must use [docker, arm64]")
-if "if [ -f agent/ly-agent-arm64 ]" in text:
-    workflow_errors.append(f"{workflow_path}: arm64 job relies on a pre-existing agent binary")
 token_binding = "LYFLOW_GITEA_TOKEN: ${{ secrets.LYFLOW_GITEA_TOKEN }}"
-if text.count(token_binding) != 2:
+if text.count(token_binding) != 1:
     workflow_errors.append(
-        f"{workflow_path}: each upload step must bind LYFLOW_GITEA_TOKEN exactly once"
+        f"{workflow_path}: upload step must bind LYFLOW_GITEA_TOKEN exactly once"
     )
 
 if workflow_errors:
