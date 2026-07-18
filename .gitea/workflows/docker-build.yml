@@ -19,12 +19,17 @@ jobs:
       GIT_TERMINAL_PROMPT: "0"
       GOTOOLCHAIN: local
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-
-      - name: Verify runner checkout
+      - name: Checkout repository from Gitea
         run: |
           set -euo pipefail
+          if [ ! -d .git ]; then
+            checkout_dir=$(mktemp -d "$PWD/.lyflow-checkout.XXXXXX")
+            trap 'rm -rf -- "$checkout_dir"' EXIT
+            gitea_url="${GITEA_INSTANCE_URL:-http://gitea:3000}"
+            repository="${GITHUB_REPOSITORY:-ly-flow-platform/ly-flow-platform}"
+            git clone --depth 1 "$gitea_url/$repository.git" "$checkout_dir/repository"
+            cp -a "$checkout_dir/repository/." .
+          fi
           test -d .git || { echo "Gitea runner did not provide a repository checkout" >&2; exit 1; }
           test -f scripts/build-offline-release.sh || { echo "runner checkout is incomplete" >&2; exit 1; }
 
@@ -128,6 +133,7 @@ jobs:
 
   release-arm64:
     name: Build arm64 offline package
+    if: ${{ github.event_name == 'workflow_dispatch' }}
     runs-on: [docker, arm64]
     env:
       CI: "true"
@@ -135,12 +141,17 @@ jobs:
       GIT_TERMINAL_PROMPT: "0"
       GOTOOLCHAIN: local
     steps:
-      - name: Checkout repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
-
-      - name: Verify runner checkout
+      - name: Checkout repository from Gitea
         run: |
           set -euo pipefail
+          if [ ! -d .git ]; then
+            checkout_dir=$(mktemp -d "$PWD/.lyflow-checkout.XXXXXX")
+            trap 'rm -rf -- "$checkout_dir"' EXIT
+            gitea_url="${GITEA_INSTANCE_URL:-http://gitea:3000}"
+            repository="${GITHUB_REPOSITORY:-ly-flow-platform/ly-flow-platform}"
+            git clone --depth 1 "$gitea_url/$repository.git" "$checkout_dir/repository"
+            cp -a "$checkout_dir/repository/." .
+          fi
           test -d .git || { echo "Gitea runner did not provide a repository checkout" >&2; exit 1; }
           test -f scripts/build-offline-release.sh || { echo "runner checkout is incomplete" >&2; exit 1; }
 

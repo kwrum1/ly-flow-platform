@@ -96,19 +96,20 @@ text = workflow_path.read_text(encoding="utf-8")
 workflow_errors = validate(text, str(workflow_path))
 loaded_workflow = yaml.load(text, Loader=yaml.BaseLoader)
 jobs = loaded_workflow.get("jobs", {}) if isinstance(loaded_workflow, dict) else {}
-checkout_pin = "actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683"
 for job_name in ("release-amd64", "release-arm64"):
     job = jobs.get(job_name, {}) if isinstance(jobs, dict) else {}
     steps = job.get("steps", []) if isinstance(job, dict) else []
     first_step = steps[0] if isinstance(steps, list) and steps else {}
-    if not isinstance(first_step, dict) or first_step.get("uses") != checkout_pin:
+    if not isinstance(first_step, dict) or "git clone --depth 1" not in first_step.get("run", ""):
         workflow_errors.append(
-            f"{workflow_path}: job {job_name} must start with pinned {checkout_pin}"
+            f"{workflow_path}: job {job_name} must start with a local Gitea clone"
         )
 for required in (
     "mktemp -d",
     "if: always()",
     "github.event_name != 'pull_request'",
+    "gitea_url=\"${GITEA_INSTANCE_URL:-http://gitea:3000}\"",
+    "git clone --depth 1",
     "bash scripts/qa/install-offline_test.sh",
     "bash scripts/qa/container-smoke_test.sh",
     "bash scripts/qa/gitea-workflow_test.sh",
@@ -120,8 +121,8 @@ for required in (
         workflow_errors.append(f"{workflow_path}: missing concurrency safeguard {required!r}")
 if "/tmp/lyflow-actions-workspace" in text:
     workflow_errors.append(f"{workflow_path}: checkout uses a shared temporary directory")
-if "git clone" in text:
-    workflow_errors.append(f"{workflow_path}: runner workspace must not be replaced by a manual clone")
+if "https://github.com/actions/checkout" in text or "uses: actions/checkout" in text:
+    workflow_errors.append(f"{workflow_path}: workflow must not depend on GitHub checkout")
 if 'mktemp -d "${TMPDIR:-/tmp}' in text:
     workflow_errors.append(f"{workflow_path}: temporary paths must be workspace-scoped")
 if "/root/ly-flow-platform" in text:
