@@ -86,7 +86,7 @@ jobs:
       - name: Build amd64 release package
         run: |
           set -euo pipefail
-          ci_tmp=$(mktemp -d "$PWD/.lyflow-amd64.XXXXXX")
+          ci_tmp=$(mktemp -d "${RUNNER_TEMP:-/tmp}/lyflow-amd64.XXXXXX")
           printf '%s\n' "$ci_tmp" >.lyflow-amd64-tmp
           openssl genpkey -algorithm ED25519 -out "$ci_tmp/release.key"
           openssl pkey -in "$ci_tmp/release.key" -pubout -out "$ci_tmp/release-root.pem"
