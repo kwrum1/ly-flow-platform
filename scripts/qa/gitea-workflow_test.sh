@@ -108,7 +108,7 @@ for required in (
     "mktemp -d",
     "if: always()",
     "github.event_name != 'pull_request'",
-    "gitea_url=\"${GITEA_INSTANCE_URL:-http://gitea:3000}\"",
+    "gitea_url=\"${GITEA_INSTANCE_URL:-http://127.0.0.1:10000}\"",
     "git clone --depth 1",
     "bash scripts/qa/install-offline_test.sh",
     "bash scripts/qa/container-smoke_test.sh",

@@ -1,6 +1,6 @@
-FROM gitea/act_runner:latest AS act-runner
+FROM gitea/act_runner@sha256:b5c35d6bdbb9bb25e531230bfc7cc663cb751406cbec90a2a891b85fea54de86 AS act-runner
 
-FROM docker.gitea.com/runner-images:ubuntu-latest
+FROM docker.gitea.com/runner-images@sha256:58ea92624c7c09582e05594d95488331045053d3a3f34cf09649f2a32313a614
 
 ARG GO_VERSION=1.26.5
 ARG GO_SHA256=5c2c3b16caefa1d968a94c1daca04a7ca301a496d9b086e17ad77bb81393f053
@@ -9,7 +9,7 @@ ARG NODE_VERSION=22.22.2
 USER root
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl tini xz-utils \
+    && apt-get install -y --no-install-recommends ca-certificates curl libpcap-dev python3-yaml tini xz-utils \
     && rm -rf /var/lib/apt/lists/*
 
 RUN set -eux; \

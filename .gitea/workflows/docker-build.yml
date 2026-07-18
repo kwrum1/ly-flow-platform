@@ -18,6 +18,18 @@ jobs:
       DEBIAN_FRONTEND: noninteractive
       GIT_TERMINAL_PROMPT: "0"
       GOTOOLCHAIN: local
+      GITEA_SERVER_URL: http://127.0.0.1:10000
+      TODO22_TOOL_DIR: /root/.cache/todo22/bin
+      TODO22_GO_VULN_DB: /root/.cache/todo22/go-vulndb
+      TODO22_GO_REPORT_DIR: /opt/lyflow-evidence/task-22-final-20260717T032600Z/scans/go
+      TODO22_NPM_AUDIT_JSON: /opt/lyflow-evidence/task-22-final-20260717T032600Z/scans/npm-audit.json
+      TODO22_PYTHON_OSV_JSON: /opt/lyflow-evidence/task-22-final-20260717T032600Z/scans/python-osv.json
+      TODO22_OSV_DB: /root/.cache/todo22/osv/osv-scanner/PyPI/all.zip
+      TODO22_TRIVY_CACHE: /root/.cache/todo22/trivy
+      TODO22_GRYPE_CACHE: /root/.cache/todo22/grype
+      TODO22_GRYPE_DB_STATUS: /opt/lyflow-evidence/task-22-final-20260717T032600Z/scans/grype-db-status.json
+      TODO22_JAVA_REPORT: /opt/lyflow-evidence/task-22-final-20260717T032600Z/scans/java-dependency-check.json
+      TODO22_JAVA_DB: /root/.cache/todo22/dependency-check-data/odc.mv.db
     steps:
       - name: Checkout repository from Gitea
         run: |
@@ -25,7 +37,7 @@ jobs:
           if [ ! -d .git ]; then
             checkout_dir=$(mktemp -d "$PWD/.lyflow-checkout.XXXXXX")
             trap 'rm -rf -- "$checkout_dir"' EXIT
-            gitea_url="${GITEA_INSTANCE_URL:-http://gitea:3000}"
+            gitea_url="${GITEA_INSTANCE_URL:-http://127.0.0.1:10000}"
             repository="${GITHUB_REPOSITORY:-ly-flow-platform/ly-flow-platform}"
             git clone --depth 1 "$gitea_url/$repository.git" "$checkout_dir/repository"
             cp -a "$checkout_dir/repository/." .
@@ -46,6 +58,9 @@ jobs:
           node --version
           npm --version
           python3 --version
+          python3 -c 'import yaml'
+          test -f /usr/include/pcap/pcap.h
+          printf '#include <pcap/pcap.h>\n' | cc -E -x c - >/dev/null
           test "$(go env GOVERSION)" = go1.26.5
           test "$(node --version)" = v22.22.2
 
@@ -75,12 +90,11 @@ jobs:
           printf '%s\n' "$ci_tmp" >.lyflow-amd64-tmp
           openssl genpkey -algorithm ED25519 -out "$ci_tmp/release.key"
           openssl pkey -in "$ci_tmp/release.key" -pubout -out "$ci_tmp/release-root.pem"
-          nginx=$(docker image inspect nginx:1.27-alpine --format '{{index .RepoDigests 0}}')
           suricata=$(docker image inspect jasonish/suricata:7.0.11 --format '{{index .RepoDigests 0}}')
           SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD) \
             RELEASE_ID="${GITHUB_SHA:-$(git rev-parse --short=12 HEAD)}" \
             RELEASE_SIGNING_KEY="$ci_tmp/release.key" \
-            NGINX_IMAGE="$nginx" SURICATA_PROFILE_IMAGE="$suricata" \
+            SURICATA_PROFILE_IMAGE="$suricata" \
             LYFLOW_CI_LOCAL_CACHE=1 TARGET_ARCH=amd64 bash scripts/build-offline-release.sh
 
       - name: Verify amd64 artifact
@@ -111,7 +125,7 @@ jobs:
           fi
           release_json=$(curl -fsS -H "Authorization: token $token" "$api/releases/tags/$tag" 2>/dev/null || true)
           if ! printf '%s' "$release_json" | python3 -c 'import json, sys; data=sys.stdin.read(); sys.exit(0 if data and "id" in json.loads(data) else 1)' 2>/dev/null; then
-            payload=$(TAG="$tag" TARGET="${GITHUB_SHA:-main}" python3 -c 'import json, os; print(json.dumps({"tag_name": os.environ["TAG"], "target_commitish": os.environ["TARGET"], "name": "Offline packages " + os.environ["TAG"], "body": "Automated amd64 and arm64 offline release packages.", "draft": False, "prerelease": False}))')
+            payload=$(TAG="$tag" TARGET="${GITHUB_SHA:-main}" python3 -c 'import json, os; print(json.dumps({"tag_name": os.environ["TAG"], "target_commitish": os.environ["TARGET"], "name": "Offline package " + os.environ["TAG"], "body": "Automated amd64 offline release package.", "draft": False, "prerelease": False}))')
             if ! release_json=$(curl -fsS -X POST -H "Authorization: token $token" -H "Content-Type: application/json" \
               -d "$payload" \
               "$api/releases"); then
