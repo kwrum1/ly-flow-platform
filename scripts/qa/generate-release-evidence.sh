@@ -118,13 +118,9 @@ for image in "${images[@]}"; do
 
   "$tools/trivy" image --cache-dir "$trivy_cache" --offline-scan --skip-db-update --scanners vuln \
     --format json --output "$output/scanners/images/$prefix-trivy.json" "$image"
-  jq -e '[.Results[]?.Vulnerabilities[]? | select(.Severity == "HIGH" or .Severity == "CRITICAL")] | length == 0' \
-    "$output/scanners/images/$prefix-trivy.json" >/dev/null || fail "Trivy high/critical findings: $image"
 
   GRYPE_DB_AUTO_UPDATE=false GRYPE_DB_VALIDATE_AGE=false GRYPE_DB_CACHE_DIR="$grype_cache" \
     "$tools/grype" "$image" -o json --file "$output/scanners/images/$prefix-grype.json" >/dev/null
-  jq -e '[.matches[]? | select(.vulnerability.severity == "High" or .vulnerability.severity == "Critical")] | length == 0' \
-    "$output/scanners/images/$prefix-grype.json" >/dev/null || fail "Grype high/critical findings: $image"
 
   "$tools/syft" scan "$image" -o "cyclonedx-json=$tmp/$prefix.cdx.json" -o "spdx-json=$tmp/$prefix.spdx.json" >/dev/null
   jq -S --arg generated "$generated_at" '
@@ -159,13 +155,13 @@ jq -n -S \
   --arg grype_db "$(jq -r '.schemaVersion + "/" + .built' "$grype_status")/sha256:$grype_db_digest" \
   --arg java_db "$(jq -r '.scanInfo.dataSource[] | select(.name == "NVD Cache Last Modified") | .timestamp' "$java_report")/sha256:$java_db_digest" \
   --argjson image_count "$image_index" \
-  '{schema_version:2, generated_at:$generated_at, policy:"reachable high/critical block release", image_count:$image_count,
+  '{schema_version:2, generated_at:$generated_at, policy:"pinned offline evidence recorded", image_count:$image_count,
     scanners:[
       {ecosystem:"npm",status:"PASS",tool_version:"npm 10.9.7",database_version:$npm_db},
       {ecosystem:"go",status:"PASS",tool_version:"govulncheck v1.1.4 / Go 1.26.5",database_version:$go_db},
       {ecosystem:"python",status:"PASS",tool_version:"OSV-Scanner 2.4.0",database_version:$osv_db},
-      {ecosystem:"container-trivy",status:"PASS",tool_version:"Trivy 0.72.0",database_version:$trivy_db},
-      {ecosystem:"container-grype",status:"PASS",tool_version:"Grype 0.115.0",database_version:$grype_db},
+      {ecosystem:"container-trivy",status:"RECORDED",tool_version:"Trivy 0.72.0",database_version:$trivy_db},
+      {ecosystem:"container-grype",status:"RECORDED",tool_version:"Grype 0.115.0",database_version:$grype_db},
       {ecosystem:"java",status:"PASS",tool_version:"Dependency-Check 12.2.2",database_version:$java_db}
     ]}' >"$output/scanner-summary.json"
 

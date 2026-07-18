@@ -29,7 +29,7 @@ if [[ "$TARGET_ARCH" != "amd64" ]]; then
 fi
 
 if [[ "$TARGET_ARCH" == "amd64" ]]; then
-  DB_POSTGRES_IMAGE="${DB_POSTGRES_IMAGE:-postgres@sha256:4e6e670bb069649261c9c18031f0aded7bb249a5b6664ddec29c013a89310d50}"
+  DB_POSTGRES_IMAGE="${DB_POSTGRES_IMAGE:-postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777}"
   DB_REDIS_IMAGE="${DB_REDIS_IMAGE:-redis@sha256:9de71018be8413f419688ac34e19dbac432d1c6d9593d2ded99a82eebefeb18f}"
   DB_CLICKHOUSE_IMAGE="${DB_CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server@sha256:b002e56ed5c16e224c312527f6fcba7e77216fec5d7a88a7828f59efc614feb5}"
 else
