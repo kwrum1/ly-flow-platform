@@ -116,7 +116,7 @@ for image in "${images[@]}"; do
   printf -v prefix 'image-%02d' "$image_index"
   printf '%s\n' "$image" >>"$output/provenance/image-pins.txt"
 
-  "$tools/trivy" image --cache-dir "$trivy_cache" --offline-scan --skip-db-update --scanners vuln \
+  "$tools/trivy" image --cache-dir "$trivy_cache" --offline-scan --skip-db-update --skip-java-db-update --scanners vuln --pkg-types os \
     --format json --output "$output/scanners/images/$prefix-trivy.json" "$image"
 
   GRYPE_DB_AUTO_UPDATE=false GRYPE_DB_VALIDATE_AGE=false GRYPE_DB_CACHE_DIR="$grype_cache" \
