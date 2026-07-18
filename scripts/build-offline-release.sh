@@ -160,7 +160,6 @@ ly-flow/security-engines:latest	$SECURITY_ENGINES_IMAGE
 ly-flow/agent:latest	$AGENT_IMAGE
 ly-flow/dpi-engine:latest	$DPI_IMAGE
 ly-flow/suricata-profile:7.0.11	$SURICATA_SENSOR_IMAGE
-jasonish/suricata:7.0.11	$SURICATA_PROFILE_IMAGE
 EOF
 run "$ROOT_DIR/scripts/release-provenance.sh" pin-compose --input docker-compose.yml --output "$PACKAGE_DIR/docker-compose.yml" --pins "$PACKAGE_DIR/image-pins.tsv"
 cp scripts/install-offline.sh "$PACKAGE_DIR/scripts/install-offline.sh"
