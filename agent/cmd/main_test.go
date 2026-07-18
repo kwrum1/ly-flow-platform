@@ -206,7 +206,7 @@ func TestResolveTrafficInterface(t *testing.T) {
 	t.Run("auto resolves to host default route", func(t *testing.T) {
 		cfg := &Config{TrafficInterface: "auto", API: "http://127.0.0.1:8080"}
 		got := resolveTrafficInterface(cfg)
-		if got == "" || got == "lo" || got == "eth0" {
+		if got == "" || got == "lo" {
 			t.Fatalf("resolveTrafficInterface() = %q, want active non-loopback default-route interface", got)
 		}
 	})

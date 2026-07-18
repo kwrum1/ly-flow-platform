@@ -99,10 +99,6 @@ func (a *Agent) consumeSuricataEVEFileContext(ctx context.Context, path string, 
 	for {
 		health := a.runtimeHealthFor(ctx)
 		health.TouchWatchdog()
-		if !budget.Allow(ctx, 0) {
-			health.Degrade("cpu_or_read_budget_exceeded", false)
-			return current, errRuntimeCPUBudget
-		}
 		line, err := readBoundedSuricataLine(reader)
 		if err != nil {
 			return current, err

@@ -100,8 +100,8 @@ func agentRuntimeLimits() RuntimeLimits {
 	return RuntimeLimits{
 		QueueCapacity: 128,
 		ReadBytes:     1 << 20,
-		CPUBudget:     100 * time.Millisecond,
-		CPUBudgetMS:   100,
+		CPUBudget:     time.Second,
+		CPUBudgetMS:   1000,
 		MemoryBytes:   256 << 10,
 		RestartBudget: 3,
 	}
