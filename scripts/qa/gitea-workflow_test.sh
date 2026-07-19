@@ -115,6 +115,8 @@ for required in (
     "bash scripts/qa/gitea-workflow_test.sh",
     "bash scripts/container-smoke.sh",
     "docker pull postgres:16-alpine",
+    "docker pull redis:7-alpine",
+    "docker pull clickhouse/clickhouse-server:24.8-alpine",
     "release-root.pem",
 ):
     if required not in text:
