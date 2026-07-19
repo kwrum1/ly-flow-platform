@@ -115,6 +115,7 @@ jobs:
           LYFLOW_GITEA_TOKEN: ${{ secrets.LYFLOW_GITEA_TOKEN }}
         run: |
           set -euo pipefail
+          ci_tmp=$(<.lyflow-amd64-tmp)
           package=$(ls -1 release/lyflow-offline-install-amd64-*.tar.gz | tail -n 1)
           tag="offline-${GITHUB_SHA:-$(git rev-parse --short HEAD)}-${GITHUB_RUN_ID:-local}"
           api="${GITEA_SERVER_URL:-http://127.0.0.1:10000}/api/v1/repos/ly-flow-platform/ly-flow-platform"
@@ -132,9 +133,9 @@ jobs:
               release_json=$(curl -fsS -H "Authorization: token $token" "$api/releases/tags/$tag")
             fi
           fi
-           release_id=$(printf '%s' "$release_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
-           curl -fsS -X POST -H "Authorization: token $token" -F "attachment=@${package}" "$api/releases/$release_id/assets"
-           curl -fsS -X POST -H "Authorization: token $token" -F "attachment=@${ci_tmp}/release-root.pem" "$api/releases/$release_id/assets"
+          release_id=$(printf '%s' "$release_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+          curl -fsS -X POST -H "Authorization: token $token" -F "attachment=@${package}" "$api/releases/$release_id/assets"
+          curl -fsS -X POST -H "Authorization: token $token" -F "attachment=@${ci_tmp}/release-root.pem" "$api/releases/$release_id/assets"
 
       - name: Clean amd64 temporary files
         if: always()
