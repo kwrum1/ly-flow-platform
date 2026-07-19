@@ -72,6 +72,7 @@ jobs:
       - name: Run targeted tests
         run: |
           set -euo pipefail
+          docker image inspect postgres:16-alpine >/dev/null 2>&1 || docker pull postgres:16-alpine
           (cd agent && GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOWORK=off go test ./cmd)
           (cd server && GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOWORK=off go test ./cmd)
 
