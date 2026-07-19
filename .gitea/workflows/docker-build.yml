@@ -132,8 +132,9 @@ jobs:
               release_json=$(curl -fsS -H "Authorization: token $token" "$api/releases/tags/$tag")
             fi
           fi
-          release_id=$(printf '%s' "$release_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
-          curl -fsS -X POST -H "Authorization: token $token" -F "attachment=@${package}" "$api/releases/$release_id/assets"
+           release_id=$(printf '%s' "$release_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+           curl -fsS -X POST -H "Authorization: token $token" -F "attachment=@${package}" "$api/releases/$release_id/assets"
+           curl -fsS -X POST -H "Authorization: token $token" -F "attachment=@${ci_tmp}/release-root.pem" "$api/releases/$release_id/assets"
 
       - name: Clean amd64 temporary files
         if: always()

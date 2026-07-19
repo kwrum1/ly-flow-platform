@@ -114,6 +114,7 @@ for required in (
     "bash scripts/qa/container-smoke_test.sh",
     "bash scripts/qa/gitea-workflow_test.sh",
     "bash scripts/container-smoke.sh",
+    "release-root.pem",
 ):
     if required not in text:
         workflow_errors.append(f"{workflow_path}: missing concurrency safeguard {required!r}")
