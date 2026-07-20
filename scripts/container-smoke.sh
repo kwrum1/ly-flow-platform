@@ -21,7 +21,7 @@ FRONTEND_IMAGE="${SMOKE_PROJECT}-frontend:smoke"
 SERVER_BASE_IMAGE="${SMOKE_PROJECT}-server-base:smoke"
 SECURITY_ENGINE_BASE_IMAGE="${SMOKE_PROJECT}-security-engine-base:smoke"
 FRONTEND_BASE_IMAGE="${SMOKE_PROJECT}-frontend-base:smoke"
-RULES_DIR="$SMOKE_DIR/rules"
+RULES_SEED_CONTAINER="${SMOKE_PROJECT}-rules-seed"
 DEADLINE=0
 
 log() { printf '[lyflow-smoke] %s\n' "$*"; }
@@ -44,6 +44,7 @@ cleanup() {
     diagnose
   fi
   compose down --volumes --remove-orphans >/dev/null 2>&1 || true
+  docker rm -f "$RULES_SEED_CONTAINER" >/dev/null 2>&1 || true
   docker image rm "$SERVER_IMAGE" "$FRONTEND_IMAGE" "$SECURITY_ENGINE_IMAGE" "$SERVER_BASE_IMAGE" "$SECURITY_ENGINE_BASE_IMAGE" "$FRONTEND_BASE_IMAGE" >/dev/null 2>&1 || true
   rm -rf "$SMOKE_DIR"
   exit "$status"
@@ -128,16 +129,16 @@ services:
     ports: !override
       - "127.0.0.1::8080"
     volumes: !override
-      - "$RULES_DIR:/etc/ly/rules:ro"
-      - "$RULES_DIR:/app/rules"
-      - "$RUNTIME_DIR:/app/.sisyphus/runtime/engine-outputs"
+      - "rules_runtime:/etc/ly/rules:ro"
+      - "rules_runtime:/app/rules"
+      - "runtime_state:/app/.sisyphus/runtime/engine-outputs"
       - "/sys:/host/sys:ro"
       - "policy_trust:/var/lib/lyflow/policy"
   ly-security-engine:
     container_name: ${SMOKE_PROJECT}-security-engine
     image: ${SECURITY_ENGINE_IMAGE}
     volumes: !override
-      - "$RULES_DIR:/app/rules:ro"
+      - "rules_runtime:/app/rules:ro"
       - "policy_trust:/var/lib/lyflow/policy:ro"
       - "security_engine_audit:/var/lib/lyflow/audit"
   ly-vis:
@@ -148,6 +149,11 @@ services:
 networks:
   ly-network:
     name: ${SMOKE_PROJECT}-network
+volumes:
+  rules_runtime:
+    name: ${SMOKE_PROJECT}_rules_runtime
+  runtime_state:
+    name: ${SMOKE_PROJECT}_runtime_state
 EOF
 
 command -v docker >/dev/null 2>&1 || { log 'docker is unavailable' >&2; exit 1; }
@@ -175,9 +181,7 @@ if [[ $($GO_BIN version) != *'go1.26.5 '* ]]; then
   GO_BIN=$cached_go
 fi
 
-mkdir -p "$SERVER_CONTEXT" "$SECURITY_ENGINE_CONTEXT" "$FRONTEND_CONTEXT/frontend/docker-entrypoint.d" "$RULES_DIR"
-chmod 0755 "$RULES_DIR"
-cp -a "$ROOT/rules/." "$RULES_DIR/"
+mkdir -p "$SERVER_CONTEXT" "$SECURITY_ENGINE_CONTEXT" "$FRONTEND_CONTEXT/frontend/docker-entrypoint.d"
 (cd "$ROOT/server" && GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOWORK=off CGO_ENABLED=0 \
   timeout "$SMOKE_BUILD_TIMEOUT_SECONDS" "$GO_BIN" build -trimpath -buildvcs=false -o "$SERVER_CONTEXT/ly-server" ./cmd)
 (cd "$ROOT/security-engine" && GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOWORK=off CGO_ENABLED=0 \
@@ -212,6 +216,10 @@ docker image tag ly-flow/frontend@sha256:98767ee96d258cdd023b6a620a4b1b44a2239a8
 timeout "$SMOKE_BUILD_TIMEOUT_SECONDS" docker build --pull=false --network=none --build-arg RUNTIME_IMAGE="$SERVER_BASE_IMAGE" -t "$SERVER_IMAGE" -f "$SERVER_DOCKERFILE" "$SERVER_CONTEXT"
 timeout "$SMOKE_BUILD_TIMEOUT_SECONDS" docker build --pull=false --network=none --build-arg RUNTIME_IMAGE="$SECURITY_ENGINE_BASE_IMAGE" -t "$SECURITY_ENGINE_IMAGE" -f "$SECURITY_ENGINE_DOCKERFILE" "$SECURITY_ENGINE_CONTEXT"
 timeout "$SMOKE_BUILD_TIMEOUT_SECONDS" docker build --pull=false --network=none --build-arg RUNTIME_IMAGE="$FRONTEND_BASE_IMAGE" -t "$FRONTEND_IMAGE" -f "$ROOT/frontend/Dockerfile" "$FRONTEND_CONTEXT"
+docker volume create "${SMOKE_PROJECT}_rules_runtime" >/dev/null
+docker create --name "$RULES_SEED_CONTAINER" -v "${SMOKE_PROJECT}_rules_runtime:/app/rules" "$SERVER_IMAGE" >/dev/null
+docker cp "$ROOT/rules/." "$RULES_SEED_CONTAINER:/app/rules/"
+docker rm "$RULES_SEED_CONTAINER" >/dev/null
 
 compose config >/dev/null
 DEADLINE=$((SECONDS + SMOKE_TIMEOUT_SECONDS))

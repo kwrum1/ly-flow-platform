@@ -52,7 +52,8 @@ grep -Fq 'openssl rand' "$smoke" || fail 'generated test credentials are missing
 grep -Fq 'go1.26.5' "$smoke" || fail 'pinned Go toolchain selection is missing'
 grep -Fq 'docker image tag' "$smoke" || fail 'local base images are not isolated from registry resolution'
 grep -Fq 'docker image rm "$SERVER_IMAGE" "$FRONTEND_IMAGE"' "$smoke" || fail 'temporary source images are not cleaned'
-grep -Fq 'chmod 0755 "$RULES_DIR"' "$smoke" || fail 'temporary rules mount is not traversable by the non-root engine'
+grep -Fq 'docker volume create "${SMOKE_PROJECT}_rules_runtime"' "$smoke" || fail 'shared rules volume is not created'
+grep -Fq 'docker cp "$ROOT/rules/." "$RULES_SEED_CONTAINER:/app/rules/"' "$smoke" || fail 'rules are not streamed into the Docker volume'
 if grep -Fq 'INCIDENT_LIFECYCLE_LEGACY_MODE' "$smoke"; then
   fail 'source smoke still overrides canonical fresh-only lifecycle mode'
 fi
