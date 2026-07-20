@@ -291,6 +291,9 @@ func main() {
 	if err := userStore.InitSchema(context.Background()); err != nil {
 		log.Printf("警告: 初始化用户表失败: %v", err)
 	}
+	if err := auth.InitDefaultAdmin(userStore, authService); err != nil {
+		log.Fatalf("初始化默认管理员失败: %v", err)
+	}
 
 	authHandler := auth.NewHandler(authService, userStore, sessionStore, cfg.DBPool)
 	authMiddleware := auth.NewMiddleware(authService, userStore, sessionStore)
