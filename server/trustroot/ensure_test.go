@@ -110,3 +110,31 @@ func TestEnsureOnlineRoots_rejects_symlinked_signer_file(t *testing.T) {
 		t.Fatalf("symlink signer error=%v, want ErrMalformedRoot", err)
 	}
 }
+
+func TestEnsureOnlineRoots_rejects_symlinked_empty_trust_directory_before_bootstrap(t *testing.T) {
+	// Given
+	base := t.TempDir()
+	target := filepath.Join(base, "external-trust")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatalf("create external trust directory: %v", err)
+	}
+	layout := Layout{TrustDir: filepath.Join(base, "trust"), KeyDir: filepath.Join(base, "keys")}
+	if err := os.Symlink(target, layout.TrustDir); err != nil {
+		t.Fatalf("link trust directory: %v", err)
+	}
+
+	// When
+	err := layout.EnsureOnlineRoots(rand.Reader)
+
+	// Then
+	if !errors.Is(err, ErrMalformedRoot) {
+		t.Fatalf("symlink trust directory error=%v, want ErrMalformedRoot", err)
+	}
+	entries, err := os.ReadDir(target)
+	if err != nil {
+		t.Fatalf("read external trust directory: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("symlink target received generated root files: %d", len(entries))
+	}
+}

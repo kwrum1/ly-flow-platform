@@ -20,6 +20,12 @@ func DefaultLayout() Layout {
 }
 
 func (l Layout) EnsureOnlineRoots(random io.Reader) error {
+	if err := rejectSymlinkPath(l.TrustDir); err != nil {
+		return err
+	}
+	if err := rejectSymlinkPath(l.KeyDir); err != nil {
+		return err
+	}
 	existing := 0
 	for _, role := range []RootRole{PolicyRoot, AuditRoot, RuleRoot} {
 		keyRole, err := role.OnlineKeyRole()
@@ -27,7 +33,7 @@ func (l Layout) EnsureOnlineRoots(random io.Reader) error {
 			return err
 		}
 		for _, path := range []string{l.RootPath(role), l.KeyPath(keyRole)} {
-			if _, err := os.Stat(path); err == nil {
+			if _, err := os.Lstat(path); err == nil {
 				existing++
 			} else if !os.IsNotExist(err) {
 				return fmt.Errorf("inspect online root layout: %w", err)
@@ -46,32 +52,73 @@ func (l Layout) EnsureOnlineRoots(random io.Reader) error {
 	return l.normalizeOnlineModes()
 }
 
+func rejectSymlinkPath(path string) error {
+	probe := filepath.Clean(path)
+	for {
+		info, err := os.Lstat(probe)
+		if err == nil {
+			if info.Mode()&os.ModeSymlink != 0 {
+				return fmt.Errorf("trust root path is a symlink: %w", ErrMalformedRoot)
+			}
+		} else if !os.IsNotExist(err) {
+			return fmt.Errorf("inspect trust root path: %w", err)
+		}
+		next := filepath.Dir(probe)
+		if next == probe {
+			return nil
+		}
+		probe = next
+	}
+}
+
 func (l Layout) normalizeOnlineModes() error {
 	trustParent := filepath.Dir(l.TrustDir)
 	if trustParent == filepath.Dir(l.KeyDir) && trustParent != "." && trustParent != string(filepath.Separator) {
-		if err := os.Chmod(trustParent, 0o755); err != nil {
+		if err := normalizeDirectoryMode(trustParent, 0o755); err != nil {
 			return fmt.Errorf("make online root parent traversable: %w", err)
 		}
 	}
-	if err := os.Chmod(l.TrustDir, 0o755); err != nil {
+	if err := normalizeDirectoryMode(l.TrustDir, 0o755); err != nil {
 		return fmt.Errorf("make online roots traversable: %w", err)
 	}
-	if err := os.Chmod(l.KeyDir, 0o700); err != nil {
+	if err := normalizeDirectoryMode(l.KeyDir, 0o700); err != nil {
 		return fmt.Errorf("secure online key directory: %w", err)
 	}
 	for _, role := range []RootRole{PolicyRoot, AuditRoot, RuleRoot} {
-		if err := os.Chmod(l.RootPath(role), 0o644); err != nil {
+		if err := normalizeRegularFileMode(l.RootPath(role), 0o644); err != nil {
 			return fmt.Errorf("make %s root readable: %w", role, err)
 		}
 		keyRole, err := role.OnlineKeyRole()
 		if err != nil {
 			return err
 		}
-		if err := os.Chmod(l.KeyPath(keyRole), 0o600); err != nil {
+		if err := normalizeRegularFileMode(l.KeyPath(keyRole), 0o600); err != nil {
 			return fmt.Errorf("secure %s signer: %w", role, err)
 		}
 	}
 	return nil
+}
+
+func normalizeDirectoryMode(path string, mode os.FileMode) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return ErrMalformedRoot
+	}
+	return os.Chmod(path, mode)
+}
+
+func normalizeRegularFileMode(path string, mode os.FileMode) error {
+	info, err := os.Lstat(path)
+	if err != nil {
+		return err
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return ErrMalformedRoot
+	}
+	return os.Chmod(path, mode)
 }
 
 func (l Layout) RootPath(role RootRole) string {
@@ -132,6 +179,13 @@ func (l Layout) generate(role RootRole, random io.Reader) error {
 }
 
 func (l Layout) LoadSigner(role KeyRole) (Signer, error) {
+	info, err := os.Lstat(l.KeyPath(role))
+	if err != nil {
+		return Signer{}, fmt.Errorf("inspect %s signer: %w", role, err)
+	}
+	if !info.Mode().IsRegular() || info.Mode()&os.ModeSymlink != 0 {
+		return Signer{}, ErrMalformedRoot
+	}
 	contents, err := os.ReadFile(l.KeyPath(role))
 	if err != nil {
 		return Signer{}, fmt.Errorf("read %s signer: %w", role, err)

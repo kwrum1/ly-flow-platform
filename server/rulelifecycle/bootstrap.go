@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/lyflow/ly-flow-platform/server/trustroot"
+	"golang.org/x/sys/unix"
 )
 
 const (
@@ -26,14 +27,26 @@ type BootstrapConfig struct {
 	Now          func() time.Time
 }
 
-func BootstrapActiveManifest(config BootstrapConfig) (ActiveManifest, error) {
+func BootstrapActiveManifest(config BootstrapConfig) (manifest ActiveManifest, err error) {
 	if config.RootDir == "" || config.BaselinePath == "" || !config.Signer.Valid() || config.Verifier.TrustDir == "" || config.Now == nil {
 		return ActiveManifest{}, errors.New("rulelifecycle: invalid bootstrap configuration")
 	}
+	if err := rejectSymlinkPath(config.RootDir); err != nil {
+		return ActiveManifest{}, err
+	}
+	lock, err := acquireBootstrapLock(config.RootDir)
+	if err != nil {
+		return ActiveManifest{}, err
+	}
+	defer func() {
+		if closeErr := lock.Close(); closeErr != nil && err == nil {
+			err = fmt.Errorf("release rule lifecycle bootstrap lock: %w", closeErr)
+		}
+	}()
 	manager := &Manager{rootDir: config.RootDir, signer: config.Signer, verifier: config.Verifier, now: config.Now}
 	active, _, err := manager.loadActive()
 	if err == nil {
-		if err := normalizeActivePermissions(config.RootDir, active.BundlePath); err != nil {
+		if err := normalizeActivePermissions(config.RootDir); err != nil {
 			return ActiveManifest{}, err
 		}
 		return active, nil
@@ -137,18 +150,84 @@ func lifecycleContainsFiles(root string) (bool, error) {
 	return false, nil
 }
 
-func normalizeActivePermissions(root, bundlePath string) error {
-	for _, directory := range []string{root, filepath.Join(root, "candidates"), filepath.Join(root, "history"), filepath.Dir(bundlePath)} {
-		if err := os.Chmod(directory, lifecycleDirMode); err != nil {
-			return fmt.Errorf("set active lifecycle directory mode: %w", err)
+func normalizeActivePermissions(root string) error {
+	return filepath.WalkDir(root, func(path string, entry os.DirEntry, walkErr error) error {
+		if walkErr != nil {
+			return walkErr
 		}
-	}
-	for _, path := range []string{bundlePath, filepath.Join(root, activeManifestName)} {
-		if err := os.Chmod(path, lifecycleFileMode); err != nil {
-			return fmt.Errorf("set active lifecycle file mode: %w", err)
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("lifecycle path is a symlink: %w", ErrCompile)
 		}
-	}
-	return nil
+		mode := lifecycleFileMode
+		if entry.IsDir() {
+			mode = lifecycleDirMode
+		} else {
+			info, err := entry.Info()
+			if err != nil {
+				return err
+			}
+			if !info.Mode().IsRegular() {
+				return fmt.Errorf("lifecycle path is not regular: %w", ErrCompile)
+			}
+		}
+		if err := os.Chmod(path, mode); err != nil {
+			return fmt.Errorf("set active lifecycle mode: %w", err)
+		}
+		return nil
+	})
 }
 
 var errLifecycleContent = errors.New("rulelifecycle: lifecycle content exists")
+
+type bootstrapLock struct {
+	file *os.File
+}
+
+func acquireBootstrapLock(root string) (*bootstrapLock, error) {
+	parent := filepath.Dir(root)
+	if err := os.MkdirAll(parent, lifecycleDirMode); err != nil {
+		return nil, fmt.Errorf("create rule lifecycle bootstrap parent: %w", err)
+	}
+	path := filepath.Join(parent, "."+filepath.Base(root)+".bootstrap.lock")
+	if info, err := os.Lstat(path); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return nil, fmt.Errorf("rule lifecycle bootstrap lock is a symlink: %w", ErrRevision)
+	} else if err != nil && !errors.Is(err, os.ErrNotExist) {
+		return nil, fmt.Errorf("inspect rule lifecycle bootstrap lock: %w", err)
+	}
+	file, err := os.OpenFile(path, os.O_CREATE|os.O_RDWR, lifecycleFileMode)
+	if err != nil {
+		return nil, fmt.Errorf("open rule lifecycle bootstrap lock: %w", err)
+	}
+	if err := file.Chmod(lifecycleFileMode); err != nil {
+		_ = file.Close()
+		return nil, fmt.Errorf("set rule lifecycle bootstrap lock mode: %w", err)
+	}
+	if err := unix.Flock(int(file.Fd()), unix.LOCK_EX); err != nil {
+		_ = file.Close()
+		return nil, fmt.Errorf("lock rule lifecycle bootstrap: %w", err)
+	}
+	return &bootstrapLock{file: file}, nil
+}
+
+func (lock *bootstrapLock) Close() error {
+	return errors.Join(unix.Flock(int(lock.file.Fd()), unix.LOCK_UN), lock.file.Close())
+}
+
+func rejectSymlinkPath(path string) error {
+	probe := filepath.Clean(path)
+	for {
+		info, err := os.Lstat(probe)
+		if err == nil {
+			if info.Mode()&os.ModeSymlink != 0 {
+				return fmt.Errorf("rule lifecycle path is a symlink: %w", ErrRevision)
+			}
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("inspect rule lifecycle path: %w", err)
+		}
+		next := filepath.Dir(probe)
+		if next == probe {
+			return nil
+		}
+		probe = next
+	}
+}

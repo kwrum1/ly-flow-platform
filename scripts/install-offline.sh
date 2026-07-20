@@ -75,13 +75,14 @@ verify_signed_manifest() {
   local root=$1 manifest_name=$2
   local manifest="$root/$manifest_name"
   local signature="$manifest.sig"
+  [[ ! -L "$manifest" && ! -L "$signature" ]] || fail "$manifest_name contains a symlink"
   [[ -f "$manifest" ]] || fail "缺少 $manifest_name"
   [[ -f "$signature" ]] || fail "缺少 $manifest_name.sig"
   openssl pkeyutl -verify -pubin -inkey "$TRUST_ROOT" -rawin -in "$manifest" -sigfile "$signature" >/dev/null 2>&1 || fail "$manifest_name 签名验证失败"
   local digest path
   while read -r digest path; do
     path=${path#\*}
-    if [[ ! "$digest" =~ ^[0-9a-f]{64}$ || -z "$path" || "$path" == /* || "$path" == ../* || "$path" == */../* ]]; then
+    if [[ ! "$digest" =~ ^[0-9a-f]{64}$ || -z "$path" || "$path" == /* || "$path" == ../* || "$path" == */../* || -L "$root/$path" || ! -f "$root/$path" ]]; then
       fail "发布清单包含越界路径"
     fi
   done < "$manifest"

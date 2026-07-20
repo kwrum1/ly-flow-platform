@@ -160,6 +160,37 @@ func TestBootstrapActiveManifest_serializes_concurrent_first_start(t *testing.T)
 	}
 }
 
+func TestBootstrapActiveManifest_rejects_symlinked_lifecycle_root_before_writes(t *testing.T) {
+	// Given
+	base := t.TempDir()
+	config := newBootstrapConfig(t)
+	external := filepath.Join(base, "external-lifecycle")
+	if err := os.Mkdir(external, 0o755); err != nil {
+		t.Fatalf("create external lifecycle directory: %v", err)
+	}
+	if err := os.RemoveAll(config.RootDir); err != nil {
+		t.Fatalf("remove test lifecycle directory: %v", err)
+	}
+	if err := os.Symlink(external, config.RootDir); err != nil {
+		t.Fatalf("link lifecycle root: %v", err)
+	}
+
+	// When
+	_, err := BootstrapActiveManifest(config)
+
+	// Then
+	if !errors.Is(err, ErrRevision) {
+		t.Fatalf("symlink lifecycle root error=%v, want ErrRevision", err)
+	}
+	entries, err := os.ReadDir(external)
+	if err != nil {
+		t.Fatalf("read external lifecycle directory: %v", err)
+	}
+	if len(entries) != 0 {
+		t.Fatalf("symlink target received lifecycle files: %d", len(entries))
+	}
+}
+
 func TestBootstrapActiveManifest_fails_closed_on_partial_or_tampered_state(t *testing.T) {
 	t.Run("partial candidate", func(t *testing.T) {
 		// Given

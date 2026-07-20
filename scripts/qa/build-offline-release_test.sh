@@ -55,6 +55,14 @@ grep -Fq 'mkdir -p "$PACKAGE_DIR/rules/security-engine/lifecycle"' "$release" ||
   printf 'packaged lifecycle directory is not created for clean checkouts\n' >&2
   exit 1
 }
+grep -Fq 'rm -rf "$PACKAGE_DIR/rules/security-engine/lifecycle"' "$release" || {
+  printf 'build-host lifecycle state is not excluded from the package\n' >&2
+  exit 1
+}
+grep -Fq 'rm -f "$PACKAGE_DIR/rules/security-engine/.lifecycle.bootstrap.lock"' "$release" || {
+  printf 'bootstrap lock is not excluded from the package\n' >&2
+  exit 1
+}
 grep -Fq 'find "$PACKAGE_DIR/rules/security-engine/lifecycle" -type f -exec chmod 0644 {} +' "$release" || {
   printf 'packaged lifecycle files are not normalized to 0644\n' >&2
   exit 1

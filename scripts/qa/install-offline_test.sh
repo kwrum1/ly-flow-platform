@@ -171,6 +171,11 @@ test_signal_traps_force_rollback_status() {
   grep -Fq "trap 'exit 143' TERM" "$installer" || fail 'SIGTERM does not force a rollback exit status'
 }
 
+test_signed_manifest_rejects_symlinks() {
+  grep -Fq '[[ ! -L "$manifest" && ! -L "$signature" ]]' "$installer" || fail 'manifest or signature symlink rejection is missing'
+  grep -Fq -- '-L "$root/$path" || ! -f "$root/$path"' "$installer" || fail 'manifest target symlink rejection is missing'
+}
+
 test_partial_down_failure_restarts_previous() (
   export LYFLOW_INSTALL_DIR="$tmp/partial-down/install"
   export LYFLOW_TRUST_DIR="$tmp/trust"
@@ -226,6 +231,7 @@ test_bounded_health_diagnostics
 test_failed_upgrade_rolls_back
 test_stopped_upgrade_restarts_before_backup
 test_signal_traps_force_rollback_status
+test_signed_manifest_rejects_symlinks
 test_partial_down_failure_restarts_previous
 test_partial_candidate_up_cleans_and_restores
 
