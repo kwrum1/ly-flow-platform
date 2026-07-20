@@ -15,6 +15,7 @@ bash -n "$smoke"
 
 grep -Fq 'INCIDENT_LIFECYCLE_LEGACY_MODE: "true"' "$compose" || fail 'fresh-only legacy mode is missing from ly-server'
 grep -Fq 'http://127.0.0.1:8080/api/v1/health' "$compose" || fail 'ly-server healthcheck is missing'
+grep -Fq 'pg_isready -h 127.0.0.1 -U lyflow -d lyflow' "$compose" || fail 'PostgreSQL healthcheck can accept the temporary init server'
 python3 - "$compose" <<'PY' || fail 'security-engine does not wait for healthy ly-server'
 import sys
 import yaml
