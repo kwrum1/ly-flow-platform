@@ -77,6 +77,13 @@ func (m *Manager) verifyBundle(path, digest, revision string) error {
 	if err != nil || relative == ".." || len(relative) >= 3 && relative[:3] == ".."+string(filepath.Separator) {
 		return fmt.Errorf("bundle path escapes lifecycle root: %w", ErrCompile)
 	}
+	info, err := os.Lstat(absPath)
+	if err != nil {
+		return fmt.Errorf("inspect staged bundle: %w", err)
+	}
+	if !info.Mode().IsRegular() {
+		return fmt.Errorf("staged bundle is not regular: %w", ErrCompile)
+	}
 	contents, err := os.ReadFile(absPath)
 	if err != nil {
 		return fmt.Errorf("read staged bundle: %w", err)

@@ -47,4 +47,17 @@ if printf '%s\n%s\n%s\n' "$images_assignment" "$docker_save" "$pins" | grep -Eq 
   exit 1
 fi
 
+grep -Fq 'find "$PACKAGE_DIR/rules/security-engine/lifecycle" -type d -exec chmod 0755 {} +' "$release" || {
+  printf 'packaged lifecycle directories are not normalized to 0755\n' >&2
+  exit 1
+}
+grep -Fq 'mkdir -p "$PACKAGE_DIR/rules/security-engine/lifecycle"' "$release" || {
+  printf 'packaged lifecycle directory is not created for clean checkouts\n' >&2
+  exit 1
+}
+grep -Fq 'find "$PACKAGE_DIR/rules/security-engine/lifecycle" -type f -exec chmod 0644 {} +' "$release" || {
+  printf 'packaged lifecycle files are not normalized to 0644\n' >&2
+  exit 1
+}
+
 printf 'offline release RASP contract self-test passed\n'

@@ -117,6 +117,7 @@ services:
       LYFLOW_RESET_ADMIN_PASSWORD: ${LYFLOW_RESET_ADMIN_PASSWORD:-true}
       LYFLOW_FORCE_FIRST_LOGIN_PASSWORD_CHANGE: ${LYFLOW_FORCE_FIRST_LOGIN_PASSWORD_CHANGE:-true}
       AGENT_SELF_ENROLL: ${AGENT_SELF_ENROLL:-false}
+      INCIDENT_LIFECYCLE_LEGACY_MODE: "true"
       XDR_RULES_DIR: /etc/ly/rules/xdr
       SECURITY_ENGINE_RELOAD_URL: http://ly-security-engine:8080/reload
       SECURITY_ENGINE_CONTROL_TOKEN: ${SECURITY_ENGINE_CONTROL_TOKEN:?SECURITY_ENGINE_CONTROL_TOKEN must be set}
@@ -128,6 +129,12 @@ services:
       RASP_POLICY_OWNER: ${RASP_POLICY_OWNER:-lyflow-platform}
     ports:
       - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/v1/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 20s
     depends_on:
       postgres:
         condition: service_healthy
@@ -215,6 +222,14 @@ services:
     depends_on:
       redis:
         condition: service_healthy
+      ly-server:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
     networks:
       - ly-network
 
@@ -234,7 +249,7 @@ services:
       - "443:443"
     depends_on:
       ly-server:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "--no-check-certificate", "-q", "-O", "/dev/null", "https://127.0.0.1/"]
       interval: 30s

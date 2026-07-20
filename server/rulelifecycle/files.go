@@ -19,12 +19,20 @@ func immutableWrite(path string, contents []byte, mode os.FileMode) error {
 	if !errors.Is(readErr, os.ErrNotExist) {
 		return fmt.Errorf("read immutable lifecycle content: %w", readErr)
 	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), lifecycleDirMode); err != nil {
 		return fmt.Errorf("create immutable lifecycle directory: %w", err)
+	}
+	if err := os.Chmod(filepath.Dir(path), lifecycleDirMode); err != nil {
+		return fmt.Errorf("set immutable lifecycle directory mode: %w", err)
 	}
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
 	if err != nil {
 		return fmt.Errorf("create immutable lifecycle content: %w", err)
+	}
+	if err := file.Chmod(mode); err != nil {
+		_ = file.Close()
+		_ = os.Remove(path)
+		return fmt.Errorf("set immutable lifecycle content mode: %w", err)
 	}
 	if _, err := file.Write(contents); err != nil {
 		_ = file.Close()
@@ -56,7 +64,7 @@ func immutableWrite(path string, contents []byte, mode os.FileMode) error {
 
 func atomicWrite(path string, contents []byte, mode os.FileMode) (err error) {
 	directory := filepath.Dir(path)
-	if err := os.MkdirAll(directory, 0o700); err != nil {
+	if err := os.MkdirAll(directory, lifecycleDirMode); err != nil {
 		return fmt.Errorf("create lifecycle directory: %w", err)
 	}
 	temporary, err := os.CreateTemp(directory, ".rule-lifecycle-*")

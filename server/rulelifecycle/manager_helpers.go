@@ -50,7 +50,7 @@ func (m *Manager) restoreRuntime(ctx context.Context, actor Actor, previous Runt
 
 func (m *Manager) restoreActive(activePath string, previousJSON []byte, previousErr error) error {
 	if previousErr == nil {
-		return atomicWrite(activePath, previousJSON, 0o600)
+		return atomicWrite(activePath, previousJSON, lifecycleFileMode)
 	}
 	if errors.Is(previousErr, os.ErrNotExist) {
 		if err := os.Remove(activePath); err != nil && !errors.Is(err, os.ErrNotExist) {

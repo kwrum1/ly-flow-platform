@@ -112,11 +112,11 @@ func (m *Manager) activate(ctx context.Context, actor Actor, revision, action st
 	if previousErr == nil {
 		historyDigest := sha256.Sum256(previousJSON)
 		historyPath := filepath.Join(m.rootDir, "history", previous.Revision+"-"+hex.EncodeToString(historyDigest[:])+".json")
-		if err := immutableWrite(historyPath, previousJSON, 0o600); err != nil {
+		if err := immutableWrite(historyPath, previousJSON, lifecycleFileMode); err != nil {
 			return ActiveManifest{}, err
 		}
 	}
-	if err := atomicWrite(activePath, manifestJSON, 0o600); err != nil {
+	if err := atomicWrite(activePath, manifestJSON, lifecycleFileMode); err != nil {
 		return ActiveManifest{}, err
 	}
 	if err := m.runtime.Reload(ctx, activePath, candidate.Pin.SHA256); err != nil {

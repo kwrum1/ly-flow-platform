@@ -11,12 +11,17 @@ ENV_FILE="$SMOKE_DIR/smoke.env"
 OVERRIDE_FILE="$SMOKE_DIR/compose.override.yml"
 RUNTIME_DIR="$SMOKE_DIR/runtime"
 SERVER_CONTEXT="$SMOKE_DIR/server-context"
+SECURITY_ENGINE_CONTEXT="$SMOKE_DIR/security-engine-context"
 FRONTEND_CONTEXT="$SMOKE_DIR/frontend-context"
 SERVER_DOCKERFILE="$SMOKE_DIR/server.Dockerfile"
+SECURITY_ENGINE_DOCKERFILE="$SMOKE_DIR/security-engine.Dockerfile"
 SERVER_IMAGE="${SMOKE_PROJECT}-server:smoke"
+SECURITY_ENGINE_IMAGE="${SMOKE_PROJECT}-security-engine:smoke"
 FRONTEND_IMAGE="${SMOKE_PROJECT}-frontend:smoke"
 SERVER_BASE_IMAGE="${SMOKE_PROJECT}-server-base:smoke"
+SECURITY_ENGINE_BASE_IMAGE="${SMOKE_PROJECT}-security-engine-base:smoke"
 FRONTEND_BASE_IMAGE="${SMOKE_PROJECT}-frontend-base:smoke"
+RULES_DIR="$SMOKE_DIR/rules"
 DEADLINE=0
 
 log() { printf '[lyflow-smoke] %s\n' "$*"; }
@@ -39,7 +44,7 @@ cleanup() {
     diagnose
   fi
   compose down --volumes --remove-orphans >/dev/null 2>&1 || true
-  docker image rm "$SERVER_IMAGE" "$FRONTEND_IMAGE" "$SERVER_BASE_IMAGE" "$FRONTEND_BASE_IMAGE" >/dev/null 2>&1 || true
+  docker image rm "$SERVER_IMAGE" "$FRONTEND_IMAGE" "$SECURITY_ENGINE_IMAGE" "$SERVER_BASE_IMAGE" "$SECURITY_ENGINE_BASE_IMAGE" "$FRONTEND_BASE_IMAGE" >/dev/null 2>&1 || true
   rm -rf "$SMOKE_DIR"
   exit "$status"
 }
@@ -120,16 +125,21 @@ services:
   ly-server:
     container_name: ${SMOKE_PROJECT}-server
     image: ${SERVER_IMAGE}
-    environment:
-      INCIDENT_LIFECYCLE_LEGACY_MODE: "true"
     ports: !override
       - "127.0.0.1::8080"
     volumes: !override
-      - "$ROOT/rules:/etc/ly/rules:ro"
-      - "$ROOT/rules:/app/rules"
+      - "$RULES_DIR:/etc/ly/rules:ro"
+      - "$RULES_DIR:/app/rules"
       - "$RUNTIME_DIR:/app/.sisyphus/runtime/engine-outputs"
       - "/sys:/host/sys:ro"
       - "policy_trust:/var/lib/lyflow/policy"
+  ly-security-engine:
+    container_name: ${SMOKE_PROJECT}-security-engine
+    image: ${SECURITY_ENGINE_IMAGE}
+    volumes: !override
+      - "$RULES_DIR:/app/rules:ro"
+      - "policy_trust:/var/lib/lyflow/policy:ro"
+      - "security_engine_audit:/var/lib/lyflow/audit"
   ly-vis:
     container_name: ${SMOKE_PROJECT}-frontend
     image: ${FRONTEND_IMAGE}
@@ -165,9 +175,13 @@ if [[ $($GO_BIN version) != *'go1.26.5 '* ]]; then
   GO_BIN=$cached_go
 fi
 
-mkdir -p "$SERVER_CONTEXT" "$FRONTEND_CONTEXT/frontend/docker-entrypoint.d"
+mkdir -p "$SERVER_CONTEXT" "$SECURITY_ENGINE_CONTEXT" "$FRONTEND_CONTEXT/frontend/docker-entrypoint.d" "$RULES_DIR"
+chmod 0755 "$RULES_DIR"
+cp -a "$ROOT/rules/." "$RULES_DIR/"
 (cd "$ROOT/server" && GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOWORK=off CGO_ENABLED=0 \
   timeout "$SMOKE_BUILD_TIMEOUT_SECONDS" "$GO_BIN" build -trimpath -buildvcs=false -o "$SERVER_CONTEXT/ly-server" ./cmd)
+(cd "$ROOT/security-engine" && GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOWORK=off CGO_ENABLED=0 \
+  timeout "$SMOKE_BUILD_TIMEOUT_SECONDS" "$GO_BIN" build -trimpath -buildvcs=false -o "$SECURITY_ENGINE_CONTEXT/ly-security-engine" ./cmd)
 (cd "$ROOT" && timeout "$SMOKE_BUILD_TIMEOUT_SECONDS" npm --prefix frontend run build -- --outDir "$FRONTEND_CONTEXT/frontend/dist" --emptyOutDir)
 chmod -R a+rX "$FRONTEND_CONTEXT/frontend/dist"
 cp "$ROOT/frontend/docker-entrypoint.d/40-lyflow-tls.sh" "$FRONTEND_CONTEXT/frontend/docker-entrypoint.d/"
@@ -181,16 +195,29 @@ RUN chmod 0755 /app/ly-server
 EXPOSE 8080
 CMD ["/app/ly-server"]
 EOF
+cat >"$SECURITY_ENGINE_DOCKERFILE" <<'EOF'
+ARG RUNTIME_IMAGE
+FROM ${RUNTIME_IMAGE}
+USER root
+WORKDIR /app
+COPY ly-security-engine /app/ly-security-engine
+RUN chmod 0755 /app/ly-security-engine
+USER redis
+EXPOSE 8080
+CMD ["/app/ly-security-engine"]
+EOF
 docker image tag redis@sha256:9de71018be8413f419688ac34e19dbac432d1c6d9593d2ded99a82eebefeb18f "$SERVER_BASE_IMAGE"
+docker image tag redis@sha256:9de71018be8413f419688ac34e19dbac432d1c6d9593d2ded99a82eebefeb18f "$SECURITY_ENGINE_BASE_IMAGE"
 docker image tag ly-flow/frontend@sha256:98767ee96d258cdd023b6a620a4b1b44a2239a8f2742f51dc91d240615740707 "$FRONTEND_BASE_IMAGE"
 timeout "$SMOKE_BUILD_TIMEOUT_SECONDS" docker build --pull=false --network=none --build-arg RUNTIME_IMAGE="$SERVER_BASE_IMAGE" -t "$SERVER_IMAGE" -f "$SERVER_DOCKERFILE" "$SERVER_CONTEXT"
+timeout "$SMOKE_BUILD_TIMEOUT_SECONDS" docker build --pull=false --network=none --build-arg RUNTIME_IMAGE="$SECURITY_ENGINE_BASE_IMAGE" -t "$SECURITY_ENGINE_IMAGE" -f "$SECURITY_ENGINE_DOCKERFILE" "$SECURITY_ENGINE_CONTEXT"
 timeout "$SMOKE_BUILD_TIMEOUT_SECONDS" docker build --pull=false --network=none --build-arg RUNTIME_IMAGE="$FRONTEND_BASE_IMAGE" -t "$FRONTEND_IMAGE" -f "$ROOT/frontend/Dockerfile" "$FRONTEND_CONTEXT"
 
 compose config >/dev/null
 DEADLINE=$((SECONDS + SMOKE_TIMEOUT_SECONDS))
 log "starting isolated project $SMOKE_PROJECT"
-compose up -d --no-build --pull never postgres redis clickhouse ly-server ly-vis
-for service in postgres redis clickhouse ly-server ly-vis; do
+compose up -d --no-build --pull never postgres redis clickhouse ly-server ly-security-engine ly-vis
+for service in postgres redis clickhouse ly-server ly-security-engine ly-vis; do
   wait_for_service "$service"
 done
 

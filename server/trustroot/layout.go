@@ -35,10 +35,41 @@ func (l Layout) EnsureOnlineRoots(random io.Reader) error {
 		}
 	}
 	if existing == 0 {
-		return l.Bootstrap(random)
+		if err := l.Bootstrap(random); err != nil {
+			return err
+		}
+		return l.normalizeOnlineModes()
 	}
 	if existing != 6 {
 		return ErrIncompleteLayout
+	}
+	return l.normalizeOnlineModes()
+}
+
+func (l Layout) normalizeOnlineModes() error {
+	trustParent := filepath.Dir(l.TrustDir)
+	if trustParent == filepath.Dir(l.KeyDir) && trustParent != "." && trustParent != string(filepath.Separator) {
+		if err := os.Chmod(trustParent, 0o755); err != nil {
+			return fmt.Errorf("make online root parent traversable: %w", err)
+		}
+	}
+	if err := os.Chmod(l.TrustDir, 0o755); err != nil {
+		return fmt.Errorf("make online roots traversable: %w", err)
+	}
+	if err := os.Chmod(l.KeyDir, 0o700); err != nil {
+		return fmt.Errorf("secure online key directory: %w", err)
+	}
+	for _, role := range []RootRole{PolicyRoot, AuditRoot, RuleRoot} {
+		if err := os.Chmod(l.RootPath(role), 0o644); err != nil {
+			return fmt.Errorf("make %s root readable: %w", role, err)
+		}
+		keyRole, err := role.OnlineKeyRole()
+		if err != nil {
+			return err
+		}
+		if err := os.Chmod(l.KeyPath(keyRole), 0o600); err != nil {
+			return fmt.Errorf("secure %s signer: %w", role, err)
+		}
 	}
 	return nil
 }

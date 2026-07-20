@@ -36,6 +36,13 @@ func newRuleLifecycleRuntime(ctx context.Context, reloadURL string) (*rulelifecy
 	if err != nil {
 		return nil, fmt.Errorf("load rule signer: %w", err)
 	}
+	ruleRootDir := getEnv("RULE_LIFECYCLE_DIR", "rules/security-engine/lifecycle")
+	if _, err := rulelifecycle.BootstrapActiveManifest(rulelifecycle.BootstrapConfig{
+		RootDir: ruleRootDir, BaselinePath: getEnv("RULE_BASELINE_BUNDLE", "rules/security-engine/active-bundle.json"),
+		Signer: ruleSigner, Verifier: layout, Now: time.Now,
+	}); err != nil {
+		return nil, fmt.Errorf("bootstrap active rule manifest: %w", err)
+	}
 	auditSigner, err := layout.LoadSigner(trustroot.AuditSigner)
 	if err != nil {
 		return nil, fmt.Errorf("load audit signer: %w", err)
@@ -77,7 +84,7 @@ func newRuleLifecycleRuntime(ctx context.Context, reloadURL string) (*rulelifecy
 		return nil, errors.New("security engine control token is required")
 	}
 	manager, err := rulelifecycle.NewManager(rulelifecycle.ManagerConfig{
-		RootDir: getEnv("RULE_LIFECYCLE_DIR", "rules/security-engine/lifecycle"), Signer: ruleSigner, Verifier: layout,
+		RootDir: ruleRootDir, Signer: ruleSigner, Verifier: layout,
 		Audit: rulelifecycle.NewLedgerAudit(ledger), Runtime: runtime, Fetcher: fetcher, Now: time.Now,
 	})
 	if err != nil {

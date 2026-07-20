@@ -38,7 +38,7 @@ func NewManager(config ManagerConfig) (*Manager, error) {
 		return nil, errors.New("rulelifecycle: invalid manager configuration")
 	}
 	for _, directory := range []string{config.RootDir, filepath.Join(config.RootDir, "candidates"), filepath.Join(config.RootDir, "history")} {
-		if err := os.MkdirAll(directory, 0o700); err != nil {
+		if err := os.MkdirAll(directory, lifecycleDirMode); err != nil {
 			return nil, fmt.Errorf("create rule lifecycle storage: %w", err)
 		}
 	}
@@ -214,13 +214,13 @@ func (m *Manager) stage(ctx context.Context, actor Actor, source FetchedSource) 
 	if err != nil {
 		return Preview{}, fmt.Errorf("marshal staged candidate: %w", err)
 	}
-	if err := immutableWrite(bundlePath, source.Content, 0o600); err != nil {
+	if err := immutableWrite(bundlePath, source.Content, lifecycleFileMode); err != nil {
 		if auditErr := m.record(ctx, actor, "rule.source.persist", source.Pin.Revision, AuditResultFailed, map[string]interface{}{"error": err.Error()}); auditErr != nil {
 			return Preview{}, auditErr
 		}
 		return Preview{}, err
 	}
-	if err := atomicWrite(metadataPath, metadata, 0o600); err != nil {
+	if err := atomicWrite(metadataPath, metadata, lifecycleFileMode); err != nil {
 		_ = os.Remove(bundlePath)
 		return Preview{}, err
 	}

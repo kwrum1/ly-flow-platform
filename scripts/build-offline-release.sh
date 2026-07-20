@@ -188,6 +188,8 @@ chmod +x "$PACKAGE_DIR/scripts/install-offline.sh"
 cp scripts/init-db.sql "$PACKAGE_DIR/scripts/init-db.sql"
 cp server/sql/asset_tables.sql "$PACKAGE_DIR/server/sql/asset_tables.sql"
 cp -a rules/. "$PACKAGE_DIR/rules/"
+find "$PACKAGE_DIR/rules/security-engine/lifecycle" -type d -exec chmod 0755 {} +
+find "$PACKAGE_DIR/rules/security-engine/lifecycle" -type f -exec chmod 0644 {} +
 cp -a "$RELEASE_DIR/.task22-evidence-$RELEASE_ID" "$PACKAGE_DIR/evidence"
 cp scripts/qa/vulnerability-exceptions.json "$PACKAGE_DIR/evidence/vulnerability-exceptions.json"
 run "$ROOT_DIR/scripts/release-provenance.sh" validate-exceptions --file "$PACKAGE_DIR/evidence/vulnerability-exceptions.json"

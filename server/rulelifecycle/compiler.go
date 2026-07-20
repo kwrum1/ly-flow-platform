@@ -22,11 +22,12 @@ const (
 	RuleCategoryRuntime  RuleCategory = "runtime"
 	RuleCategoryRASP     RuleCategory = "rasp"
 	RuleCategoryLogAudit RuleCategory = "log_audit"
+	RuleCategoryArtifact RuleCategory = "artifact"
 )
 
 func parseRuleCategory(raw string) (RuleCategory, error) {
 	switch RuleCategory(raw) {
-	case RuleCategoryTraffic, RuleCategoryRuntime, RuleCategoryRASP, RuleCategoryLogAudit:
+	case RuleCategoryTraffic, RuleCategoryRuntime, RuleCategoryRASP, RuleCategoryLogAudit, RuleCategoryArtifact:
 		return RuleCategory(raw), nil
 	default:
 		return "", fmt.Errorf("unsupported category %q: %w", raw, ErrCompile)
