@@ -36,7 +36,7 @@ assert all(row["source_path"] == "agent/rasp/python" for row in rows[:3])
 assert all(row["monitor_mode"] == "monitor" for row in rows[:4])
 assert rows[3]["source_path"] == "agent/rasp/java"
 assert rows[3]["status"] == "EXPERIMENTAL"
-assert rows[3]["gates"].startswith("todo14:GATED")
+assert rows[3]["gates"].startswith("todo15-runtime:")
 assert all(row["status"] == "UNSUPPORTED" for row in rows[4:])
 assert (Path(sys.argv[3]) / "sources" / "rasp-support-matrix.tsv").is_file()
 assert (Path(sys.argv[3]) / "sources" / "canonical-events.json").is_file()

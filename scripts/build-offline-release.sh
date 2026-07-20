@@ -42,6 +42,21 @@ FRONTEND_BASE_IMAGE="${FRONTEND_BASE_IMAGE:-ly-flow/frontend@sha256:98767ee96d25
 SECURITY_ENGINES_BASE_IMAGE="${SECURITY_ENGINES_BASE_IMAGE:-ly-flow/security-engines@sha256:f165fe4fe3cb4e01229a8a2ba38c0e8ac060887566f8d9d9064648400e35a127}"
 SURICATA_PROFILE_IMAGE="${SURICATA_PROFILE_IMAGE:-}"
 SURICATA_BUILD_IMAGE="${SURICATA_BUILD_IMAGE:-ly-flow/suricata-base:todo9-sha256-73cf099d6299}"
+: "${RASP_PYTHON_310_IMAGE:?RASP_PYTHON_310_IMAGE must be supplied as a local sha256 digest reference}"
+: "${RASP_PYTHON_311_IMAGE:?RASP_PYTHON_311_IMAGE must be supplied as a local sha256 digest reference}"
+: "${RASP_PYTHON_312_IMAGE:?RASP_PYTHON_312_IMAGE must be supplied as a local sha256 digest reference}"
+
+validate_immutable_image_ref() {
+  local name=$1 ref=$2
+  [[ $ref =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]] || {
+    printf '[lyflow-release] ERROR: %s must be an immutable repository@sha256:digest reference: %s\n' "$name" "$ref" >&2
+    exit 1
+  }
+}
+
+validate_immutable_image_ref RASP_PYTHON_310_IMAGE "$RASP_PYTHON_310_IMAGE"
+validate_immutable_image_ref RASP_PYTHON_311_IMAGE "$RASP_PYTHON_311_IMAGE"
+validate_immutable_image_ref RASP_PYTHON_312_IMAGE "$RASP_PYTHON_312_IMAGE"
 if [[ "$TARGET_ARCH" != "amd64" && (-z "$DB_POSTGRES_IMAGE" || -z "$DB_REDIS_IMAGE" || -z "$DB_CLICKHOUSE_IMAGE") ]]; then
   printf '[lyflow-release] ERROR: non-amd64 releases require architecture-specific DB_POSTGRES_IMAGE, DB_REDIS_IMAGE, and DB_CLICKHOUSE_IMAGE digests\n' >&2
   exit 1
@@ -54,7 +69,22 @@ log() { printf '[lyflow-release] %s\n' "$*"; }
 run() { log "$*"; "$@"; }
 run_in() { local dir="$1"; shift; log "cd $dir && $*"; (cd "$dir" && "$@"); }
 
+ensure_image() {
+  local image="$1"
+  if docker image inspect "$image" >/dev/null 2>&1; then
+    log "using local image $image"
+    return
+  fi
+  printf '[lyflow-release] ERROR: required image %s is missing from the local cache; release builds never fetch mutable inputs\n' "$image" >&2
+  exit 1
+}
+
 cd "$ROOT_DIR"
+
+log "checking local RASP conformance images"
+ensure_image "$RASP_PYTHON_310_IMAGE"
+ensure_image "$RASP_PYTHON_311_IMAGE"
+ensure_image "$RASP_PYTHON_312_IMAGE"
 
 log "building static Go binaries"
 run_in "$ROOT_DIR/server" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENABLED=0 GOWORK=off go build -trimpath -buildvcs=false -o ly-server ./cmd
@@ -83,16 +113,6 @@ run_in "$ROOT_DIR/security-engine" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENAB
 
 log "building frontend"
 run npm --prefix frontend run build
-
-ensure_image() {
-  local image="$1"
-  if docker image inspect "$image" >/dev/null 2>&1; then
-    log "using local image $image"
-    return
-  fi
-  printf '[lyflow-release] ERROR: required image %s is missing from the local cache; release builds never fetch mutable inputs\n' "$image" >&2
-  exit 1
-}
 
 log "checking runtime and base images"
 ensure_image "$DB_POSTGRES_IMAGE"
@@ -140,9 +160,9 @@ rm -rf "$RELEASE_DIR/.task22-evidence-$RELEASE_ID"
 TODO22_IMAGE_REFS=$(printf '%s\n' "${IMAGES[@]}" | paste -sd, -)
 run env SOURCE_DATE_EPOCH="$SOURCE_DATE_EPOCH" TODO22_IMAGE_REFS="$TODO22_IMAGE_REFS" "$ROOT_DIR/scripts/qa/generate-release-evidence.sh" --output "$RELEASE_DIR/.task22-evidence-$RELEASE_ID"
 run env \
-  RASP_PYTHON_310_IMAGE="${RASP_PYTHON_310_IMAGE:-lyflow/rasp-conformance@sha256:cb1c6f701d6d2793b6492a1018225c50944bd1076b0df8c331ad9ba4518bfa46}" \
-  RASP_PYTHON_311_IMAGE="${RASP_PYTHON_311_IMAGE:-lyflow/rasp-conformance@sha256:be5e543fdc32546e2df362d4b922df3ff96f6ba1948ceaeae31046b48bced697}" \
-  RASP_PYTHON_312_IMAGE="${RASP_PYTHON_312_IMAGE:-lyflow/rasp-conformance@sha256:6dabb066a9d40ec259fdcc9238a3d315ba2958b07913713932a3393c56faec3d}" \
+  RASP_PYTHON_310_IMAGE="$RASP_PYTHON_310_IMAGE" \
+  RASP_PYTHON_311_IMAGE="$RASP_PYTHON_311_IMAGE" \
+  RASP_PYTHON_312_IMAGE="$RASP_PYTHON_312_IMAGE" \
   RASP_PILOT_IMAGE="$SERVER_IMAGE" "$ROOT_DIR/scripts/qa/run-rasp-conformance.sh"
 
 log "creating package directory $PACKAGE_DIR"
