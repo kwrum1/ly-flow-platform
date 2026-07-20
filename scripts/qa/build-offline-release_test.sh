@@ -67,5 +67,17 @@ grep -Fq 'find "$PACKAGE_DIR/rules/security-engine/lifecycle" -type f -exec chmo
   printf 'packaged lifecycle files are not normalized to 0644\n' >&2
   exit 1
 }
+grep -Fq -- '--generate-admin-password' "$release" || {
+  printf 'packaged README omits required generated admin password choice\n' >&2
+  exit 1
+}
+grep -Fq '`initial-admin-credentials`' "$release" || {
+  printf 'packaged README omits generated credential location\n' >&2
+  exit 1
+}
+if grep -Fq 'admin / password' "$release"; then
+  printf 'packaged README advertises a fixed admin password\n' >&2
+  exit 1
+fi
 
 printf 'offline release RASP contract self-test passed\n'

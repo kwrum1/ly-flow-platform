@@ -32,6 +32,7 @@ test_generated_environment() (
     assert_secret "$INSTALL_DIR/.env" "$key"
   done
   grep -q '^REDIS_ACL_USERNAME=lyflow$' "$INSTALL_DIR/.env" || fail 'Redis ACL username missing'
+  grep -q '^LYFLOW_RESET_ADMIN_PASSWORD=false$' "$INSTALL_DIR/.env" || fail 'admin password reset must be disabled after bootstrap'
   [[ -s "$INSTALL_DIR/initial-admin-credentials" ]] || fail 'initial admin credential file missing'
   [[ $(stat -c '%a' "$INSTALL_DIR/initial-admin-credentials") == 600 ]] || fail 'admin credential permissions are not 0600'
 )

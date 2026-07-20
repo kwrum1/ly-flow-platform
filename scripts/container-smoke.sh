@@ -107,7 +107,7 @@ REDIS_PASSWORD=
 JWT_SECRET=$jwt_secret
 DEFAULT_ADMIN_PASSWORD=$admin_password
 SECURITY_ENGINE_CONTROL_TOKEN=$control_token
-LYFLOW_RESET_ADMIN_PASSWORD=true
+LYFLOW_RESET_ADMIN_PASSWORD=false
 LYFLOW_FORCE_FIRST_LOGIN_PASSWORD_CHANGE=true
 AGENT_SELF_ENROLL=false
 EOF
@@ -161,6 +161,7 @@ command -v curl >/dev/null 2>&1 || { log 'curl is unavailable' >&2; exit 1; }
 command -v openssl >/dev/null 2>&1 || { log 'openssl is unavailable' >&2; exit 1; }
 command -v go >/dev/null 2>&1 || { log 'go is unavailable' >&2; exit 1; }
 command -v npm >/dev/null 2>&1 || { log 'npm is unavailable' >&2; exit 1; }
+command -v python3 >/dev/null 2>&1 || { log 'python3 is unavailable' >&2; exit 1; }
 command -v timeout >/dev/null 2>&1 || { log 'timeout is unavailable' >&2; exit 1; }
 docker info >/dev/null 2>&1 || { log 'Docker daemon is unavailable' >&2; exit 1; }
 docker compose version >/dev/null 2>&1 || { log 'docker compose plugin is unavailable' >&2; exit 1; }
@@ -233,17 +234,62 @@ api_address=$(compose port ly-server 8080)
 frontend_address=$(compose port ly-vis 443)
 api_port=${api_address##*:}
 frontend_port=${frontend_address##*:}
-api_url="http://127.0.0.1:${api_port}/api/v1/health"
+api_base="http://127.0.0.1:${api_port}/api/v1"
+api_url="${api_base}/health"
 frontend_url="https://127.0.0.1:${frontend_port}/"
 wait_for_url API "$api_url"
 wait_for_url frontend "$frontend_url"
+
+login_response="$SMOKE_DIR/login.json"
+login_status=$(curl --silent --show-error --output "$login_response" --write-out '%{http_code}' \
+  --header 'Content-Type: application/json' \
+  --data "{\"username\":\"admin\",\"password\":\"$admin_password\"}" \
+  "${api_base}/auth/login")
+[[ $login_status == 200 ]] || { log "initial admin login returned HTTP $login_status" >&2; exit 1; }
+token=$(python3 - "$login_response" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    payload = json.load(source)["data"]
+if payload.get("needs_password_change") is not True:
+    raise SystemExit("initial admin login did not require a password change")
+print(payload["token"])
+PY
+)
+new_admin_password="Qa!$(openssl rand -hex 24)Z"
+change_status=$(curl --silent --show-error --output "$SMOKE_DIR/change-password.json" --write-out '%{http_code}' \
+  --header 'Content-Type: application/json' --header "Authorization: Bearer $token" \
+  --data "{\"old_password\":\"$admin_password\",\"new_password\":\"$new_admin_password\"}" \
+  "${api_base}/auth/change-password")
+[[ $change_status == 200 ]] || { log "admin password change returned HTTP $change_status" >&2; exit 1; }
 
 log 'restarting API service'
 compose restart ly-server
 wait_for_service ly-server
 api_address=$(compose port ly-server 8080)
 api_port=${api_address##*:}
-api_url="http://127.0.0.1:${api_port}/api/v1/health"
+api_base="http://127.0.0.1:${api_port}/api/v1"
+api_url="${api_base}/health"
 wait_for_url API "$api_url"
 wait_for_url frontend "$frontend_url"
+old_status=$(curl --silent --show-error --output "$SMOKE_DIR/old-login.json" --write-out '%{http_code}' \
+  --header 'Content-Type: application/json' \
+  --data "{\"username\":\"admin\",\"password\":\"$admin_password\"}" \
+  "${api_base}/auth/login")
+[[ $old_status == 401 ]] || { log "original admin password returned HTTP $old_status after restart" >&2; exit 1; }
+new_status=$(curl --silent --show-error --output "$SMOKE_DIR/new-login.json" --write-out '%{http_code}' \
+  --header 'Content-Type: application/json' \
+  --data "{\"username\":\"admin\",\"password\":\"$new_admin_password\"}" \
+  "${api_base}/auth/login")
+[[ $new_status == 200 ]] || { log "changed admin password returned HTTP $new_status after restart" >&2; exit 1; }
+python3 - "$SMOKE_DIR/new-login.json" <<'PY'
+import json
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    payload = json.load(source)["data"]
+if payload.get("needs_password_change") is not False:
+    raise SystemExit("changed admin password still requires a password change after restart")
+PY
 log "smoke passed: API $api_url, frontend $frontend_url"

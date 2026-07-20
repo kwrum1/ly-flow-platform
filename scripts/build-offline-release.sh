@@ -204,14 +204,17 @@ cat > "$PACKAGE_DIR/README.md" <<'EOF'
 ## 一键安装
 
 ```bash
-sudo bash scripts/install-offline.sh --trust-root /path/outside/package/release-root.pem
+sudo bash scripts/install-offline.sh \
+  --trust-root /path/outside/package/release-root.pem \
+  --generate-admin-password
 ```
 
 脚本会检查 Docker；如果未安装，会尝试通过系统包管理器安装 Docker 与 compose plugin，然后导入本包内镜像并启动流影。
 
 默认访问地址：`https://<服务器IP>/`
 
-默认账号：`admin / password`
+管理员账号为 `admin`。安装器会生成随机初始密码并写入权限为 `0600` 的
+`initial-admin-credentials`。
 
 首次登录会要求修改密码。
 EOF

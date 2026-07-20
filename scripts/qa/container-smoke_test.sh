@@ -40,7 +40,7 @@ for contract in \
   '--pull never' \
   'wait_for_service' \
   'ly-security-engine' \
-  '/api/v1/health' \
+  'api_base' \
   'https://127.0.0.1' \
   'restart ly-server' \
   'down --volumes --remove-orphans'; do
@@ -49,6 +49,9 @@ done
 
 grep -Eq 'SMOKE_TIMEOUT_SECONDS.*:-[0-9]+' "$smoke" || fail 'bounded timeout default is missing'
 grep -Fq 'openssl rand' "$smoke" || fail 'generated test credentials are missing'
+grep -Fq 'LYFLOW_RESET_ADMIN_PASSWORD=false' "$smoke" || fail 'smoke does not preserve changed admin passwords'
+grep -Fq 'original admin password returned HTTP' "$smoke" || fail 'smoke does not reject the original admin password after restart'
+grep -Fq 'changed admin password returned HTTP' "$smoke" || fail 'smoke does not verify the changed admin password after restart'
 grep -Fq 'go1.26.5' "$smoke" || fail 'pinned Go toolchain selection is missing'
 grep -Fq 'docker image tag' "$smoke" || fail 'local base images are not isolated from registry resolution'
 grep -Fq 'docker image rm "$SERVER_IMAGE" "$FRONTEND_IMAGE"' "$smoke" || fail 'temporary source images are not cleaned'
