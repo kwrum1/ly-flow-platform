@@ -7,6 +7,7 @@ workflow="$root/.gitea/workflows/docker-build.yml"
 python3 - "$workflow" <<'PY'
 from __future__ import annotations
 
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -112,7 +113,10 @@ for required in (
     "git clone --depth 1",
     "bash scripts/qa/install-offline_test.sh",
     "bash scripts/qa/container-smoke_test.sh",
+    "bash scripts/qa/prepare-rasp-conformance-images_test.sh",
+    "bash scripts/qa/build-offline-release_test.sh",
     "bash scripts/qa/gitea-workflow_test.sh",
+    "bash scripts/qa/prepare-rasp-conformance-images.sh",
     "bash scripts/container-smoke.sh",
     "docker pull postgres:16-alpine",
     "docker pull redis:7-alpine",
@@ -133,6 +137,23 @@ token_binding = "LYFLOW_GITEA_TOKEN: ${{ secrets.LYFLOW_GITEA_TOKEN }}"
 if text.count(token_binding) != 1:
     workflow_errors.append(
         f"{workflow_path}: upload step must bind LYFLOW_GITEA_TOKEN exactly once"
+    )
+rasp_mappings = re.findall(
+    r'RASP_PYTHON_(\d+)_IMAGE="\$\{rasp_images\[(\d+)\]\}"', text
+)
+if rasp_mappings != [("310", "0"), ("311", "1"), ("312", "2")]:
+    workflow_errors.append(
+        f"{workflow_path}: RASP helper output must map exactly three ordered refs"
+    )
+if "[[ ${#rasp_images[@]} -eq 3 ]]" not in text:
+    workflow_errors.append(
+        f"{workflow_path}: RASP helper output count is not validated"
+    )
+helper_call = "bash scripts/qa/prepare-rasp-conformance-images.sh"
+release_call = "bash scripts/build-offline-release.sh"
+if text.count(helper_call) != 1 or text.find(helper_call) > text.find(release_call):
+    workflow_errors.append(
+        f"{workflow_path}: RASP images must be prepared once before package construction"
     )
 
 if workflow_errors:

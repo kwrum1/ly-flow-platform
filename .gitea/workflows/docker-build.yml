@@ -83,6 +83,8 @@ jobs:
           set -euo pipefail
           bash scripts/qa/install-offline_test.sh
           bash scripts/qa/container-smoke_test.sh
+          bash scripts/qa/prepare-rasp-conformance-images_test.sh
+          bash scripts/qa/build-offline-release_test.sh
           bash scripts/qa/gitea-workflow_test.sh
           LYFLOW_SMOKE_TIMEOUT_SECONDS=180 bash scripts/container-smoke.sh
 
@@ -91,9 +93,18 @@ jobs:
           set -euo pipefail
           ci_tmp=$(mktemp -d "${RUNNER_TEMP:-/tmp}/lyflow-amd64.XXXXXX")
           printf '%s\n' "$ci_tmp" >.lyflow-amd64-tmp
+          bash scripts/qa/prepare-rasp-conformance-images.sh >"$ci_tmp/rasp-image-refs.txt"
+          mapfile -t rasp_images <"$ci_tmp/rasp-image-refs.txt"
+          [[ ${#rasp_images[@]} -eq 3 ]]
+          for rasp_image in "${rasp_images[@]}"; do
+            [[ $rasp_image =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]]
+          done
           openssl genpkey -algorithm ED25519 -out "$ci_tmp/release.key"
           openssl pkey -in "$ci_tmp/release.key" -pubout -out "$ci_tmp/release-root.pem"
           suricata=$(docker image inspect jasonish/suricata:7.0.11 --format '{{index .RepoDigests 0}}')
+          RASP_PYTHON_310_IMAGE="${rasp_images[0]}" \
+            RASP_PYTHON_311_IMAGE="${rasp_images[1]}" \
+            RASP_PYTHON_312_IMAGE="${rasp_images[2]}" \
           SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD) \
             RELEASE_ID="${GITHUB_SHA:-$(git rev-parse --short=12 HEAD)}" \
             RELEASE_SIGNING_KEY="$ci_tmp/release.key" \
