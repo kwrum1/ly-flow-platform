@@ -7,8 +7,13 @@ Offline releases are fail-closed. The builder does not pull images, update scann
 - `RELEASE_SIGNING_KEY`: external Ed25519 private key. The corresponding public `release-root.pem` is distributed out of band and must not be placed in the package.
 - `RELEASE_ID` and `SOURCE_DATE_EPOCH`: stable release identity and archive timestamp. They default to the current Git commit only for local verification.
 - `NGINX_IMAGE` and `SURICATA_PROFILE_IMAGE`: locally present digest references.
+- `RASP_PYTHON_310_IMAGE`, `RASP_PYTHON_311_IMAGE`, and `RASP_PYTHON_312_IMAGE`: locally inspectable immutable references for the three required RASP conformance runtimes. The release builder rejects missing, mutable, or malformed values before compilation.
 - For non-amd64 releases, architecture-specific digest references in `DB_POSTGRES_IMAGE`, `DB_REDIS_IMAGE`, and `DB_CLICKHOUSE_IMAGE`.
 - Local, versioned advisory databases for npm, Python, Go, and image scanners. Missing database identity blocks release.
+
+Gitea CI runs `scripts/qa/prepare-rasp-conformance-images.sh` before package construction. The helper reuses an existing local conformance tag or builds a missing tag from the checked-in Dockerfile for `linux/amd64` with pulls disabled, no cache, and provenance disabled. It emits the three ordered content-addressed references, preferring a repository digest and falling back to the local image ID, and the workflow maps them directly to the required release inputs.
+
+RASP conformance images are release-verification inputs only. They are not members of the packaged `IMAGES` array, are not written to `image-pins.tsv`, and are not included in `images/lyflow-images.tar.gz`.
 
 The builder runs `scripts/qa/generate-release-evidence.sh` before compilation. Any `BLOCKED` or `FAIL` scanner row stops the build. An empty scanner response without a locally provable database version is `BLOCKED`, not clean.
 
