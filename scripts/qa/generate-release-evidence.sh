@@ -58,7 +58,8 @@ require_file "$root/scripts/qa/vulnerability-exceptions.json"
 "$tools/trivy" --version | grep -Fq 'Version: 0.72.0' || fail 'unexpected Trivy version'
 "$tools/grype" version | grep -Fq 'Version:             0.115.0' || fail 'unexpected Grype version'
 "$tools/osv-scanner" --version | grep -Fq 'osv-scanner version: 2.4.0' || fail 'unexpected OSV-Scanner version'
-"$tools/govulncheck" -version -db "file://$go_db" | grep -Fq 'Scanner: govulncheck@v1.1.4' || fail 'unexpected govulncheck version'
+govulncheck_version=$("$tools/govulncheck" -version -db "file://$go_db")
+grep -Fq 'Scanner: govulncheck@v1.1.4' <<<"$govulncheck_version" || fail 'unexpected govulncheck version'
 
 rm -rf "$output"
 mkdir -p "$output/sbom/images" "$output/scanners/images" "$output/provenance"
