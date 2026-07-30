@@ -32,29 +32,29 @@ type ruleVersionStatusCommitter interface {
 	MarkSynced(ctx context.Context, sourceID, version, digest string) error
 }
 
-type postgresRuleVersionStatus struct {
-	pool interface {
-		Begin(ctx context.Context) (pgx.Tx, error)
-	}
-}
-
-func (s postgresRuleVersionStatus) MarkSynced(ctx context.Context, sourceID, version, digest string) error {
-	tx, err := s.pool.Begin(ctx)
+func commitSyncedRuleBundle(ctx context.Context, cfg *Config, sourceID, sourceVersion, sourceDigest string, manifest rulelifecycle.ActiveManifest) error {
+	tx, err := cfg.DBPool.Begin(ctx)
 	if err != nil {
-		return fmt.Errorf("begin rule version status transaction: %w", err)
+		return fmt.Errorf("begin synced rule bundle transaction: %w", err)
 	}
 	defer func() { _ = tx.Rollback(ctx) }()
-	result, err := tx.Exec(ctx, `UPDATE rule_source_versions SET sync_status='synced', synced_at=NOW() WHERE source_id=$1 AND version=$2 AND content_hash=$3`, sourceID, version, digest)
+	result, err := tx.Exec(ctx, `UPDATE rule_source_versions SET sync_status='synced', synced_at=NOW() WHERE source_id=$1 AND version=$2 AND content_hash=$3`, sourceID, sourceVersion, sourceDigest)
 	if err != nil {
 		return fmt.Errorf("mark rule version synced: %w", err)
 	}
 	if result.RowsAffected() != 1 {
 		return fmt.Errorf("mark rule version synced affected %d rows: %w", result.RowsAffected(), rulelifecycle.ErrRevision)
 	}
-	if err := tx.Commit(ctx); err != nil {
-		return fmt.Errorf("commit rule version status: %w", err)
+	if _, err := tx.Exec(ctx, `UPDATE rule_bundles SET status='inactive' WHERE status='active'`); err != nil {
+		return err
 	}
-	return nil
+	if _, err := tx.Exec(ctx, `INSERT INTO rule_bundles (version,status,bundle_hash,bundle_path,activated_at) VALUES ($1,'active',$2,$3,NOW()) ON CONFLICT (version) DO UPDATE SET status='active', bundle_hash=EXCLUDED.bundle_hash, bundle_path=EXCLUDED.bundle_path, activated_at=NOW()`, manifest.Revision, manifest.Digest, manifest.BundlePath); err != nil {
+		return err
+	}
+	if _, err := tx.Exec(ctx, `INSERT INTO rule_hot_reload_events (bundle_version,target,status,message) VALUES ($1,$2,'ok',$3)`, manifest.Revision, "ly-security-engine", manifest.BundlePath); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
 }
 
 func rulePlatformSourcesHandler(cfg *Config) http.HandlerFunc {
@@ -487,6 +487,69 @@ func loadEnabledDetectionRules(ctx context.Context, cfg *Config) ([]compiledRunt
 	return rules, rows.Err()
 }
 
+func loadEnabledDetectionRulesExcludingSource(ctx context.Context, cfg *Config, sourceID string) ([]compiledRuntimeRule, error) {
+	rows, err := cfg.DBPool.Query(ctx, `SELECT id, category, name, support_level, rule_json::text FROM detection_rules WHERE enabled=true AND source_id<>$1 ORDER BY category, id`, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	rules := []compiledRuntimeRule{}
+	for rows.Next() {
+		var id, category, name, support, raw string
+		if err := rows.Scan(&id, &category, &name, &support, &raw); err != nil {
+			return nil, err
+		}
+		if support == "unsupported" {
+			continue
+		}
+		rule, err := compileDetectionRule(id, category, name, raw)
+		if err != nil {
+			return nil, err
+		}
+		if !compiledRuntimeRuleValid(rule) {
+			return nil, fmt.Errorf("rule %s failed strict runtime validation", id)
+		}
+		rules = append(rules, rule)
+	}
+	return rules, rows.Err()
+}
+
+func mergeCompiledRuntimeRules(base, updates []compiledRuntimeRule) []compiledRuntimeRule {
+	byID := make(map[string]compiledRuntimeRule, len(base)+len(updates))
+	for _, rule := range base {
+		byID[rule.ID] = rule
+	}
+	for _, rule := range updates {
+		byID[rule.ID] = rule
+	}
+	merged := make([]compiledRuntimeRule, 0, len(byID))
+	for _, rule := range byID {
+		merged = append(merged, rule)
+	}
+	sort.Slice(merged, func(i, j int) bool {
+		if merged[i].Category == merged[j].Category {
+			return merged[i].ID < merged[j].ID
+		}
+		return merged[i].Category < merged[j].Category
+	})
+	return merged
+}
+
+func loadActiveLifecycleRules(ctx context.Context, cfg *Config) ([]compiledRuntimeRule, error) {
+	if cfg.RuleLifecycle == nil {
+		return nil, errors.New("secure rule lifecycle is unavailable")
+	}
+	manifest, err := cfg.RuleLifecycle.Active(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var bundle compiledBundleFile
+	if err := readJSONFile(manifest.BundlePath, &bundle); err != nil {
+		return nil, err
+	}
+	return bundle.Rules, nil
+}
+
 func compiledRuntimeRuleValid(rule compiledRuntimeRule) bool {
 	if strings.TrimSpace(rule.ID) == "" || strings.TrimSpace(rule.Category) == "" {
 		return false
@@ -783,6 +846,17 @@ func syncRulePlatformSource(ctx context.Context, cfg *Config, req map[string]int
 		}
 		runtimeRules = append(runtimeRules, runtimeRule)
 	}
+	if err := ensureDefaultDetectionRules(ctx, cfg); err != nil {
+		return nil, err
+	}
+	baseRules, err := loadActiveLifecycleRules(ctx, cfg)
+	if err != nil {
+		baseRules, err = loadEnabledDetectionRulesExcludingSource(ctx, cfg, sourceID)
+		if err != nil {
+			return nil, err
+		}
+	}
+	runtimeRules = mergeCompiledRuntimeRules(baseRules, runtimeRules)
 	bundleData, err := json.Marshal(compiledBundleFile{Version: lifecycleRevision, Rules: runtimeRules})
 	if err != nil {
 		return nil, err
@@ -866,12 +940,11 @@ func syncRulePlatformSource(ctx context.Context, cfg *Config, req map[string]int
 	if err := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.persist", sourceID+":"+version, rulelifecycle.AuditResultSucceeded, map[string]interface{}{"digest": sourceDigest, "snapshot_path": snapshotPath}); err != nil {
 		return nil, err
 	}
-	statusCommitter := cfg.RuleVersionStatus
-	if statusCommitter == nil {
-		statusCommitter = postgresRuleVersionStatus{pool: cfg.DBPool}
-	}
-	manifest, err := cfg.RuleLifecycle.ActivateWithCommit(ctx, actor, lifecycleRevision, func() error {
-		return statusCommitter.MarkSynced(ctx, sourceID, version, sourceDigest)
+	manifest, err := cfg.RuleLifecycle.ActivateWithManifestCommit(ctx, actor, lifecycleRevision, func(candidate rulelifecycle.ActiveManifest) error {
+		if cfg.RuleVersionStatus != nil {
+			return cfg.RuleVersionStatus.MarkSynced(ctx, sourceID, version, sourceDigest)
+		}
+		return commitSyncedRuleBundle(ctx, cfg, sourceID, version, sourceDigest, candidate)
 	})
 	if err != nil {
 		if inline {
@@ -1856,42 +1929,62 @@ func rollbackRulePlatformBundle(ctx context.Context, cfg *Config, requestedVersi
 	}
 	active := ""
 	candidates := make([]map[string]interface{}, 0, len(rows))
+	var target map[string]interface{}
 	for _, row := range rows {
 		version := asString(row["version"])
 		if row["status"] == "active" {
 			active = version
 			continue
 		}
-		if requestedVersion == "" || requestedVersion == version {
+		if requestedVersion != "" && requestedVersion == version {
+			target = row
+		}
+		if requestedVersion == "" {
 			candidates = append(candidates, row)
 		}
 	}
-	if len(candidates) == 0 {
-		return nil, fmt.Errorf("no rollback bundle available")
+	if requestedVersion == active {
+		return nil, fmt.Errorf("bundle %s is already active", requestedVersion)
 	}
-	sort.Slice(candidates, func(i, j int) bool {
-		return asString(candidates[i]["created_at"]) > asString(candidates[j]["created_at"])
+	if requestedVersion == "" {
+		if len(candidates) == 0 {
+			return nil, fmt.Errorf("no rollback bundle available")
+		}
+		sort.Slice(candidates, func(i, j int) bool {
+			return asString(candidates[i]["created_at"]) > asString(candidates[j]["created_at"])
+		})
+		target = candidates[0]
+		requestedVersion = asString(target["version"])
+	}
+	if target == nil {
+		// The signed lifecycle store is authoritative. Database rows are an index
+		// and may be absent after migration from an older deployment.
+		target = map[string]interface{}{"version": requestedVersion}
+	}
+	manifest, err := cfg.RuleLifecycle.RollbackWithManifestCommit(ctx, ruleLifecycleActor(ctx), requestedVersion, func(candidate rulelifecycle.ActiveManifest) error {
+		tx, beginErr := cfg.DBPool.Begin(ctx)
+		if beginErr != nil {
+			return beginErr
+		}
+		defer func() { _ = tx.Rollback(ctx) }()
+		if _, updateErr := tx.Exec(ctx, `UPDATE rule_bundles SET status='inactive' WHERE status='active'`); updateErr != nil {
+			return updateErr
+		}
+		if _, insertErr := tx.Exec(ctx, `INSERT INTO rule_bundles (version,status,bundle_hash,bundle_path,activated_at) VALUES ($1,'active',$2,$3,NOW()) ON CONFLICT (version) DO UPDATE SET status='active', bundle_hash=EXCLUDED.bundle_hash, bundle_path=EXCLUDED.bundle_path, activated_at=NOW()`, requestedVersion, candidate.Digest, candidate.BundlePath); insertErr != nil {
+			return insertErr
+		}
+		if _, eventErr := tx.Exec(ctx, `INSERT INTO rule_hot_reload_events (bundle_version,target,status,message) VALUES ($1,$2,$3,$4)`, requestedVersion, "ly-security-engine", "rollback_ok", "rolled back from "+active); eventErr != nil {
+			return eventErr
+		}
+		return tx.Commit(ctx)
 	})
-	target := candidates[0]
-	version := asString(target["version"])
-	path := asString(target["bundle_path"])
-	if path == "" {
-		return nil, fmt.Errorf("bundle %s has no path", version)
-	}
-	manifest, err := cfg.RuleLifecycle.Rollback(ctx, ruleLifecycleActor(ctx), version)
 	if err != nil {
-		_, _ = cfg.DBPool.Exec(ctx, `INSERT INTO rule_hot_reload_events (bundle_version, target, status, message) VALUES ($1,$2,$3,$4)`, version, "ly-security-engine", "rollback_failed", err.Error())
+		_, _ = cfg.DBPool.Exec(ctx, `INSERT INTO rule_hot_reload_events (bundle_version, target, status, message) VALUES ($1,$2,$3,$4)`, requestedVersion, "ly-security-engine", "rollback_failed", err.Error())
 		return nil, err
 	}
-	if _, err := cfg.DBPool.Exec(ctx, `UPDATE rule_bundles SET status='inactive' WHERE status='active'`); err != nil {
-		return nil, err
-	}
-	if _, err := cfg.DBPool.Exec(ctx, `UPDATE rule_bundles SET status='active', activated_at=NOW() WHERE version=$1`, version); err != nil {
-		return nil, err
-	}
-	_, _ = cfg.DBPool.Exec(ctx, `INSERT INTO rule_hot_reload_events (bundle_version, target, status, message) VALUES ($1,$2,$3,$4)`, version, "ly-security-engine", "rollback_ok", "rolled back from "+active)
 	target["status"] = "active"
 	target["rollback_from"] = active
+	target["bundle_hash"] = manifest.Digest
 	target["bundle_path"] = manifest.BundlePath
 	target["manifest_signature"] = manifest.Signature
 	target["reload"] = map[string]interface{}{"status": "ok", "message": manifest.BundlePath}

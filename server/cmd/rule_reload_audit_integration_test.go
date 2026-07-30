@@ -158,6 +158,11 @@ func TestCompileDefaultSecurityBundleRestoresStateWhenReloadEventCommitFails(t *
 	if candidateVersion == "" || candidateVersion == baselineVersion {
 		t.Fatalf("candidate version=%q", candidateVersion)
 	}
+	// Signed lifecycle state must remain recoverable when an older deployment
+	// did not index its baseline bundle in the database.
+	if _, err := pool.Exec(ctx, `DELETE FROM rule_bundles WHERE version=$1`, baselineVersion); err != nil {
+		t.Fatalf("remove baseline database index: %v", err)
+	}
 	rollback, rollbackErr := rollbackRulePlatformBundle(ctx, cfg, baselineVersion)
 	if rollbackErr != nil {
 		t.Fatalf("rollback baseline: %v", rollbackErr)

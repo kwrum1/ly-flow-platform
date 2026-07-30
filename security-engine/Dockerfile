@@ -6,7 +6,10 @@ USER root
 WORKDIR /app
 
 COPY security-engine/ly-security-engine .
-RUN chmod +x /app/ly-security-engine
+RUN chmod +x /app/ly-security-engine \
+    && mkdir -p /var/lib/lyflow/audit \
+    && chown redis:redis /var/lib/lyflow/audit \
+    && chmod 0700 /var/lib/lyflow/audit
 
 USER redis
 

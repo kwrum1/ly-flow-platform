@@ -33,6 +33,13 @@ func (m *Manager) Rollback(ctx context.Context, actor Actor, revision string) (A
 	return m.activate(ctx, actor, revision, "rule.rollback", nil)
 }
 
+func (m *Manager) RollbackWithManifestCommit(ctx context.Context, actor Actor, revision string, commit func(ActiveManifest) error) (ActiveManifest, error) {
+	if commit == nil {
+		return ActiveManifest{}, errors.New("rulelifecycle: rollback commit is required")
+	}
+	return m.activate(ctx, actor, revision, "rule.rollback", commit)
+}
+
 func (m *Manager) Reload(ctx context.Context, actor Actor) error {
 	if err := m.authorize(ctx, actor, "rule.reload", "active"); err != nil {
 		return err

@@ -117,6 +117,9 @@ services:
       XDR_RULES_DIR: /etc/ly/rules/xdr
       SECURITY_ENGINE_RELOAD_URL: http://ly-security-engine:8080/reload
       SECURITY_ENGINE_CONTROL_TOKEN: ${SECURITY_ENGINE_CONTROL_TOKEN:?SECURITY_ENGINE_CONTROL_TOKEN must be set}
+      RULE_SOURCE_TIMEOUT_SECONDS: ${RULE_SOURCE_TIMEOUT_SECONDS:-60}
+      RULE_SOURCE_MAX_MIB: ${RULE_SOURCE_MAX_MIB:-64}
+      RULE_SOURCE_MAX_REDIRECTS: ${RULE_SOURCE_MAX_REDIRECTS:-4}
       RULE_LIFECYCLE_DIR: /app/rules/security-engine/lifecycle
       ENGINE_RULE_ROOT: /app/rules
       POLICY_TRUST_DIR: /var/lib/lyflow/policy/trust
