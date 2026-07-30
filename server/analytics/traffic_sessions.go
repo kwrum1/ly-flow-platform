@@ -20,10 +20,11 @@ const TrafficSessionTableDDL = `CREATE TABLE IF NOT EXISTS lyflow_traffic_sessio
   dst_port UInt16,
   protocol LowCardinality(String),
   raw_event String,
-  ingested_at DateTime64(6, 'UTC')
+  ingested_at DateTime64(6, 'UTC'),
+  INDEX idx_observed_at observed_at TYPE minmax GRANULARITY 1
 ) ENGINE = ReplacingMergeTree(version)
 PARTITION BY toYYYYMM(observed_at)
-ORDER BY (observed_at, session_uid)`
+ORDER BY (session_uid)`
 
 type TrafficSessionRecord struct {
 	SessionUID string

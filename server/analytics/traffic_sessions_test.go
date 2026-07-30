@@ -47,6 +47,9 @@ func TestTrafficSessionTableDDL_preserves_full_session_and_trace_dimensions(t *t
 			t.Fatalf("session DDL missing %s", column)
 		}
 	}
+	if !strings.Contains(TrafficSessionTableDDL, "ORDER BY (session_uid)") {
+		t.Fatal("session UID must be the replacement key for idempotent retries")
+	}
 	if strings.Contains(strings.ToUpper(TrafficSessionTableDDL), " TTL ") {
 		t.Fatal("full-session history must not expire without an explicit retention policy")
 	}
