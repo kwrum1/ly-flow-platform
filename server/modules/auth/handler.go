@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"strconv"
 	"time"
-	"unicode"
 
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -62,25 +61,6 @@ func validatePasswordPolicy(password string) string {
 	if len([]rune(password)) < 8 {
 		return "new password must be at least 8 characters"
 	}
-
-	hasUpper := false
-	hasSpecial := false
-	for _, char := range password {
-		if unicode.IsUpper(char) {
-			hasUpper = true
-		}
-		if unicode.IsPunct(char) || unicode.IsSymbol(char) {
-			hasSpecial = true
-		}
-	}
-
-	if !hasUpper {
-		return "new password must contain an uppercase letter"
-	}
-	if !hasSpecial {
-		return "new password must contain a special character"
-	}
-
 	return ""
 }
 
