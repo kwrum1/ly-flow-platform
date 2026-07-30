@@ -84,18 +84,13 @@ func (runtime *StorageEventRuntime) Read(ctx context.Context, limit int64) ([]co
 	}
 	events := make([]contracts.CanonicalSecurityEvent, 0, len(result.Events))
 	for _, record := range result.Events {
+		normalizedEvent, err := normalizeStoredCanonicalPayload(record.ID, record.PayloadJSON)
+		if err != nil {
+			return nil, "", err
+		}
 		var stored contracts.CanonicalSecurityEvent
-		if err := json.Unmarshal([]byte(record.PayloadJSON), &stored); err != nil {
-			return nil, "", fmt.Errorf("decode stored event identity %s: %w", record.ID, err)
-		}
-		normalizedPayload, _, err := contracts.RedactJSON(stored.Payload)
-		if err != nil {
-			return nil, "", fmt.Errorf("normalize stored event payload %s: %w", record.ID, err)
-		}
-		stored.Payload = normalizedPayload
-		normalizedEvent, err := json.Marshal(stored)
-		if err != nil {
-			return nil, "", fmt.Errorf("normalize stored canonical event %s: %w", record.ID, err)
+		if err := json.Unmarshal(normalizedEvent, &stored); err != nil {
+			return nil, "", fmt.Errorf("decode normalized event identity %s: %w", record.ID, err)
 		}
 		event, _, err := contracts.ParseCanonical(normalizedEvent, contracts.PrincipalIdentity(stored.Identity.PrincipalID))
 		if err != nil {
@@ -116,9 +111,34 @@ func (runtime *StorageEventRuntime) ReadCanonicalPayloads(ctx context.Context, l
 	}
 	payloads := make([][]byte, 0, len(result.Events))
 	for _, record := range result.Events {
-		payloads = append(payloads, []byte(record.PayloadJSON))
+		normalized, err := normalizeStoredCanonicalPayload(record.ID, record.PayloadJSON)
+		if err != nil {
+			return nil, err
+		}
+		payloads = append(payloads, normalized)
 	}
 	return payloads, nil
+}
+
+func normalizeStoredCanonicalPayload(recordID, payloadJSON string) ([]byte, error) {
+	var stored contracts.CanonicalSecurityEvent
+	if err := json.Unmarshal([]byte(payloadJSON), &stored); err != nil {
+		return nil, fmt.Errorf("decode stored event identity %s: %w", recordID, err)
+	}
+	normalizedPayload, redactedFields, err := contracts.RedactJSON(stored.Payload)
+	if err != nil {
+		return nil, fmt.Errorf("normalize stored event payload %s: %w", recordID, err)
+	}
+	stored.Payload = normalizedPayload
+	stored.Governance.RedactedFields = redactedFields
+	normalizedEvent, err := json.Marshal(stored)
+	if err != nil {
+		return nil, fmt.Errorf("normalize stored canonical event %s: %w", recordID, err)
+	}
+	if _, _, err := contracts.ParseCanonical(normalizedEvent, contracts.PrincipalIdentity(stored.Identity.PrincipalID)); err != nil {
+		return nil, fmt.Errorf("validate normalized canonical event %s: %w", recordID, err)
+	}
+	return normalizedEvent, nil
 }
 
 func (runtime *StorageEventRuntime) Delete(ctx context.Context, eventUID string) error {

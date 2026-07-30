@@ -18,6 +18,34 @@ import (
 	"github.com/lyflow/ly-flow-platform/server/modules/auth"
 )
 
+func TestNormalizeStoredCanonicalPayload_repairs_legacy_governance_metadata(t *testing.T) {
+	event := canonicalXDRTestEvent(t, "legacy-secret", time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC))
+	event.Payload = json.RawMessage(`{"token":"legacy-value","command":"whoami"}`)
+	event.Governance.RedactedFields = nil
+	stored, err := json.Marshal(event)
+	if err != nil {
+		t.Fatalf("encode legacy event: %v", err)
+	}
+
+	normalized, err := normalizeStoredCanonicalPayload(event.EventUID, string(stored))
+	if err != nil {
+		t.Fatalf("normalize legacy event: %v", err)
+	}
+	var repaired contracts.CanonicalSecurityEvent
+	if err := json.Unmarshal(normalized, &repaired); err != nil {
+		t.Fatalf("decode repaired event: %v", err)
+	}
+	if err := repaired.Validate(); err != nil {
+		t.Fatalf("repaired event invalid: %v", err)
+	}
+	if string(repaired.Payload) != `{"command":"whoami","token":"***REDACTED***"}` {
+		t.Fatalf("payload=%s", repaired.Payload)
+	}
+	if len(repaired.Governance.RedactedFields) != 1 || repaired.Governance.RedactedFields[0] != "token" {
+		t.Fatalf("redacted fields=%v", repaired.Governance.RedactedFields)
+	}
+}
+
 func TestProductionStorageRuntime_uses_clickhouse_settings_and_real_security_event_routes(t *testing.T) {
 	// Given
 	endpoint := os.Getenv("LYFLOW_TEST_CLICKHOUSE_HTTP")
