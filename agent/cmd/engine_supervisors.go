@@ -56,9 +56,13 @@ func (s *externalEngineSupervisor) Apply(ctx context.Context, desired EngineDesi
 	s.status.Running = desired.Enabled && s.status.Installed
 	s.status.LastError = ""
 	if desired.Enabled && !s.status.Installed {
-		s.status.Installed = true
-		s.status.Running = true
-		s.status.Version = "ly-agent-adapter"
+		if s.name == EngineYARA {
+			s.status.LastError = "native yara executable is unavailable"
+		} else {
+			s.status.Installed = true
+			s.status.Running = true
+			s.status.Version = "ly-agent-adapter"
+		}
 	}
 	if version := commandVersion(ctx, s.binary); version != "" {
 		s.status.Version = version
@@ -113,7 +117,10 @@ type engineRuntimeStatusFile struct {
 }
 
 func engineRuntimeStatusFromFile(ctx context.Context, name EngineName) (EngineStatus, bool) {
-	path := firstNonEmpty(os.Getenv("ENGINE_STATUS_FILE"), "/opt/ly-engine-lab/runtime/status.json")
+	path := strings.TrimSpace(os.Getenv("ENGINE_STATUS_FILE"))
+	if path == "" {
+		return EngineStatus{}, false
+	}
 	if ctx.Err() != nil {
 		return EngineStatus{}, false
 	}

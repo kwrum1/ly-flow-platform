@@ -74,6 +74,13 @@ type Config struct {
 	SpoolFlushInterval       int
 	HIDSEnabled              bool
 	RuntimeStream            string
+	YARACommand              string
+	YARARulesPath            string
+	YARAScanPaths            string
+	YARAScanIntervalSeconds  int
+	YARAScanTimeoutSeconds   int
+	YARAMaxFileBytes         int64
+	YARAMaxMatches           int
 	RASPEnabled              bool
 	RASPStream               string
 	RASPBridgeAddr           string
@@ -116,6 +123,8 @@ type Agent struct {
 	clock                  trafficClock
 	trafficQuality         *trafficQualityMonitor
 	suricataProfile        suricataProfileRuntime
+	yaraSeenMu             sync.Mutex
+	yaraSeen               map[string]struct{}
 	ackPolicyVersion       uint64
 	ackPolicySignature     string
 	raspPolicyEnvelope     shared.SignedPolicy
@@ -235,6 +244,18 @@ func (a *Agent) capabilityModel() map[string]interface{} {
 		runtimeStatus = "fallback"
 		runtimeBackend = fallbackBackendLabel(runtimeStrategy)
 	}
+	yaraStatus := "disabled"
+	yaraBackend := "disabled"
+	if a.cfg.HIDSEnabled {
+		yaraStatus = "degraded"
+		yaraBackend = "unavailable"
+		if commandExists(a.cfg.YARACommand) {
+			if info, err := os.Stat(a.cfg.YARARulesPath); err == nil && !info.IsDir() {
+				yaraStatus = "active"
+				yaraBackend = "native-yara-cli"
+			}
+		}
+	}
 
 	raspStatus := "disabled"
 	if a.cfg.RASPEnabled {
@@ -304,11 +325,11 @@ func (a *Agent) capabilityModel() map[string]interface{} {
 		},
 		"yara_scanner": map[string]interface{}{
 			"enabled":           a.cfg.HIDSEnabled,
-			"status":            enabledStatus(a.cfg.HIDSEnabled),
-			"active_backend":    "artifact-jsonl-scan",
+			"status":            yaraStatus,
+			"active_backend":    yaraBackend,
 			"rule_pack_version": "yara-security",
 			"result_path":       "/opt/ly-agent/yara/last-scan.json",
-			"stream":            "component-alerts:yara",
+			"stream":            "component_alerts:v2",
 		},
 		"rasp_probe_manager": map[string]interface{}{
 			"enabled":        a.cfg.RASPEnabled,
@@ -453,6 +474,7 @@ func (a *Agent) startManagedCollectors() {
 	if a.cfg.HIDSEnabled && !a.hidsStarted {
 		a.hidsStarted = true
 		go a.runHIDS()
+		go a.runYARAScanner()
 	}
 	if a.cfg.RASPEnabled && !a.raspStarted {
 		a.raspStarted = true
@@ -2274,7 +2296,6 @@ func (a *Agent) runHIDS() {
 	mode := "monitor"
 	fmt.Printf("[hids] Monitoring (strategy: %s, mode: %s)\n", strategy, mode)
 	a.publishLogAuditHeartbeat()
-	a.publishYARAHealthScan()
 	ticker := time.NewTicker(60 * time.Second)
 	defer ticker.Stop()
 	for {
@@ -2286,7 +2307,6 @@ func (a *Agent) runHIDS() {
 				continue
 			}
 			a.publishLogAuditHeartbeat()
-			a.publishYARAHealthScan()
 			fmt.Printf("[hids] Running integrity check...\n")
 			events := backend.Collect(a)
 			for _, event := range events {
@@ -2305,41 +2325,6 @@ func (a *Agent) runHIDS() {
 			}
 		}
 	}
-}
-
-func (a *Agent) publishYARAHealthScan() {
-	path := a.yaraResultPath()
-	if strings.TrimSpace(path) == "" {
-		return
-	}
-	if err := os.MkdirAll(filepath.Dir(path), 0o750); err != nil {
-		fmt.Printf("[yara] result directory unavailable: %v\n", err)
-		return
-	}
-	now := time.Now().UTC()
-	result := map[string]interface{}{
-		"rule":        "LyFlow.Agent.FileScanner.Health",
-		"namespace":   "lyflow-agent",
-		"tags":        []string{"health", "audit_only", "agent_scanner"},
-		"file_path":   "/opt/ly-agent/yara/healthcheck.txt",
-		"file_hash":   fmt.Sprintf("lyflow-health-%s", a.agentID),
-		"matched_at":  now.Format(time.RFC3339Nano),
-		"agent_id":    a.agentID,
-		"hostname":    a.hostname,
-		"scan_status": "completed",
-		"source":      "agent-yara-scanner",
-	}
-	data, err := json.Marshal(result)
-	if err != nil {
-		return
-	}
-	file, err := os.OpenFile(path, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o640)
-	if err != nil {
-		fmt.Printf("[yara] result file unavailable: %v\n", err)
-		return
-	}
-	defer file.Close()
-	_, _ = file.Write(append(data, '\n'))
 }
 
 func (a *Agent) publishLogAuditHeartbeat() {
@@ -3813,6 +3798,25 @@ func applyYAMLConfig(cfg *Config, yamlValues map[string]string) {
 	if v := yamlValues["runtime.telemetry_stream"]; v != "" {
 		cfg.RuntimeTelemetryStream = v
 	}
+	if v := yamlValues["yara.command"]; v != "" {
+		cfg.YARACommand = v
+	}
+	if v := yamlValues["yara.rules_path"]; v != "" {
+		cfg.YARARulesPath = v
+	}
+	if v := yamlValues["yara.scan_paths"]; v != "" {
+		cfg.YARAScanPaths = v
+	}
+	if v := yamlValues["yara.scan_interval_seconds"]; v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.YARAScanIntervalSeconds = n
+		}
+	}
+	if v := yamlValues["yara.scan_timeout_seconds"]; v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.YARAScanTimeoutSeconds = n
+		}
+	}
 	if v := yamlValues["rasp.enabled"]; v != "" {
 		cfg.RASPEnabled = parseBoolOrDefault(v, cfg.RASPEnabled)
 	}
@@ -3937,6 +3941,35 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("HIDS_ENABLED"); v != "" {
 		cfg.HIDSEnabled = parseBoolOrDefault(v, cfg.HIDSEnabled)
+	}
+	if v := os.Getenv("YARA_COMMAND"); v != "" {
+		cfg.YARACommand = v
+	}
+	if v := os.Getenv("YARA_RULES_PATH"); v != "" {
+		cfg.YARARulesPath = v
+	}
+	if v := os.Getenv("YARA_SCAN_PATHS"); v != "" {
+		cfg.YARAScanPaths = v
+	}
+	if v := os.Getenv("YARA_SCAN_INTERVAL_SECONDS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.YARAScanIntervalSeconds = n
+		}
+	}
+	if v := os.Getenv("YARA_SCAN_TIMEOUT_SECONDS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.YARAScanTimeoutSeconds = n
+		}
+	}
+	if v := os.Getenv("YARA_MAX_FILE_BYTES"); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil && n > 0 {
+			cfg.YARAMaxFileBytes = n
+		}
+	}
+	if v := os.Getenv("YARA_MAX_MATCHES"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.YARAMaxMatches = n
+		}
 	}
 	if v := os.Getenv("RASP_ENABLED"); v != "" {
 		cfg.RASPEnabled = parseBoolOrDefault(v, cfg.RASPEnabled)
@@ -4162,6 +4195,13 @@ func main() {
 		SpoolFlushInterval:       1,
 		HIDSEnabled:              true,
 		RuntimeStream:            "alerts:runtime",
+		YARACommand:              "yara",
+		YARARulesPath:            "/opt/ly-agent/yara/rules.yar",
+		YARAScanPaths:            "/opt/ly-agent/yara/scan",
+		YARAScanIntervalSeconds:  60,
+		YARAScanTimeoutSeconds:   30,
+		YARAMaxFileBytes:         256 * 1024 * 1024,
+		YARAMaxMatches:           1000,
 		RASPEnabled:              false,
 		RASPStream:               "alerts:rasp",
 		RASPBridgeAddr:           "127.0.0.1:17891",
