@@ -157,6 +157,7 @@ func (runtime *xdrGraphRuntime) IngestRaw(ctx context.Context, identity models.A
 
 func (runtime *xdrGraphRuntime) decodeRaw(ctx context.Context, identity models.AlgorithmIdentity, records [][]byte) ([]contracts.CanonicalSecurityEvent, error) {
 	events := make([]contracts.CanonicalSecurityEvent, 0, len(records))
+	var firstQuarantined error
 	for _, record := range records {
 		event, err := runtime.adapter.Decode(record)
 		if err != nil {
@@ -164,9 +165,15 @@ func (runtime *xdrGraphRuntime) decodeRaw(ctx context.Context, identity models.A
 				runtime.health.failure(identity, persistErr)
 				return nil, errorsJoinXDR(err, persistErr)
 			}
-			return nil, err
+			if firstQuarantined == nil {
+				firstQuarantined = err
+			}
+			continue
 		}
 		events = append(events, event)
+	}
+	if len(records) > 0 && len(events) == 0 && firstQuarantined != nil {
+		return nil, fmt.Errorf("all canonical XDR inputs quarantined: %w", firstQuarantined)
 	}
 	return events, nil
 }

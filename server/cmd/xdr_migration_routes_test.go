@@ -104,6 +104,40 @@ func TestXDRChainsRoute_future_schema_persists_redacted_quarantine_without_graph
 	}
 }
 
+func TestXDRChainsRoute_malformed_record_is_quarantined_without_hiding_valid_events(t *testing.T) {
+	pool, ctx := xdrMigrationTestPool(t)
+	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+	valid := canonicalXDRTestEvent(t, "route-valid-among-malformed", now)
+	malformed := valid
+	malformed.EventUID = "route-malformed"
+	malformed.Payload = json.RawMessage(`{"token":"must-not-enter-graph","command":"whoami"}`)
+	input := fixtureXDRInput{records: [][]byte{marshalXDRFixture(t, malformed), marshalXDRFixture(t, valid)}}
+	runtime, err := newXDRGraphRuntime(ctx, pool, newXDRCanonicalAdapter(func() time.Time { return now }, now.Add(time.Hour)))
+	if err != nil {
+		t.Fatalf("create route runtime: %v", err)
+	}
+
+	response := serveXDRRoute(xdrChainsHandler(&Config{XDRGraph: runtime, XDRInput: input}), "/api/v1/xdr/chains")
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("mixed route status=%d body=%s", response.Code, response.Body.String())
+	}
+	if got := countXDRRows(t, ctx, pool, "xdr_graph_nodes_versioned", models.AlgorithmV2Active.String()); got != 1 {
+		t.Fatalf("graph nodes=%d, want only the valid event", got)
+	}
+	if got := runtime.Health().ReadAdapter.Quarantined; got != 1 {
+		t.Fatalf("quarantined=%d, want 1", got)
+	}
+	var redactedRecord string
+	if err := pool.QueryRow(ctx, `SELECT redacted_record::text FROM xdr_input_quarantine
+		WHERE algorithm_version=$1`, models.AlgorithmV2Active.String()).Scan(&redactedRecord); err != nil {
+		t.Fatalf("read quarantine: %v", err)
+	}
+	if strings.Contains(redactedRecord, "must-not-enter-graph") || !strings.Contains(redactedRecord, "***REDACTED***") {
+		t.Fatalf("quarantine record was not redacted: %s", redactedRecord)
+	}
+}
+
 func TestXDRChainsRoute_quarantine_persistence_failure_fails_closed(t *testing.T) {
 	// Given
 	pool, ctx := xdrMigrationTestPool(t)
