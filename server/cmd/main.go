@@ -1212,23 +1212,22 @@ func (c *ConsumerState) processAlerts() {
 	c.cfg.Redis.XGroupCreateMkStream(ctx, "events:xdr", group, "0")
 	c.cfg.Redis.XGroupCreateMkStream(ctx, "events:dead-letter", group, "0")
 
-	for _, stream := range streams {
-		result, err := c.cfg.Redis.XReadGroup(ctx, &redis.XReadGroupArgs{
-			Group:    group,
-			Consumer: "server-consumer",
-			Streams:  []string{stream, ">"},
-			Count:    10,
-			Block:    time.Second,
-		}).Result()
-
-		if err != nil {
-			continue
-		}
-
-		for _, sr := range result {
-			if err := c.reliable.Handle(ctx, sr.Stream, sr.Messages, c.processDelivery); err != nil {
-				log.Printf("durable handoff failed stream=%s err=%v", sr.Stream, err)
-			}
+	readStreams := make([]string, 0, len(streams)*2)
+	readStreams = append(readStreams, streams...)
+	for range streams {
+		readStreams = append(readStreams, ">")
+	}
+	result, err := c.cfg.Redis.XReadGroup(ctx, &redis.XReadGroupArgs{
+		Group: group, Consumer: "server-consumer", Streams: readStreams,
+		Count: 200, Block: time.Second,
+	}).Result()
+	if err != nil && err != redis.Nil {
+		log.Printf("stream batch read failed: %v", err)
+		return
+	}
+	for _, sr := range result {
+		if err := c.reliable.Handle(ctx, sr.Stream, sr.Messages, c.processDelivery); err != nil {
+			log.Printf("durable handoff failed stream=%s err=%v", sr.Stream, err)
 		}
 	}
 }
