@@ -1,5 +1,7 @@
 FROM ubuntu@sha256:0e0a0fc6d18feda9db1590da249ac93e8d5abfea8f4c3c0c849ce512b5ef8982
 
+ARG BUILD_JOBS=2
+
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update \
@@ -9,7 +11,7 @@ RUN apt-get update \
     && tar -xzf /tmp/Python-3.11.13.tgz -C /tmp \
     && cd /tmp/Python-3.11.13 \
     && ./configure --prefix=/usr/local --with-ensurepip=no \
-    && make -j"$(nproc)" \
+    && make -j"$BUILD_JOBS" \
     && make install \
     && ln -sf /usr/local/bin/python3.11 /usr/local/bin/python \
     && cd / \

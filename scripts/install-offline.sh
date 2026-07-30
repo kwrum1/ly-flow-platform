@@ -8,7 +8,14 @@ PACKAGE_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 IMAGE_ARCHIVE="$PACKAGE_ROOT/images/lyflow-images.tar.gz"
 TRUST_DIR="${LYFLOW_TRUST_DIR:-/etc/lyflow/trust}"
 TRUST_ROOT=""
-HEALTH_URL="${LYFLOW_HEALTH_URL:-https://127.0.0.1/api/v1/health}"
+POSTGRES_BIND_PORT="${POSTGRES_BIND_PORT:-5432}"
+REDIS_BIND_PORT="${REDIS_BIND_PORT:-6379}"
+CLICKHOUSE_HTTP_BIND_PORT="${CLICKHOUSE_HTTP_BIND_PORT:-8123}"
+CLICKHOUSE_NATIVE_BIND_PORT="${CLICKHOUSE_NATIVE_BIND_PORT:-9000}"
+SERVER_BIND_PORT="${SERVER_BIND_PORT:-8080}"
+HTTPS_BIND_PORT="${HTTPS_BIND_PORT:-443}"
+AGENT_CENTER_BIND_PORT="${AGENT_CENTER_BIND_PORT:-8081}"
+HEALTH_URL="${LYFLOW_HEALTH_URL:-https://127.0.0.1:${HTTPS_BIND_PORT}/api/v1/health}"
 HEALTH_TIMEOUT_SECONDS="${LYFLOW_HEALTH_TIMEOUT_SECONDS:-300}"
 HEALTH_INTERVAL_SECONDS="${LYFLOW_HEALTH_INTERVAL_SECONDS:-5}"
 MIN_DISK_GB="${LYFLOW_MIN_DISK_GB:-10}"
@@ -167,14 +174,61 @@ detect_installation() {
   fi
 }
 
+validate_install_target() {
+  local error="fresh install target must be absent or an empty ordinary directory: $INSTALL_DIR"
+  [[ ! -L "$INSTALL_DIR" ]] || fail "$error"
+  [[ ! -e "$INSTALL_DIR" || -d "$INSTALL_DIR" ]] || fail "$error"
+  if [[ -d "$INSTALL_DIR" ]]; then
+    (
+      local -a entries
+      shopt -s nullglob dotglob
+      entries=("$INSTALL_DIR"/*)
+      (( ${#entries[@]} == 0 ))
+    ) || fail "$error"
+  fi
+}
+
 check_ports() {
+  local -a port_names=(
+    POSTGRES_BIND_PORT
+    REDIS_BIND_PORT
+    CLICKHOUSE_HTTP_BIND_PORT
+    CLICKHOUSE_NATIVE_BIND_PORT
+    SERVER_BIND_PORT
+    HTTPS_BIND_PORT
+    AGENT_CENTER_BIND_PORT
+  )
+  local -a ports=(
+    "$POSTGRES_BIND_PORT"
+    "$REDIS_BIND_PORT"
+    "$CLICKHOUSE_HTTP_BIND_PORT"
+    "$CLICKHOUSE_NATIVE_BIND_PORT"
+    "$SERVER_BIND_PORT"
+    "$HTTPS_BIND_PORT"
+    "$AGENT_CENTER_BIND_PORT"
+  )
+  local -A seen_ports=()
+  local index name port decimal_port
+  for index in "${!ports[@]}"; do
+    name=${port_names[$index]}
+    port=${ports[$index]}
+    [[ "$port" =~ ^[0-9]+$ ]] || preflight_error "$name must be a numeric port from 1 to 65535" || return
+    decimal_port=$((10#$port))
+    (( decimal_port >= 1 && decimal_port <= 65535 )) || preflight_error "$name must be a numeric port from 1 to 65535" || return
+    if [[ -n "${seen_ports[$decimal_port]:-}" ]]; then
+      preflight_error "duplicate bind port $decimal_port: ${seen_ports[$decimal_port]} and $name" || return
+    fi
+    seen_ports[$decimal_port]=$name
+    ports[$index]=$decimal_port
+  done
+
   (( UPGRADE == 1 )) && return 0
-  local listening_ports=${LYFLOW_LISTENING_PORTS:-} port
+  local listening_ports=${LYFLOW_LISTENING_PORTS:-}
   if [[ -z "$listening_ports" ]]; then
     command -v ss >/dev/null 2>&1 || preflight_error "missing command: ss" || return
     listening_ports=$(ss -H -ltn | awk '{address=$4; sub(/^.*:/, "", address); print address}')
   fi
-  for port in 443 8081; do
+  for port in "${ports[@]}"; do
     if [[ " $listening_ports " == *" $port "* ]]; then
       preflight_error "required port $port is already listening"
       return
@@ -240,6 +294,13 @@ REDIS_ACL_USERNAME=lyflow
 REDIS_ACL_PASSWORD=$redis_password
 REDIS_PASSWORD=
 SECURITY_ENGINE_CONTROL_TOKEN=$control_token
+POSTGRES_BIND_PORT=$POSTGRES_BIND_PORT
+REDIS_BIND_PORT=$REDIS_BIND_PORT
+CLICKHOUSE_HTTP_BIND_PORT=$CLICKHOUSE_HTTP_BIND_PORT
+CLICKHOUSE_NATIVE_BIND_PORT=$CLICKHOUSE_NATIVE_BIND_PORT
+SERVER_BIND_PORT=$SERVER_BIND_PORT
+HTTPS_BIND_PORT=$HTTPS_BIND_PORT
+AGENT_CENTER_BIND_PORT=$AGENT_CENTER_BIND_PORT
 LYFLOW_RESET_ADMIN_PASSWORD=false
 LYFLOW_FORCE_FIRST_LOGIN_PASSWORD_CHANGE=true
 AGENT_SELF_ENROLL=false
@@ -366,6 +427,7 @@ start_stack() {
 main() {
   parse_args "$@"
   require_root
+  validate_install_target
   run_preflight
   validate_release_root
   verify_release_bundle

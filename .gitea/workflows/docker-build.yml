@@ -76,7 +76,15 @@ jobs:
           docker image inspect redis:7-alpine >/dev/null 2>&1 || docker pull redis:7-alpine
           docker image inspect clickhouse/clickhouse-server:24.8-alpine >/dev/null 2>&1 || docker pull clickhouse/clickhouse-server:24.8-alpine
           (cd agent && GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOWORK=off go test ./cmd)
-          (cd server && GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOWORK=off go test ./cmd)
+           (cd server && GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOWORK=off go test ./cmd)
+
+      - name: Run real-detection release gate
+        run: |
+          set -euo pipefail
+          sensor='docker.io/jasonish/suricata@sha256:73cf099d6299f75dda2d9d6edcfb8238b7a7322566d6189a69d46442a366b7fa'
+          docker image inspect "$sensor" >/dev/null 2>&1 || docker pull "$sensor"
+          npm --prefix frontend exec playwright install chromium
+          scripts/qa/run-go-tests.sh real-detection
 
       - name: Run delivery QA and current-source smoke
         run: |

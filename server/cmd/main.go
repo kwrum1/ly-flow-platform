@@ -1314,6 +1314,15 @@ func (c *ConsumerState) processMessage(ctx context.Context, stream string, msg r
 	if err := c.cfg.Redis.Eval(ctx, eventXDRScript, []string{"transport_reliability:events_xdr", "events:xdr"}, uid, string(eventBytes)).Err(); err != nil {
 		return fmt.Errorf("publish events:xdr: %w", err)
 	}
+	if stream == "component_alerts:v2" && c.cfg.EventStorage != nil {
+		var alert contracts.ComponentAlert
+		if err := json.Unmarshal([]byte(dataStr), &alert); err != nil {
+			return transport.Permanent(transport.ReasonInvalidPayload, err)
+		}
+		if _, err := c.cfg.EventStorage.WriteComponentAlert(ctx, alert, componentAlertIngestedAt(msg.ID, alert.OccurredAt)); err != nil {
+			return fmt.Errorf("persist canonical component alert %s: %w", alert.ID, err)
+		}
+	}
 
 	if normalized := normalizeComponentAlertStreamEvent(stream, msg.ID, payload); normalized != nil {
 		if err := persistThreatEvent(ctx, c.cfg, normalized); err != nil {
@@ -1321,6 +1330,17 @@ func (c *ConsumerState) processMessage(ctx context.Context, stream string, msg r
 		}
 	}
 	return nil
+}
+
+func componentAlertIngestedAt(messageID string, occurredAt time.Time) time.Time {
+	milliseconds, _, found := strings.Cut(messageID, "-")
+	if found {
+		value, err := strconv.ParseInt(milliseconds, 10, 64)
+		if err == nil && value > 0 {
+			return time.UnixMilli(value).UTC()
+		}
+	}
+	return occurredAt.UTC()
 }
 
 const eventXDRScript = `
@@ -1761,7 +1781,12 @@ func rulesInventoryHandler(cfg *Config) http.HandlerFunc {
 			writeJSONError(w, http.StatusInternalServerError, "rule_inventory_failed", err.Error())
 			return
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": items, "total": len(items)}})
+		trafficCount, err := activeLifecycleTrafficCount(r.Context(), cfg.RuleLifecycle, 0, countRuleFiles("rules/suricata"))
+		if err != nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "traffic_count_unverified", err.Error())
+			return
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": items, "total": len(items), "count_semantics": map[string]interface{}{"traffic": trafficCount}}})
 	}
 }
 
@@ -2563,6 +2588,12 @@ func rulesStatsHandler(cfg *Config) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		xdrRules, _ := loadXDRRulePack()
 		categories := map[string]int{"xdr": len(xdrRules), "runtime": countRuleFiles("rules/hids"), "rasp": countRuleFiles("rules/rasp"), "dpi": countRuleFiles("dpi-engine/rules") + countRuleFiles("rules/domain")}
+		trafficCount, err := activeLifecycleTrafficCount(r.Context(), cfg.RuleLifecycle, categories["dpi"], categories["dpi"])
+		if err != nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "traffic_count_unverified", err.Error())
+			return
+		}
+		categories["dpi"] = trafficCount.SignatureCount
 		enabled := 0
 		for _, rule := range xdrRules {
 			if enabledValue, ok := rule["enabled"].(bool); ok && enabledValue {
@@ -2573,13 +2604,14 @@ func rulesStatsHandler(cfg *Config) http.HandlerFunc {
 			"code":    0,
 			"message": "success",
 			"data": map[string]interface{}{
-				"total_rules":   categories["xdr"] + categories["runtime"] + categories["rasp"] + categories["dpi"],
-				"enabled_rules": enabled,
-				"categories":    categories,
-				"totalRules":    categories["xdr"] + categories["runtime"] + categories["rasp"] + categories["dpi"],
-				"enabledRules":  enabled,
-				"lastUpdate":    nil,
-				"updateStatus":  "never",
+				"total_rules":     categories["xdr"] + categories["runtime"] + categories["rasp"] + categories["dpi"],
+				"enabled_rules":   enabled,
+				"categories":      categories,
+				"totalRules":      categories["xdr"] + categories["runtime"] + categories["rasp"] + categories["dpi"],
+				"enabledRules":    enabled,
+				"lastUpdate":      nil,
+				"updateStatus":    "never",
+				"count_semantics": map[string]interface{}{"traffic": trafficCount},
 			},
 		})
 	}
@@ -3274,8 +3306,8 @@ func normalizeComponentAlertStreamEvent(stream, msgID string, payload map[string
 		"confidence":         xdrPickFloat(flat, "confidence", 0),
 		"src_ip":             xdrPickString(flat, "src_ip", "source_ip", "entities.source_ip"),
 		"dst_ip":             xdrPickString(flat, "dst_ip", "target_ip", "entities.target_ip"),
-		"src_port":           xdrPickNumber(flat, "src_port", 0),
-		"dst_port":           xdrPickNumber(flat, "dst_port", 0),
+		"src_port":           xdrPickNumber(payload, "details.src_port", xdrPickNumber(flat, "src_port", 0)),
+		"dst_port":           xdrPickNumber(payload, "details.dest_port", xdrPickNumber(flat, "dst_port", 0)),
 		"user":               xdrPickString(flat, "user", "entities.user"),
 		"service":            xdrPickString(flat, "service", "application", "entities.application"),
 		"rule_id":            xdrPickNumber(flat, "rule_id", 0),
@@ -3297,6 +3329,7 @@ func normalizeComponentAlertStreamEvent(stream, msgID string, payload map[string
 		"tags":               flat["tags"],
 		"metadata":           metadata,
 		"native_rule":        firstNonNil(payload["native_rule"], flat["native_rule"]),
+		"raw_reference":      firstNonNil(payload["raw_reference"], flat["raw_reference"]),
 		"rule_pack":          xdrPickString(flat, "rule_pack", "metadata.rule_pack"),
 		"created_at":         createdAt,
 		"timestamp":          createdAt,
@@ -6463,7 +6496,7 @@ func persistThreatEvent(ctx context.Context, cfg *Config, event map[string]inter
 	}
 	_, err = cfg.DBPool.Exec(ctx, `INSERT INTO threat_events (event_uid, category, severity, source_engine, event_type, agent_id, src_ip, dst_ip, message, observed_at, raw_event, updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11::jsonb,NOW())
-		ON CONFLICT (event_uid) DO UPDATE SET category=EXCLUDED.category, severity=EXCLUDED.severity, source_engine=EXCLUDED.source_engine, event_type=EXCLUDED.event_type, agent_id=EXCLUDED.agent_id, src_ip=EXCLUDED.src_ip, dst_ip=EXCLUDED.dst_ip, message=EXCLUDED.message, observed_at=EXCLUDED.observed_at, raw_event=EXCLUDED.raw_event, updated_at=NOW()`, uid, category, severity, xdrPickString(event, "source_engine", "source"), xdrPickString(event, "event_type"), xdrPickString(event, "agent_id"), xdrPickString(event, "src_ip"), xdrPickString(event, "dst_ip"), xdrPickString(event, "message", "summary", "rule_name"), observed, string(raw))
+		ON CONFLICT (event_uid) DO NOTHING`, uid, category, severity, xdrPickString(event, "source_engine", "source"), xdrPickString(event, "event_type"), xdrPickString(event, "agent_id"), xdrPickString(event, "src_ip"), xdrPickString(event, "dst_ip"), xdrPickString(event, "message", "summary", "rule_name"), observed, string(raw))
 	if err != nil {
 		return fmt.Errorf("materialize threat event uid=%s category=%s: %w", uid, category, err)
 	}
@@ -6532,9 +6565,11 @@ func loadPersistentThreatEvents(ctx context.Context, cfg *Config, category strin
 	filteredSQL := "SELECT raw_event, category, source_engine, agent_id, observed_at, created_at, " +
 		"COALESCE(NULLIF(event_type,''), NULLIF(raw_event->>'rule_id',''), NULLIF(raw_event->>'rule_name',''), NULLIF(message,''), 'unknown') AS aggregate_type, " +
 		"COALESCE(NULLIF(src_ip,''), NULLIF(raw_event->'entities'->>'source_ip',''), '') AS aggregate_src, " +
-		"COALESCE(NULLIF(dst_ip,''), NULLIF(raw_event->'entities'->>'target_ip',''), '') AS aggregate_dst " +
+		"COALESCE(NULLIF(dst_ip,''), NULLIF(raw_event->'entities'->>'target_ip',''), '') AS aggregate_dst, " +
+		"COALESCE(NULLIF(raw_event->'native_rule'->>'source',''), '') AS aggregate_native_source, " +
+		"COALESCE(NULLIF(raw_event->'native_rule'->>'id',''), '') AS aggregate_native_id " +
 		"FROM threat_events WHERE " + where
-	groupBySQL := "category, aggregate_type, aggregate_src, aggregate_dst, COALESCE(source_engine,''), COALESCE(agent_id,'')"
+	groupBySQL := "category, aggregate_type, aggregate_src, aggregate_dst, aggregate_native_source, aggregate_native_id, COALESCE(source_engine,''), COALESCE(agent_id,'')"
 	countSQL := "WITH filtered AS (" + filteredSQL + ") SELECT COUNT(*) FROM (SELECT 1 FROM filtered GROUP BY " + groupBySQL + ") grouped"
 	var total int
 	if err := cfg.DBPool.QueryRow(ctx, countSQL, args...).Scan(&total); err != nil {
@@ -6546,7 +6581,7 @@ func loadPersistentThreatEvents(ctx context.Context, cfg *Config, category strin
 	offsetIdx := len(queryArgs)
 	rows, err := cfg.DBPool.Query(ctx, "WITH filtered AS ("+filteredSQL+") SELECT raw_event::text, occurrence_count, first_seen, last_seen, aggregate_key FROM ("+
 		"SELECT (array_agg(raw_event ORDER BY observed_at DESC, created_at DESC))[1] AS raw_event, COUNT(*) AS occurrence_count, MIN(observed_at) AS first_seen, MAX(observed_at) AS last_seen, "+
-		"md5(concat_ws('|', category, aggregate_type, aggregate_src, aggregate_dst, COALESCE(source_engine,''), COALESCE(agent_id,''))) AS aggregate_key "+
+		"md5(concat_ws('|', category, aggregate_type, aggregate_src, aggregate_dst, aggregate_native_source, aggregate_native_id, COALESCE(source_engine,''), COALESCE(agent_id,''))) AS aggregate_key "+
 		"FROM filtered GROUP BY "+groupBySQL+") grouped ORDER BY last_seen DESC LIMIT $"+strconv.Itoa(limitIdx)+" OFFSET $"+strconv.Itoa(offsetIdx), queryArgs...)
 	if err != nil {
 		return nil, 0, err
@@ -6658,6 +6693,7 @@ func threatFromXDREvent(event map[string]interface{}, category string) map[strin
 		"rule_pack":          xdrPickString(event, "rule_pack"),
 		"source_engine":      xdrPickString(event, "source_engine"),
 		"native_rule":        event["native_rule"],
+		"raw_reference":      event["raw_reference"],
 		"agent_id":           xdrPickString(event, "agent_id"),
 		"agent_display_name": xdrPickString(event, "agent_display_name", "display_name"),
 		"display_name":       xdrPickString(event, "display_name", "agent_display_name"),

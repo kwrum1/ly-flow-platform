@@ -68,6 +68,18 @@ func (m *Middleware) Authenticate(next http.Handler) http.Handler {
 			writeAuthError(w, http.StatusUnauthorized, "token_expired_or_invalid", "token expired or invalid")
 			return
 		}
+		if !user.IsActive {
+			writeAuthError(w, http.StatusUnauthorized, "inactive_user", "user is inactive")
+			return
+		}
+		if user.MustChangePassword {
+			switch r.URL.Path {
+			case "/api/v1/auth/change-password", "/api/v1/auth/logout", "/api/v1/auth/profile":
+			default:
+				writeAuthError(w, http.StatusPreconditionRequired, "password_change_required", "password change required")
+				return
+			}
+		}
 
 		ctx := context.WithValue(r.Context(), TokenContextKey, token)
 		ctx = context.WithValue(ctx, UserContextKey, user.ID)

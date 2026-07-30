@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"maps"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -48,6 +49,14 @@ func nativeEngineRulesHandler(cfg *Config) http.HandlerFunc {
 			}
 			filtered = append(filtered, item)
 		}
+		listedCounts := maps.Clone(counts)
+		root := firstNonEmpty(os.Getenv("ENGINE_RULE_ROOT"), "rules")
+		trafficCount, err := activeLifecycleTrafficCount(r.Context(), cfg.RuleLifecycle, counts["suricata"], countRuleFiles(filepath.Join(root, "suricata")))
+		if err != nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "traffic_count_unverified", err.Error())
+			return
+		}
+		counts["suricata"] = trafficCount.SignatureCount
 		total := len(filtered)
 		if offset > total {
 			offset = total
@@ -56,7 +65,7 @@ func nativeEngineRulesHandler(cfg *Config) http.HandlerFunc {
 		if end > total {
 			end = total
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": filtered[offset:end], "total": total, "limit": limit, "offset": offset, "counts": counts}})
+		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": filtered[offset:end], "total": total, "limit": limit, "offset": offset, "counts": counts, "listed_counts": listedCounts, "count_semantics": map[string]interface{}{"suricata": trafficCount}}})
 	}
 }
 
@@ -91,6 +100,25 @@ func nativeEngineStatusHandler(cfg *Config) http.HandlerFunc {
 		if status == nil {
 			status = map[string]interface{}{"engines": map[string]interface{}{}, "message": "engine runtime status not reported yet"}
 		}
+		trafficCount, err := activeLifecycleTrafficCount(r.Context(), cfg.RuleLifecycle, 0, countRuleFiles("rules/suricata"))
+		if err != nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "traffic_count_unverified", err.Error())
+			return
+		}
+		engines, ok := status["engines"].(map[string]interface{})
+		if !ok {
+			engines = map[string]interface{}{}
+			status["engines"] = engines
+		}
+		trafficRuntime, ok := engines["suricata"].(map[string]interface{})
+		if !ok {
+			trafficRuntime = map[string]interface{}{}
+			engines["suricata"] = trafficRuntime
+		}
+		trafficRuntime["signature_count"] = trafficCount.SignatureCount
+		trafficRuntime["rule_file_count"] = trafficCount.RuleFileCount
+		trafficRuntime["count_source"] = trafficCount.Source
+		trafficRuntime["ledger_digest"] = trafficCount.LedgerDigest
 		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": status})
 	}
 }

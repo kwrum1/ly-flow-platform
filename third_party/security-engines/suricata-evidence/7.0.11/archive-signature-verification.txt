@@ -1,0 +1,12 @@
+[GNUPG:] NEWSIG
+gpg: Signature made Tue Jul  8 22:04:18 2025 CST
+gpg:                using RSA key B36FDAF2607E10E8FFA89E5E2BA9C98CCDF1E93A
+[GNUPG:] KEY_CONSIDERED B36FDAF2607E10E8FFA89E5E2BA9C98CCDF1E93A 0
+[GNUPG:] SIG_ID 1k+gxGfF0tNqn5werimvu7EqZNs 2025-07-08 1751983458
+[GNUPG:] GOODSIG 2BA9C98CCDF1E93A Open Information Security Foundation (OISF) <releases@openinfosecfoundation.org>
+gpg: Good signature from "Open Information Security Foundation (OISF) <releases@openinfosecfoundation.org>" [unknown]
+[GNUPG:] VALIDSIG B36FDAF2607E10E8FFA89E5E2BA9C98CCDF1E93A 2025-07-08 1751983458 0 4 0 1 10 00 B36FDAF2607E10E8FFA89E5E2BA9C98CCDF1E93A
+[GNUPG:] TRUST_UNDEFINED 0 pgp
+gpg: WARNING: This key is not certified with a trusted signature!
+gpg:          There is no indication that the signature belongs to the owner.
+Primary key fingerprint: B36F DAF2 607E 10E8 FFA8  9E5E 2BA9 C98C CDF1 E93A

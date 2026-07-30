@@ -39,6 +39,7 @@ func initializeIncidentLifecycleRuntime(ctx context.Context, cfg *Config) error 
 		cfg.IncidentSnapshot = &incidentSnapshotState{}
 	}
 	if cfg.IncidentLegacyMode {
+		cfg.Incidents = store
 		return nil
 	}
 	persistedReport, cutoverComplete, err := store.LegacyCutover(ctx)

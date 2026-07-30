@@ -18,6 +18,10 @@ SOURCE_RANK = {
     "Elastic": 3,
     "Falco Project": 4,
     "Proofpoint Emerging Threats Open": 5,
+    "Open Information Security Foundation": 6,
+    "Cisco Talos / Snort": 7,
+    "Stamus Networks": 8,
+    "Positive Technologies": 9,
 }
 
 
@@ -66,10 +70,16 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--report", required=True, type=Path)
-    parser.add_argument("rules", nargs="+", type=Path)
+    parser.add_argument("--input-dir", action="append", default=[], type=Path)
+    parser.add_argument("rules", nargs="*", type=Path)
     args = parser.parse_args()
+    rule_paths = list(args.rules)
+    for directory in args.input_dir:
+        rule_paths.extend(sorted(directory.glob("*.json")))
+    if not rule_paths:
+        parser.error("at least one rule or --input-dir is required")
     groups: dict[str, list[dict[str, Any]]] = {}
-    for path in args.rules:
+    for path in rule_paths:
         rule = load(path)
         if rule.get("support", {}).get("level") == "unsupported":
             # Unsupported rules remain visible in quarantine reports and are not compiled here.
@@ -95,7 +105,7 @@ def main() -> int:
         if len(group) > 1:
             merged_report.append(report)
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(json.dumps({"schema_version": "v1", "input_rules": len(args.rules), "output_rules": len(written), "merged_groups": merged_report, "conflicts": conflicts, "written": written}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    args.report.write_text(json.dumps({"schema_version": "v1", "input_rules": len(rule_paths), "output_rules": len(written), "merged_groups": merged_report, "conflicts": conflicts, "written": written}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     print(f"ok: wrote {len(written)} deduplicated rules, merged {len(merged_report)} groups, conflicts {len(conflicts)}")
     return 0
 

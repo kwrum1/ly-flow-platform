@@ -1,0 +1,13 @@
+gpg: Signature made Tue Jul  8 22:06:13 2025 CST
+gpg:                using RSA key 1DBF03667457EB6AED9E0DF9C1F495E3926856B4
+gpg: Good signature from "Victor Julien <victor@inliniac.net>" [unknown]
+gpg:                 aka "Victor Julien <victor@vuurmuur.org>" [unknown]
+gpg: WARNING: This key is not certified with a trusted signature!
+gpg:          There is no indication that the signature belongs to the owner.
+Primary key fingerprint: 1DBF 0366 7457 EB6A ED9E  0DF9 C1F4 95E3 9268 56B4
+object 98b12d1c30e6f8db1e38f3c34abf965a4d03b062
+type commit
+tag suricata-7.0.11
+tagger Victor Julien <vjulien@oisf.net> 1751983573 +0200
+
+Tag Suricata 7.0.11 release

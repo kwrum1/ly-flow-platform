@@ -1,0 +1,12 @@
+HTTP/1.1 200 Connection established
+
+HTTP/2 404 
+content-type: text/html; charset=iso-8859-1
+date: Wed, 15 Jul 2026 04:03:10 GMT
+server: Apache/2.4.58 (Ubuntu)
+strict-transport-security: max-age=15768000
+x-cache: Error from cloudfront
+via: 1.1 a2848663cbcdef3804922c3686d138cc.cloudfront.net (CloudFront)
+x-amz-cf-pop: YVR52-P3
+x-amz-cf-id: OWJjhg-ZYRKaC-TlUNrpDkfNBvVcFvPilAIeX8btFLHi8CYZsuCILg==
+

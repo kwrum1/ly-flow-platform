@@ -175,6 +175,23 @@ func TestConsumeSuricataEVEFileDeadLettersVersionDriftAndUnsupportedProtocol(t *
 	}
 }
 
+func TestSuricataRawHash_ignoresEphemeralFlowID(t *testing.T) {
+	first := []byte(`{"timestamp":"2026-07-23T00:00:00Z","flow_id":123,"event_type":"alert","alert":{"signature_id":42}}`)
+	second := []byte(`{"timestamp":"2026-07-23T00:00:00Z","flow_id":987,"event_type":"alert","alert":{"signature_id":42}}`)
+
+	firstHash, err := suricataRawHash(first)
+	if err != nil {
+		t.Fatalf("hash first EVE line: %v", err)
+	}
+	secondHash, err := suricataRawHash(second)
+	if err != nil {
+		t.Fatalf("hash second EVE line: %v", err)
+	}
+	if firstHash != secondHash {
+		t.Fatalf("ephemeral flow IDs changed raw identity: %s != %s", firstHash, secondHash)
+	}
+}
+
 func newSuricataRuntimeTestAgent(t *testing.T, api string) *Agent {
 	config := durableAgentTestConfig(t, api)
 	config.TrafficTelemetryStream = "telemetry:traffic"

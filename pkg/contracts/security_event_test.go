@@ -188,7 +188,7 @@ func TestCanonicalEventOldFixtureEmitsWarning(t *testing.T) {
 
 func TestTelemetryAndComponentAdaptersNormalizeToCanonical(t *testing.T) {
 	telemetry := TelemetryEnvelope{SchemaVersion: TelemetrySchemaVersion, ID: "telemetry-1", Category: TelemetryRuntime, EventType: "runtime.process", ObservedAt: migrationTestTime, Source: "agent", SourceEngine: SourceEngineRuntime, Entities: EntityRef{AgentID: "agent-1"}}
-	alert := ComponentAlert{SchemaVersion: ComponentAlertSchemaVersion, ID: "alert-1", Category: TelemetryHost, SourceEngine: SourceEngineWazuh, RuleID: "rule-1", RuleName: "host rule", Severity: SeverityHigh, OccurredAt: migrationTestTime, Source: "security-engine", Entities: EntityRef{AgentID: "agent-1"}, Summary: "host alert"}
+	alert := ComponentAlert{SchemaVersion: ComponentAlertSchemaVersion, ID: "alert-1", Category: TelemetryHost, SourceEngine: SourceEngineWazuh, RuleID: "rule-1", RuleName: "host rule", NativeRule: &RuleReference{Engine: SourceEngineWazuh, ID: "5710", Source: "wazuh-default"}, Severity: SeverityHigh, OccurredAt: migrationTestTime, Source: "security-engine", Entities: EntityRef{AgentID: "agent-1"}, RawReference: &RawReference{Path: "/var/log/wazuh/alerts.json", Hash: "abc123"}, Summary: "host alert"}
 
 	telemetryEvent, err := telemetry.Canonical(PrincipalIdentity("agent-1"), migrationTestTime)
 	if err != nil || telemetryEvent.Provenance.Source != SourceAgentRuntime {
@@ -197,6 +197,16 @@ func TestTelemetryAndComponentAdaptersNormalizeToCanonical(t *testing.T) {
 	alertEvent, err := alert.Canonical(PrincipalIdentity("agent-1"), migrationTestTime)
 	if err != nil || alertEvent.Provenance.Source != SourceWazuh {
 		t.Fatalf("component alert adapter failed: %+v (%v)", alertEvent.Provenance, err)
+	}
+	var alertPayload struct {
+		NativeRule   *RuleReference `json:"native_rule"`
+		RawReference *RawReference  `json:"raw_reference"`
+	}
+	if err := json.Unmarshal(alertEvent.Payload, &alertPayload); err != nil {
+		t.Fatalf("decode component alert payload: %v", err)
+	}
+	if alertPayload.NativeRule == nil || alertPayload.NativeRule.Source != "wazuh-default" || alertPayload.RawReference == nil || alertPayload.RawReference.Hash != "abc123" {
+		t.Fatalf("component alert provenance was not preserved: %+v", alertPayload)
 	}
 }
 

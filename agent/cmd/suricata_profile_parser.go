@@ -140,8 +140,11 @@ func parseSuricataProfileLine(line []byte, context suricataProfileContext) (suri
 	correlation := "suricata-flow-" + strconv.FormatUint(event.FlowID, 10)
 	context.raw.SourceEngine = contracts.SourceEngineSuricata
 	context.raw.EventType = event.EventType
-	digest := sha256.Sum256(line)
-	context.raw.Hash = hex.EncodeToString(digest[:])
+	rawHash, err := suricataRawHash(line)
+	if err != nil {
+		return nil, err
+	}
+	context.raw.Hash = rawHash
 	if event.EventType == "alert" {
 		alert, ok, err := componentAlertFromSuricataEVE(line, nil, context.raw)
 		if err != nil {
@@ -175,6 +178,20 @@ func parseSuricataProfileLine(line []byte, context suricataProfileContext) (suri
 		return nil, fmt.Errorf("validate Suricata telemetry: %w", err)
 	}
 	return suricataTelemetryRecord{Kind: "telemetry", Correlation: correlation, Telemetry: telemetry}, nil
+}
+
+func suricataRawHash(line []byte) (string, error) {
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(line, &fields); err != nil {
+		return "", fmt.Errorf("decode Suricata EVE for raw identity: %w", err)
+	}
+	delete(fields, "flow_id")
+	canonical, err := json.Marshal(fields)
+	if err != nil {
+		return "", fmt.Errorf("encode Suricata EVE raw identity: %w", err)
+	}
+	digest := sha256.Sum256(canonical)
+	return hex.EncodeToString(digest[:]), nil
 }
 
 func isCoveredSuricataEventType(eventType string) bool {

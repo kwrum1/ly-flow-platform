@@ -86,6 +86,7 @@ quick_gate() {
 
 full_gate() {
   quick_gate
+  run_section real-detections "$ROOT_DIR/scripts/qa/real-detections-release-gate_test.sh"
   run_section platform "$ROOT_DIR/scripts/verify-platform.sh"
 }
 

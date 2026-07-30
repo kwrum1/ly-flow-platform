@@ -29,6 +29,7 @@ func TestIncidentLifecycle_real_process_checkpoint_postgres_restart_import_and_i
 	oldServer.stop(t)
 	postgres.restart(t)
 	newServer := startIncidentLifecycleServerProcess(t, binary, "current", postgres.dsn)
+	newServer.assertIncidentListContains(t, "inc-process-restart")
 	newServer.assertIncidentStatus(t, "inc-process-restart", incidentlifecycle.StatusProcessing)
 	newServer.stop(t)
 	retriedServer := startIncidentLifecycleServerProcess(t, binary, "current", postgres.dsn)

@@ -68,6 +68,7 @@ export const ruleClient = Object.freeze({
   platformCompilePreview: (payload = {}) => api.post('/rule-platform/compile-preview', payload),
   platformActiveBundle: () => api.get('/rule-platform/active-bundle'),
   platformActivateBundle: () => api.post('/rule-platform/active-bundle'),
+  /** @returns {Promise<import('../domain/contracts/api-contracts').NativeEngineRulesResponse>} */
   engineRules: (params = {}) => api.get('/engine-rules', { params }),
   engineRuntimeStatus: () => api.get('/engine-runtime/status'),
   updateEngineRules: () => api.post('/engine-rules/update'),

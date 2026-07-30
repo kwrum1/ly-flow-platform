@@ -27,6 +27,107 @@ if dependency.get("condition") != "service_healthy":
     raise SystemExit(1)
 PY
 
+test_first_party_health_contracts() {
+  python3 - "$compose" <<'PY' || fail 'first-party service healthcheck contract mismatch'
+import re
+import sys
+
+import yaml
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    services = yaml.safe_load(source)["services"]
+
+required_healthchecks = ("agent-center", "ly-engine-lab", "ly-local-mirror")
+missing_healthchecks = [
+    service_name
+    for service_name in required_healthchecks
+    if not isinstance(services[service_name].get("healthcheck"), dict)
+]
+assert not missing_healthchecks, f"missing healthchecks: {', '.join(missing_healthchecks)}"
+
+
+def healthcheck(service_name):
+    health = services[service_name].get("healthcheck")
+    test = health.get("test")
+    assert isinstance(test, list) and test and test[0] == "CMD", f"{service_name} must use CMD healthcheck"
+    command = " ".join(str(part) for part in test)
+    assert "kill -0" not in command, f"{service_name} healthcheck is process-only"
+    for field in ("interval", "timeout", "start_period"):
+        value = str(health.get(field, ""))
+        assert re.fullmatch(r"[1-9][0-9]*(?:\.[0-9]+)?(?:ns|us|ms|s|m|h)", value), (
+            f"{service_name} {field} is absent, zero, or unbounded"
+        )
+    assert isinstance(health.get("retries"), int) and health["retries"] > 0, (
+        f"{service_name} retries must be positive and finite"
+    )
+    return test, command
+
+
+agent_test, agent_command = healthcheck("agent-center")
+assert agent_test == ["CMD", "/app/ly-agent-center", "healthcheck"], (
+    "agent-center does not use its exact gRPC healthcheck command"
+)
+
+engine_test, engine_command = healthcheck("ly-engine-lab")
+assert len(engine_test) >= 3 and engine_test[1] == "python3", "ly-engine-lab healthcheck is not a Python probe"
+engine_probe = " ".join(str(part) for part in engine_test[2:])
+compact_probe = re.sub(r"\s+", "", engine_probe)
+assert "status.json" in engine_probe, "ly-engine-lab probe does not inspect status.json"
+assert "isfile" in engine_probe.lower() or "S_ISREG" in engine_probe, "ly-engine-lab probe does not require a regular file"
+assert "st_size>0" in compact_probe or "getsize(" in compact_probe, "ly-engine-lab probe accepts an empty status file"
+assert (
+    "0<=age<=120" in compact_probe
+    or ("age>=0" in compact_probe and "age<=120" in compact_probe)
+), "ly-engine-lab probe does not bound status age from 0 through 120 seconds"
+
+mirror_test, mirror_command = healthcheck("ly-local-mirror")
+assert mirror_test[1:] == [
+    "/opt/ly-runtime-libs/ld-linux-x86-64.so.2",
+    "--library-path",
+    "/opt/ly-runtime-libs",
+    "/app/ly-agent",
+    "healthcheck",
+    "local-mirror",
+], (
+    "ly-local-mirror does not use the runtime-loader capture-watchdog health checker"
+)
+PY
+}
+
+test_engine_lab_stale_status_ordering() {
+  python3 - "$root/containers/security-engines/bin/engine-output-bridge.sh" <<'PY' \
+    || fail 'engine-lab does not remove stale status before process start and first status write'
+import sys
+
+with open(sys.argv[1], encoding="utf-8") as source:
+    script = source.read()
+
+remove_status = script.find('rm -f "$STATUS_FILE"')
+start_processes = script.find("\nstart_processes\n", max(remove_status, 0))
+first_status_write = script.find("\nwrite_status\n", max(start_processes, 0))
+assert 0 <= remove_status < start_processes < first_status_write
+PY
+}
+
+case "${1:-}" in
+  --first-party-health-contracts)
+    test_first_party_health_contracts
+    exit 0
+    ;;
+  --engine-lab-stale-status-ordering)
+    test_engine_lab_stale_status_ordering
+    exit 0
+    ;;
+  '')
+    ;;
+  *)
+    fail "unknown argument: $1"
+    ;;
+esac
+
+test_first_party_health_contracts
+test_engine_lab_stale_status_ordering
+
 for contract in \
   '--project-name' \
   'mktemp -d' \

@@ -146,6 +146,34 @@ func (process *incidentProcess) assertIncidentStatus(t *testing.T, incidentID st
 	}
 }
 
+func (process *incidentProcess) assertIncidentListContains(t *testing.T, incidentID string) {
+	t.Helper()
+	response, err := incidentProcessHTTPClient().Get(process.url + "/api/v1/incidents")
+	if err != nil {
+		t.Fatalf("list imported incidents: %v", err)
+	}
+	defer response.Body.Close()
+	var envelope struct {
+		Data struct {
+			Items []struct {
+				ID string `json:"id"`
+			} `json:"items"`
+		} `json:"data"`
+	}
+	if err := json.NewDecoder(response.Body).Decode(&envelope); err != nil {
+		t.Fatalf("decode imported incident list: %v", err)
+	}
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("imported incident list response=%d", response.StatusCode)
+	}
+	for _, item := range envelope.Data.Items {
+		if item.ID == incidentID {
+			return
+		}
+	}
+	t.Fatalf("imported incident list missing %s", incidentID)
+}
+
 func incidentProcessHTTPClient() *http.Client {
 	return &http.Client{Timeout: 10 * time.Second}
 }

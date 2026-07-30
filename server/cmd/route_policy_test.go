@@ -71,6 +71,39 @@ func TestRouteRegistryEnforcesRoutePolicyForProtectedRoutes(t *testing.T) {
 	})
 }
 
+func TestAuthLiveSystemTimeAndMirrorRoutes(t *testing.T) {
+	// Given
+	t.Chdir(t.TempDir())
+	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/system/time", systemTimeHandler())
+	mux.HandleFunc("/api/v1/traffic/mirror-interface", mirrorCaptureConfigHandler(&Config{HostNetClassPath: t.TempDir()}))
+
+	request := func(path, method string, role auth.UserRole, authenticated bool) *httptest.ResponseRecorder {
+		t.Helper()
+		req := httptest.NewRequest(method, path, strings.NewReader(`{"sync":true}`))
+		if authenticated {
+			req.Header.Set("Authorization", "Bearer "+testToken)
+		}
+		response := httptest.NewRecorder()
+		EnforceRoutePolicy(mux, newTestRouteAuthMiddleware(role)).ServeHTTP(response, req)
+		return response
+	}
+
+	// When
+	systemTime := request("/api/v1/system/time", http.MethodGet, auth.RoleAdmin, true)
+	mirror := request("/api/v1/traffic/mirror-interface", http.MethodGet, auth.RoleAdmin, true)
+	unauthenticated := request("/api/v1/system/time", http.MethodGet, auth.RoleAdmin, false)
+	viewerWrite := request("/api/v1/traffic/mirror-interface", http.MethodPut, auth.RoleViewer, true)
+
+	// Then
+	if systemTime.Code != http.StatusOK || mirror.Code != http.StatusOK {
+		t.Fatalf("authenticated reads system-time=%d mirror=%d", systemTime.Code, mirror.Code)
+	}
+	if unauthenticated.Code != http.StatusUnauthorized || viewerWrite.Code != http.StatusForbidden {
+		t.Fatalf("authorization boundaries unauthenticated=%d viewer-write=%d", unauthenticated.Code, viewerWrite.Code)
+	}
+}
+
 func testProtectedRoutePolicy(t *testing.T, route RouteSpec) {
 	t.Helper()
 	requestPath := routeRequestPath(route.Path)

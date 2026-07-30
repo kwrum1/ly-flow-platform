@@ -2,7 +2,6 @@ package main
 
 import (
 	"archive/tar"
-	"bufio"
 	"bytes"
 	"compress/gzip"
 	"context"
@@ -429,17 +428,8 @@ func compileDefaultSecurityBundle(ctx context.Context, cfg *Config) (map[string]
 	if err != nil {
 		return nil, err
 	}
-	manifest, err := cfg.RuleLifecycle.Activate(ctx, actor, version)
+	manifest, err := (ruleBundleActivation{config: cfg, actor: actor, version: version, digest: hash}).activate(ctx)
 	if err != nil {
-		return nil, err
-	}
-	if _, err := cfg.DBPool.Exec(ctx, `UPDATE rule_bundles SET status='inactive' WHERE status='active'`); err != nil {
-		return nil, err
-	}
-	if _, err := cfg.DBPool.Exec(ctx, `INSERT INTO rule_bundles (version, status, bundle_hash, bundle_path, activated_at) VALUES ($1,'active',$2,$3,NOW()) ON CONFLICT (version) DO UPDATE SET status='active', bundle_hash=EXCLUDED.bundle_hash, bundle_path=EXCLUDED.bundle_path, activated_at=NOW()`, version, hash, manifest.BundlePath); err != nil {
-		return nil, err
-	}
-	if _, err := cfg.DBPool.Exec(ctx, `INSERT INTO rule_hot_reload_events (bundle_version, target, status, message) VALUES ($1,$2,'ok',$3)`, version, "ly-security-engine", manifest.BundlePath); err != nil {
 		return nil, err
 	}
 	return map[string]interface{}{"version": version, "status": "active", "bundle_hash": hash, "bundle_path": manifest.BundlePath, "manifest_signature": manifest.Signature, "activated_at": manifest.ActivatedAt.Format(time.RFC3339), "rule_count": preview.RuleCount, "reload": map[string]interface{}{"status": "ok", "message": manifest.BundlePath}}, nil
@@ -1145,6 +1135,8 @@ func parseExternalRuleSource(sourceID, content string) []map[string]interface{} 
 		return parseFalcoRules(content)
 	case "et-open-connector":
 		return parseSuricataRules(content, "et-open")
+	case "suricata-et-open":
+		return parseSuricataRules(content, "et-open")
 	case "oisf-trafficid":
 		return parseSuricataRules(content, "oisf-trafficid")
 	case "stamus-lateral":
@@ -1534,91 +1526,6 @@ func falcoPriority(priority string) string {
 		return "medium"
 	default:
 		return "low"
-	}
-}
-
-func parseSuricataRules(content, prefix string) []map[string]interface{} {
-	out := []map[string]interface{}{}
-	scanner := bufio.NewScanner(strings.NewReader(content))
-	buf := make([]byte, 0, 1024*1024)
-	scanner.Buffer(buf, 4*1024*1024)
-	for scanner.Scan() {
-		line := strings.TrimSpace(scanner.Text())
-		if line == "" || strings.HasPrefix(line, "#") || !strings.Contains(line, "(") || !strings.Contains(line, ")") {
-			continue
-		}
-		openIdx := strings.Index(line, "(")
-		closeIdx := strings.LastIndex(line, ")")
-		if openIdx < 0 || closeIdx <= openIdx {
-			continue
-		}
-		rule := parseSuricataRuleLine(line[openIdx+1:closeIdx], prefix)
-		if len(rule) > 0 {
-			out = append(out, rule)
-			if len(out) >= 1000 {
-				break
-			}
-		}
-	}
-	return out
-}
-
-func parseSuricataRuleLine(meta, prefix string) map[string]interface{} {
-	sid := extractRuleAttribute(meta, `sid:([0-9]+)`)
-	if sid == "" {
-		return nil
-	}
-	msg := firstNonEmpty(extractRuleAttribute(meta, `msg:"([^"]+)"`), prefix+" rule "+sid)
-	field := suricataField(meta)
-	value, operator := suricataPattern(meta)
-	if value == "" {
-		return nil
-	}
-	return map[string]interface{}{"id": prefix + "-" + sid, "name": msg, "category": "traffic", "severity": severityFromSuricataMessage(msg), "stage_hint": inferRuleStage("traffic", msg+" "+value), "field": field, "operator": operator, "value": value, "regex": operator == "regex", "source_operator": "suricata", "candidate": true}
-}
-
-func suricataField(meta string) string {
-	switch {
-	case strings.Contains(meta, "dns.query"):
-		return "dns_query"
-	case strings.Contains(meta, "tls.sni"):
-		return "tls_sni"
-	case strings.Contains(meta, "http.host"):
-		return "http_host"
-	case strings.Contains(meta, "http.uri") || strings.Contains(meta, "http.url"):
-		return "http_path"
-	default:
-		return "payload"
-	}
-}
-
-func suricataPattern(meta string) (string, string) {
-	if p := extractRuleAttribute(meta, `pcre:"/([^"/]+)/[A-Za-z]*"`); p != "" {
-		return p, "regex"
-	}
-	if p := extractRuleAttribute(meta, `content:"([^"]+)"`); p != "" {
-		return decodeSuricataContent(p), "contains"
-	}
-	return "", ""
-}
-
-func decodeSuricataContent(content string) string {
-	replacements := map[string]string{"|20": " ", "|2f": "/", "|2F": "/", "|3a": ":", "|3A": ":", "|2e": ".", "|2E": "."}
-	for old, newValue := range replacements {
-		content = strings.ReplaceAll(content, old, newValue)
-	}
-	return strings.TrimSpace(content)
-}
-
-func severityFromSuricataMessage(msg string) string {
-	lower := strings.ToLower(msg)
-	switch {
-	case strings.Contains(lower, "trojan") || strings.Contains(lower, "malware") || strings.Contains(lower, "exploit"):
-		return "high"
-	case strings.Contains(lower, "scan") || strings.Contains(lower, "policy") || strings.Contains(lower, "info"):
-		return "low"
-	default:
-		return "medium"
 	}
 }
 

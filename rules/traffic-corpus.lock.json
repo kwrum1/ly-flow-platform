@@ -1,0 +1,193 @@
+{
+  "cache_dir": "/opt/lyflow-traffic-corpus-cache",
+  "hash_authority": {
+    "algorithm": "sha256",
+    "input": "raw_payload_bytes",
+    "stage": "before_decompression_or_parsing"
+  },
+  "manifest_inputs": [
+    "rules/subscriptions/suricata/manifest.json",
+    "rules/subscriptions/trafficid/manifest.json",
+    "rules/subscriptions/snort-community/manifest.json",
+    "rules/subscriptions/stamus-lateral/manifest.json",
+    "rules/subscriptions/pt-attackdetection/manifest.json"
+  ],
+  "schema_version": "lyflow.traffic-corpus-lock/v1",
+  "sources": [
+    {
+      "attribution": "Proofpoint Emerging Threats Open; ET Open Ruleset License",
+      "converter": "suricata-dpi-formatter",
+      "deduplication_policy": "retain-highest-revision-per-gid-sid",
+      "format": "tar+gzip/suricata-rules",
+      "license": "ET Open Ruleset License",
+      "manifest_path": "rules/subscriptions/suricata/manifest.json",
+      "minimum_retained_signatures": 10000,
+      "name": "Suricata ET Open rules for LyFlow DPI",
+      "parser": "suricata-rule-files-v1",
+      "payload": {
+        "byte_count": 5574961,
+        "cache_path": "/opt/lyflow-traffic-corpus-cache/suricata-et-open.raw",
+        "hash_stage": "raw_before_decompression_or_parsing",
+        "raw_sha256": "13a7e46578ee484c7074a6308071720ef22a87fae830f2f6d24209a3c908759d"
+      },
+      "payload_url": "https://rules.emergingthreats.net/open/suricata/emerging.rules.tar.gz",
+      "provenance": "Proofpoint Emerging Threats Open public Suricata rules archive from the vendor source directory.",
+      "revision_or_payload_pin": "payload-sha256:13a7e46578ee484c7074a6308071720ef22a87fae830f2f6d24209a3c908759d",
+      "source_id": "suricata-et-open",
+      "source_url": "https://rules.emergingthreats.net/open/suricata/",
+      "stage_counters": {
+        "converted_signature_count": 0,
+        "parsed_signature_count": 0,
+        "persisted_signature_count": 0,
+        "raw_signature_count": 51549,
+        "rule_file_count": 52,
+        "runtime_loaded_signature_count": 0,
+        "signed_active_signature_count": 0,
+        "ui_displayed_signature_count": 0
+      },
+      "vendor": "Proofpoint Emerging Threats Open"
+    },
+    {
+      "attribution": "Open Information Security Foundation; MIT",
+      "converter": "suricata-dpi-formatter",
+      "deduplication_policy": "retain-highest-revision-per-gid-sid",
+      "format": "text/suricata-rules",
+      "license": "MIT",
+      "manifest_path": "rules/subscriptions/trafficid/manifest.json",
+      "minimum_retained_signatures": 25,
+      "name": "OISF Traffic ID",
+      "parser": "suricata-rule-files-v1",
+      "payload": {
+        "byte_count": 9855,
+        "cache_path": "/opt/lyflow-traffic-corpus-cache/oisf-trafficid.raw",
+        "hash_stage": "raw_before_decompression_or_parsing",
+        "raw_sha256": "9e0569d15a8ca53b526e2ca784d8a98870d008eaf163bc188c0deb33ddc9464e"
+      },
+      "payload_url": "https://openinfosecfoundation.org/rules/trafficid/trafficid.rules",
+      "provenance": "Open Information Security Foundation public Traffic ID rules payload.",
+      "revision_or_payload_pin": "payload-sha256:9e0569d15a8ca53b526e2ca784d8a98870d008eaf163bc188c0deb33ddc9464e",
+      "source_id": "oisf-trafficid",
+      "source_url": "https://openinfosecfoundation.org/rules/trafficid/trafficid.rules",
+      "stage_counters": {
+        "converted_signature_count": 0,
+        "parsed_signature_count": 0,
+        "persisted_signature_count": 0,
+        "raw_signature_count": 34,
+        "rule_file_count": 1,
+        "runtime_loaded_signature_count": 0,
+        "signed_active_signature_count": 0,
+        "ui_displayed_signature_count": 0
+      },
+      "vendor": "Open Information Security Foundation"
+    },
+    {
+      "attribution": "Cisco Talos / Snort; GPL-2.0",
+      "converter": "snort-suricata-compat-dpi-formatter",
+      "deduplication_policy": "retain-highest-revision-per-gid-sid",
+      "format": "tar+gzip/snort-rules",
+      "license": "GPL-2.0",
+      "manifest_path": "rules/subscriptions/snort-community/manifest.json",
+      "minimum_retained_signatures": 400,
+      "name": "Snort Community Rules",
+      "parser": "snort-community-rule-files-v1",
+      "payload": {
+        "byte_count": 341408,
+        "cache_path": "/opt/lyflow-traffic-corpus-cache/snort-community.raw",
+        "hash_stage": "raw_before_decompression_or_parsing",
+        "raw_sha256": "91edb4ffa9cd68bbd2fb95b417e5cf93191ec199c635b4068f6008ffef3c1bd2"
+      },
+      "payload_url": "https://www.snort.org/downloads/community/community-rules.tar.gz",
+      "provenance": "Cisco Talos public Snort Community rules archive from the vendor download endpoint.",
+      "revision_or_payload_pin": "payload-sha256:91edb4ffa9cd68bbd2fb95b417e5cf93191ec199c635b4068f6008ffef3c1bd2",
+      "source_id": "snort-community",
+      "source_url": "https://www.snort.org/downloads/community/community-rules.tar.gz",
+      "stage_counters": {
+        "converted_signature_count": 0,
+        "parsed_signature_count": 0,
+        "persisted_signature_count": 0,
+        "raw_signature_count": 561,
+        "rule_file_count": 1,
+        "runtime_loaded_signature_count": 0,
+        "signed_active_signature_count": 0,
+        "ui_displayed_signature_count": 0
+      },
+      "vendor": "Cisco Talos / Snort"
+    },
+    {
+      "attribution": "Stamus Networks; GPL-3.0-or-later",
+      "converter": "suricata-dpi-formatter",
+      "deduplication_policy": "retain-highest-revision-per-gid-sid",
+      "format": "tar+gzip/suricata-rules",
+      "license": "GPL-3.0-or-later",
+      "manifest_path": "rules/subscriptions/stamus-lateral/manifest.json",
+      "minimum_retained_signatures": 400,
+      "name": "Stamus Lateral Movement Rules",
+      "parser": "suricata-rule-files-v1",
+      "payload": {
+        "byte_count": 31209,
+        "cache_path": "/opt/lyflow-traffic-corpus-cache/stamus-lateral.raw",
+        "hash_stage": "raw_before_decompression_or_parsing",
+        "raw_sha256": "eacc6867f4f910d4464551da0008d62348fe27030ea0a35e23840d417c66ab68"
+      },
+      "payload_url": "https://ti.stamus-networks.io/open/stamus-lateral-rules.tar.gz",
+      "provenance": "Stamus Networks public lateral-movement rules archive from the vendor endpoint.",
+      "revision_or_payload_pin": "payload-sha256:eacc6867f4f910d4464551da0008d62348fe27030ea0a35e23840d417c66ab68",
+      "source_id": "stamus-lateral",
+      "source_url": "https://ti.stamus-networks.io/open/stamus-lateral-rules.tar.gz",
+      "stage_counters": {
+        "converted_signature_count": 0,
+        "parsed_signature_count": 0,
+        "persisted_signature_count": 0,
+        "raw_signature_count": 546,
+        "rule_file_count": 1,
+        "runtime_loaded_signature_count": 0,
+        "signed_active_signature_count": 0,
+        "ui_displayed_signature_count": 0
+      },
+      "vendor": "Stamus Networks"
+    },
+    {
+      "attribution": "Positive Technologies; Positive Technologies Custom",
+      "converter": "suricata-dpi-formatter",
+      "deduplication_policy": "retain-highest-revision-per-gid-sid",
+      "format": "tar+gzip/suricata-rules",
+      "license": "Positive Technologies Custom",
+      "manifest_path": "rules/subscriptions/pt-attackdetection/manifest.json",
+      "minimum_retained_signatures": 100,
+      "name": "Positive Technologies AttackDetection",
+      "parser": "suricata-rule-files-v1",
+      "payload": {
+        "byte_count": 29395,
+        "cache_path": "/opt/lyflow-traffic-corpus-cache/ptresearch-attackdetection.raw",
+        "hash_stage": "raw_before_decompression_or_parsing",
+        "raw_sha256": "0b93012f5f958f8b8d91a8f2bd54424f54866d002ffed4423737258e862aea7a"
+      },
+      "payload_url": "https://raw.githubusercontent.com/ptresearch/AttackDetection/master/pt.rules.tar.gz",
+      "provenance": "Positive Technologies ptResearch/AttackDetection vendor repository rules archive.",
+      "revision_or_payload_pin": "payload-sha256:0b93012f5f958f8b8d91a8f2bd54424f54866d002ffed4423737258e862aea7a",
+      "source_id": "ptresearch-attackdetection",
+      "source_url": "https://rules.ptsecurity.com/files/ptopen.rules.tar.gz",
+      "stage_counters": {
+        "converted_signature_count": 0,
+        "parsed_signature_count": 0,
+        "persisted_signature_count": 0,
+        "raw_signature_count": 186,
+        "rule_file_count": 1,
+        "runtime_loaded_signature_count": 0,
+        "signed_active_signature_count": 0,
+        "ui_displayed_signature_count": 0
+      },
+      "vendor": "Positive Technologies"
+    }
+  ],
+  "stage_totals": {
+    "converted_signature_count": 0,
+    "parsed_signature_count": 0,
+    "persisted_signature_count": 0,
+    "raw_signature_count": 52876,
+    "rule_file_count": 56,
+    "runtime_loaded_signature_count": 0,
+    "signed_active_signature_count": 0,
+    "ui_displayed_signature_count": 0
+  }
+}

@@ -1,6 +1,8 @@
 package rulelifecycle
 
 import (
+	"bytes"
+	"compress/gzip"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -156,6 +158,66 @@ func TestFetcher_enforces_digest_size_and_timeout_caps(t *testing.T) {
 				t.Fatalf("fetch error = %v, want %v", fetchErr, test.want)
 			}
 		})
+	}
+}
+
+func TestValidatePinRejectsMetadataAndBindsPayloadDigest(t *testing.T) {
+	digest := strings.Repeat("a", 64)
+	tests := []struct {
+		name    string
+		pin     SourcePin
+		wantErr error
+	}{
+		{name: "vendor revision", pin: SourcePin{Revision: "et-open-2026.07.22", SHA256: digest}},
+		{name: "payload digest", pin: SourcePin{Revision: "payload-sha256:" + digest, SHA256: digest}},
+		{name: "metadata catalog", pin: SourcePin{Revision: "catalog-20260722", SHA256: digest}, wantErr: ErrRevision},
+		{name: "payload digest mismatch", pin: SourcePin{Revision: "payload-sha256:" + strings.Repeat("b", 64), SHA256: digest}, wantErr: ErrDigestMismatch},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// When
+			err := validatePin(test.pin)
+
+			// Then
+			if !errors.Is(err, test.wantErr) {
+				t.Fatalf("validate pin error=%v, want %v", err, test.wantErr)
+			}
+		})
+	}
+}
+
+func TestFetcherRejectsDigestComputedAfterDecompression(t *testing.T) {
+	// Given
+	plain := []byte("alert tcp any any -> any any (sid:1;)")
+	var compressed bytes.Buffer
+	writer := gzip.NewWriter(&compressed)
+	if _, err := writer.Write(plain); err != nil {
+		t.Fatalf("compress fixture: %v", err)
+	}
+	if err := writer.Close(); err != nil {
+		t.Fatalf("close compressed fixture: %v", err)
+	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(compressed.Bytes())
+	}))
+	t.Cleanup(server.Close)
+	_, port, err := net.SplitHostPort(server.Listener.Addr().String())
+	if err != nil {
+		t.Fatalf("split fixture address: %v", err)
+	}
+	fetcher := newTestFetcher(t, server, staticResolver{"rules.example.test": {net.ParseIP("192.0.2.10")}}, FetchPolicy{
+		AllowedSchemes: []string{"http"}, AllowedDomains: []string{"rules.example.test"},
+		MaxBytes: 1 << 20, Timeout: time.Second, MaxRedirects: 0,
+	})
+
+	// When
+	_, fetchErr := fetcher.Fetch(context.Background(), SourcePin{
+		URL: "http://rules.example.test:" + port + "/rules.gz", Revision: "vendor-rev-1", SHA256: sha256Hex(plain),
+	})
+
+	// Then
+	if !errors.Is(fetchErr, ErrDigestMismatch) {
+		t.Fatalf("post-decompression digest error=%v, want ErrDigestMismatch", fetchErr)
 	}
 }
 

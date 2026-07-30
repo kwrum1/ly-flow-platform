@@ -34,7 +34,7 @@
 |---|---|---|
 | GET | `/health` | 服务健康检查 |
 | GET | `/stats` | 平台统计概览 |
-| GET | `/public/situation/global` | 公共态势展示数据 |
+| GET | `/public/situation/global` | 全局态势展示数据；当前需要 JWT |
 
 ## 3. 认证与用户
 
@@ -122,14 +122,14 @@ curl -k -X POST https://<server>/api/v1/auth/login \
 | GET | `/rules/categories` | 规则分类 |
 | GET | `/rules/stats` | 规则统计 |
 | POST | `/rules/test` | 规则测试 |
-| GET/POST | `/rules/sources` | 规则源列表 / 新增 |
-| POST | `/rules/sources/{id}` | 更新规则源 |
-| GET/POST | `/rules/subscription` | 订阅配置 |
+| GET | `/rules/sources` | 规则源列表 |
+| POST/PUT | `/rules/sources/{id}` | 更新规则源 |
+| GET/PUT | `/rules/subscription` | 订阅配置 |
 | POST | `/rules/update` | 规则更新 |
 | GET | `/rule-platform/sources` | 规则平台源 |
 | GET | `/rule-platform/bundles` | Bundle 列表 |
 | POST | `/rule-platform/sync` | 同步规则源 |
-| POST | `/rule-platform/compile-preview` | 编译预览 |
+| GET/POST | `/rule-platform/compile-preview` | 编译预览 |
 | GET/POST | `/rule-platform/active-bundle` | 当前生效 Bundle |
 | GET | `/rule-platform/versions` | 版本列表 |
 | POST | `/rule-platform/rollback` | 回滚版本 |
@@ -146,7 +146,7 @@ curl -k -X POST https://<server>/api/v1/auth/login \
 | GET | `/xdr/top-events` | Top 事件 |
 | GET | `/xdr/chains` | 攻击链 |
 | GET | `/xdr/posture` | XDR 态势 |
-| GET/POST | `/xdr/log` | XDR 日志接口 |
+| POST | `/xdr/log` | XDR 日志接口 |
 | GET | `/unified/stats` | 统一事件统计 |
 | GET | `/unified/events` | 统一事件查询 |
 | POST | `/unified/events/search` | 统一事件搜索 |
@@ -176,7 +176,7 @@ Incident 只来自关联链。详情中的 `stage_groups` 按攻击阶段挂载�
 | GET | `/trace/search` | Trace 搜索 |
 | GET | `/engine-health` | 检测引擎健康 |
 | GET | `/engine-runtime/status` | 原生引擎运行状态 |
-| GET/POST | `/engine-rules` | 原生引擎规则 |
+| GET | `/engine-rules` | 原生引擎规则 |
 | POST | `/engine-rules/update` | 更新原生引擎规则 |
 
 ## 9. WebSocket
@@ -186,3 +186,21 @@ Incident 只来自关联链。详情中的 `stage_groups` 按攻击阶段挂载�
 | `/api/v1/realtime` | 低频实时仪表盘推送 |
 
 前端通过 HTTPS 同源代理访问，生产环境建议保留 `X-Forwarded-Proto: https`。
+
+## 10. 机器可读契约
+
+路由、方法、认证、角色、请求夹具、失败夹具、变更读回和持久化预期的权威清单位于
+`contracts/product-acceptance/v1/route-api-contract.json`，结构约束位于同目录的
+`route-api-contract.schema.json`。清单必须与服务端生成的 116 条挂载路径逐条一致；同一路径只出现一次，
+不同 HTTP 方法记录在该路径的 `operations` 中。
+
+| 认证模式 | 角色或凭据 |
+|---|---|
+| `public` | 无；当前仅 `/health` 与 `/auth/login` |
+| `jwt` | 读操作按路径允许 `admin`、`analyst`、`viewer`；写操作允许 `admin`、`analyst`，管理员专用路径除外 |
+| `agent-credential` | Agent 注册或摄取凭据，不接受用户 JWT 代替 |
+| `loopback` | 仅环回来源；当前为 `/auth/bootstrap-token` |
+
+名称包含 `public` 不代表未认证：`/public/situation/global` 当前仍由 JWT 路由策略保护。
+动态资源和动作继续由已挂载前缀处理，例如 Incident 状态、分配和抑制动作归入 `/incidents/` 的单条记录。
+T02 只记录当前差距；未知受保护前端路径仍会跳转 Dashboard，后续 T15 必须改为认证后的 404。

@@ -10,9 +10,11 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 category=$1
 manifest="$root/scripts/qa/expected-tests.txt"
 events=$(mktemp)
+real_detection_result=$(mktemp)
 server_modfile=""
 cleanup() {
 	rm -f "$events"
+	rm -f "$real_detection_result"
 	if [[ -n $server_modfile ]]; then
 		rm -f "$server_modfile" "${server_modfile%.mod}.sum"
 	fi
@@ -93,6 +95,19 @@ case "$category" in
 	runtime-health)
 		agent_packages=(./cmd)
 		security_engine_packages=(./config ./engine ./cmd)
+		;;
+	real-detection)
+		"$root/scripts/qa/real-detections-release-gate_test.sh"
+		T12_REAL_DETECTION_EVE_DIR="$root/acceptance-evidence/T12/replay" \
+			T12_REAL_DETECTION_PIPELINE=1 \
+			T12_REAL_DETECTION_MANIFEST="$root/fixtures/real-detections/v1/manifest.json" \
+			T12_PIPELINE_EVIDENCE_OUTPUT="$real_detection_result" \
+			"$root/scripts/qa/with-disposable-redis.sh" \
+			"$root/scripts/qa/with-disposable-event-stores.sh" \
+			bash -c 'env GOWORK=off GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go -C "$1/agent" test -json -race -count=1 ./cmd -run "^TestRealDetectionEVE_publishesFiveNativeSourcesToRedis$" && env GOWORK=off GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go -C "$1/server" test -json -race -count=1 ./cmd -run "^TestRealDetectionPipeline_persistsAgentAlertsInBothStoresAndAPI$"' _ "$root" | tee "$events"
+		"$root/scripts/qa/verify-go-test-json.sh" "$category" "$manifest" "$events"
+		printf 'verified expected passing test events for category: %s\n' "$category"
+		exit 0
 		;;
   *)
     printf 'unknown Go test category: %s\n' "$category" >&2

@@ -31,6 +31,25 @@ export type ConsumerSurface =
 
 export type RefreshMode = 'stream' | 'poll' | 'request'
 
+export interface RuleCountSemantics {
+  signature_count: number
+  rule_file_count: number
+  source: 'signed_active_lifecycle' | 'signed_active_ledger' | 'filesystem_scan'
+  ledger_digest?: string
+}
+
+export interface NativeRuleCountContract {
+  counts: Record<string, number>
+  listed_counts?: Record<string, number>
+  count_semantics: Record<string, RuleCountSemantics>
+}
+
+export interface NativeEngineRulesResponse extends NativeRuleCountContract {
+  items: readonly Record<string, unknown>[]
+  total: number
+  data?: NativeRuleCountContract
+}
+
 export interface ApiContractEndpoint {
   path: string
   methods: readonly HttpMethod[]

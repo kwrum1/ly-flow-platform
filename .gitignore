@@ -70,3 +70,12 @@ server/ly-agent-center
 server/cmd/ly-server
 server/cmd/ly-agent-center
 frontend/test-results/
+
+# Local takeover and acceptance outputs
+.artifacts/
+.codex/
+.omo/
+acceptance-evidence/
+.debug-journal.md
+rules/security-engine/lifecycle/
+agent/ly-agent-linux-amd64

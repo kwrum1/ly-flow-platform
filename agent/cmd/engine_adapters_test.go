@@ -23,6 +23,24 @@ func TestComponentAlertFromSuricataEVE(t *testing.T) {
 	}
 }
 
+func TestComponentAlertFromSuricataEVE_preservesContributingNativeRuleIdentity(t *testing.T) {
+	line := []byte(`{"timestamp":"2026-05-17T05:00:00.123456+0800","event_type":"alert","src_ip":"10.1.18.20","src_port":4444,"dest_ip":"10.1.18.30","dest_port":80,"proto":"TCP","alert":{"action":"allowed","gid":1,"signature_id":990000000,"rev":1,"signature":"LYFLOW OISF Traffic ID flowbit witness","category":"misc-activity","severity":3,"metadata":{"source_id":["oisf-trafficid"],"native_sid":["300000000"],"native_revision":["1"],"witness_sid":["990000000"]}}}`)
+
+	alert, ok, err := componentAlertFromSuricataEVE(line, NewAgent(&Config{}), contracts.RawReference{})
+	if err != nil || !ok {
+		t.Fatalf("Suricata contributing-rule adapter failed ok=%v err=%v", ok, err)
+	}
+	if alert.RuleID != "1:990000000" {
+		t.Fatalf("emitting witness rule ID = %q, want 1:990000000", alert.RuleID)
+	}
+	if alert.NativeRule == nil || alert.NativeRule.ID != "300000000" || alert.NativeRule.Revision != "1" || alert.NativeRule.Source != "oisf-trafficid" {
+		t.Fatalf("contributing native rule identity was not preserved: %+v", alert.NativeRule)
+	}
+	if alert.NativeRule.Attributes["metadata.witness_sid"] != "990000000" {
+		t.Fatalf("witness SID metadata was not preserved: %+v", alert.NativeRule.Attributes)
+	}
+}
+
 func TestComponentAlertFromSuricataEVENonAlert(t *testing.T) {
 	_, ok, err := componentAlertFromSuricataEVE([]byte(`{"event_type":"flow"}`), nil, contracts.RawReference{})
 	if err != nil || ok {

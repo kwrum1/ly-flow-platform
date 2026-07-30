@@ -1,0 +1,6 @@
+gpg: keybox '/tmp/suricata-gnupg.A8etRN/pubring.kbx' created
+gpg: /tmp/suricata-gnupg.A8etRN/trustdb.gpg: trustdb created
+gpg: key C1F495E3926856B4: public key "Victor Julien <victor@inliniac.net>" imported
+gpg: key 2BA9C98CCDF1E93A: public key "Open Information Security Foundation (OISF) <releases@openinfosecfoundation.org>" imported
+gpg: Total number processed: 2
+gpg:               imported: 2

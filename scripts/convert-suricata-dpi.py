@@ -12,12 +12,22 @@ from typing import Any
 
 BUFFER_FIELD = {
     "dns.query": "dns.query",
+    "dns_query": "dns.query",
     "http.host": "http.host",
+    "http_host": "http.host",
     "http.uri": "http.uri",
+    "http_uri": "http.uri",
+    "http_raw_uri": "http.uri",
+    "http_method": "http.method",
+    "http_client_body": "http.body",
+    "http_header": "http.headers",
+    "http_stat_code": "http.status_code",
+    "http_user_agent": "http.user_agent",
     "tls.sni": "tls.sni",
+    "tls_sni": "tls.sni",
 }
-SUPPORTED_OPTIONS = set(BUFFER_FIELD) | {"msg", "sid", "rev", "classtype", "priority", "metadata", "reference", "content", "pcre", "flow"}
-PARTIAL_OPTIONS = {"threshold"}
+SUPPORTED_OPTIONS = set(BUFFER_FIELD) | {"msg", "sid", "rev", "classtype", "priority", "metadata", "reference", "content", "pcre", "flow", "dcerpc.iface", "dcerpc.opnum"}
+PARTIAL_OPTIONS = {"threshold", "flowbits", "noalert", "isdataat", "target", "depth", "offset", "distance", "within", "fast_pattern", "nocase", "byte_test", "byte_jump", "xbits"}
 
 
 def slug(value: str) -> str:
@@ -81,7 +91,7 @@ def parse_rule(line: str) -> dict[str, Any] | None:
     for option in options:
         key = option_key(option)
         value = option_value(option)
-        if key in {"msg", "classtype", "metadata", "reference", "content", "pcre", "flow"}:
+        if key in {"msg", "classtype", "metadata", "reference", "content", "pcre", "flow", "dcerpc.iface", "dcerpc.opnum"}:
             parsed.setdefault(key, []).append(value)
         elif key in {"sid", "rev", "priority"}:
             try:
@@ -123,10 +133,14 @@ def build_conditions(rule: dict[str, Any]) -> tuple[list[dict[str, Any]], list[s
         field = active_field or "domain"
         pattern = pcre.strip("/") if pcre.startswith("/") else pcre
         conditions.append({"field": field, "operator": "regex", "value": pattern})
+    for key in ("dcerpc.iface", "dcerpc.opnum"):
+        for value in rule.get(key, []):
+            conditions.append({"field": key, "operator": "equals", "value": value})
+            partial.append(key)
     return conditions, sorted(set(partial)), sorted(set(unsupported))
 
 
-def build_ir(rule: dict[str, Any], source: Path, line_no: int) -> dict[str, Any]:
+def build_ir(rule: dict[str, Any], source: Path, line_no: int, manifest: dict[str, Any]) -> dict[str, Any]:
     sid = rule.get("sid", f"line-{line_no}")
     rev = rule.get("rev", 1)
     msg = (rule.get("msg") or [f"Suricata rule {sid}"])[0]
@@ -138,17 +152,17 @@ def build_ir(rule: dict[str, Any], source: Path, line_no: int) -> dict[str, Any]
     return {
         "kind": "single_event_rule",
         "schema_version": "v1",
-        "id": f"suricata-etopen-{sid}",
+        "id": f"{slug(str(manifest['source_id']))}-{sid}",
         "name": msg,
         "description": msg,
         "category": "dpi",
         "enabled": False,
-        "source": {"origin": "external_subscription", "vendor": "Proofpoint Emerging Threats Open", "license": "ET Open Ruleset License", "url": "rules/suricata/et-open.rules", "version": "v1.0.0", "upstream_id": str(sid), "revision": str(rev), "conversion_version": "v1", "raw_path": str(source), "converted_path": "rules/subscriptions/suricata/converted/"},
-        "support": {"level": support, "unsupported_fields": unsupported, "notes": ["Converted from Suricata/ET Open rule", *([f"Partially supported option: {x}" for x in partial])]},
+        "source": {"origin": "external_subscription", "source_id": manifest["source_id"], "vendor": manifest["vendor"], "license": manifest["license"], "url": manifest["payload_url"], "version": manifest.get("revision_or_payload_pin", "raw-payload"), "upstream_id": str(sid), "revision": str(rev), "conversion_version": "v2", "raw_path": manifest["raw_path"], "converted_path": manifest["converted_path"]},
+        "support": {"level": support, "unsupported_fields": unsupported, "notes": [f"Converted from {manifest['source_id']} rule", *([f"Partially supported option: {x}" for x in partial])]},
         "classification": {"stage": "uncategorized" if support == "unsupported" else stage_from_rule(rule), "mitre_tactics": [], "mitre_techniques": [], "confidence": 0.72 if support != "unsupported" else 0.2, "rationale": "Mapped from Suricata protocol/msg/classtype."},
         "scoring": {"base_score": base_score, "severity": severity, "upstream_score": {"suricata_priority": priority}, "source_reliability": 80},
         "match": {"logic": "all", "entities": ["network.src_ip", "network.dst_ip", "dns.query", "http.host", "tls.sni"], "conditions": conditions, "suricata": {"action": rule.get("action"), "protocol": rule.get("protocol"), "src": rule.get("src"), "direction": rule.get("direction"), "dst": rule.get("dst"), "msg": msg, "sid": sid, "rev": rev, "classtype": rule.get("classtype", []), "priority": rule.get("priority"), "metadata": rule.get("metadata", []), "reference": rule.get("reference", []), "content": rule.get("content", []), "pcre": rule.get("pcre", []), "flow": rule.get("flow", []), "raw_options": rule.get("options", [])}},
-        "provenance": [{"source": str(source), "sid": sid, "rev": rev, "line": line_no}],
+        "provenance": [{"source": manifest["raw_path"], "source_id": manifest["source_id"], "sid": sid, "rev": rev, "line": line_no}],
         "response": {"candidate_only": True, "allowed_candidate_types": ["suggest_ip_block", "increase_monitoring", "analyst_review"]},
     }
 
@@ -156,28 +170,45 @@ def build_ir(rule: dict[str, Any], source: Path, line_no: int) -> dict[str, Any]
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--source", required=True, type=Path)
+    parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--report", required=True, type=Path)
     parser.add_argument("--quarantine-report", required=True, type=Path)
     args = parser.parse_args()
+    manifest = json.loads(args.manifest.read_text(encoding="utf-8"))
     args.output_dir.mkdir(parents=True, exist_ok=True)
     converted = []
     quarantine = []
+    candidates = 0
+    parsed_count = 0
+    rejected = []
+    rules_by_id: dict[str, dict[str, Any]] = {}
     for idx, line in enumerate(args.source.read_text(encoding="utf-8").splitlines(), start=1):
+        stripped = line.strip()
+        if not re.match(r"^(?:alert|drop|reject|pass)\s", stripped):
+            continue
+        candidates += 1
         parsed = parse_rule(line)
         if not parsed:
+            rejected.append({"line": idx, "reason": "malformed_rule_syntax"})
             continue
-        ir = build_ir(parsed, args.source, idx)
+        parsed_count += 1
+        ir = build_ir(parsed, args.source, idx, manifest)
+        existing = rules_by_id.get(ir["id"])
+        if existing is not None and int(existing["match"]["suricata"]["rev"]) >= int(ir["match"]["suricata"]["rev"]):
+            continue
+        rules_by_id[ir["id"]] = ir
+    for ir in sorted(rules_by_id.values(), key=lambda item: item["id"]):
         target = args.output_dir / f"{slug(ir['id'])}.json"
         target.write_text(json.dumps(ir, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
         entry = {"id": ir["id"], "path": str(target), "support_level": ir["support"]["level"], "enabled": ir["enabled"], "stage": ir["classification"]["stage"], "unsupported_fields": ir["support"].get("unsupported_fields", [])}
         (quarantine if ir["support"]["level"] == "unsupported" else converted).append(entry)
     args.report.parent.mkdir(parents=True, exist_ok=True)
-    args.report.write_text(json.dumps({"schema_version": "v1", "source": str(args.source), "total": len(converted) + len(quarantine), "converted": len(converted), "unsupported": len(quarantine), "rules": converted + quarantine}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    args.report.write_text(json.dumps({"schema_version": "v2", "source": str(args.source), "source_id": manifest["source_id"], "candidates": candidates, "parsed": parsed_count, "deduplicated": parsed_count - len(rules_by_id), "rejected": len(rejected), "converted": len(converted), "unsupported": len(quarantine), "rejections": rejected, "rules": converted + quarantine}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     args.quarantine_report.parent.mkdir(parents=True, exist_ok=True)
     args.quarantine_report.write_text(json.dumps({"schema_version": "v1", "rules": quarantine}, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
-    print(f"ok: converted {len(converted)} Suricata DPI rules, quarantined {len(quarantine)}")
-    return 0
+    print(f"ok: source {manifest['source_id']} parsed {len(converted) + len(quarantine)}, converted {len(converted)}, quarantined {len(quarantine)}, rejected {len(rejected)}")
+    return 0 if converted or quarantine else 1
 
 
 if __name__ == "__main__":

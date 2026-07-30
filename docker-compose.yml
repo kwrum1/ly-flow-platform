@@ -8,7 +8,6 @@ services:
   # =====================================================
   postgres:
     image: postgres:16-alpine
-    container_name: ly-postgres
     restart: unless-stopped
     environment:
       POSTGRES_DB: lyflow
@@ -19,7 +18,7 @@ services:
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
       - ./server/sql/asset_tables.sql:/docker-entrypoint-initdb.d/02-asset-tables.sql:ro
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:${POSTGRES_BIND_PORT:-5432}:5432"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U lyflow -d lyflow"]
       interval: 10s
@@ -33,7 +32,6 @@ services:
   # =====================================================
   redis:
     image: redis:7-alpine
-    container_name: ly-redis
     restart: unless-stopped
     environment:
       REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
@@ -50,7 +48,7 @@ services:
     volumes:
       - redis_data:/data
     ports:
-      - "127.0.0.1:6379:6379"
+      - "127.0.0.1:${REDIS_BIND_PORT:-6379}:6379"
     healthcheck:
       test: ["CMD-SHELL", "redis-cli --user \"$$REDIS_ACL_USERNAME\" --pass \"$$REDIS_ACL_PASSWORD\" ping"]
       interval: 10s
@@ -61,7 +59,6 @@ services:
 
   clickhouse:
     image: clickhouse/clickhouse-server:24.8-alpine
-    container_name: ly-clickhouse
     restart: unless-stopped
     environment:
       - CLICKHOUSE_DB=lyflow
@@ -70,8 +67,8 @@ services:
     volumes:
       - clickhouse_data:/var/lib/clickhouse
     ports:
-      - "127.0.0.1:8123:8123"
-      - "127.0.0.1:9000:9000"
+      - "127.0.0.1:${CLICKHOUSE_HTTP_BIND_PORT:-8123}:8123"
+      - "127.0.0.1:${CLICKHOUSE_NATIVE_BIND_PORT:-9000}:9000"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8123/ping"]
       interval: 10s
@@ -88,7 +85,6 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile.final
-    container_name: ly-server
     restart: unless-stopped
     command: ["/app/ly-server"]
     environment:
@@ -128,7 +124,7 @@ services:
       POLICY_KEY_DIR: /var/lib/lyflow/policy/keys
       RASP_POLICY_OWNER: ${RASP_POLICY_OWNER:-lyflow-platform}
     ports:
-      - "127.0.0.1:8080:8080"
+      - "127.0.0.1:${SERVER_BIND_PORT:-8080}:8080"
     healthcheck:
       test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/v1/health"]
       interval: 10s
@@ -143,6 +139,7 @@ services:
       clickhouse:
         condition: service_healthy
     volumes:
+      - ly_server_data:/data
       - ./rules:/etc/ly/rules:ro
       - ./rules:/app/rules
       - ./.sisyphus:/app/.sisyphus
@@ -160,7 +157,6 @@ services:
     build:
       context: .
       dockerfile: dpi-engine/Dockerfile
-    container_name: ly-dpi-engine
     restart: unless-stopped
     command: ["/app/ly-dpi-engine"]
     environment:
@@ -195,7 +191,6 @@ services:
     build:
       context: .
       dockerfile: security-engine/Dockerfile
-    container_name: ly-security-engine
     restart: unless-stopped
     command: ["/app/ly-security-engine"]
     environment:
@@ -216,6 +211,7 @@ services:
       SECURITY_ENGINE_CONTROL_TOKEN: ${SECURITY_ENGINE_CONTROL_TOKEN:?SECURITY_ENGINE_CONTROL_TOKEN must be set}
       SECURITY_ENGINE_RELOAD_AUDIT_PATH: /var/lib/lyflow/audit/reload.jsonl
     volumes:
+      - security_engine_data:/data
       - ./rules:/app/rules:ro
       - policy_trust:/var/lib/lyflow/policy:ro
       - security_engine_audit:/var/lib/lyflow/audit
@@ -241,12 +237,11 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
-    container_name: ly-vis
     restart: unless-stopped
     environment:
       - LY_SERVER_UPSTREAM=${LY_SERVER_UPSTREAM:-http://ly-server:8080}
     ports:
-      - "443:443"
+      - "${HTTPS_BIND_PORT:-443}:443"
     depends_on:
       ly-server:
         condition: service_healthy
@@ -266,7 +261,6 @@ services:
     build:
       context: .
       dockerfile: containers/security-engines/Dockerfile
-    container_name: ly-engine-lab
     restart: unless-stopped
     environment:
       - ENGINE_LAB_INTERVAL=${ENGINE_LAB_INTERVAL:-45}
@@ -278,12 +272,19 @@ services:
       - ENGINE_RULE_ROOT=/opt/ly-engine-lab/rules
       - ENGINE_STATUS_FILE=/opt/ly-engine-lab/runtime/status.json
     volumes:
+      - engine_lab_data:/data
       - ./.sisyphus/runtime/engine-outputs/suricata:/var/log/suricata
       - ./.sisyphus/runtime/engine-outputs/wazuh:/var/ossec/logs/alerts
       - ./.sisyphus/runtime/engine-outputs/yara:/opt/ly-agent/yara
       - ./.sisyphus/runtime/engine-outputs/rasp:/opt/ly-agent/rasp
       - ./.sisyphus/runtime/engine-outputs/status:/opt/ly-engine-lab/runtime
       - ./rules:/opt/ly-engine-lab/rules:ro
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import os, stat, time; path = os.environ.get('ENGINE_STATUS_FILE', '/opt/ly-engine-lab/runtime/status.json'); status = os.stat(path); age = time.time() - status.st_mtime; raise SystemExit(0 if stat.S_ISREG(status.st_mode) and status.st_size > 0 and 0 <= age <= 120 else 1)"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
     networks:
       - ly-network
 
@@ -297,7 +298,6 @@ services:
       target: suricata-profile
       args:
         SURICATA_PROFILE_IMAGE: docker.io/jasonish/suricata@sha256:73cf099d6299f75dda2d9d6edcfb8238b7a7322566d6189a69d46442a366b7fa
-    container_name: ly-suricata-sensor
     restart: unless-stopped
     network_mode: host
     cap_add:
@@ -321,7 +321,6 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile.final
-    container_name: agent-center
     restart: unless-stopped
     command: ["/app/ly-agent-center"]
     environment:
@@ -336,12 +335,20 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       GRPC_PORT: "8081"
     ports:
-      - "8081:8081"
+      - "${AGENT_CENTER_BIND_PORT:-8081}:8081"
+    healthcheck:
+      test: ["CMD", "/app/ly-agent-center", "healthcheck"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     depends_on:
       postgres:
         condition: service_healthy
       redis:
         condition: service_healthy
+    volumes:
+      - agent_center_data:/data
     networks:
       - ly-network
 
@@ -353,7 +360,6 @@ services:
     build:
       context: .
       dockerfile: agent/Dockerfile
-    container_name: ly-local-mirror
     restart: unless-stopped
     network_mode: host
     cap_add:
@@ -362,8 +368,8 @@ services:
     environment:
       AGENT_MODE: local-mirror
       LOCAL_MIRROR_MODE: "true"
-      API_SERVER: http://127.0.0.1:8080
-      REDIS_SERVER: 127.0.0.1:6379
+      API_SERVER: "http://127.0.0.1:${SERVER_BIND_PORT:-8080}"
+      REDIS_SERVER: "127.0.0.1:${REDIS_BIND_PORT:-6379}"
       REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
       REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
@@ -386,8 +392,15 @@ services:
       SPOOL_MAX_BYTES: ${LOCAL_MIRROR_SPOOL_MAX_BYTES:-10737418240}
       LOG_FILE: /opt/ly-agent/logs/local-mirror.log
     volumes:
+      - local_mirror_data:/data
       - agent_spool:/opt/ly-agent/data
       - policy_trust:/var/lib/lyflow/policy:ro
+    healthcheck:
+      test: ["CMD", "/opt/ly-runtime-libs/ld-linux-x86-64.so.2", "--library-path", "/opt/ly-runtime-libs", "/app/ly-agent", "healthcheck", "local-mirror"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
     depends_on:
       ly-server:
         condition: service_started
@@ -405,7 +418,6 @@ services:
     build:
       context: .
       dockerfile: agent/Dockerfile
-    container_name: ly-agent
     restart: unless-stopped
     environment:
       API_SERVER: http://ly-server:8080
@@ -452,7 +464,6 @@ services:
 # =====================================================
 networks:
   ly-network:
-    name: ly-network
     driver: bridge
 
 # =====================================================
@@ -470,4 +481,14 @@ volumes:
   policy_trust:
     driver: local
   security_engine_audit:
+    driver: local
+  ly_server_data:
+    driver: local
+  agent_center_data:
+    driver: local
+  security_engine_data:
+    driver: local
+  engine_lab_data:
+    driver: local
+  local_mirror_data:
     driver: local

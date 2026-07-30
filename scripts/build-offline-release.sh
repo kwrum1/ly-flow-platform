@@ -203,6 +203,9 @@ cat > "$PACKAGE_DIR/README.md" <<'EOF'
 
 ## 一键安装
 
+本安装包仅用于全新安装。安装目标目录必须不存在或为空目录。
+不支持覆盖现有安装或升级；升级迁移不在本版本范围内。
+
 ```bash
 sudo bash scripts/install-offline.sh \
   --trust-root /path/outside/package/release-root.pem \

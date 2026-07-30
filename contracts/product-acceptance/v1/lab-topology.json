@@ -1,0 +1,52 @@
+{
+  "schema_version": "lyflow.acceptance.lab-topology.v1",
+  "profile": "acceptance-lab",
+  "network": "acceptance-lab",
+  "agents": [
+    {
+      "service": "acceptance-web-agent",
+      "role": "web",
+      "hostname": "ly-acceptance-web",
+      "enrollment_token_env": "ACCEPTANCE_WEB_ENROLL_TOKEN",
+      "identity_path": "/var/lib/lyflow/identity/web/agent-identity.yaml",
+      "spool_path": "/var/spool/lyflow/web",
+      "engine_output_path": "/var/lib/lyflow/engine-output/web",
+      "capabilities": []
+    },
+    {
+      "service": "acceptance-database-agent",
+      "role": "database",
+      "hostname": "ly-acceptance-database",
+      "enrollment_token_env": "ACCEPTANCE_DATABASE_ENROLL_TOKEN",
+      "identity_path": "/var/lib/lyflow/identity/database/agent-identity.yaml",
+      "spool_path": "/var/spool/lyflow/database",
+      "engine_output_path": "/var/lib/lyflow/engine-output/database",
+      "capabilities": []
+    },
+    {
+      "service": "acceptance-worker-agent",
+      "role": "worker",
+      "hostname": "ly-acceptance-worker",
+      "enrollment_token_env": "ACCEPTANCE_WORKER_ENROLL_TOKEN",
+      "identity_path": "/var/lib/lyflow/identity/worker/agent-identity.yaml",
+      "spool_path": "/var/spool/lyflow/worker",
+      "engine_output_path": "/var/lib/lyflow/engine-output/worker",
+      "capabilities": []
+    },
+    {
+      "service": "acceptance-packet-sensor",
+      "role": "packet-sensor",
+      "hostname": "ly-acceptance-packet-sensor",
+      "enrollment_token_env": "ACCEPTANCE_SENSOR_ENROLL_TOKEN",
+      "identity_path": "/var/lib/lyflow/identity/packet-sensor/agent-identity.yaml",
+      "spool_path": "/var/spool/lyflow/packet-sensor",
+      "engine_output_path": "/var/lib/lyflow/engine-output/packet-sensor",
+      "capture_interface": "eth0",
+      "capabilities": [
+        "NET_RAW",
+        "NET_ADMIN",
+        "SYS_NICE"
+      ]
+    }
+  ]
+}

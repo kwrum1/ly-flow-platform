@@ -22,8 +22,9 @@ import (
 )
 
 type ruleSyncRuntime struct {
-	mu    sync.Mutex
-	state rulelifecycle.RuntimeState
+	mu         sync.Mutex
+	state      rulelifecycle.RuntimeState
+	failHealth bool
 }
 
 type failingRuleVersionStatus struct {
@@ -58,6 +59,9 @@ func (r *ruleSyncRuntime) Restore(_ context.Context, state rulelifecycle.Runtime
 func (r *ruleSyncRuntime) Health(_ context.Context, revision, digest string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
+	if r.failHealth {
+		return errors.New("injected runtime health failure")
+	}
 	if r.state.Digest != digest {
 		return errors.New("runtime digest mismatch")
 	}

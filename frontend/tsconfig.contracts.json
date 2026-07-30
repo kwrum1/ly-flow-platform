@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "allowJs": false,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "noPropertyAccessFromIndexSignature": true,
+    "verbatimModuleSyntax": true,
+    "types": ["node", "vitest/globals"]
+  },
+  "files": [
+    "src/domain/contracts/product-acceptance-types.ts",
+    "src/domain/contracts/product-acceptance-validation.ts",
+    "src/domain/contracts/product-acceptance-contract.ts",
+    "src/domain/contracts/route-api-contract.test.ts"
+  ]
+}

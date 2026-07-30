@@ -116,6 +116,28 @@ func TestInitializeIncidentLifecycleRuntime_migrates_live_legacy_map_and_is_rest
 	}
 }
 
+func TestInitializeIncidentLifecycleRuntime_serves_incident_collection_when_fresh_package_uses_legacy_mode(t *testing.T) {
+	// Given
+	pool, ctx := xdrMigrationTestPool(t)
+	if _, err := pool.Exec(ctx, `DROP TABLE IF EXISTS incident_lifecycle_cutover_audit, incident_lifecycle_legacy_snapshots, incident_lifecycle_audit, incident_evidence_lineage, incident_suppressions, incidents, incident_lifecycle_schema_migrations CASCADE`); err != nil {
+		t.Fatalf("reset incident lifecycle tables: %v", err)
+	}
+	config := &Config{DBPool: pool, IncidentLegacyMode: true}
+
+	// When
+	if err := initializeIncidentLifecycleRuntime(ctx, config); err != nil {
+		t.Fatalf("initialize fresh package incident lifecycle: %v", err)
+	}
+	request := httptest.NewRequest(http.MethodGet, "/api/v1/incidents", nil)
+	response := httptest.NewRecorder()
+	incidentsHandler(config).ServeHTTP(response, request)
+
+	// Then
+	if response.Code != http.StatusOK {
+		t.Fatalf("fresh package incident collection status=%d body=%s, want 200 non-error body", response.Code, response.Body.String())
+	}
+}
+
 func TestInitializeIncidentLifecycleRuntime_refuses_empty_new_process_without_durable_snapshot(t *testing.T) {
 	// Given
 	pool, ctx := xdrMigrationTestPool(t)

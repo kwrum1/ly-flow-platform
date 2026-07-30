@@ -31,6 +31,8 @@ Each exception requires an ID, component, high/critical severity, owner, reachab
 4. The outer normalized archive has a `.sha256` sidecar and raw Ed25519 `.sha256.sig` sidecar.
 5. `install-offline.sh --trust-root /external/release-root.pem` installs the external public root, verifies the release and rule manifests, and only then checks Docker, copies files, loads images, or starts services.
 
+Candidate traffic provenance is recorded in `candidate-traffic-ledger.json`. Its five-source catalog binds vendor identity, license, raw-payload SHA-256 before decompression, parser, converter, and deduplication policy. Every retained candidate signature records its source IDs and converted-content SHA-256. The Ed25519 ledger signature and external public root allow the complete lineage to be verified without network access; missing source pins, altered converted bytes, unknown source IDs, or an unsigned ledger fail closed. Candidate counts are not reported as runtime-loaded counts. After lifecycle activation, the signed active manifest and its verified bundle are authoritative for active and runtime health counts.
+
 ## Reproducibility limits
 
 Normalized tar ordering, numeric ownership, timestamps, POSIX metadata, and gzip headers make the same staged package byte-identical. This does not establish that two clean application builds are identical.

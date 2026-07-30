@@ -1,0 +1,16 @@
+HTTP/1.1 200 Connection established
+
+HTTP/2 200 
+content-type: application/x-gzip
+content-length: 22831605
+date: Wed, 15 Jul 2026 04:01:24 GMT
+server: Apache/2.4.58 (Ubuntu)
+strict-transport-security: max-age=15768000
+last-modified: Tue, 08 Jul 2025 14:05:14 GMT
+etag: "15c61f5-6396b730717c4"
+accept-ranges: bytes
+x-cache: Miss from cloudfront
+via: 1.1 bf1c5f2950a628cf8d539eed584bc62c.cloudfront.net (CloudFront)
+x-amz-cf-pop: YVR52-P3
+x-amz-cf-id: pGa4vrCxHJc4ud1R7YwR74kM6r_jg3ViIbVi1eS-LR_2Mm-iZ8w9Eg==
+

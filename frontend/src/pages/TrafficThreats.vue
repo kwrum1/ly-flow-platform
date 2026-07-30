@@ -14,13 +14,13 @@
 
     <article class="events-panel surface-card">
       <div class="panel-title"><strong>{{ title }}</strong><span>{{ `${threats.length} 组 / 共 ${total} 组 / 当前页 ${pageSize} 组` }}</span></div>
-      <div ref="tableWrap" :class="['table-wrap', { updating: loading && hasLoaded }]">
+      <div ref="tableWrap" data-testid="traffic-threat-table" :class="['table-wrap', { updating: loading && hasLoaded }]">
         <table>
           <thead><tr><th>时间</th><th>等级</th><th>检测引擎</th><th>威胁类型</th><th>探针</th><th>威胁IP</th><th>威胁内容</th><th>次数</th><th>操作</th></tr></thead>
           <tbody>
             <tr v-if="loading && !hasLoaded"><td colspan="9" class="empty-cell">{{ pageCopy().loading }}</td></tr>
             <tr v-else-if="!threats.length"><td colspan="9" class="empty-cell">{{ pageCopy().empty }}</td></tr>
-            <tr v-for="item in threats" :key="item.aggregate_key || item.message_id || item.id">
+            <tr v-for="item in threats" :key="item.aggregate_key || item.message_id || item.id" data-testid="traffic-threat-row">
               <td>{{ formatTime(item.timestamp) }}</td>
               <td><span :class="['severity', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>
               <td><span class="engine-chip">{{ sourceEngineLabel(item.source_engine || item.source) }}</span><small>{{ categoryLabel(item.category) }}</small></td>
@@ -29,24 +29,24 @@
               <td>{{ threatIP(item) }}</td>
               <td>{{ contentSummary(item) }}</td>
               <td><span class="count-chip">{{ occurrenceCount(item) }}</span></td>
-              <td><button @click="selected = item">详情</button></td>
+              <td><button data-testid="traffic-threat-detail-open" @click="selected = item">详情</button></td>
             </tr>
           </tbody>
         </table>
       </div>
       <div class="pager">
-        <button @click="prevPage" :disabled="loading || page === 1">上一页</button>
-        <span>第 {{ page }} 页 / {{ totalPages }} 页</span>
-        <button @click="nextPage" :disabled="loading || page >= totalPages">下一页</button>
+        <button data-testid="traffic-threat-previous-page" @click="prevPage" :disabled="loading || page === 1">上一页</button>
+        <span data-testid="traffic-threat-page">第 {{ page }} 页 / {{ totalPages }} 页</span>
+        <button data-testid="traffic-threat-next-page" @click="nextPage" :disabled="loading || page >= totalPages">下一页</button>
       </div>
     </article>
 
     <div v-if="selected" class="drawer-mask">
-      <aside class="drawer surface-card">
-        <div class="drawer-title"><strong>威胁详情</strong><button @click="selected = null">×</button></div>
+      <aside class="drawer surface-card" data-testid="traffic-threat-detail">
+        <div class="drawer-title"><strong>威胁详情</strong><button data-testid="traffic-threat-detail-close" @click="selected = null">×</button></div>
         <div class="detail-grid">
           <template v-for="row in detailRows(selected)" :key="row.label">
-            <span>{{ row.label }}</span><b>{{ row.value }}</b>
+            <span>{{ row.label }}</span><b :data-testid="row.testId">{{ row.value }}</b>
           </template>
         </div>
       </aside>
@@ -108,13 +108,19 @@ function stageLabel(value) { return { recon: '侦察探测', initial_access: '�
 function contentSummary(item) { return item.summary || item.message || threatTypeLabel(item) || item.http_host || item.dns_query || item.tls_sni || [item.http_method, item.http_path].filter(Boolean).join(' ') || eventTypeLabel(item.event_type || item.type) }
 function detailRows(item) {
   return [
+    ['原生规则来源', item.native_rule?.source, 'traffic-threat-detail-native-source'],
+    ['原生规则 SID', item.native_rule?.id, 'traffic-threat-detail-native-sid'],
+    ['原生规则版本', item.native_rule?.revision, 'traffic-threat-detail-native-revision'],
+    ['原始引用路径', item.raw_reference?.path, 'traffic-threat-detail-raw-path'],
+    ['原始引用哈希', item.raw_reference?.hash, 'traffic-threat-detail-raw-hash'],
     ['告警次数', occurrenceCount(item)], ['起始时间', formatTime(item.first_seen)], ['最后一次时间', formatTime(item.last_seen || item.timestamp)],
-    ['威胁等级', severityLabel(item.severity)], ['检测引擎', sourceEngineLabel(item.source_engine || item.source)], ['检测类别', categoryLabel(item.category)], ['攻击阶段', stageLabel(item.stage_hint)], ['命中规则', threatTypeLabel(item)], ['规则ID', item.rule_id], ['威胁类型', threatTypeLabel(item)], ['探针名', agentName(item)], ['主机名', entity(item, 'hostname') || item.hostname],
+    ['威胁等级', severityLabel(item.severity)], ['检测引擎', sourceEngineLabel(item.source_engine || item.source)], ['检测类别', categoryLabel(item.category)], ['攻击阶段', stageLabel(item.stage_hint)],
+    ['命中规则', threatTypeLabel(item)], ['规则ID', item.rule_id], ['威胁类型', threatTypeLabel(item)], ['探针名', agentName(item)], ['主机名', entity(item, 'hostname') || item.hostname],
     ['威胁IP', threatIP(item) || '-'], ['源端口', item.src_port], ['目的IP', entity(item, 'target_ip') || item.dst_ip], ['目的端口', item.dst_port], ['传输协议', item.protocol], ['应用协议', item.app_protocol],
     ['业务行为', eventTypeLabel(item.business_action)], ['流量方向', directionLabel(item.direction)],
     ['HTTP主机', item.http_host], ['HTTP方法', item.http_method], ['HTTP路径', item.http_path],
     ['DNS查询', item.dns_query], ['TLS SNI', item.tls_sni], ['威胁内容', item.summary],
-  ].filter(([, value]) => display(value) !== '-').map(([label, value]) => ({ label, value: display(value) }))
+  ].filter(([, value]) => display(value) !== '-').map(([label, value, testId]) => ({ label, value: display(value), testId }))
 }
 
 async function loadAll() {

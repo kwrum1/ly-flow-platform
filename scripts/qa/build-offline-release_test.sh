@@ -79,5 +79,13 @@ if grep -Fq 'admin / password' "$release"; then
   printf 'packaged README advertises a fixed admin password\n' >&2
   exit 1
 fi
+grep -Fq '安装目标目录必须不存在或为空目录。' "$release" || {
+  printf 'packaged README omits the fresh-install target boundary\n' >&2
+  exit 1
+}
+grep -Fq '不支持覆盖现有安装或升级；升级迁移不在本版本范围内。' "$release" || {
+  printf 'packaged README omits the unsupported overwrite/upgrade scope\n' >&2
+  exit 1
+}
 
 printf 'offline release RASP contract self-test passed\n'

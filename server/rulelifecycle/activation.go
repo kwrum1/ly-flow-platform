@@ -19,6 +19,13 @@ func (m *Manager) ActivateWithCommit(ctx context.Context, actor Actor, revision 
 	if commit == nil {
 		return ActiveManifest{}, errors.New("rulelifecycle: activation commit is required")
 	}
+	return m.activate(ctx, actor, revision, "rule.activate", func(ActiveManifest) error { return commit() })
+}
+
+func (m *Manager) ActivateWithManifestCommit(ctx context.Context, actor Actor, revision string, commit func(ActiveManifest) error) (ActiveManifest, error) {
+	if commit == nil {
+		return ActiveManifest{}, errors.New("rulelifecycle: activation commit is required")
+	}
 	return m.activate(ctx, actor, revision, "rule.activate", commit)
 }
 
@@ -52,7 +59,7 @@ func (m *Manager) reloadFailure(ctx context.Context, actor Actor, manifest Activ
 	return cause
 }
 
-func (m *Manager) activate(ctx context.Context, actor Actor, revision, action string, commit func() error) (ActiveManifest, error) {
+func (m *Manager) activate(ctx context.Context, actor Actor, revision, action string, commit func(ActiveManifest) error) (ActiveManifest, error) {
 	if err := m.authorize(ctx, actor, action, revision); err != nil {
 		return ActiveManifest{}, err
 	}
@@ -74,7 +81,7 @@ func (m *Manager) activate(ctx context.Context, actor Actor, revision, action st
 			return ActiveManifest{}, fmt.Errorf("active candidate %s: %w", revision, ErrHealth)
 		}
 		if commit != nil {
-			if err := commit(); err != nil {
+			if err := commit(previous); err != nil {
 				if auditErr := m.record(ctx, actor, action, revision, AuditResultFailed, map[string]interface{}{"error": "post-activation commit failed", "idempotent": true}); auditErr != nil {
 					return ActiveManifest{}, errors.Join(err, auditErr)
 				}
@@ -133,7 +140,7 @@ func (m *Manager) activate(ctx context.Context, actor Actor, revision, action st
 		return ActiveManifest{}, errors.Join(cause, rollbackErr, reloadAuditErr, actionAuditErr)
 	}
 	if commit != nil {
-		if err := commit(); err != nil {
+		if err := commit(manifest); err != nil {
 			cause := fmt.Errorf("commit activated candidate: %w", err)
 			rollbackErr := errors.Join(m.restoreActive(activePath, previousJSON, previousErr), m.restoreRuntime(ctx, actor, runtimeState))
 			reloadAuditErr := m.record(ctx, actor, "rule.reload", revision, AuditResultFailed, map[string]interface{}{"error": "post-activation commit failed"})

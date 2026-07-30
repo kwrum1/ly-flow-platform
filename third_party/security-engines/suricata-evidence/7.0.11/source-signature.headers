@@ -1,0 +1,16 @@
+HTTP/1.1 200 Connection established
+
+HTTP/2 200 
+content-type: application/pgp-signature
+content-length: 566
+date: Wed, 15 Jul 2026 04:01:24 GMT
+server: Apache/2.4.58 (Ubuntu)
+strict-transport-security: max-age=15768000
+last-modified: Tue, 08 Jul 2025 14:05:14 GMT
+etag: "236-6396b730717c4"
+accept-ranges: bytes
+x-cache: Miss from cloudfront
+via: 1.1 d784c1bcb5f48cd884cf7daaba6d07fe.cloudfront.net (CloudFront)
+x-amz-cf-pop: YVR52-P3
+x-amz-cf-id: bnbx-kvL3wdbusBQq1ltAALttGsiPGvDcGOoNCxjsPcO8a8gJ0Q8xg==
+

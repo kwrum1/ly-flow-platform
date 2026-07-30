@@ -12,6 +12,7 @@ import (
 type RouteSpec struct {
 	Path            string
 	Group           string
+	Methods         []string
 	Public          bool
 	AgentCredential bool
 	LoopbackOnly    bool

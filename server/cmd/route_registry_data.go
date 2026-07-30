@@ -79,7 +79,7 @@ func buildRouteRegistry() []RouteSpec {
 	}
 	specs := make([]RouteSpec, 0, len(paths))
 	for _, path := range paths {
-		spec := RouteSpec{Path: path, Group: routeGroup(path), ReadRoles: allRoles, WriteRoles: operatorRoles}
+		spec := RouteSpec{Path: path, Group: routeGroup(path), Methods: routeMethods(path), ReadRoles: allRoles, WriteRoles: operatorRoles}
 		switch {
 		case public[path]:
 			spec.Public, spec.ReadRoles, spec.WriteRoles = true, nil, nil

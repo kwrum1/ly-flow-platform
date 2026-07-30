@@ -76,6 +76,18 @@ type AgentSession struct {
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "healthcheck" {
+		address, err := agentCenterHealthcheckAddress()
+		if err == nil {
+			err = checkAgentCenterHealth(context.Background(), address)
+		}
+		if err != nil {
+			log.Printf("AgentCenter healthcheck failed: %v", err)
+			os.Exit(1)
+		}
+		return
+	}
+
 	// 加载配置
 	config := loadConfig()
 
@@ -112,16 +124,13 @@ func main() {
 		}
 	}
 
-	// 创建 gRPC 服务器
-	server.grpcServer = grpc.NewServer(grpc.MaxRecvMsgSize(maxGRPCMessageBytes), grpc.MaxSendMsgSize(maxGRPCMessageBytes))
-	pb.RegisterAgentServiceServer(server.grpcServer, server)
-
 	// 监听
 	addr := fmt.Sprintf(":%d", config.GRPCPort)
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		log.Fatalf("Failed to listen: %v", err)
 	}
+	runtime := newAgentCenterGRPCServer(server)
 
 	log.Printf("AgentCenter listening on %s", addr)
 
@@ -131,11 +140,11 @@ func main() {
 		signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
 		<-sig
 		log.Println("Shutting down...")
-		server.grpcServer.GracefulStop()
+		runtime.Shutdown()
 	}()
 
 	// 启动 gRPC 服务
-	if err := server.grpcServer.Serve(lis); err != nil {
+	if err := runtime.Serve(lis); err != nil {
 		log.Fatalf("Failed to serve: %v", err)
 	}
 }

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/lyflow/ly-flow-platform/contracts"
@@ -26,17 +27,17 @@ type suricataEVEEvent struct {
 }
 
 type suricataEVEAlert struct {
-	Action        string `json:"action"`
-	GID           int    `json:"gid"`
-	SignatureID   int    `json:"signature_id"`
-	Revision      int    `json:"rev"`
-	Signature     string `json:"signature"`
-	Category      string `json:"category"`
-	Severity      int    `json:"severity"`
-	Metadata      any    `json:"metadata"`
-	Rule          string `json:"rule"`
-	AppProto      string `json:"app_proto"`
-	SignatureInfo string `json:"signature_info"`
+	Action        string              `json:"action"`
+	GID           int                 `json:"gid"`
+	SignatureID   int                 `json:"signature_id"`
+	Revision      int                 `json:"rev"`
+	Signature     string              `json:"signature"`
+	Category      string              `json:"category"`
+	Severity      int                 `json:"severity"`
+	Metadata      map[string][]string `json:"metadata"`
+	Rule          string              `json:"rule"`
+	AppProto      string              `json:"app_proto"`
+	SignatureInfo string              `json:"signature_info"`
 }
 
 func componentAlertFromSuricataEVE(line []byte, agent *Agent, raw contracts.RawReference) (contracts.ComponentAlert, bool, error) {
@@ -57,6 +58,31 @@ func componentAlertFromSuricataEVE(line []byte, agent *Agent, raw contracts.RawR
 	}
 	severity := suricataSeverity(event.Alert.Severity)
 	score := suricataScore(event.Alert.Severity)
+	ruleSource := "suricata"
+	nativeRuleID := strconv.Itoa(event.Alert.SignatureID)
+	nativeRevision := strconv.Itoa(event.Alert.Revision)
+	attributes := map[string]string{
+		"gid":              strconv.Itoa(event.Alert.GID),
+		"action":           event.Alert.Action,
+		"app_proto":        event.Alert.AppProto,
+		"emitted_sid":      strconv.Itoa(event.Alert.SignatureID),
+		"emitted_revision": strconv.Itoa(event.Alert.Revision),
+	}
+	for key, values := range event.Alert.Metadata {
+		if len(values) == 0 {
+			continue
+		}
+		attributes["metadata."+key] = strings.Join(values, ",")
+		if key == "source_id" {
+			ruleSource = values[0]
+		}
+		if key == "native_sid" {
+			nativeRuleID = values[0]
+		}
+		if key == "native_revision" {
+			nativeRevision = values[0]
+		}
+	}
 	raw.SourceEngine = contracts.SourceEngineSuricata
 	raw.EventType = event.EventType
 	alert := contracts.ComponentAlert{
@@ -67,16 +93,12 @@ func componentAlertFromSuricataEVE(line []byte, agent *Agent, raw contracts.RawR
 		RuleID:        ruleID,
 		RuleName:      firstNonEmpty(event.Alert.Signature, "Suricata alert"),
 		NativeRule: &contracts.RuleReference{
-			Engine:   contracts.SourceEngineSuricata,
-			ID:       strconv.Itoa(event.Alert.SignatureID),
-			Revision: strconv.Itoa(event.Alert.Revision),
-			Category: event.Alert.Category,
-			Source:   "suricata",
-			Attributes: map[string]string{
-				"gid":       strconv.Itoa(event.Alert.GID),
-				"action":    event.Alert.Action,
-				"app_proto": event.Alert.AppProto,
-			},
+			Engine:     contracts.SourceEngineSuricata,
+			ID:         nativeRuleID,
+			Revision:   nativeRevision,
+			Category:   event.Alert.Category,
+			Source:     ruleSource,
+			Attributes: attributes,
 		},
 		Severity:   severity,
 		ScoreHint:  score,

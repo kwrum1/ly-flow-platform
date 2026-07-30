@@ -156,16 +156,31 @@ func (f *Fetcher) validateHop(ctx context.Context, rawURL string) (*url.URL, net
 }
 
 func validatePin(pin SourcePin) error {
-	if len(pin.Revision) == 0 || len(pin.Revision) > 128 || len(pin.SHA256) != sha256.Size*2 {
+	if len(pin.SHA256) != sha256.Size*2 {
+		return ErrRevision
+	}
+	expected, err := hex.DecodeString(strings.ToLower(pin.SHA256))
+	if err != nil {
+		return fmt.Errorf("decode source digest: %w", ErrDigestMismatch)
+	}
+	const payloadDigestPrefix = "payload-sha256:"
+	if strings.HasPrefix(pin.Revision, payloadDigestPrefix) {
+		payloadDigest, decodeErr := hex.DecodeString(strings.TrimPrefix(pin.Revision, payloadDigestPrefix))
+		if decodeErr != nil || len(payloadDigest) != sha256.Size {
+			return ErrRevision
+		}
+		if subtle.ConstantTimeCompare(payloadDigest, expected) != 1 {
+			return ErrDigestMismatch
+		}
+		return nil
+	}
+	if len(pin.Revision) == 0 || len(pin.Revision) > 128 || strings.HasPrefix(strings.ToLower(pin.Revision), "catalog-") {
 		return ErrRevision
 	}
 	for _, character := range pin.Revision {
 		if (character < 'a' || character > 'z') && (character < 'A' || character > 'Z') && (character < '0' || character > '9') && character != '.' && character != '_' && character != '-' {
 			return ErrRevision
 		}
-	}
-	if _, err := hex.DecodeString(pin.SHA256); err != nil {
-		return fmt.Errorf("decode source digest: %w", ErrDigestMismatch)
 	}
 	return nil
 }

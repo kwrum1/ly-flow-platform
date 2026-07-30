@@ -1,0 +1,149 @@
+x-acceptance-role-agent: &acceptance-role-agent
+  profiles:
+    - acceptance-lab
+  image: ${ACCEPTANCE_AGENT_IMAGE:-ly-flow/agent:latest}
+  restart: "no"
+  entrypoint:
+    - /bin/sh
+    - /opt/lyflow-acceptance/role-agent-entrypoint.sh
+  volumes:
+    - ./containers/acceptance-lab:/opt/lyflow-acceptance:ro
+  networks:
+    - acceptance-lab
+  healthcheck:
+    test:
+      - CMD-SHELL
+      - >-
+        test -s "$$AGENT_IDENTITY_CONFIG" &&
+        test -s "$$ENGINE_OUTPUT_DIR/health" &&
+        wget -q -O /dev/null "http://127.0.0.1:$$WORKLOAD_PORT/health"
+    interval: 2s
+    timeout: 2s
+    retries: 15
+    start_period: 2s
+
+services:
+  acceptance-web-agent:
+    <<: *acceptance-role-agent
+    hostname: ly-acceptance-web
+    environment:
+      LAB_ROLE: web
+      ENROLLMENT_TOKEN_ENV: ACCEPTANCE_WEB_ENROLL_TOKEN
+      AGENT_ENROLL_TOKEN: ${ACCEPTANCE_WEB_ENROLL_TOKEN:?ACCEPTANCE_WEB_ENROLL_TOKEN must be set}
+      AGENT_IDENTITY_CONFIG: /var/lib/lyflow/identity/web/agent-identity.yaml
+      SPOOL_DIR: /var/spool/lyflow/web
+      ENGINE_OUTPUT_DIR: /var/lib/lyflow/engine-output/web
+      WORKLOAD_PORT: "8080"
+    labels:
+      com.lyflow.acceptance.role: web
+      com.lyflow.acceptance.token-env: ACCEPTANCE_WEB_ENROLL_TOKEN
+    ports:
+      - "127.0.0.1::8080"
+    volumes:
+      - ./containers/acceptance-lab:/opt/lyflow-acceptance:ro
+      - acceptance-web-identity:/var/lib/lyflow/identity/web
+      - acceptance-web-spool:/var/spool/lyflow/web
+      - acceptance-web-engine-output:/var/lib/lyflow/engine-output/web
+
+  acceptance-database-agent:
+    <<: *acceptance-role-agent
+    hostname: ly-acceptance-database
+    environment:
+      LAB_ROLE: database
+      ENROLLMENT_TOKEN_ENV: ACCEPTANCE_DATABASE_ENROLL_TOKEN
+      AGENT_ENROLL_TOKEN: ${ACCEPTANCE_DATABASE_ENROLL_TOKEN:?ACCEPTANCE_DATABASE_ENROLL_TOKEN must be set}
+      AGENT_IDENTITY_CONFIG: /var/lib/lyflow/identity/database/agent-identity.yaml
+      SPOOL_DIR: /var/spool/lyflow/database
+      ENGINE_OUTPUT_DIR: /var/lib/lyflow/engine-output/database
+      WORKLOAD_PORT: "15432"
+    labels:
+      com.lyflow.acceptance.role: database
+      com.lyflow.acceptance.token-env: ACCEPTANCE_DATABASE_ENROLL_TOKEN
+    volumes:
+      - ./containers/acceptance-lab:/opt/lyflow-acceptance:ro
+      - acceptance-database-identity:/var/lib/lyflow/identity/database
+      - acceptance-database-spool:/var/spool/lyflow/database
+      - acceptance-database-engine-output:/var/lib/lyflow/engine-output/database
+
+  acceptance-worker-agent:
+    <<: *acceptance-role-agent
+    hostname: ly-acceptance-worker
+    environment:
+      LAB_ROLE: worker
+      ENROLLMENT_TOKEN_ENV: ACCEPTANCE_WORKER_ENROLL_TOKEN
+      AGENT_ENROLL_TOKEN: ${ACCEPTANCE_WORKER_ENROLL_TOKEN:?ACCEPTANCE_WORKER_ENROLL_TOKEN must be set}
+      AGENT_IDENTITY_CONFIG: /var/lib/lyflow/identity/worker/agent-identity.yaml
+      SPOOL_DIR: /var/spool/lyflow/worker
+      ENGINE_OUTPUT_DIR: /var/lib/lyflow/engine-output/worker
+      WORKLOAD_PORT: "18080"
+    labels:
+      com.lyflow.acceptance.role: worker
+      com.lyflow.acceptance.token-env: ACCEPTANCE_WORKER_ENROLL_TOKEN
+    volumes:
+      - ./containers/acceptance-lab:/opt/lyflow-acceptance:ro
+      - acceptance-worker-identity:/var/lib/lyflow/identity/worker
+      - acceptance-worker-spool:/var/spool/lyflow/worker
+      - acceptance-worker-engine-output:/var/lib/lyflow/engine-output/worker
+
+  acceptance-packet-sensor:
+    profiles:
+      - acceptance-lab
+    image: docker.io/jasonish/suricata@sha256:73cf099d6299f75dda2d9d6edcfb8238b7a7322566d6189a69d46442a366b7fa
+    restart: "no"
+    user: "0:0"
+    hostname: ly-acceptance-packet-sensor
+    entrypoint:
+      - /bin/sh
+      - /opt/lyflow-acceptance/packet-sensor-entrypoint.sh
+    environment:
+      LAB_ROLE: packet-sensor
+      ENROLLMENT_TOKEN_ENV: ACCEPTANCE_SENSOR_ENROLL_TOKEN
+      AGENT_ENROLL_TOKEN: ${ACCEPTANCE_SENSOR_ENROLL_TOKEN:?ACCEPTANCE_SENSOR_ENROLL_TOKEN must be set}
+      AGENT_IDENTITY_CONFIG: /var/lib/lyflow/identity/packet-sensor/agent-identity.yaml
+      SPOOL_DIR: /var/spool/lyflow/packet-sensor
+      ENGINE_OUTPUT_DIR: /var/lib/lyflow/engine-output/packet-sensor
+      CAPTURE_INTERFACE: eth0
+    labels:
+      com.lyflow.acceptance.role: packet-sensor
+      com.lyflow.acceptance.token-env: ACCEPTANCE_SENSOR_ENROLL_TOKEN
+      com.lyflow.acceptance.capture-interface: eth0
+    cap_add:
+      - NET_RAW
+      - NET_ADMIN
+      - SYS_NICE
+    volumes:
+      - ./containers/acceptance-lab:/opt/lyflow-acceptance:ro
+      - ./containers/acceptance-lab/suricata.yaml:/etc/suricata/lyflow-acceptance.yaml:ro
+      - acceptance-sensor-identity:/var/lib/lyflow/identity/packet-sensor
+      - acceptance-sensor-spool:/var/spool/lyflow/packet-sensor
+      - acceptance-sensor-engine-output:/var/lib/lyflow/engine-output/packet-sensor
+    networks:
+      - acceptance-lab
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          test -s "$$AGENT_IDENTITY_CONFIG" &&
+          test -s "$$ENGINE_OUTPUT_DIR/eve.json"
+      interval: 2s
+      timeout: 2s
+      retries: 20
+      start_period: 5s
+
+networks:
+  acceptance-lab:
+    driver: bridge
+
+volumes:
+  acceptance-web-identity:
+  acceptance-web-spool:
+  acceptance-web-engine-output:
+  acceptance-database-identity:
+  acceptance-database-spool:
+  acceptance-database-engine-output:
+  acceptance-worker-identity:
+  acceptance-worker-spool:
+  acceptance-worker-engine-output:
+  acceptance-sensor-identity:
+  acceptance-sensor-spool:
+  acceptance-sensor-engine-output:

@@ -21,6 +21,52 @@ func TestArchitectureRouteSnapshotCoversGatewayGroups(t *testing.T) {
 	}
 }
 
+func TestArchitectureRouteSnapshot_characterizesCurrentCountAndRoles(t *testing.T) {
+	// Given
+	counts := map[string]int{
+		"public":           0,
+		"agent_credential": 0,
+		"loopback":         0,
+		"admin_only":       0,
+		"default_roles":    0,
+	}
+
+	// When
+	for _, route := range ArchitectureRouteSnapshot {
+		switch {
+		case route.Public:
+			counts["public"]++
+		case route.AgentCredential:
+			counts["agent_credential"]++
+		case route.LoopbackOnly:
+			counts["loopback"]++
+		case rolesEqual(route.ReadRoles, adminRoles) && rolesEqual(route.WriteRoles, adminRoles):
+			counts["admin_only"]++
+		case rolesEqual(route.ReadRoles, allRoles) && rolesEqual(route.WriteRoles, operatorRoles):
+			counts["default_roles"]++
+		default:
+			t.Fatalf("uncharacterized route policy for %s: %#v", route.Path, route)
+		}
+	}
+
+	// Then
+	if len(ArchitectureRouteSnapshot) != 116 {
+		t.Fatalf("route snapshot count=%d, want 116", len(ArchitectureRouteSnapshot))
+	}
+	want := map[string]int{
+		"public":           2,
+		"agent_credential": 9,
+		"loopback":         1,
+		"admin_only":       24,
+		"default_roles":    80,
+	}
+	for class, expected := range want {
+		if counts[class] != expected {
+			t.Fatalf("%s route count=%d, want %d", class, counts[class], expected)
+		}
+	}
+}
+
 func TestRouteRegistryCoversEveryMountedPath(t *testing.T) {
 	// Given
 	file, err := parser.ParseFile(token.NewFileSet(), "main.go", nil, 0)
@@ -111,6 +157,16 @@ func TestArchitectureRouteSnapshotMarksPublicAndProtectedRoutes(t *testing.T) {
 		"/api/v1/rasp/event":            true,
 	}
 	for _, route := range ArchitectureRouteSnapshot {
+		if len(route.Methods) == 0 {
+			t.Fatalf("route has no methods: %s", route.Path)
+		}
+		methodSeen := map[string]bool{}
+		for _, method := range route.Methods {
+			if methodSeen[method] {
+				t.Fatalf("route has duplicate method %s: %s", method, route.Path)
+			}
+			methodSeen[method] = true
+		}
 		if route.Public {
 			publicCount++
 			if route.Path != "/api/v1/health" && route.Path != "/api/v1/auth/login" {

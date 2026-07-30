@@ -4083,6 +4083,14 @@ func setupLogging(cfg *Config) func() {
 
 func main() {
 	log.SetFlags(log.Ldate | log.Ltime | log.Lshortfile)
+	handled, err := runHealthcheckSubcommand(os.Args[1:], localMirrorWatchdogPath(), systemTrafficClock{})
+	if handled {
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "local-mirror healthcheck failed: %v\n", err)
+			os.Exit(1)
+		}
+		return
+	}
 	fmt.Printf("\n=== ly-agent %s - Universal Security Agent ===\n\n", version)
 	if ensurePlatformInstall() {
 		return

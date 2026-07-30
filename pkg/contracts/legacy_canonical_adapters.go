@@ -39,13 +39,17 @@ func (alert ComponentAlert) Canonical(principal PrincipalIdentity, ingestedAt ti
 		return CanonicalSecurityEvent{}, fmt.Errorf("normalize component alert: %w", err)
 	}
 	details, err := json.Marshal(struct {
-		RuleID      string                 `json:"rule_id"`
-		RuleName    string                 `json:"rule_name"`
-		Summary     string                 `json:"summary"`
-		Details     map[string]interface{} `json:"details,omitempty"`
-		Evidence    []RawReference         `json:"evidence_refs,omitempty"`
-		PolicyState PolicyState            `json:"policy_state,omitempty"`
-	}{RuleID: alert.RuleID, RuleName: alert.RuleName, Summary: alert.Summary, Details: alert.Details, Evidence: alert.EvidenceRefs, PolicyState: alert.PolicyState})
+		RuleID       string                 `json:"rule_id"`
+		RuleName     string                 `json:"rule_name"`
+		Source       string                 `json:"source"`
+		SourceEngine SourceEngine           `json:"source_engine"`
+		NativeRule   *RuleReference         `json:"native_rule,omitempty"`
+		RawReference *RawReference          `json:"raw_reference,omitempty"`
+		Summary      string                 `json:"summary"`
+		Details      map[string]interface{} `json:"details,omitempty"`
+		Evidence     []RawReference         `json:"evidence_refs,omitempty"`
+		PolicyState  PolicyState            `json:"policy_state,omitempty"`
+	}{RuleID: alert.RuleID, RuleName: alert.RuleName, Source: alert.Source, SourceEngine: alert.SourceEngine, NativeRule: alert.NativeRule, RawReference: alert.RawReference, Summary: alert.Summary, Details: alert.Details, Evidence: alert.EvidenceRefs, PolicyState: alert.PolicyState})
 	if err != nil {
 		return CanonicalSecurityEvent{}, fmt.Errorf("marshal component alert details: %w", err)
 	}

@@ -31,7 +31,8 @@
             <div v-if="item.feeds?.length" class="feed-field"><span>更新源</span><strong>{{ item.feeds.length }} 个</strong></div>
             <div><span>当前版本</span><strong>{{ item.currentVersion }}</strong></div>
             <div><span>最新版本</span><strong>{{ item.latestVersion }}</strong></div>
-            <div><span>规则数量</span><strong>{{ item.ruleCount }} 条</strong></div>
+            <div><span>{{ item.ruleCountLabel }}</span><strong>{{ item.ruleCount }} 条</strong></div>
+            <div v-if="item.ruleFileCount !== null"><span>规则文件</span><strong>{{ item.ruleFileCount }} 个</strong></div>
           </div>
           <div v-if="item.feeds?.length" class="feed-list">
             <span v-for="feed in item.feeds" :key="feed.source_id">{{ feed.name }}</span>
@@ -106,7 +107,7 @@
   </section>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
 import { ruleClient } from '../api/domain'
 import { normalizeItems, pickText } from '../shared/api-normalize'
@@ -117,6 +118,7 @@ const error = ref('')
 const nativeRules = ref([])
 const runtimeStatus = ref({ engines: {} })
 const counts = ref({})
+const countSemantics = ref({})
 const sourceItems = ref([])
 const total = ref(0)
 const page = ref(1)
@@ -141,6 +143,7 @@ const totalNativeCount = computed(() => Object.values(counts.value || {}).reduce
 const sourceRows = computed(() => {
   const engines = runtimeStatus.value?.engines || {}
   const trafficSources = sourceItems.value.filter((source) => isTrafficSource(source))
+  const suricataSemantics = countSemantics.value?.suricata || {}
   return ['suricata', 'wazuh', 'yara', 'geoip'].map((name) => {
     const runtime = engines[name] || {}
     const source = findSourceForEngine(name)
@@ -158,7 +161,9 @@ const sourceRows = computed(() => {
       localPath: trafficSource ? 'traffic-rules/signature-feeds' : geoSource ? 'geoip/city-attribution' : displayRulePath(firstText(runtime.rule_path, source?.path)),
       currentVersion,
       latestVersion: geoSource ? firstText(source?.latest_version, source?.current_version, currentVersion) : firstText(source?.latest_version, source?.current_version, currentVersion),
-      ruleCount: geoSource ? 1 : Number(counts.value?.[name] || runtime.rule_count || 0),
+      ruleCountLabel: trafficSource ? '规则签名' : '规则数量',
+      ruleCount: trafficSource ? Number(suricataSemantics.signature_count ?? 0) : geoSource ? 1 : Number(counts.value?.[name] || runtime.rule_count || 0),
+      ruleFileCount: trafficSource ? Number(suricataSemantics.rule_file_count ?? 0) : null,
       feeds,
       updatable: name !== 'rasp' && (trafficSource ? feeds.length > 0 : (!!source || geoSource)),
       running: geoSource ? true : trafficSource ? !!runtime.installed : !!runtime.running,
@@ -235,6 +240,7 @@ async function loadAll() {
     nativeRules.value = normalized.items
     total.value = normalized.total
     counts.value = native?.counts || native?.data?.counts || {}
+    countSemantics.value = native?.count_semantics || native?.data?.count_semantics || {}
     runtimeStatus.value = status || { engines: {} }
     sourceItems.value = normalizeItems(sourceData).items
     seedDrafts()

@@ -3,8 +3,26 @@ set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 helper="$root/scripts/qa/prepare-rasp-conformance-images.sh"
+dockerfile="$root/scripts/qa/rasp-conformance-images/cpython3.11-ubuntu22.04.Dockerfile"
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT INT TERM
+
+require_pattern() {
+  local mode=$1 pattern=$2 file=$3
+  if ! grep "$mode" -q -- "$pattern" "$file"; then
+    printf 'missing expected pattern in %s: %s\n' "$file" "$pattern" >&2
+    exit 1
+  fi
+}
+
+if grep -Fq 'make -j"$(nproc)"' "$dockerfile"; then
+  printf 'unbounded nproc build parallelism remains in %s\n' "$dockerfile" >&2
+  exit 1
+fi
+require_pattern -F 'ARG BUILD_JOBS=2' "$dockerfile"
+require_pattern -F 'make -j"$BUILD_JOBS"' "$dockerfile"
+require_pattern -F 'RASP_BUILD_JOBS' "$helper"
+require_pattern -F 'BUILD_JOBS' "$helper"
 
 mkdir -p "$tmp/bin"
 cat >"$tmp/bin/docker" <<'FAKE_DOCKER'
@@ -87,11 +105,28 @@ fi
 [[ $(wc -l <"$tmp/refs") -eq 3 ]]
 [[ $(grep -c '^buildx build ' "$FAKE_DOCKER_LOG") -eq 3 ]]
 grep -Fq -- '--platform linux/amd64 --load --pull=false --no-cache --provenance=false' "$FAKE_DOCKER_LOG"
+[[ $(grep -c -- '--build-arg BUILD_JOBS=2' "$FAKE_DOCKER_LOG") -eq 3 ]]
 for dockerfile in cpython3.10-ubuntu22.04.Dockerfile cpython3.11-ubuntu22.04.Dockerfile cpython3.12-ubuntu24.04.Dockerfile; do
   grep -Fq -- "$dockerfile" "$FAKE_DOCKER_LOG"
 done
 
 bash "$helper" >"$tmp/refs-second" 2>"$tmp/log-second"
 [[ $(grep -c '^buildx build ' "$FAKE_DOCKER_LOG") -eq 3 ]]
+
+: >"$FAKE_DOCKER_LOG"
+: >"$FAKE_DOCKER_STATE"
+RASP_BUILD_JOBS=1 bash "$helper" >"$tmp/refs-one" 2>"$tmp/log-one"
+[[ $(grep -c '^buildx build ' "$FAKE_DOCKER_LOG") -eq 3 ]]
+[[ $(grep -c -- '--build-arg BUILD_JOBS=1' "$FAKE_DOCKER_LOG") -eq 3 ]]
+
+for invalid_jobs in 0 5 nope; do
+  : >"$FAKE_DOCKER_LOG"
+  : >"$FAKE_DOCKER_STATE"
+  if RASP_BUILD_JOBS=$invalid_jobs bash "$helper" >"$tmp/refs-invalid-$invalid_jobs" 2>"$tmp/log-invalid-$invalid_jobs"; then
+    printf 'invalid RASP_BUILD_JOBS=%s unexpectedly passed\n' "$invalid_jobs" >&2
+    exit 1
+  fi
+  [[ ! -s "$FAKE_DOCKER_LOG" ]]
+done
 
 printf 'RASP conformance image preparation self-test passed\n'

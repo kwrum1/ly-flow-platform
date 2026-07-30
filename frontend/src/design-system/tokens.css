@@ -1,0 +1,293 @@
+.ly-console,
+.ly-console-overlay {
+  --ly-color-canvas: #f3f6fb;
+  --ly-color-surface: #ffffff;
+  --ly-color-surface-subtle: #f7faff;
+  --ly-color-surface-hover: #edf5ff;
+  --ly-color-surface-active: #dcecff;
+  --ly-color-rail: #1769c2;
+  --ly-color-rail-active: #0f57a5;
+  --ly-color-accent: #1677d2;
+  --ly-color-accent-hover: #0f63b6;
+  --ly-color-accent-soft: #e8f3ff;
+  --ly-color-text-strong: #1f2a37;
+  --ly-color-text: #344054;
+  --ly-color-text-muted: #667085;
+  --ly-color-text-inverse: #ffffff;
+  --ly-color-border: #d8e1ec;
+  --ly-color-border-strong: #b8c7d9;
+  --ly-color-focus: #005fbd;
+  --ly-color-success: #168a55;
+  --ly-color-success-soft: #e8f6ef;
+  --ly-color-warning: #ad6800;
+  --ly-color-warning-soft: #fff4df;
+  --ly-color-danger: #c43838;
+  --ly-color-danger-soft: #fff0f0;
+
+  --ly-space-1: 4px;
+  --ly-space-2: 8px;
+  --ly-space-3: 12px;
+  --ly-space-4: 16px;
+  --ly-space-5: 20px;
+  --ly-space-6: 24px;
+  --ly-space-8: 32px;
+
+  --ly-font-12: 12px;
+  --ly-font-14: 14px;
+  --ly-font-16: 16px;
+  --ly-font-20: 20px;
+  --ly-line-18: 18px;
+  --ly-line-22: 22px;
+  --ly-line-24: 24px;
+  --ly-line-28: 28px;
+  --ly-letter-spacing: 0;
+  --ly-font-family: Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+  --ly-font-mono: SFMono-Regular, Consolas, monospace;
+
+  --ly-radius-2: 2px;
+  --ly-radius-4: 4px;
+  --ly-radius-6: 6px;
+  --ly-radius-max: 8px;
+  --ly-radius-control: 8px;
+  --ly-radius-navigation: 8px;
+  --ly-radius-visualization: 12px;
+  --ly-border: 1px solid var(--ly-color-border);
+  --ly-focus-ring: 0 0 0 2px var(--ly-color-surface), 0 0 0 4px var(--ly-color-focus);
+  --ly-overlay-shadow: 0 8px 24px rgb(31 42 55 / 16%);
+
+  --ly-rail-width: 40px;
+  --ly-nav-width: 176px;
+  --ly-identity-height: 56px;
+  --ly-control-height: 36px;
+  --ly-data-row-height: 40px;
+  --ly-data-row-compact-height: 36px;
+  --ly-search-max-width: 320px;
+  --ly-icon-size: 18px;
+  --ly-icon-button-size: 36px;
+  --ly-motion-fast: 120ms;
+  --ly-motion-standard: 180ms;
+
+  --el-color-primary: var(--ly-color-accent);
+  --el-color-primary-light-3: var(--ly-color-accent-hover);
+  --el-color-primary-light-9: var(--ly-color-accent-soft);
+  --el-color-success: var(--ly-color-success);
+  --el-color-warning: var(--ly-color-warning);
+  --el-color-danger: var(--ly-color-danger);
+  --el-text-color-primary: var(--ly-color-text-strong);
+  --el-text-color-regular: var(--ly-color-text);
+  --el-text-color-secondary: var(--ly-color-text-muted);
+  --el-border-color: var(--ly-color-border);
+  --el-border-color-hover: var(--ly-color-border-strong);
+  --el-fill-color-blank: var(--ly-color-surface);
+  --el-fill-color-light: var(--ly-color-surface-subtle);
+  --el-fill-color-lighter: var(--ly-color-canvas);
+  --el-fill-color-dark: var(--ly-color-surface-active);
+  --el-bg-color: var(--ly-color-surface);
+  --el-bg-color-page: var(--ly-color-canvas);
+  --el-border-radius-base: var(--ly-radius-control);
+  --el-border-radius-small: var(--ly-radius-4);
+  --el-box-shadow-light: var(--ly-overlay-shadow);
+  --el-font-size-base: var(--ly-font-14);
+  --el-font-family: var(--ly-font-family);
+}
+
+.ly-console,
+.ly-console *,
+.ly-console *::before,
+.ly-console *::after {
+  box-sizing: border-box;
+  letter-spacing: var(--ly-letter-spacing);
+}
+
+.ly-console {
+  min-width: 0;
+  color: var(--ly-color-text);
+  background: var(--ly-color-canvas);
+  font-family: var(--ly-font-family);
+  font-size: var(--ly-font-14);
+  line-height: var(--ly-line-22);
+}
+
+.ly-console :where(a, button, input, select, textarea, [tabindex]):focus-visible {
+  outline: 0;
+  box-shadow: var(--ly-focus-ring);
+}
+
+.ly-console-frame {
+  display: grid;
+  grid-template-columns: var(--ly-rail-width) var(--ly-nav-width) minmax(0, 1fr);
+  min-width: 0;
+  min-height: 100dvh;
+  overflow: hidden;
+}
+
+.ly-console-frame__rail {
+  min-width: 0;
+  overflow: hidden auto;
+  color: var(--ly-color-text-inverse);
+  background: var(--ly-color-rail);
+}
+
+.ly-console-frame__navigation {
+  min-width: 0;
+  overflow: hidden auto;
+  background: var(--ly-color-surface-subtle);
+  border-right: var(--ly-border);
+}
+
+.ly-console-frame__workspace {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  background: var(--ly-color-canvas);
+}
+
+.ly-console-identity {
+  display: flex;
+  min-width: 0;
+  height: var(--ly-identity-height);
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--ly-space-4);
+  padding: 0 var(--ly-space-5);
+  background: var(--ly-color-surface);
+  border-bottom: var(--ly-border);
+}
+
+.ly-console-identity__copy {
+  min-width: 0;
+}
+
+.ly-console-identity__title {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ly-color-text-strong);
+  font-size: var(--ly-font-16);
+  font-weight: 600;
+  line-height: var(--ly-line-24);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ly-console-identity__context {
+  margin: 0;
+  overflow: hidden;
+  color: var(--ly-color-text-muted);
+  font-size: var(--ly-font-12);
+  line-height: var(--ly-line-18);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ly-console-identity__actions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: var(--ly-space-2);
+}
+
+.ly-console-search {
+  width: min(100%, var(--ly-search-max-width));
+}
+
+.ly-console-search .el-input__wrapper {
+  min-height: var(--ly-control-height);
+  border-radius: var(--ly-radius-control);
+  background: var(--ly-color-surface);
+  box-shadow: 0 0 0 1px var(--ly-color-border) inset;
+  transition: box-shadow var(--ly-motion-fast) ease-out;
+}
+
+.ly-console-search .el-input__wrapper:hover {
+  box-shadow: 0 0 0 1px var(--ly-color-border-strong) inset;
+}
+
+.ly-console-search .el-input__wrapper.is-focus {
+  box-shadow: 0 0 0 1px var(--ly-color-focus) inset, var(--ly-focus-ring);
+}
+
+.ly-console-surface {
+  min-width: 0;
+  overflow: hidden;
+  background: var(--ly-color-surface);
+  border: var(--ly-border);
+  border-radius: var(--ly-radius-max);
+}
+
+.ly-console-surface__header {
+  display: flex;
+  min-height: var(--ly-data-row-height);
+  align-items: center;
+  gap: var(--ly-space-3);
+  padding: 0 var(--ly-space-4);
+  color: var(--ly-color-text-strong);
+  background: var(--ly-color-surface-subtle);
+  border-bottom: var(--ly-border);
+  font-size: var(--ly-font-16);
+  font-weight: 600;
+}
+
+.ly-console-surface__body {
+  min-width: 0;
+  padding: var(--ly-space-4);
+}
+
+.ly-console-surface__body--flush {
+  padding: 0;
+}
+
+.ly-console .el-button,
+.ly-console .el-input__wrapper,
+.ly-console .el-select__wrapper {
+  min-height: var(--ly-control-height);
+  border-radius: var(--ly-radius-control);
+  font-size: var(--ly-font-14);
+}
+
+.ly-console .el-card,
+.ly-console .el-dialog,
+.ly-console .el-drawer {
+  border-radius: var(--ly-radius-max);
+}
+
+.ly-console .el-icon,
+.ly-console .ly-console-icon {
+  width: var(--ly-icon-size);
+  height: var(--ly-icon-size);
+  font-size: var(--ly-icon-size);
+}
+
+@media (max-width: 767px) {
+  .ly-console-frame {
+    grid-template-columns: var(--ly-rail-width) minmax(0, 1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  .ly-console-frame__rail {
+    grid-row: 1 / span 2;
+  }
+
+  .ly-console-frame__navigation {
+    grid-column: 2;
+    overflow: auto hidden;
+    border-right: 0;
+    border-bottom: var(--ly-border);
+  }
+
+  .ly-console-frame__workspace {
+    grid-column: 2;
+  }
+
+  .ly-console-identity {
+    height: var(--ly-identity-height);
+    padding: 0 var(--ly-space-4);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ly-console,
+  .ly-console * {
+    scroll-behavior: auto;
+    transition-duration: 0.01ms;
+  }
+}

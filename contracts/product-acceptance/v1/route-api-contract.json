@@ -1,0 +1,5558 @@
+{
+  "schema_version": 1,
+  "registry": {
+    "mounted_path_count": 116,
+    "sorted_path_sha256": "d7638dbb035951ba19e7672a4bb98af3d2eefb66e34cad9c25c3a388590896e6"
+  },
+  "roles": [
+    "admin",
+    "analyst",
+    "viewer"
+  ],
+  "frontend_routes": [
+    {
+      "path": "/",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/dashboard"
+      ],
+      "auth_mode": "session-decision",
+      "allowed_roles": [],
+      "current_sources": [
+        "router"
+      ]
+    },
+    {
+      "path": "/login",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/login"
+      ],
+      "auth_mode": "public",
+      "allowed_roles": [],
+      "current_sources": [
+        "router"
+      ]
+    },
+    {
+      "path": "/change-password",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/change-password"
+      ],
+      "auth_mode": "public",
+      "allowed_roles": [],
+      "current_sources": [
+        "router"
+      ]
+    },
+    {
+      "path": "/dashboard",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/dashboard"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router",
+        "navigation",
+        "metadata"
+      ]
+    },
+    {
+      "path": "/events",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/events"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router",
+        "navigation",
+        "metadata"
+      ]
+    },
+    {
+      "path": "/incidents",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/incidents"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router",
+        "navigation",
+        "metadata"
+      ]
+    },
+    {
+      "path": "/timeline",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/timeline"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router",
+        "navigation",
+        "metadata"
+      ]
+    },
+    {
+      "path": "/xdr",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/xdr"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router",
+        "metadata"
+      ]
+    },
+    {
+      "path": "/assets",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/assets"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router",
+        "navigation",
+        "metadata"
+      ]
+    },
+    {
+      "path": "/runtime",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/runtime"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router",
+        "metadata"
+      ]
+    },
+    {
+      "path": "/rasp",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/rasp"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router",
+        "metadata"
+      ]
+    },
+    {
+      "path": "/trace",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/trace"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router"
+      ]
+    },
+    {
+      "path": "/rules",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/rules"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router",
+        "navigation"
+      ]
+    },
+    {
+      "path": "/users",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/users"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router",
+        "navigation"
+      ]
+    },
+    {
+      "path": "/install-config",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/install-config"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router",
+        "navigation"
+      ]
+    },
+    {
+      "path": "/traffic-observe",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/traffic-observe"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router"
+      ]
+    },
+    {
+      "path": "/traffic-threats",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/traffic-threats"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router",
+        "navigation"
+      ]
+    },
+    {
+      "path": "/control-center",
+      "disposition": "retain",
+      "canonical_paths": [
+        "/control-center"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router",
+        "navigation"
+      ]
+    },
+    {
+      "path": "/application-threats",
+      "disposition": "consolidate",
+      "canonical_paths": [
+        "/rasp"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router"
+      ],
+      "current_gap": "Standalone duplicate remains mounted until T15."
+    },
+    {
+      "path": "/system-security-audit",
+      "disposition": "consolidate",
+      "canonical_paths": [
+        "/runtime"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router"
+      ],
+      "current_gap": "Standalone duplicate remains mounted until T15."
+    },
+    {
+      "path": "/host-ops",
+      "disposition": "consolidate",
+      "canonical_paths": [
+        "/assets"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router"
+      ],
+      "current_gap": "Standalone duplicate remains mounted until T15."
+    },
+    {
+      "path": "/real-time-posture",
+      "disposition": "consolidate",
+      "canonical_paths": [
+        "/xdr"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router"
+      ],
+      "current_gap": "Standalone duplicate remains mounted until T15."
+    },
+    {
+      "path": "/rule-visibility",
+      "disposition": "consolidate",
+      "canonical_paths": [
+        "/rules"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router"
+      ],
+      "current_gap": "Standalone page remains mounted until T15 moves it to a Rules tab."
+    },
+    {
+      "path": "/rule-updates",
+      "disposition": "consolidate",
+      "canonical_paths": [
+        "/rules"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router"
+      ],
+      "current_gap": "Standalone page remains mounted until T15 moves it to a Rules tab."
+    },
+    {
+      "path": "/logs",
+      "disposition": "remove",
+      "canonical_paths": [],
+      "auth_mode": "session",
+      "allowed_roles": [],
+      "current_sources": [
+        "navigation"
+      ],
+      "current_gap": "Unsupported navigation-only path remains in legacy metadata until T15."
+    },
+    {
+      "path": "/traffic",
+      "disposition": "remove",
+      "canonical_paths": [],
+      "auth_mode": "session",
+      "allowed_roles": [],
+      "current_sources": [
+        "navigation"
+      ],
+      "current_gap": "Unsupported navigation-only path remains in legacy metadata until T15."
+    },
+    {
+      "path": "/defense",
+      "disposition": "remove",
+      "canonical_paths": [
+        "/runtime",
+        "/rasp"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [],
+      "current_sources": [
+        "navigation"
+      ],
+      "current_gap": "Unsupported navigation-only path remains in legacy metadata until T15."
+    },
+    {
+      "path": "/topology",
+      "disposition": "remove",
+      "canonical_paths": [],
+      "auth_mode": "session",
+      "allowed_roles": [],
+      "current_sources": [
+        "navigation",
+        "metadata"
+      ],
+      "current_gap": "Unsupported navigation and metadata path remains until T15."
+    },
+    {
+      "path": "/intelligence",
+      "disposition": "remove",
+      "canonical_paths": [
+        "/xdr",
+        "/rasp",
+        "/runtime",
+        "/rules"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [],
+      "current_sources": [
+        "navigation",
+        "metadata"
+      ],
+      "current_gap": "Unsupported navigation and metadata path remains until T15."
+    },
+    {
+      "path": "/intelligence/rules",
+      "disposition": "remove",
+      "canonical_paths": [
+        "/rules"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "navigation",
+        "metadata"
+      ],
+      "current_gap": "Unsupported navigation and metadata path remains until T15."
+    },
+    {
+      "path": "/situation/global",
+      "disposition": "remove",
+      "canonical_paths": [],
+      "auth_mode": "session",
+      "allowed_roles": [],
+      "current_sources": [
+        "navigation",
+        "metadata"
+      ],
+      "current_gap": "Unsupported navigation and metadata path remains until T15."
+    },
+    {
+      "path": "/control",
+      "disposition": "remove",
+      "canonical_paths": [
+        "/control-center"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "navigation",
+        "metadata"
+      ],
+      "current_gap": "Unsupported navigation and metadata path remains until T15."
+    },
+    {
+      "path": "/settings",
+      "disposition": "remove",
+      "canonical_paths": [
+        "/users",
+        "/install-config"
+      ],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "navigation",
+        "metadata"
+      ],
+      "current_gap": "Unsupported navigation and metadata path remains until T15."
+    },
+    {
+      "path": "/reports",
+      "disposition": "remove",
+      "canonical_paths": [],
+      "auth_mode": "session",
+      "allowed_roles": [],
+      "current_sources": [
+        "navigation",
+        "metadata"
+      ],
+      "current_gap": "Unsupported navigation and metadata path remains until T15."
+    },
+    {
+      "path": "/unified",
+      "disposition": "remove",
+      "canonical_paths": [],
+      "auth_mode": "session",
+      "allowed_roles": [],
+      "current_sources": [
+        "metadata"
+      ],
+      "current_gap": "Unsupported metadata-only path remains until T15."
+    },
+    {
+      "path": "/intelligence/dpi",
+      "disposition": "remove",
+      "canonical_paths": [],
+      "auth_mode": "session",
+      "allowed_roles": [],
+      "current_sources": [
+        "metadata"
+      ],
+      "current_gap": "Unsupported metadata-only path remains until T15."
+    },
+    {
+      "path": "/intelligence/xdr",
+      "disposition": "remove",
+      "canonical_paths": [],
+      "auth_mode": "session",
+      "allowed_roles": [],
+      "current_sources": [
+        "metadata"
+      ],
+      "current_gap": "Unsupported metadata-only path remains until T15."
+    },
+    {
+      "path": "/intelligence/rasp",
+      "disposition": "remove",
+      "canonical_paths": [],
+      "auth_mode": "session",
+      "allowed_roles": [],
+      "current_sources": [
+        "metadata"
+      ],
+      "current_gap": "Unsupported metadata-only path remains until T15."
+    },
+    {
+      "path": "/threat-intel",
+      "disposition": "remove",
+      "canonical_paths": [],
+      "auth_mode": "session",
+      "allowed_roles": [],
+      "current_sources": [
+        "metadata"
+      ],
+      "current_gap": "Unsupported metadata-only path remains until T15."
+    },
+    {
+      "path": "/vulnerabilities",
+      "disposition": "remove",
+      "canonical_paths": [],
+      "auth_mode": "session",
+      "allowed_roles": [],
+      "current_sources": [
+        "metadata"
+      ],
+      "current_gap": "Unsupported metadata-only path remains until T15."
+    },
+    {
+      "path": "/:pathMatch(.*)*",
+      "disposition": "404",
+      "canonical_paths": [],
+      "auth_mode": "session",
+      "allowed_roles": [
+        "admin"
+      ],
+      "current_sources": [
+        "router"
+      ],
+      "current_gap": "Authenticated unknown paths currently redirect to /dashboard; T15 owns the 404 implementation."
+    }
+  ],
+  "api_routes": [
+    {
+      "path": "/",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/contract-id",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/contract-id",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "api-only",
+      "notes": "Current handler lacks a method guard; intended contract is narrower than current behavior."
+    },
+    {
+      "path": "/api/v1/admin/incident-lifecycle/checkpoint",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/admin/incident-lifecycle/checkpoint",
+            "body": {},
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/admin/incident-lifecycle/checkpoint",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable-with-audit"
+        }
+      ],
+      "disposition": "api-only"
+    },
+    {
+      "path": "/api/v1/agent/capabilities/",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/capabilities/agent-contract",
+            "body": {
+              "field": "traffic",
+              "enabled": true
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/capabilities/agent-contract",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        },
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/agent/capabilities/agent-contract",
+            "body": {
+              "field": "traffic",
+              "enabled": true
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/agent/capabilities/agent-contract",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/agent/component-alert",
+      "auth_mode": "agent-credential",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/component-alert",
+            "body": {
+              "agent_id": "agent-contract",
+              "component": "contract",
+              "severity": "low",
+              "title": "Contract fixture"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/component-alert",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "response",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "agent-only"
+    },
+    {
+      "path": "/api/v1/agent/config",
+      "auth_mode": "agent-credential",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/config",
+            "body": {
+              "agent_id": "agent-contract",
+              "agent_key": "contract-key"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/config",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "agent-only"
+    },
+    {
+      "path": "/api/v1/agent/download",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/agent/download",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/agent/download",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "HEAD",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "HEAD",
+            "path": "/api/v1/agent/download",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/agent/download",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/agent/enroll",
+      "auth_mode": "agent-credential",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/enroll",
+            "body": {
+              "token": "contract-enrollment",
+              "hostname": "contract-host",
+              "capabilities": []
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/enroll",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "agent-only"
+    },
+    {
+      "path": "/api/v1/agent/heartbeat",
+      "auth_mode": "agent-credential",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/heartbeat",
+            "body": {
+              "agent_id": "agent-contract",
+              "agent_key": "contract-key",
+              "status": "online"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/heartbeat",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "agent-only"
+    },
+    {
+      "path": "/api/v1/agent/identity",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/identity",
+            "body": {
+              "action": "inspect",
+              "agent_id": "agent-contract"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/identity",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable-with-audit"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/agent/install-config",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/agent/install-config",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/agent/install-config",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/agent/install.sh",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/agent/install.sh",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/agent/install.sh",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/agent/name/",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/name/agent-contract",
+            "body": {
+              "display_name": "contract-agent"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/name/agent-contract",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        },
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/agent/name/agent-contract",
+            "body": {
+              "display_name": "contract-agent"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/agent/name/agent-contract",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/agent/names",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/agent/names",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/agent/names",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/names",
+            "body": {
+              "agent_id": "agent-contract",
+              "display_name": "contract-agent"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/names",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        },
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/agent/names",
+            "body": {
+              "agent_id": "agent-contract",
+              "display_name": "contract-agent"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/agent/names",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/agent/rasp/probe/dotnet",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/agent/rasp/probe/dotnet",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/agent/rasp/probe/dotnet",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/agent/rasp/probe/java",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/agent/rasp/probe/java",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/agent/rasp/probe/java",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/agent/rasp/probe/java/source/",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/agent/rasp/probe/java/source/Probe.java",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/agent/rasp/probe/java/source/Probe.java",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/agent/rasp/probe/nodejs",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/agent/rasp/probe/nodejs",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/agent/rasp/probe/nodejs",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/agent/rasp/probe/php",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/agent/rasp/probe/php",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/agent/rasp/probe/php",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/agent/rasp/probe/python",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/agent/rasp/probe/python",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/agent/rasp/probe/python",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/agent/realtime",
+      "auth_mode": "agent-credential",
+      "operations": [
+        {
+          "method": "WS",
+          "allowed_roles": [],
+          "valid_fixture": {
+            "method": "WS",
+            "path": "/api/v1/agent/realtime",
+            "body": null,
+            "expected_statuses": [
+              101
+            ]
+          },
+          "invalid_fixture": {
+            "method": "WS",
+            "path": "/api/v1/agent/realtime",
+            "body": {
+              "upgrade": false
+            },
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": false,
+          "readback": "stream",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "agent-only"
+    },
+    {
+      "path": "/api/v1/agent/runtime-event",
+      "auth_mode": "agent-credential",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/runtime-event",
+            "body": {
+              "agent_id": "agent-contract",
+              "event_type": "contract",
+              "severity": "low"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/runtime-event",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "response",
+          "persistence": "ephemeral"
+        }
+      ],
+      "disposition": "agent-only"
+    },
+    {
+      "path": "/api/v1/agent/snapshot",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/snapshot",
+            "body": {
+              "agent_id": "agent-contract",
+              "agent_key": "contract-key",
+              "hostname": "contract-host",
+              "ip": "192.0.2.10",
+              "os": "linux",
+              "arch": "amd64",
+              "kernel": "contract",
+              "capabilities": [],
+              "interfaces": [],
+              "listening_ports": [],
+              "performance": {},
+              "processes": []
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/snapshot",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/agent/task-result",
+      "auth_mode": "agent-credential",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/task-result",
+            "body": {
+              "agent_id": "agent-contract",
+              "task_id": "task-contract",
+              "status": "success",
+              "result": {}
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/task-result",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "agent-only"
+    },
+    {
+      "path": "/api/v1/agent/traffic-event",
+      "auth_mode": "agent-credential",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/traffic-event",
+            "body": {
+              "agent_id": "agent-contract",
+              "stream": "traffic",
+              "data": {}
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/agent/traffic-event",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "response",
+          "persistence": "ephemeral"
+        }
+      ],
+      "disposition": "agent-only"
+    },
+    {
+      "path": "/api/v1/agent/uninstall.sh",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/agent/uninstall.sh",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/agent/uninstall.sh",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/agents",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/agents",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/agents",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/agents/",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/agents/agent-contract",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PATCH",
+            "path": "/api/v1/agents/agent-contract",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "DELETE",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/agents/agent-contract",
+            "body": {},
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/agents/",
+            "body": null,
+            "expected_statuses": [
+              404
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/assets",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/assets",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/assets",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/assets/",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/assets/host-contract",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PATCH",
+            "path": "/api/v1/assets/host-contract",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/assets/host-contract",
+            "body": {
+              "hostname": "contract-host",
+              "ip": "192.0.2.10"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/assets/host-contract",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "runtime-state",
+          "persistence": "ephemeral"
+        },
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/assets/host-contract",
+            "body": {
+              "hostname": "contract-host",
+              "ip": "192.0.2.10"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/assets/host-contract",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "runtime-state",
+          "persistence": "ephemeral"
+        },
+        {
+          "method": "DELETE",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/assets/host-contract",
+            "body": {
+              "hostname": "contract-host",
+              "ip": "192.0.2.10"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/assets/",
+            "body": null,
+            "expected_statuses": [
+              404
+            ]
+          },
+          "mutation": true,
+          "readback": "runtime-state",
+          "persistence": "ephemeral"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Mounted prefix owns dynamic resource or action suffixes under this single record. Current mutation is runtime-only or does not provide durable persistence."
+    },
+    {
+      "path": "/api/v1/assets/groups",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/assets/groups",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/assets/groups",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/assets/heartbeat",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/assets/heartbeat",
+            "body": {
+              "host_id": "host-contract",
+              "status": "online"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/assets/heartbeat",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "runtime-state",
+          "persistence": "ephemeral"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current mutation is runtime-only or does not provide durable persistence."
+    },
+    {
+      "path": "/api/v1/assets/stats",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/assets/stats",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/assets/stats",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/auth/bootstrap-token",
+      "auth_mode": "loopback",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/auth/bootstrap-token",
+            "body": {
+              "token": "contract-bootstrap-token"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/auth/bootstrap-token",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable-with-audit"
+        }
+      ],
+      "disposition": "loopback-only"
+    },
+    {
+      "path": "/api/v1/auth/change-password",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/auth/change-password",
+            "body": {
+              "old_password": "Contract-Pass-123!",
+              "new_password": "Contract-Pass-456!"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/auth/change-password",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/auth/login",
+      "auth_mode": "public",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/auth/login",
+            "body": {
+              "username": "admin",
+              "password": "Contract-Pass-123!"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/auth/login",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "public"
+    },
+    {
+      "path": "/api/v1/auth/logout",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/auth/logout",
+            "body": {},
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/auth/logout",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/auth/profile",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/auth/profile",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/auth/profile",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/auth/register",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/auth/register",
+            "body": {
+              "username": "contract-user",
+              "password": "Contract-Pass-123!",
+              "role": "viewer"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/auth/register",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/auth/users",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/auth/users",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/auth/users",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/auth/users/",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/auth/users/2",
+            "body": {
+              "username": "contract-user",
+              "role": "analyst",
+              "is_active": true
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/auth/users/2",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        },
+        {
+          "method": "DELETE",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/auth/users/2",
+            "body": {
+              "username": "contract-user",
+              "role": "analyst",
+              "is_active": true
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/auth/users/",
+            "body": null,
+            "expected_statuses": [
+              404
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Mounted prefix owns dynamic resource or action suffixes under this single record."
+    },
+    {
+      "path": "/api/v1/auth/users/password",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/auth/users/password",
+            "body": {
+              "user_id": 2,
+              "new_password": "Contract-Pass-456!"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/auth/users/password",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/component-alerts",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/component-alerts",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/component-alerts",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/component-alerts/",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/component-alerts/runtime",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/component-alerts/runtime",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/debug/components",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/debug/components",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/debug/components",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "api-only"
+    },
+    {
+      "path": "/api/v1/engine-health",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/engine-health",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/engine-health",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/engine-rules",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/engine-rules",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/engine-rules",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/engine-rules/update",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/engine-rules/update",
+            "body": {},
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/engine-rules/update",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": true,
+          "readback": "runtime-state",
+          "persistence": "ephemeral"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current mutation is runtime-only or does not provide durable persistence."
+    },
+    {
+      "path": "/api/v1/engine-runtime/status",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/engine-runtime/status",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/engine-runtime/status",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/event-migration",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/event-migration",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/event-migration",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/event-migration",
+            "body": {
+              "action": "observe"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/event-migration",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable-with-audit"
+        }
+      ],
+      "disposition": "api-only"
+    },
+    {
+      "path": "/api/v1/events",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/events",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/events",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current handler lacks a method guard; intended contract is narrower than current behavior."
+    },
+    {
+      "path": "/api/v1/health",
+      "auth_mode": "public",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/health",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/health",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "public",
+      "notes": "Current handler lacks a method guard; intended contract is narrower than current behavior."
+    },
+    {
+      "path": "/api/v1/incidents",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/incidents",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/incidents",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/incidents/",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/incidents/incident-contract",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/incidents/incident-contract",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/incidents/incident-contract",
+            "body": {
+              "status": "investigating",
+              "version": 1
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/incidents/incident-contract",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable-with-audit"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Mounted prefix owns dynamic resource or action suffixes under this single record."
+    },
+    {
+      "path": "/api/v1/public/situation/global",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/public/situation/global",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/public/situation/global",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rasp/agents",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rasp/agents",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rasp/agents",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rasp/elkeid-rules",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rasp/elkeid-rules",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rasp/elkeid-rules",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rasp/event",
+      "auth_mode": "agent-credential",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rasp/event",
+            "body": {
+              "agent_id": "agent-contract",
+              "event_type": "contract",
+              "severity": "low"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rasp/event",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "response",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "agent-only"
+    },
+    {
+      "path": "/api/v1/rasp/events",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rasp/events",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rasp/events",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rasp/protection/disable",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rasp/protection/disable",
+            "body": {
+              "agent_id": "agent-contract"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rasp/protection/disable",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "runtime-state",
+          "persistence": "ephemeral"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current mutation is runtime-only or does not provide durable persistence."
+    },
+    {
+      "path": "/api/v1/rasp/protection/enable",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rasp/protection/enable",
+            "body": {
+              "agent_id": "agent-contract",
+              "block_mode": false
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rasp/protection/enable",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "runtime-state",
+          "persistence": "ephemeral"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current mutation is runtime-only or does not provide durable persistence."
+    },
+    {
+      "path": "/api/v1/rasp/protection/status",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rasp/protection/status",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rasp/protection/status",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rasp/rules",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rasp/rules",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rasp/rules",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rasp/stats",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rasp/stats",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rasp/stats",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/realtime",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "WS",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "WS",
+            "path": "/api/v1/realtime",
+            "body": null,
+            "expected_statuses": [
+              101
+            ]
+          },
+          "invalid_fixture": {
+            "method": "WS",
+            "path": "/api/v1/realtime",
+            "body": {
+              "upgrade": false
+            },
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": false,
+          "readback": "stream",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/response/advisories",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/response/advisories",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/response/advisories",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/response/advisories",
+            "body": {
+              "candidate_id": "candidate-contract",
+              "action": "isolate",
+              "target": "agent-contract"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/response/advisories",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable-with-audit"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/response/advisories/",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/response/advisories/advisory-contract/approve",
+            "body": {
+              "idempotency_key": "contract-approval"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/response/advisories/advisory-contract/approve",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable-with-audit"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Mounted prefix owns dynamic resource or action suffixes under this single record."
+    },
+    {
+      "path": "/api/v1/response/candidates",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/response/candidates",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/response/candidates",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/response/policy",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/response/policy",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/response/policy",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/response/policy",
+            "body": {
+              "allow_actions": [
+                "isolate"
+              ],
+              "maintenance_windows": []
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/response/policy",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        },
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/response/policy",
+            "body": {
+              "allow_actions": [
+                "isolate"
+              ],
+              "maintenance_windows": []
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/response/policy",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rule-platform/active-bundle",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rule-platform/active-bundle",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rule-platform/active-bundle",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rule-platform/active-bundle",
+            "body": {},
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rule-platform/active-bundle",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rule-platform/bundles",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rule-platform/bundles",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rule-platform/bundles",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rule-platform/compile-preview",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rule-platform/compile-preview",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rule-platform/compile-preview",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rule-platform/compile-preview",
+            "body": {},
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rule-platform/compile-preview",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable-with-audit"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rule-platform/rollback",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rule-platform/rollback",
+            "body": {
+              "version": "contract-version"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rule-platform/rollback",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable-with-audit"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rule-platform/sources",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rule-platform/sources",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rule-platform/sources",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rule-platform/sources",
+            "body": {
+              "id": "contract-source",
+              "name": "Contract source",
+              "url": "https://fixtures.invalid/rules"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rule-platform/sources",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable-with-audit"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rule-platform/sync",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rule-platform/sync",
+            "body": {
+              "source_id": "contract-source",
+              "content": "alert tcp any any -> any any (sid:1;)"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rule-platform/sync",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable-with-audit"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rule-platform/versions",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rule-platform/versions",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rule-platform/versions",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rules",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rules",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rules",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rules",
+            "body": {
+              "filename": "contract.rules.yaml",
+              "rule": "title: contract-rule"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rules",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "runtime-state",
+          "persistence": "ephemeral"
+        },
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/rules",
+            "body": {
+              "filename": "contract.rules.yaml",
+              "rule": "title: contract-rule"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/rules",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "runtime-state",
+          "persistence": "ephemeral"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current mutation is runtime-only or does not provide durable persistence."
+    },
+    {
+      "path": "/api/v1/rules/categories",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rules/categories",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rules/categories",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current handler lacks a method guard; intended contract is narrower than current behavior."
+    },
+    {
+      "path": "/api/v1/rules/inventory",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rules/inventory",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rules/inventory",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rules/items/",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rules/items/rule-contract",
+            "body": {
+              "enabled": true,
+              "score": 1
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rules/items/rule-contract",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        },
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/rules/items/rule-contract",
+            "body": {
+              "enabled": true,
+              "score": 1
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/rules/items/rule-contract",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rules/quarantine",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rules/quarantine",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rules/quarantine",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rules/reports",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rules/reports",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rules/reports",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rules/score-weights",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rules/score-weights",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rules/score-weights",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rules/score-weights",
+            "body": {
+              "base": 1,
+              "source": 1,
+              "support": 1
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rules/score-weights",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        },
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/rules/score-weights",
+            "body": {
+              "base": 1,
+              "source": 1,
+              "support": 1
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/rules/score-weights",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rules/sources",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rules/sources",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rules/sources",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rules/sources/",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rules/sources/source-contract",
+            "body": {
+              "source_url": "https://fixtures.invalid/rules"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rules/sources/source-contract",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        },
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/rules/sources/source-contract",
+            "body": {
+              "source_url": "https://fixtures.invalid/rules"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/rules/sources/source-contract",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Mounted prefix owns dynamic resource or action suffixes under this single record."
+    },
+    {
+      "path": "/api/v1/rules/stats",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rules/stats",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rules/stats",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current handler lacks a method guard; intended contract is narrower than current behavior."
+    },
+    {
+      "path": "/api/v1/rules/subscription",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/rules/subscription",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rules/subscription",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/rules/subscription",
+            "body": {
+              "enabled": true
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/rules/subscription",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "runtime-state",
+          "persistence": "ephemeral"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current mutation is runtime-only or does not provide durable persistence."
+    },
+    {
+      "path": "/api/v1/rules/test",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rules/test",
+            "body": {
+              "source": "contract",
+              "message": "contract fixture"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rules/test",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": false,
+          "readback": "response",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/rules/update",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/rules/update",
+            "body": {},
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/rules/update",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": true,
+          "readback": "runtime-state",
+          "persistence": "ephemeral"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current mutation is runtime-only or does not provide durable persistence."
+    },
+    {
+      "path": "/api/v1/security-events",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/security-events",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/security-events",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/security-events",
+            "body": {
+              "event_uid": "evt-contract",
+              "category": "runtime",
+              "severity": "high",
+              "title": "Contract fixture",
+              "occurred_at": "2026-01-01T00:00:00Z"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/security-events",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable-with-audit"
+        }
+      ],
+      "disposition": "api-only"
+    },
+    {
+      "path": "/api/v1/security-events/",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "DELETE",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/security-events/event-contract",
+            "body": {},
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/security-events/",
+            "body": null,
+            "expected_statuses": [
+              404
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable-with-audit"
+        }
+      ],
+      "disposition": "api-only"
+    },
+    {
+      "path": "/api/v1/situation/target-location",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/situation/target-location",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/situation/target-location",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/situation/target-location",
+            "body": {
+              "latitude": 0,
+              "longitude": 0
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/situation/target-location",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "runtime-state",
+          "persistence": "ephemeral"
+        },
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/situation/target-location",
+            "body": {
+              "latitude": 0,
+              "longitude": 0
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/situation/target-location",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "runtime-state",
+          "persistence": "ephemeral"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current mutation is runtime-only or does not provide durable persistence."
+    },
+    {
+      "path": "/api/v1/stats",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/stats",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/stats",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current handler lacks a method guard; intended contract is narrower than current behavior."
+    },
+    {
+      "path": "/api/v1/system/time",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/system/time",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/system/time",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/system/time",
+            "body": {
+              "sync": true,
+              "ntp_server": "pool.ntp.org"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/system/time",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "runtime-state",
+          "persistence": "ephemeral"
+        },
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/system/time",
+            "body": {
+              "sync": true,
+              "ntp_server": "pool.ntp.org"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/system/time",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "runtime-state",
+          "persistence": "ephemeral"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current mutation is runtime-only or does not provide durable persistence."
+    },
+    {
+      "path": "/api/v1/threats/",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/threats/traffic",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/threats/traffic",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/timeline",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/timeline",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/timeline",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/timeline/",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/timeline/timeline-contract",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/timeline/timeline-contract",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/trace/analyze",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/trace/analyze",
+            "body": {
+              "session_id": "session-contract"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/trace/analyze",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": false,
+          "readback": "response",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/trace/events",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/trace/events",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/trace/events",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/trace/search",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/trace/search",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/trace/search",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/trace/search",
+            "body": {
+              "query": "contract",
+              "limit": 1
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/trace/search",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": false,
+          "readback": "response",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/trace/sessions",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/trace/sessions",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/trace/sessions",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/trace/sessions/{id}",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/trace/sessions/contract-id",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/trace/sessions/contract-id",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/trace/stats",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/trace/stats",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/trace/stats",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/traffic/flows",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/traffic/flows",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/traffic/flows",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/traffic/mirror-interface",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/traffic/mirror-interface",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/traffic/mirror-interface",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/traffic/mirror-interface",
+            "body": {
+              "enabled": false,
+              "interface": "lo"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/traffic/mirror-interface",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "runtime-state",
+          "persistence": "ephemeral"
+        },
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/traffic/mirror-interface",
+            "body": {
+              "enabled": false,
+              "interface": "lo"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/traffic/mirror-interface",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "runtime-state",
+          "persistence": "ephemeral"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current mutation is runtime-only or does not provide durable persistence."
+    },
+    {
+      "path": "/api/v1/traffic/sessions",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/traffic/sessions",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/traffic/sessions",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/traffic/threats",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/traffic/threats",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/traffic/threats",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/unified/events",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/unified/events",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/unified/events",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/unified/events/search",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/unified/events/search",
+            "body": {
+              "query": "contract",
+              "limit": 1,
+              "offset": 0
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/unified/events/search",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": false,
+          "readback": "response",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/unified/stats",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/unified/stats",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/unified/stats",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "HEAD",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "HEAD",
+            "path": "/api/v1/unified/stats",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/unified/stats",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/xdr/chains",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/xdr/chains",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/xdr/chains",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current handler lacks a method guard; intended contract is narrower than current behavior."
+    },
+    {
+      "path": "/api/v1/xdr/events",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/xdr/events",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/xdr/events",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current handler lacks a method guard; intended contract is narrower than current behavior."
+    },
+    {
+      "path": "/api/v1/xdr/log",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/xdr/log",
+            "body": {
+              "message": "contract fixture"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/xdr/log",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": false,
+          "readback": "response",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/xdr/posture",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/xdr/posture",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/xdr/posture",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current handler lacks a method guard; intended contract is narrower than current behavior."
+    },
+    {
+      "path": "/api/v1/xdr/sources",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/xdr/sources",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/xdr/sources",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current handler lacks a method guard; intended contract is narrower than current behavior."
+    },
+    {
+      "path": "/api/v1/xdr/stats",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/xdr/stats",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/xdr/stats",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current handler lacks a method guard; intended contract is narrower than current behavior."
+    },
+    {
+      "path": "/api/v1/xdr/top-events",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/xdr/top-events",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/xdr/top-events",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Current handler lacks a method guard; intended contract is narrower than current behavior."
+    }
+  ],
+  "expected_red_gaps": [
+    {
+      "id": "unsupported-navigation-metadata",
+      "current": "Sixteen unsupported navigation or metadata paths remain present.",
+      "required": "Remove unsupported paths from navigation, metadata, routes, and links.",
+      "owner_task": "T15"
+    },
+    {
+      "id": "standalone-consolidation-pages",
+      "current": "Six duplicate protected pages remain mounted as standalone routes.",
+      "required": "Consolidate each page into its exact canonical workflow.",
+      "owner_task": "T15"
+    },
+    {
+      "id": "authenticated-unknown-path-dashboard-fallback",
+      "current": "Authenticated unknown protected paths redirect to /dashboard.",
+      "required": "Render an authenticated 404 without dashboard fallback.",
+      "owner_task": "T15"
+    },
+    {
+      "id": "broad-handler-method-guards",
+      "current": "Twelve mounted handlers accept methods beyond their intended read contract.",
+      "required": "Align handler method rejection with the documented API contract.",
+      "owner_task": "T14"
+    },
+    {
+      "id": "proxy-sensitive-loopback-bootstrap",
+      "current": "Bootstrap authorization trusts the socket RemoteAddr loopback classification.",
+      "required": "Define trusted-proxy handling and an additional bootstrap authorization boundary.",
+      "owner_task": "T06"
+    }
+  ]
+}

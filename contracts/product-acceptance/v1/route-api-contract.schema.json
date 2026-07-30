@@ -1,0 +1,165 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://lyflow.local/contracts/product-acceptance/v1/route-api-contract.schema.json",
+  "title": "LyFlow route and API acceptance contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "registry",
+    "roles",
+    "frontend_routes",
+    "api_routes",
+    "expected_red_gaps"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "registry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mounted_path_count", "sorted_path_sha256"],
+      "properties": {
+        "mounted_path_count": { "type": "integer", "minimum": 1 },
+        "sorted_path_sha256": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+      }
+    },
+    "roles": {
+      "type": "array",
+      "minItems": 3,
+      "uniqueItems": true,
+      "items": { "enum": ["admin", "analyst", "viewer"] }
+    },
+    "frontend_routes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/frontendRoute" }
+    },
+    "api_routes": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/apiRoute" }
+    },
+    "expected_red_gaps": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/redGap" }
+    }
+  },
+  "$defs": {
+    "role": { "enum": ["admin", "analyst", "viewer"] },
+    "frontendRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "disposition",
+        "canonical_paths",
+        "auth_mode",
+        "allowed_roles",
+        "current_sources"
+      ],
+      "properties": {
+        "path": { "type": "string", "pattern": "^/" },
+        "disposition": { "enum": ["retain", "consolidate", "remove", "404"] },
+        "canonical_paths": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^/" }
+        },
+        "auth_mode": { "enum": ["public", "session-decision", "session"] },
+        "allowed_roles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/role" }
+        },
+        "current_sources": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["router", "navigation", "metadata"] }
+        },
+        "current_gap": { "type": "string", "minLength": 1 }
+      }
+    },
+    "fixture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "path", "body", "expected_statuses"],
+      "properties": {
+        "method": { "enum": ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "WS"] },
+        "path": { "type": "string", "pattern": "^/" },
+        "body": { "type": ["object", "null"] },
+        "expected_statuses": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "type": "integer", "minimum": 100, "maximum": 599 }
+        }
+      }
+    },
+    "apiRoute": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "auth_mode",
+        "operations",
+        "disposition"
+      ],
+      "properties": {
+        "path": { "type": "string", "pattern": "^/" },
+        "auth_mode": { "enum": ["public", "jwt", "agent-credential", "loopback"] },
+        "operations": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/apiOperation" }
+        },
+        "disposition": {
+          "enum": ["ui-workflow", "api-only", "agent-only", "public", "loopback-only"]
+        },
+        "notes": { "type": "string", "minLength": 1 }
+      }
+    },
+    "apiOperation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "method",
+        "allowed_roles",
+        "valid_fixture",
+        "invalid_fixture",
+        "mutation",
+        "readback",
+        "persistence"
+      ],
+      "properties": {
+        "method": { "enum": ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "WS"] },
+        "allowed_roles": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/role" }
+        },
+        "valid_fixture": { "$ref": "#/$defs/fixture" },
+        "invalid_fixture": { "$ref": "#/$defs/fixture" },
+        "mutation": { "type": "boolean" },
+        "readback": {
+          "enum": ["not-applicable", "response", "read-after-write", "stream", "runtime-state"]
+        },
+        "persistence": {
+          "enum": ["none", "ephemeral", "durable", "durable-with-audit", "artifact"]
+        }
+      }
+    },
+    "redGap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "current", "required", "owner_task"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+        "current": { "type": "string", "minLength": 1 },
+        "required": { "type": "string", "minLength": 1 },
+        "owner_task": { "enum": ["T06", "T14", "T15"] }
+      }
+    }
+  }
+}

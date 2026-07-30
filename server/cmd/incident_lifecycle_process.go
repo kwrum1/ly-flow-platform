@@ -54,6 +54,7 @@ func runIncidentLifecycleProcess() error {
 	}
 
 	mux := http.NewServeMux()
+	mux.HandleFunc("/api/v1/incidents", incidentsHandler(config))
 	mux.HandleFunc("/api/v1/incidents/", incidentDetailHandler(config))
 	mux.HandleFunc("/api/v1/admin/incident-lifecycle/checkpoint", incidentLifecycleCheckpointHandler(config))
 	listener, err := net.Listen("tcp", "127.0.0.1:0")

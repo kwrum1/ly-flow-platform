@@ -10,8 +10,19 @@ INTERVAL="${ENGINE_LAB_INTERVAL:-45}"
 SOURCE_ROOT="${ENGINE_SOURCE_ROOT:-/opt/ly-engine-lab/source}"
 RULE_ROOT="${ENGINE_RULE_ROOT:-/opt/ly-engine-lab/rules}"
 RUNTIME_ROOT="${ENGINE_RUNTIME_ROOT:-/opt/ly-engine-lab/runtime}"
+STATUS_TMP=""
 
-mkdir -p "$(dirname "$SURICATA_EVE")" "$(dirname "$WAZUH_ALERTS")" "$(dirname "$YARA_RESULTS")" "$(dirname "$RASP_EVENTS")" "$RUNTIME_ROOT" "$RULE_ROOT/yara"
+cleanup_status_tmp() {
+  if [ -n "$STATUS_TMP" ]; then rm -f "$STATUS_TMP"; fi
+}
+
+trap cleanup_status_tmp EXIT
+trap 'exit 129' HUP
+trap 'exit 130' INT
+trap 'exit 143' TERM
+
+mkdir -p "$(dirname "$SURICATA_EVE")" "$(dirname "$WAZUH_ALERTS")" "$(dirname "$YARA_RESULTS")" "$(dirname "$RASP_EVENTS")" "$(dirname "$STATUS_FILE")" "$RUNTIME_ROOT" "$RULE_ROOT/yara"
+rm -f "$STATUS_FILE"
 touch "$SURICATA_EVE" "$WAZUH_ALERTS" "$YARA_RESULTS" "$RASP_EVENTS"
 
 source_revision() {
@@ -45,9 +56,12 @@ first_yara_rule() {
 write_status() {
   local ts
   ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
-  cat > "$STATUS_FILE" <<JSON
+  STATUS_TMP="$(mktemp "${STATUS_FILE}.tmp.XXXXXX")"
+  cat > "$STATUS_TMP" <<JSON
 {"updated_at":"$ts","engines":{"suricata":{"installed":$(command -v suricata >/dev/null 2>&1 && echo true || echo false),"running":$(pgrep -f '^suricata' >/dev/null 2>&1 && echo true || echo false),"version":"$(version_of suricata)","output_path":"$SURICATA_EVE","rule_path":"$RULE_ROOT/suricata/et-open.rules","rule_count":$(rule_count "$RULE_ROOT/suricata" '*.rules'),"rule_pack_version":"et-open-active"},"wazuh":{"installed":$(command -v wazuh-agentd >/dev/null 2>&1 && echo true || echo false),"running":$(pgrep -f '^wazuh-agentd' >/dev/null 2>&1 && echo true || echo false),"version":"$(source_revision wazuh)","output_path":"$WAZUH_ALERTS","rule_path":"$SOURCE_ROOT/wazuh/ruleset/sca","rule_count":$(find "$SOURCE_ROOT/wazuh/ruleset" -type f \( -name '*.xml' -o -name '*.yml' -o -name '*.yaml' \) 2>/dev/null | wc -l | tr -d ' '),"rule_pack_version":"wazuh-ruleset"},"yara":{"installed":$(command -v yara >/dev/null 2>&1 && echo true || echo false),"running":true,"version":"$(version_of yara)","output_path":"$YARA_RESULTS","rule_path":"$RULE_ROOT/yara","rule_count":$(find "$RULE_ROOT/yara" -type f \( -name '*.yar' -o -name '*.yara' \) 2>/dev/null | wc -l | tr -d ' '),"rule_pack_version":"signature-base-yara"},"rasp":{"installed":$(command -v openrasp >/dev/null 2>&1 && echo true || echo false),"running":$(pgrep -f '^openrasp' >/dev/null 2>&1 && pgrep -f '^ly-rasp-bridge' >/dev/null 2>&1 && echo true || echo false),"version":"openrasp:$(source_revision openrasp) elkeid:$(source_revision elkeid)","output_path":"$RASP_EVENTS","rule_path":"$SOURCE_ROOT/openrasp/plugins","rule_count":$(rule_count "$SOURCE_ROOT/openrasp/plugins" '*.js'),"rule_pack_version":"openrasp-elkeid"}}}
 JSON
+  mv "$STATUS_TMP" "$STATUS_FILE"
+  STATUS_TMP=""
   cp "$STATUS_FILE" /tmp/engine-status-last.json 2>/dev/null || true
 }
 
