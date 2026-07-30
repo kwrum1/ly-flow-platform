@@ -46,7 +46,7 @@ var (
 func DefaultPolicy(now time.Time, owner, auditLink string) Policy {
 	return Policy{
 		ID: "rasp-monitor-default", Version: 1, Owner: owner, Mode: ModeMonitor,
-		Selectors: Selectors{}, ExpiresAt: now.Add(365 * 24 * time.Hour), FailBehavior: FailMonitor,
+		Selectors: Selectors{Languages: []Language{shared.LanguagePython, shared.LanguageJava}}, ExpiresAt: now.Add(365 * 24 * time.Hour), FailBehavior: FailMonitor,
 		Limits: Limits{MaxEventsPerSecond: 100, ReplayMinSamples: 1000, ReplayMaxFalsePositiveRate: 0.01},
 		Canary: CanaryPolicy{RequiredACKs: 1}, AuditLink: auditLink,
 	}

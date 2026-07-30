@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 
 	shared "github.com/lyflow/ly-flow-platform/rasppolicy"
@@ -52,8 +53,13 @@ func (bridge *raspBridgeRuntime) Handler() http.Handler {
 	return mux
 }
 
-func (bridge *raspBridgeRuntime) authenticate(w http.ResponseWriter, r *http.Request) bool {
-	if !bridge.tokens.Authenticate(r.Header.Get(raspBridgeTokenHeader)) {
+func (bridge *raspBridgeRuntime) authenticate(w http.ResponseWriter, r *http.Request, allowBootstrap bool) bool {
+	token := r.Header.Get(raspBridgeTokenHeader)
+	authenticated := bridge.tokens.Authenticate(token)
+	if allowBootstrap {
+		authenticated = bridge.tokens.AuthenticateConfig(token)
+	}
+	if !authenticated {
 		if err := bridge.agent.propagateControlHealth(bridge.agent.runtimeHealth.Degrade("authorization_failed", true)); err != nil {
 			http.Error(w, "control-health publication failed", http.StatusInternalServerError)
 			return false
@@ -77,7 +83,7 @@ func (bridge *raspBridgeRuntime) handleEvent(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !bridge.authenticate(w, r) {
+	if !bridge.authenticate(w, r, false) {
 		return
 	}
 	now := bridge.now().UTC()
@@ -144,7 +150,7 @@ func (bridge *raspBridgeRuntime) handleConfig(w http.ResponseWriter, r *http.Req
 		http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
-	if !bridge.authenticate(w, r) {
+	if !bridge.authenticate(w, r, true) {
 		return
 	}
 	binding, active := bridge.agent.raspBridgePolicyBinding()
@@ -231,13 +237,19 @@ func (a *Agent) raspBridgeHealthSnapshot() (raspBridgeHealth, bool) {
 }
 
 func (a *Agent) rotateRASPBridgeToken() error {
+	a.raspBridgeMu.RLock()
+	bridge := a.raspBridge
+	a.raspBridgeMu.RUnlock()
+	a.cfgMu.RLock()
+	configured := strings.TrimSpace(a.cfg.RASPBridgeToken)
+	a.cfgMu.RUnlock()
+	if bridge == nil && configured != "" {
+		return nil
+	}
 	next, err := generateRASPBridgeToken()
 	if err != nil {
 		return fmt.Errorf("generate RASP bridge token: %w", err)
 	}
-	a.raspBridgeMu.RLock()
-	bridge := a.raspBridge
-	a.raspBridgeMu.RUnlock()
 	if bridge != nil {
 		if err := bridge.RotateToken(next); err != nil {
 			return fmt.Errorf("rotate RASP bridge token: %w", err)

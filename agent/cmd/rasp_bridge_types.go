@@ -116,6 +116,18 @@ func (request raspBridgeEventRequest) delivery(binding raspBridgePolicyBinding, 
 		"rule_id": request.RuleID, "evidence": request.Evidence, "policy_id": request.PolicyID,
 		"policy_version": request.PolicyVersion, "policy_signature": binding.Signature,
 	}
+	switch request.EventType {
+	case raspBridgeEventCommand:
+		fields["command"] = request.Evidence
+	case raspBridgeEventSQL:
+		fields["query"] = request.Evidence
+	case raspBridgeEventFile:
+		fields["path"] = request.Evidence
+	case raspBridgeEventDeserialize:
+		fields["payload"] = request.Evidence
+	case raspBridgeEventHTTP:
+		fields["url"] = request.Evidence
+	}
 	telemetry := contracts.TelemetryEnvelope{
 		SchemaVersion: contracts.TelemetrySchemaVersion,
 		ID:            "rasp-" + request.EventID,
@@ -166,6 +178,9 @@ func knownRASPBridgeSeverity(severity contracts.AlertSeverity) bool {
 func raspBridgeLanguageAllowed(language shared.Language, allowed []shared.Language) bool {
 	if language != shared.LanguagePython && language != shared.LanguageJava {
 		return false
+	}
+	if len(allowed) == 0 {
+		return true
 	}
 	for _, candidate := range allowed {
 		if candidate == language {

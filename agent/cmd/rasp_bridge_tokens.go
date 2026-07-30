@@ -15,6 +15,7 @@ var errRASPBridgeToken = errors.New("RASP bridge token invalid")
 
 type raspBridgeTokenSet struct {
 	mu            sync.RWMutex
+	bootstrap     string
 	current       string
 	previous      string
 	previousUntil time.Time
@@ -27,7 +28,7 @@ func newRASPBridgeTokenSet(current string, overlap time.Duration, now func() tim
 	if current == "" || overlap <= 0 || now == nil {
 		return nil, errRASPBridgeToken
 	}
-	return &raspBridgeTokenSet{current: current, overlap: overlap, now: now}, nil
+	return &raspBridgeTokenSet{bootstrap: current, current: current, overlap: overlap, now: now}, nil
 }
 
 func (tokens *raspBridgeTokenSet) Authenticate(candidate string) bool {
@@ -37,6 +38,17 @@ func (tokens *raspBridgeTokenSet) Authenticate(candidate string) bool {
 		return true
 	}
 	return tokens.now().Before(tokens.previousUntil) && secureRASPBridgeTokenEqual(candidate, tokens.previous)
+}
+
+// AuthenticateConfig also accepts the stable bootstrap credential. It can only
+// fetch signed, agent-bound config; event ingestion still requires a rotated token.
+func (tokens *raspBridgeTokenSet) AuthenticateConfig(candidate string) bool {
+	if tokens.Authenticate(candidate) {
+		return true
+	}
+	tokens.mu.RLock()
+	defer tokens.mu.RUnlock()
+	return secureRASPBridgeTokenEqual(candidate, tokens.bootstrap)
 }
 
 func (tokens *raspBridgeTokenSet) Rotate(next string) error {

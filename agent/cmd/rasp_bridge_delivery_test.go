@@ -31,6 +31,9 @@ func TestRASPBridgeEvent_delivers_valid_inert_event_as_canonical_telemetry(t *te
 		if err := telemetry.Validate(); err != nil {
 			t.Fatalf("telemetry invalid: %v", err)
 		}
+		if telemetry.Fields["command"] != "echo todo12-inert" || telemetry.Fields["evidence"] != "echo todo12-inert" {
+			t.Fatalf("command semantic fields missing: %+v", telemetry.Fields)
+		}
 		canonical, err := telemetry.Canonical(contracts.PrincipalIdentity("agent-todo12"), time.Date(2026, 7, 14, 12, 0, 1, 0, time.UTC))
 		if err != nil {
 			t.Fatalf("canonicalize delivered event: %v", err)

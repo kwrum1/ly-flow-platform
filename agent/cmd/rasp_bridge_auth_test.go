@@ -22,7 +22,17 @@ func TestRASPBridgeTokenRotation_seeds_token_before_bridge_starts(t *testing.T) 
 	}
 }
 
-func TestRASPBridgeTokenRotation_accepts_overlap_then_rejects_stale_token(t *testing.T) {
+func TestRASPBridgeTokenRotation_preservesConfiguredBootstrapBeforeBridgeStarts(t *testing.T) {
+	agent := NewAgent(&Config{RASPBridgeToken: "configured-bootstrap-token"})
+	if err := agent.rotateRASPBridgeToken(); err != nil {
+		t.Fatalf("preserve bootstrap token: %v", err)
+	}
+	if agent.cfg.RASPBridgeToken != "configured-bootstrap-token" {
+		t.Fatalf("configured bootstrap token was replaced")
+	}
+}
+
+func TestRASPBridgeTokenRotation_accepts_overlap_then_rejects_stale_event_token(t *testing.T) {
 	// Given
 	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
 	bridge := newTestRASPBridge(t, func() time.Time { return now }, 4, false, &channelRASPBridgePublisher{events: make(chan contracts.TelemetryEnvelope, 1)})
@@ -33,7 +43,7 @@ func TestRASPBridgeTokenRotation_accepts_overlap_then_rejects_stale_token(t *tes
 	// When
 	overlap := performRASPBridgeRequest(bridge.Handler(), http.MethodGet, raspBridgeConfigPath, "bridge-token-current", nil)
 	now = now.Add(time.Minute + time.Nanosecond)
-	stale := performRASPBridgeRequest(bridge.Handler(), http.MethodGet, raspBridgeConfigPath, "bridge-token-current", nil)
+	stale := performRASPBridgeRequest(bridge.Handler(), http.MethodPost, raspBridgeEventsPath, "bridge-token-current", validRASPBridgeBody(t))
 
 	// Then
 	if overlap.Code != http.StatusOK {
@@ -41,6 +51,25 @@ func TestRASPBridgeTokenRotation_accepts_overlap_then_rejects_stale_token(t *tes
 	}
 	if stale.Code != http.StatusUnauthorized {
 		t.Fatalf("stale status = %d body = %s", stale.Code, stale.Body.String())
+	}
+}
+
+func TestRASPBridgeBootstrapToken_onlyRefreshesConfigAfterRotation(t *testing.T) {
+	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)
+	bridge := newTestRASPBridge(t, func() time.Time { return now }, 4, false, &channelRASPBridgePublisher{events: make(chan contracts.TelemetryEnvelope, 1)})
+	if err := bridge.RotateToken("bridge-token-next"); err != nil {
+		t.Fatalf("rotate bridge token: %v", err)
+	}
+	now = now.Add(raspBridgeTokenOverlap + time.Second)
+
+	config := performRASPBridgeRequest(bridge.Handler(), http.MethodGet, raspBridgeConfigPath, "bridge-token-current", nil)
+	event := performRASPBridgeRequest(bridge.Handler(), http.MethodPost, raspBridgeEventsPath, "bridge-token-current", validRASPBridgeBody(t))
+
+	if config.Code != http.StatusOK {
+		t.Fatalf("bootstrap config status = %d body = %s", config.Code, config.Body.String())
+	}
+	if event.Code != http.StatusUnauthorized {
+		t.Fatalf("bootstrap event status = %d body = %s", event.Code, event.Body.String())
 	}
 }
 
@@ -66,6 +95,15 @@ func TestRASPBridgeConfigPull_requires_token_and_agent_binding(t *testing.T) {
 	health := bridge.agent.runtimeHealth.Snapshot()
 	if health.Reason != "authorization_failed" || health.PreventionEnabled {
 		t.Fatalf("authorization failure did not fail closed: %+v", health)
+	}
+}
+
+func TestRASPBridgeLanguage_emptySelectorAllowsSupportedRuntimes(t *testing.T) {
+	if !raspBridgeLanguageAllowed("python", nil) || !raspBridgeLanguageAllowed("java", nil) {
+		t.Fatal("empty language selector must allow supported runtimes")
+	}
+	if raspBridgeLanguageAllowed("php", nil) {
+		t.Fatal("empty language selector allowed unsupported runtime")
 	}
 }
 

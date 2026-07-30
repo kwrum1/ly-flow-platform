@@ -9,7 +9,7 @@ import (
 )
 
 func (bridge *raspBridgeRuntime) handleHealth(w http.ResponseWriter, r *http.Request) {
-	if !bridge.authenticate(w, r) {
+	if !bridge.authenticate(w, r, false) {
 		return
 	}
 	switch r.Method {
