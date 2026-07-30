@@ -35,6 +35,7 @@ import (
 	"github.com/lyflow/ly-flow-platform/server/advisoryresponse"
 	"github.com/lyflow/ly-flow-platform/server/agentidentity"
 	"github.com/lyflow/ly-flow-platform/server/agentpolicy"
+	"github.com/lyflow/ly-flow-platform/server/analytics"
 	wsapi "github.com/lyflow/ly-flow-platform/server/api/websocket"
 	"github.com/lyflow/ly-flow-platform/server/incidentlifecycle"
 	"github.com/lyflow/ly-flow-platform/server/ingestionauth"
@@ -7127,13 +7128,40 @@ func persistTrafficSession(ctx context.Context, cfg *Config, msg redis.XMessage)
 	if err != nil {
 		return transport.Permanent(transport.ReasonInvalidPayload, err)
 	}
+	agentID := xdrPickString(item, "agent_id")
+	srcIP := xdrPickString(item, "src_ip")
+	dstIP := xdrPickString(item, "dst_ip")
+	srcPort := boundedTrafficPort(xdrPickNumber(item, "src_port", 0))
+	dstPort := boundedTrafficPort(xdrPickNumber(item, "dst_port", 0))
+	protocol := xdrPickString(item, "protocol")
+	ingestedAt := time.Now().UTC()
 	_, err = cfg.DBPool.Exec(ctx, `INSERT INTO traffic_sessions (session_uid, observed_at, agent_id, src_ip, dst_ip, src_port, dst_port, protocol, raw_event, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,NOW())
-		ON CONFLICT (session_uid) DO UPDATE SET observed_at=EXCLUDED.observed_at, agent_id=EXCLUDED.agent_id, src_ip=EXCLUDED.src_ip, dst_ip=EXCLUDED.dst_ip, src_port=EXCLUDED.src_port, dst_port=EXCLUDED.dst_port, protocol=EXCLUDED.protocol, raw_event=EXCLUDED.raw_event, updated_at=NOW()`, uid, observed, xdrPickString(item, "agent_id"), xdrPickString(item, "src_ip"), xdrPickString(item, "dst_ip"), int(xdrPickNumber(item, "src_port", 0)), int(xdrPickNumber(item, "dst_port", 0)), xdrPickString(item, "protocol"), string(raw))
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
+		ON CONFLICT (session_uid) DO UPDATE SET observed_at=EXCLUDED.observed_at, agent_id=EXCLUDED.agent_id, src_ip=EXCLUDED.src_ip, dst_ip=EXCLUDED.dst_ip, src_port=EXCLUDED.src_port, dst_port=EXCLUDED.dst_port, protocol=EXCLUDED.protocol, raw_event=EXCLUDED.raw_event, updated_at=EXCLUDED.updated_at`, uid, observed, agentID, srcIP, dstIP, int(srcPort), int(dstPort), protocol, string(raw), ingestedAt)
 	if err != nil {
 		return fmt.Errorf("materialize traffic session uid=%s: %w", uid, err)
 	}
+	if cfg.EventStorage == nil {
+		return fmt.Errorf("materialize traffic session uid=%s: ClickHouse full-session storage unavailable", uid)
+	}
+	if err := cfg.EventStorage.WriteTrafficSession(ctx, analytics.TrafficSessionRecord{
+		SessionUID: uid, Version: uint64(ingestedAt.UnixNano()), ObservedAt: observed,
+		AgentID: agentID, SrcIP: srcIP, DstIP: dstIP, SrcPort: srcPort, DstPort: dstPort,
+		Protocol: protocol, RawEvent: string(raw), IngestedAt: ingestedAt,
+	}); err != nil {
+		return fmt.Errorf("materialize ClickHouse traffic session uid=%s: %w", uid, err)
+	}
 	return nil
+}
+
+func boundedTrafficPort(value int64) uint16 {
+	if value <= 0 {
+		return 0
+	}
+	if value > 65535 {
+		return 65535
+	}
+	return uint16(value)
 }
 
 func loadPersistentTrafficSessions(ctx context.Context, cfg *Config, limit, offset int, query, agentID, srcIP, srcPort, dstIP, dstPort string, startTime, endTime *time.Time) ([]map[string]interface{}, int, error) {

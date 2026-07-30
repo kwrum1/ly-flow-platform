@@ -14,7 +14,8 @@ import (
 )
 
 type StorageEventRuntime struct {
-	migration *analytics.StorageMigration
+	migration  *analytics.StorageMigration
+	clickhouse *analytics.HTTPClickHouse
 }
 
 func newProductionStorageEventRuntime(ctx context.Context, postgres *pgxpool.Pool) (*StorageEventRuntime, error) {
@@ -42,7 +43,10 @@ func newProductionStorageEventRuntime(ctx context.Context, postgres *pgxpool.Poo
 	if err := migration.Migrate(ctx); err != nil {
 		return nil, fmt.Errorf("migrate event storage: %w", err)
 	}
-	return &StorageEventRuntime{migration: migration}, nil
+	if err := clickhouse.EnsureTrafficSessionTable(ctx); err != nil {
+		return nil, fmt.Errorf("initialize full-session storage: %w", err)
+	}
+	return &StorageEventRuntime{migration: migration, clickhouse: clickhouse}, nil
 }
 
 func (runtime *StorageEventRuntime) WriteCanonical(ctx context.Context, event contracts.CanonicalSecurityEvent) error {
@@ -61,6 +65,20 @@ func (runtime *StorageEventRuntime) WriteCanonical(ctx context.Context, event co
 		RawReference: event.Provenance.NativeEventID, Message: event.EventType, PayloadJSON: string(payload),
 	}
 	return runtime.migration.Write(ctx, record)
+}
+
+func (runtime *StorageEventRuntime) WriteTrafficSession(ctx context.Context, session analytics.TrafficSessionRecord) error {
+	if runtime == nil || runtime.clickhouse == nil {
+		return fmt.Errorf("ClickHouse full-session storage unavailable")
+	}
+	return runtime.clickhouse.InsertTrafficSession(ctx, session)
+}
+
+func (runtime *StorageEventRuntime) TrafficSessionCount(ctx context.Context) (uint64, error) {
+	if runtime == nil || runtime.clickhouse == nil {
+		return 0, fmt.Errorf("ClickHouse full-session storage unavailable")
+	}
+	return runtime.clickhouse.TrafficSessionCount(ctx)
 }
 
 func (runtime *StorageEventRuntime) WriteComponentAlert(ctx context.Context, alert contracts.ComponentAlert, ingestedAt time.Time) (MigrationWriteReceipt, error) {
