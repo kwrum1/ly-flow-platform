@@ -18,6 +18,13 @@ rule-files:
 stream:
   checksum-validation: yes
 
+af-packet:
+  - interface: ens35
+    cluster-type: cluster_flow
+    defrag: yes
+    use-mmap: yes
+    tpacket-v3: yes
+
 app-layer:
   protocols:
     dns:
@@ -58,3 +65,6 @@ outputs:
         - tls:
             extended: yes
             session-resumption: yes
+        - stats:
+            totals: yes
+            threads: no

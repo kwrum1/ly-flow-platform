@@ -488,7 +488,9 @@ func (a *Agent) startLocalMirror() error {
 	if a.cfg.MaxTrafficEventsPerSec == 20 {
 		a.cfg.MaxTrafficEventsPerSec = 0
 	}
-	if iface := fetchMirrorInterface(a.cfg.API); iface != "" {
+	if config, ok := loadLocalMirrorConfig(); ok {
+		a.cfg.TrafficInterface = config.Interface
+	} else if iface := fetchMirrorInterface(a.cfg.API); iface != "" {
 		a.cfg.TrafficInterface = iface
 	}
 	if strings.TrimSpace(a.cfg.TrafficInterface) == "" || strings.EqualFold(a.cfg.TrafficInterface, "auto") {
@@ -514,7 +516,10 @@ func (a *Agent) mirrorConfigLoop() {
 }
 
 func (a *Agent) applyMirrorConfig() {
-	config := fetchMirrorConfig(a.cfg.API)
+	config, ok := loadLocalMirrorConfig()
+	if !ok {
+		config = fetchMirrorConfig(a.cfg.API)
+	}
 	a.cfgMu.Lock()
 	oldInterface := a.cfg.TrafficInterface
 	if strings.TrimSpace(config.Interface) != "" {
@@ -528,6 +533,25 @@ func (a *Agent) applyMirrorConfig() {
 	}
 }
 
+func loadLocalMirrorConfig() (mirrorRuntimeConfig, bool) {
+	path := strings.TrimSpace(os.Getenv("MIRROR_CONFIG_FILE"))
+	if path == "" {
+		return mirrorRuntimeConfig{}, false
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return mirrorRuntimeConfig{}, false
+	}
+	var response struct {
+		Enabled   bool   `json:"enabled"`
+		Interface string `json:"interface"`
+	}
+	if err := json.Unmarshal(body, &response); err != nil {
+		fmt.Printf("[mirror] local mirror config parse failed: %v\n", err)
+		return mirrorRuntimeConfig{}, false
+	}
+	return mirrorRuntimeConfig{Enabled: response.Enabled, Interface: strings.TrimSpace(response.Interface)}, true
+}
 func (a *Agent) Stop() {
 	fmt.Printf("[agent] Stopping...\n")
 	a.cancel()

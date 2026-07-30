@@ -368,6 +368,7 @@ services:
     environment:
       AGENT_MODE: local-mirror
       LOCAL_MIRROR_MODE: "true"
+      MIRROR_CONFIG_FILE: /app/.sisyphus/runtime/mirror-capture-config.json
       API_SERVER: "http://127.0.0.1:${SERVER_BIND_PORT:-8080}"
       REDIS_SERVER: "127.0.0.1:${REDIS_BIND_PORT:-6379}"
       REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
@@ -395,6 +396,7 @@ services:
       - local_mirror_data:/data
       - agent_spool:/opt/ly-agent/data
       - policy_trust:/var/lib/lyflow/policy:ro
+      - ./.sisyphus:/app/.sisyphus:ro
     healthcheck:
       test: ["CMD", "/app/ly-agent", "healthcheck", "local-mirror"]
       interval: 10s

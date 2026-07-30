@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/gopacket/gopacket"
 	"github.com/gopacket/gopacket/layers"
@@ -72,6 +73,22 @@ func (a *Agent) runPFRingCapture() error {
 	if err := ring.Enable(); err != nil {
 		return err
 	}
+	watchdogDone := make(chan struct{})
+	defer close(watchdogDone)
+	go func() {
+		ticker := time.NewTicker(localMirrorWatchdogWritePeriod)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-watchdogDone:
+				return
+			case <-ticker.C:
+				if err := watchdog.Refresh(); err != nil {
+					fmt.Printf("[mirror] PF_RING watchdog refresh failed: %v\\n", err)
+				}
+			}
+		}
+	}()
 
 	decodeOptions := gopacket.DecodeOptions{Lazy: true, NoCopy: true}
 	scanDetector := newPortScanDetector()

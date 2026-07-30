@@ -18,6 +18,8 @@
         "attributes": {
           "action": "allowed",
           "app_proto": "",
+          "emitted_revision": "1",
+          "emitted_sid": "9000001",
           "gid": "1"
         }
       },
@@ -36,7 +38,7 @@
       },
       "raw_reference": {
         "path": "testdata/suricata/7.0.11/eve.jsonl",
-        "hash": "ee4b65ed74554333f058291108150b8c1d49f52c8ca60f39620a5b2bd8e5753b",
+        "hash": "fcbcd4401a6fbfb0c82296c64c36b3624e7cb6e7069ff254e950963b14d56480",
         "source_engine": "suricata",
         "event_type": "alert"
       },
@@ -85,7 +87,7 @@
       "raw_reference": {
         "path": "testdata/suricata/7.0.11/eve.jsonl",
         "offset": 827,
-        "hash": "ece82ae51bb72f671045e81adbe299731abd654d77e20bdfa27ce19b3515525b",
+        "hash": "b172652512174f24fa5ce294eb30f27828f07e5355bdcf7f3be2fa032921af40",
         "source_engine": "suricata",
         "event_type": "dns"
       },
@@ -132,7 +134,7 @@
       "raw_reference": {
         "path": "testdata/suricata/7.0.11/eve.jsonl",
         "offset": 1221,
-        "hash": "bfcd12a9a19967703d8271a38a6692a3c5f943a4013c632712a82f5672cd57c3",
+        "hash": "8eef11f694f578842de8c7b7fd0c944280872c2899ba40bf0796599bec377a32",
         "source_engine": "suricata",
         "event_type": "dns"
       },
@@ -179,7 +181,7 @@
       "raw_reference": {
         "path": "testdata/suricata/7.0.11/eve.jsonl",
         "offset": 1785,
-        "hash": "2bb5fa2696ac138822573b8cc889eace910ebe730e320f2c5aeb82f860346eab",
+        "hash": "3a18331475ee04e22fa166eb1bea33aebc4724dd30c149cfb910d29052ca1aa2",
         "source_engine": "suricata",
         "event_type": "http"
       },
@@ -229,7 +231,7 @@
       "raw_reference": {
         "path": "testdata/suricata/7.0.11/eve.jsonl",
         "offset": 2278,
-        "hash": "dcff63730029ad4bda3e5ee9cb4025a853397c564e0d20fa012887c2c4859a90",
+        "hash": "d3d236c876aa1088faf87e8d3f765c3f39549554b6869257da9950af6ad9b2e9",
         "source_engine": "suricata",
         "event_type": "tls"
       },
@@ -283,7 +285,7 @@
       "raw_reference": {
         "path": "testdata/suricata/7.0.11/eve.jsonl",
         "offset": 2619,
-        "hash": "ae4b34d8de9f0f29fc3f79ae6191590e3baa1151eeee36c519130bd1cff8abb6",
+        "hash": "522dfcb0a608d90a30624334d2f44f70c01ef8766154d3fad914e45876279699",
         "source_engine": "suricata",
         "event_type": "flow"
       },
@@ -335,7 +337,7 @@
       "raw_reference": {
         "path": "testdata/suricata/7.0.11/eve.jsonl",
         "offset": 3126,
-        "hash": "a6f49f84217ecd0f1c68144b9dc947d0be179d24f36f14f53697860ea1688f41",
+        "hash": "8a67fa54166231222d6f3d4753f51892b99dd146d9497d8ac79cedb747759bb7",
         "source_engine": "suricata",
         "event_type": "flow"
       },
@@ -387,7 +389,7 @@
       "raw_reference": {
         "path": "testdata/suricata/7.0.11/eve.jsonl",
         "offset": 3795,
-        "hash": "228fdeebca2af6b66662dec5e9b4a37a14eeea5cc0aa295bdd939aaf79678b5c",
+        "hash": "d6653eb03dc893fabcb835983c17bdad2fc58908a97914cf39ca58ecf01cb3b6",
         "source_engine": "suricata",
         "event_type": "flow"
       },
