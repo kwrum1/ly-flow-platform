@@ -102,6 +102,16 @@ func classifyEdge(a, b *models.CanonicalEventV2) *edgeCandidate {
 		}
 	}
 
+	if sameHost && timeDiff < 3600 {
+		transition := models.LookupAttackTransition(a.TechniqueID, b.TechniqueID, models.AttackMappingVersionV1)
+		if a.TechniqueID != "" && b.TechniqueID != "" && transition.TransitionClass == models.TransitionAllowed {
+			return &edgeCandidate{
+				edgeType: models.EdgeTypeVerifiedAttackTransition, strength: models.EdgeStrengthStrong,
+				evidence: []string{a.EventUID, b.EventUID}, proximity: timeDiff,
+			}
+		}
+	}
+
 	if sameHost && timeDiff < 600 {
 		return &edgeCandidate{
 			edgeType:  models.EdgeTypeSameHost,

@@ -32,17 +32,18 @@ type GraphEdgeV2 struct {
 }
 
 const (
-	EdgeTypeSameSession      = "same_session"
-	EdgeTypeSameProcess      = "same_process"
-	EdgeTypeSameIdentity     = "same_identity"
-	EdgeTypeSameHost         = "same_host"
-	EdgeTypeNetworkFlow      = "network_flow"
-	EdgeTypeCredentialReuse  = "credential_reuse"
-	EdgeTypeLateralMovement  = "lateral_movement"
-	EdgeTypeExploitToVuln    = "exploit_to_vuln"
-	EdgeTypeParentChild      = "parent_child"
-	EdgeTypeAttackTransition = "attack_transition"
-	EdgeTypeWeakSameIP       = "weak_same_ip"
+	EdgeTypeSameSession              = "same_session"
+	EdgeTypeSameProcess              = "same_process"
+	EdgeTypeSameIdentity             = "same_identity"
+	EdgeTypeSameHost                 = "same_host"
+	EdgeTypeNetworkFlow              = "network_flow"
+	EdgeTypeCredentialReuse          = "credential_reuse"
+	EdgeTypeLateralMovement          = "lateral_movement"
+	EdgeTypeExploitToVuln            = "exploit_to_vuln"
+	EdgeTypeParentChild              = "parent_child"
+	EdgeTypeAttackTransition         = "attack_transition"
+	EdgeTypeVerifiedAttackTransition = "verified_attack_transition"
+	EdgeTypeWeakSameIP               = "weak_same_ip"
 
 	EdgeStrengthStrong   = 0.80
 	EdgeStrengthModerate = 0.50
@@ -52,7 +53,7 @@ const (
 func EdgeTypeIsStrong(edgeType string) bool {
 	switch edgeType {
 	case EdgeTypeSameSession, EdgeTypeSameProcess, EdgeTypeParentChild,
-		EdgeTypeCredentialReuse, EdgeTypeLateralMovement, EdgeTypeExploitToVuln:
+		EdgeTypeCredentialReuse, EdgeTypeLateralMovement, EdgeTypeExploitToVuln, EdgeTypeVerifiedAttackTransition:
 		return true
 	default:
 		return false
@@ -61,7 +62,7 @@ func EdgeTypeIsStrong(edgeType string) bool {
 
 func EdgeTypeStrength(edgeType string) float64 {
 	switch edgeType {
-	case EdgeTypeSameSession, EdgeTypeParentChild, EdgeTypeExploitToVuln:
+	case EdgeTypeSameSession, EdgeTypeParentChild, EdgeTypeExploitToVuln, EdgeTypeVerifiedAttackTransition:
 		return EdgeStrengthStrong
 	case EdgeTypeSameProcess, EdgeTypeSameIdentity, EdgeTypeSameHost,
 		EdgeTypeNetworkFlow, EdgeTypeCredentialReuse, EdgeTypeLateralMovement:

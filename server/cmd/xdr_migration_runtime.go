@@ -199,15 +199,22 @@ func canonicalEventsToGraph(events []contracts.CanonicalSecurityEvent) ([]*model
 		if err := json.Unmarshal(event.Payload, &payload); err != nil {
 			return nil, fmt.Errorf("decode canonical XDR payload %s: %w", event.EventUID, err)
 		}
+		if canonicalXDRInformational(event, payload) {
+			continue
+		}
 		severity := strings.ToLower(string(event.Severity))
 		stage := firstNonEmpty(normalizeXDRStage(xdrPickString(payload, "stage_hint")), inferXDRStage(payload))
+		technique, tactic, mappedStage := inferCanonicalAttackMapping(event, payload)
+		if mappedStage != "" {
+			stage = mappedStage
+		}
 		out = append(out, &models.CanonicalEventV2{
 			TenantID: "default", EventUID: event.EventUID, SourceComponent: canonicalXDRCategory(event.Provenance.Source),
 			AgentID: event.Identity.AgentID, HostID: xdrPickString(payload, "host_id"), ObservedAt: event.Timestamps.ObservedAt,
 			IngestedAt: event.Timestamps.IngestedAt, EventType: event.EventType, RawEvent: event.Payload,
 			NormalizedSrcIP: xdrPickString(payload, "src_ip", "source_ip"), NormalizedDstIP: xdrPickString(payload, "dst_ip", "target_ip"),
-			ActorIdentity: xdrPickString(payload, "user"), VictimAsset: firstNonEmpty(xdrPickString(payload, "hostname", "victim_asset"), event.Identity.PrincipalID),
-			TechniqueID: event.Attack.TechniqueID, TacticID: event.Attack.TacticID, StageHint: stage,
+			ActorIdentity: firstNonEmpty(xdrPickString(payload, "user", "details.user", "entities.user")), VictimAsset: firstNonEmpty(xdrPickString(payload, "hostname", "victim_asset", "entities.hostname"), event.Identity.PrincipalID),
+			TechniqueID: technique, TacticID: tactic, StageHint: stage,
 			StageConfidence: 1, RiskScore: float64(severityBaseScore(severity)), ConfidenceScore: 100,
 			EvaluationVersion: models.EvalVersionV2, AttackMappingVersion: event.Attack.Version, CreatedAt: event.Timestamps.EventAt,
 		})

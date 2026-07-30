@@ -2788,6 +2788,11 @@ func xdrStatsHandler(cfg *Config) http.HandlerFunc {
 			return
 		}
 		chains := activeResult.activeChains()
+		events, _, err := loadXDREvents(cfg, 1000, 0)
+		if err != nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "xdr_events_degraded", err.Error())
+			return
+		}
 
 		today := time.Date(time.Now().Year(), time.Now().Month(), time.Now().Day(), 0, 0, 0, 0, time.Now().Location())
 		topSources := make(map[string]int64)
@@ -2796,25 +2801,24 @@ func xdrStatsHandler(cfg *Config) http.HandlerFunc {
 		eventsToday := int64(0)
 		sourcesSet := make(map[string]struct{})
 
-		for _, chain := range chains {
-			count := int64(chain.EventCount)
-			total += int(count)
-			sev := strings.ToLower(chain.Severity)
+		for _, event := range events {
+			if xdrEventIsInformationalTelemetry(event) {
+				continue
+			}
+			total++
+			sev := strings.ToLower(xdrPickString(event, "severity"))
 			switch sev {
 			case "critical", "high", "medium":
-				severityCount[sev] += count
+				severityCount[sev]++
 			default:
-				severityCount["low"] += count
+				severityCount["low"]++
 			}
-
-			for _, source := range chain.SourceIPs {
-				topSources[source] += count
-				sourcesSet[source] = struct{}{}
-			}
-
-			eventTime := parseXDRTime(chain.LastSeen)
+			source := firstNonEmpty(xdrPickString(event, "source", "source_engine", "log_source"), "unknown")
+			topSources[source]++
+			sourcesSet[source] = struct{}{}
+			eventTime := parseXDRTime(firstNonEmpty(xdrPickString(event, "observed_at"), xdrPickString(event, "created_at", "timestamp")))
 			if !eventTime.IsZero() && eventTime.After(today) {
-				eventsToday += count
+				eventsToday++
 			}
 		}
 
@@ -2873,6 +2877,9 @@ func xdrEventsHandler(cfg *Config) http.HandlerFunc {
 
 		filtered := make([]map[string]interface{}, 0, len(events))
 		for _, event := range events {
+			if xdrEventIsInformationalTelemetry(event) {
+				continue
+			}
 			if sev := r.URL.Query().Get("severity"); sev != "" {
 				if !strings.EqualFold(xdrPickString(event, "severity"), sev) {
 					continue
@@ -2929,6 +2936,9 @@ func xdrSourcesHandler(cfg *Config) http.HandlerFunc {
 
 		agg := make(map[string]*sourceAgg)
 		for _, event := range events {
+			if xdrEventIsInformationalTelemetry(event) {
+				continue
+			}
 			source := xdrPickString(event, "source", "log_source")
 			if source == "" {
 				source = "unknown"
@@ -2986,6 +2996,9 @@ func xdrTopEventsHandler(cfg *Config) http.HandlerFunc {
 
 		agg := make(map[string]*topAgg)
 		for _, event := range events {
+			if xdrEventIsInformationalTelemetry(event) {
+				continue
+			}
 			ruleName := xdrPickString(event, "rule_name", "event_type")
 			if ruleName == "" {
 				ruleName = "unknown"
@@ -7842,6 +7855,9 @@ func unifiedSearchHandler(cfg *Config) http.HandlerFunc {
 func incidentsFromXDRChains(chains []map[string]interface{}) []map[string]interface{} {
 	incidents := make([]map[string]interface{}, 0, len(chains))
 	for _, chain := range chains {
+		if status := xdrPickString(chain, "hypothesis_status"); status != "" && status != xdrmodels.HypothesisStatusCandidate {
+			continue
+		}
 		stages := stringListFromValue(chain["stages"])
 		if xdrPickNumber(chain, "event_count", 0) < 2 || len(stages) < 2 || asBool(chain["standalone_alert"]) {
 			continue

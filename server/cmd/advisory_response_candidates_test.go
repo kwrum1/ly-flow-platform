@@ -14,7 +14,7 @@ func TestActiveResponseCandidates_expose_governed_identity_and_provenance(t *tes
 		{EventUID: "event-2", AgentID: "agent-1", VictimAsset: "asset-1"},
 	}
 	hypothesis := &xdrmodels.ChainHypothesisV2{
-		HypothesisUID: "chain-1", ChainScore: 80, Severity: "high",
+		HypothesisUID: "chain-1", ChainScore: 80, Severity: "high", HypothesisStatus: xdrmodels.HypothesisStatusCandidate,
 		PathNodeUIDs: []string{"node-1", "node-2"},
 		PathEvidence: &xdrmodels.PathEvidence{Stages: []string{"initial_access", "execution"}},
 	}

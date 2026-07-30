@@ -6,6 +6,8 @@ var DefaultAttackTransitions = []AttackTransition{
 	{FromTechnique: "T1595", FromTactic: "reconnaissance", ToTechnique: "T1190", ToTactic: "initial-access", TransitionClass: TransitionAllowed, AttackMappingVersion: AttackMappingVersionV1},
 	{FromTechnique: "T1046", FromTactic: "reconnaissance", ToTechnique: "T1190", ToTactic: "initial-access", TransitionClass: TransitionAllowed, AttackMappingVersion: AttackMappingVersionV1},
 	{FromTechnique: "T1190", FromTactic: "initial-access", ToTechnique: "T1059", ToTactic: "execution", TransitionClass: TransitionAllowed, AttackMappingVersion: AttackMappingVersionV1},
+	{FromTechnique: "T1078", FromTactic: "initial-access", ToTechnique: "T1548.003", ToTactic: "privilege-escalation", TransitionClass: TransitionAllowed, AttackMappingVersion: AttackMappingVersionV1},
+	{FromTechnique: "T1078", FromTactic: "initial-access", ToTechnique: "T1059", ToTactic: "execution", TransitionClass: TransitionAllowed, AttackMappingVersion: AttackMappingVersionV1},
 	{FromTechnique: "T1190", FromTactic: "initial-access", ToTechnique: "T1203", ToTactic: "execution", TransitionClass: TransitionAllowed, AttackMappingVersion: AttackMappingVersionV1},
 	{FromTechnique: "T1059", FromTactic: "execution", ToTechnique: "T1547", ToTactic: "persistence", TransitionClass: TransitionAllowed, AttackMappingVersion: AttackMappingVersionV1},
 	{FromTechnique: "T1059", FromTactic: "execution", ToTechnique: "T1068", ToTactic: "privilege-escalation", TransitionClass: TransitionAllowed, Penalty: 0.05, AttackMappingVersion: AttackMappingVersionV1},

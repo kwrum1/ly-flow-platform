@@ -177,9 +177,8 @@ func pathToHypothesis(events []*models.CanonicalEventV2, cand *pathCandidate, co
 		Transitions:   cand.Transitions,
 	}
 
-	valid, reason := validatePathContinuity(scoreable, config)
-
 	scoreChainHypothesisV2(scoreable, config)
+	valid, reason := validatePathContinuity(scoreable, config)
 
 	pathNodeUIDs := make([]string, len(cand.EventIndices))
 	pathStages := make([]string, len(cand.EventIndices))

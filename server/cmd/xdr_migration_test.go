@@ -167,7 +167,7 @@ func TestXDRGraphChecksum_is_deterministic_for_mixed_order(t *testing.T) {
 
 func TestXDRActiveResult_is_the_only_incident_input(t *testing.T) {
 	// Given
-	active := activeXDRResult{chains: activeXDRChains{{ID: "hyp-1", EventCount: 2, Stages: []string{"initial_access", "execution"}}}}
+	active := activeXDRResult{chains: activeXDRChains{{ID: "hyp-1", EventCount: 2, Stages: []string{"initial_access", "execution"}, HypothesisStatus: xdrmodels.HypothesisStatusCandidate}}}
 
 	// When
 	incidents := incidentsFromActiveXDR(active)

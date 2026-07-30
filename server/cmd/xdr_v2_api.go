@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -125,7 +126,7 @@ func buildActiveRows(events []*models.CanonicalEventV2, hypotheses []*models.Cha
 	for _, hypothesis := range hypotheses[:limit] {
 		firstEvent := events[0]
 		responseCandidates := make([]xdrResponseCandidate, 0)
-		if identity.IncidentEligible() {
+		if identity.IncidentEligible() && hypothesis.HypothesisStatus == models.HypothesisStatusCandidate {
 			for _, candidate := range buildResponseCandidatesFromFacts(
 				int64(hypothesis.ChainScore), nil, firstEvent.VictimAsset, nil, safeStages(hypothesis), nil,
 			) {
@@ -189,7 +190,13 @@ func safeTime(value *time.Time) string {
 }
 
 func incidentsFromActiveXDR(result xdrIncidentInput) []map[string]interface{} {
-	return incidentsFromXDRChains(result.incidentChains().jsonRows())
+	rows := make([]map[string]interface{}, 0)
+	for _, chain := range result.incidentChains() {
+		if chain.HypothesisStatus == models.HypothesisStatusCandidate {
+			rows = append(rows, chain.jsonRow())
+		}
+	}
+	return incidentsFromXDRChains(rows)
 }
 
 func responseCandidatesFromActiveXDR(result xdrResponseCandidateInput) []map[string]interface{} {
@@ -204,14 +211,16 @@ func xdrPostureFromChains(chains activeXDRChains) map[string]interface{} {
 	active := 0
 	totalScore := int64(0)
 	for _, chain := range chains {
-		if chain.HypothesisStatus == models.HypothesisStatusCandidate {
-			active++
+		if chain.HypothesisStatus != models.HypothesisStatusCandidate {
+			continue
 		}
+		active++
 		totalScore += int64(chain.Score)
 	}
 	riskScore := int64(0)
-	if len(chains) > 0 {
-		riskScore = clampInt64(totalScore/int64(len(chains))+int64(len(chains)*4), 0, 100)
+	if active > 0 {
+		volumeAdjustment := int64(math.Min(20, math.Log2(float64(active)+1)*4))
+		riskScore = clampInt64(totalScore/int64(active)+volumeAdjustment, 0, 100)
 	}
 	return map[string]interface{}{
 		"active_chains": active,
