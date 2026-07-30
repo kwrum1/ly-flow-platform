@@ -12,6 +12,16 @@ import (
 	"github.com/lyflow/ly-flow-platform/contracts"
 )
 
+func TestRASPBridgeTokenRotation_seeds_token_before_bridge_starts(t *testing.T) {
+	agent := NewAgent(&Config{})
+	if err := agent.rotateRASPBridgeToken(); err != nil {
+		t.Fatalf("seed bridge token: %v", err)
+	}
+	if len(agent.cfg.RASPBridgeToken) < 32 {
+		t.Fatalf("generated bridge token length=%d, want at least 32", len(agent.cfg.RASPBridgeToken))
+	}
+}
+
 func TestRASPBridgeTokenRotation_accepts_overlap_then_rejects_stale_token(t *testing.T) {
 	// Given
 	now := time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)

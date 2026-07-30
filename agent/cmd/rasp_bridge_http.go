@@ -231,18 +231,17 @@ func (a *Agent) raspBridgeHealthSnapshot() (raspBridgeHealth, bool) {
 }
 
 func (a *Agent) rotateRASPBridgeToken() error {
-	a.raspBridgeMu.RLock()
-	bridge := a.raspBridge
-	a.raspBridgeMu.RUnlock()
-	if bridge == nil {
-		return nil
-	}
 	next, err := generateRASPBridgeToken()
 	if err != nil {
 		return fmt.Errorf("generate RASP bridge token: %w", err)
 	}
-	if err := bridge.RotateToken(next); err != nil {
-		return fmt.Errorf("rotate RASP bridge token: %w", err)
+	a.raspBridgeMu.RLock()
+	bridge := a.raspBridge
+	a.raspBridgeMu.RUnlock()
+	if bridge != nil {
+		if err := bridge.RotateToken(next); err != nil {
+			return fmt.Errorf("rotate RASP bridge token: %w", err)
+		}
 	}
 	a.cfgMu.Lock()
 	a.cfg.RASPBridgeToken = next
