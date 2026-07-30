@@ -92,14 +92,28 @@ func nativeEngineStatusHandler(cfg *Config) http.HandlerFunc {
 			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
 			return
 		}
-		statusPath := firstNonEmpty(os.Getenv("ENGINE_STATUS_FILE"), ".sisyphus/runtime/engine-outputs/status/status.json")
-		var status map[string]interface{}
-		if data, err := os.ReadFile(statusPath); err == nil {
-			_ = json.Unmarshal(data, &status)
+		healthURL := firstNonEmpty(os.Getenv("SECURITY_ENGINE_HEALTH_URL"), "http://ly-security-engine:8080/health")
+		request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, healthURL, nil)
+		if err != nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "engine_health_unavailable", err.Error())
+			return
 		}
-		if status == nil {
-			status = map[string]interface{}{"engines": map[string]interface{}{}, "message": "engine runtime status not reported yet"}
+		response, err := (&http.Client{Timeout: 5 * time.Second}).Do(request)
+		if err != nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "engine_health_unavailable", err.Error())
+			return
 		}
+		defer response.Body.Close()
+		if response.StatusCode != http.StatusOK {
+			writeJSONError(w, http.StatusServiceUnavailable, "engine_health_unavailable", response.Status)
+			return
+		}
+		var health map[string]interface{}
+		if err := json.NewDecoder(response.Body).Decode(&health); err != nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "engine_health_invalid", err.Error())
+			return
+		}
+		status := map[string]interface{}{"source": "ly-security-engine", "engines": map[string]interface{}{"security-engine": health}}
 		trafficCount, err := activeLifecycleTrafficCount(r.Context(), cfg.RuleLifecycle, 0, countRuleFiles("rules/suricata"))
 		if err != nil {
 			writeJSONError(w, http.StatusServiceUnavailable, "traffic_count_unverified", err.Error())
