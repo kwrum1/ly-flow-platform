@@ -143,7 +143,6 @@ func loadNativeEngineRules(cfg *Config) []map[string]interface{} {
 	items = append(items, scanRuleFiles("suricata", filepath.Join(root, "suricata"), []string{".rules"}, parseSuricataRule)...)
 	items = append(items, scanRuleFiles("wazuh", filepath.Join(root, "wazuh"), []string{".xml", ".yml", ".yaml"}, parseWazuhRule)...)
 	items = append(items, scanRuleFiles("wazuh", filepath.Join("third_party", "security-engines", "wazuh", "ruleset"), []string{".xml", ".yml", ".yaml"}, parseWazuhRule)...)
-	items = append(items, scanRuleFiles("wazuh", filepath.Join("/opt", "ly-engine-lab", "source", "wazuh", "ruleset"), []string{".xml", ".yml", ".yaml"}, parseWazuhRule)...)
 	items = append(items, scanRuleFiles("yara", filepath.Join(root, "yara"), []string{".yar", ".yara"}, parseYARARule)...)
 	items = append(items, scanRuleFiles("rasp", filepath.Join(root, "rasp"), []string{".json", ".yaml", ".yml", ".js"}, parseRASPRule)...)
 	if len(items) == 0 && root != "rules" {

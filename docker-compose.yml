@@ -119,7 +119,6 @@ services:
       SECURITY_ENGINE_CONTROL_TOKEN: ${SECURITY_ENGINE_CONTROL_TOKEN:?SECURITY_ENGINE_CONTROL_TOKEN must be set}
       RULE_LIFECYCLE_DIR: /app/rules/security-engine/lifecycle
       ENGINE_RULE_ROOT: /app/rules
-      ENGINE_STATUS_FILE: /app/.sisyphus/runtime/engine-outputs/status/status.json
       POLICY_TRUST_DIR: /var/lib/lyflow/policy/trust
       POLICY_KEY_DIR: /var/lib/lyflow/policy/keys
       RASP_POLICY_OWNER: ${RASP_POLICY_OWNER:-lyflow-platform}
