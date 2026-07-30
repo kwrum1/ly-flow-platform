@@ -980,34 +980,10 @@ func copyStringMap(input map[string]interface{}) map[string]interface{} {
 
 func statsHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		var total, critical, high, medium, low, newEvents int64
-		recent24h := int64(0)
-		activeResult, err := xdrActiveChainsResponse(r.Context(), cfg, 100)
+		stats, err := loadDashboardStats(r.Context(), cfg)
 		if err != nil {
-			writeJSONError(w, http.StatusServiceUnavailable, "xdr_graph_degraded", err.Error())
+			writeJSONError(w, http.StatusServiceUnavailable, "dashboard_stats_degraded", err.Error())
 			return
-		}
-		chains := activeResult.activeChains()
-		dayAgo := time.Now().Add(-24 * time.Hour)
-		for _, chain := range chains {
-			count := int64(chain.EventCount)
-			total += count
-			switch strings.ToLower(chain.Severity) {
-			case "critical":
-				critical += count
-			case "high":
-				high += count
-			case "medium":
-				medium += count
-			default:
-				low += count
-			}
-			if chain.HypothesisStatus == xdrmodels.HypothesisStatusCandidate {
-				newEvents += count
-			}
-			if seen := parseXDRTime(chain.LastSeen); !seen.IsZero() && seen.After(dayAgo) {
-				recent24h += count
-			}
 		}
 
 		w.Header().Set("Content-Type", "application/json")
@@ -1015,18 +991,47 @@ func statsHandler(cfg *Config) http.HandlerFunc {
 			"code":    0,
 			"message": "success",
 			"data": map[string]interface{}{
-				"total_events":      total,
-				"critical_events":   critical,
-				"high_events":       high,
-				"medium_events":     medium,
-				"low_events":        low,
-				"new_events":        newEvents,
-				"total_assets":      0,
-				"online_agents":     0,
-				"recent_events_24h": recent24h,
+				"total_events":      stats.Total,
+				"critical_events":   stats.Critical,
+				"high_events":       stats.High,
+				"medium_events":     stats.Medium,
+				"low_events":        stats.Low,
+				"new_events":        stats.Recent24h,
+				"total_assets":      stats.TotalAssets,
+				"online_agents":     stats.OnlineAgents,
+				"recent_events_24h": stats.Recent24h,
 			},
 		})
 	}
+}
+
+type dashboardStats struct {
+	Total, Critical, High, Medium, Low, Recent24h int64
+	TotalAssets, OnlineAgents                     int64
+}
+
+func loadDashboardStats(ctx context.Context, cfg *Config) (dashboardStats, error) {
+	var result dashboardStats
+	if cfg == nil || cfg.DBPool == nil {
+		return result, fmt.Errorf("postgres unavailable")
+	}
+	if err := cfg.DBPool.QueryRow(ctx, `SELECT
+		COUNT(*),
+		COUNT(*) FILTER (WHERE LOWER(severity) = 'critical'),
+		COUNT(*) FILTER (WHERE LOWER(severity) = 'high'),
+		COUNT(*) FILTER (WHERE LOWER(severity) = 'medium'),
+		COUNT(*) FILTER (WHERE LOWER(severity) NOT IN ('critical','high','medium')),
+		COUNT(*) FILTER (WHERE observed_at >= NOW() - INTERVAL '24 hours')
+		FROM threat_events`).Scan(&result.Total, &result.Critical, &result.High, &result.Medium, &result.Low, &result.Recent24h); err != nil {
+		return result, fmt.Errorf("load threat statistics: %w", err)
+	}
+	if err := cfg.DBPool.QueryRow(ctx, `SELECT
+		COUNT(*),
+		COUNT(*) FILTER (WHERE status = 'online' AND last_heartbeat >= NOW() - INTERVAL '2 minutes')
+		FROM agents`).Scan(&result.TotalAssets, &result.OnlineAgents); err != nil {
+		return result, fmt.Errorf("load agent statistics: %w", err)
+	}
+	return result, nil
 }
 
 func eventsHandler(cfg *Config) http.HandlerFunc {
@@ -6355,7 +6360,7 @@ func backfillRecentThreatEvents(ctx context.Context, cfg *Config, limit int) {
 	if limit <= 0 {
 		limit = 1000
 	}
-	for _, stream := range []string{"component_alerts:v2", "alerts:dpi", "alerts:runtime", "alerts:rasp", "alerts:log_audit", "telemetry:rasp"} {
+	for _, stream := range threatBackfillStreams(cfg.SecurityEngineEnabled) {
 		msgs, err := cfg.Redis.XRevRangeN(ctx, stream, "+", "-", int64(limit)).Result()
 		if err != nil {
 			continue
@@ -6373,6 +6378,13 @@ func backfillRecentThreatEvents(ctx context.Context, cfg *Config, limit int) {
 			}
 		}
 	}
+}
+
+func threatBackfillStreams(securityEngineEnabled bool) []string {
+	if securityEngineEnabled {
+		return []string{"component_alerts:v2"}
+	}
+	return []string{"alerts:dpi", "alerts:runtime", "alerts:rasp", "alerts:log_audit", "telemetry:rasp"}
 }
 
 func scheduleThreatBackfill(cfg *Config) {
@@ -6496,7 +6508,7 @@ func persistThreatEvent(ctx context.Context, cfg *Config, event map[string]inter
 	if severity == "" || severity == "info" || xdrEventIsSyntheticNoise(event) || xdrEventIsInformationalTelemetry(event) {
 		return nil
 	}
-	uid := firstNonEmpty(xdrPickString(event, "message_id"), xdrPickString(event, "id"))
+	uid := firstNonEmpty(xdrPickString(event, "id"), xdrPickString(event, "message_id"))
 	if uid == "" {
 		raw, _ := json.Marshal(event)
 		sum := sha256.Sum256(raw)
