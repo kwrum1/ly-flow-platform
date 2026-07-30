@@ -44,6 +44,7 @@ func buildRouteRegistry() []RouteSpec {
 		"/api/v1/agent/component-alert": true,
 		"/api/v1/agent/runtime-event":   true,
 		"/api/v1/agent/realtime":        true,
+		"/api/v1/agent/snapshot":        true,
 		"/api/v1/rasp/event":            true,
 	}
 	paths := []string{

@@ -55,10 +55,10 @@ func TestArchitectureRouteSnapshot_characterizesCurrentCountAndRoles(t *testing.
 	}
 	want := map[string]int{
 		"public":           2,
-		"agent_credential": 9,
+		"agent_credential": 10,
 		"loopback":         1,
 		"admin_only":       24,
-		"default_roles":    80,
+		"default_roles":    79,
 	}
 	for class, expected := range want {
 		if counts[class] != expected {
@@ -154,6 +154,7 @@ func TestArchitectureRouteSnapshotMarksPublicAndProtectedRoutes(t *testing.T) {
 		"/api/v1/agent/component-alert": true,
 		"/api/v1/agent/runtime-event":   true,
 		"/api/v1/agent/realtime":        true,
+		"/api/v1/agent/snapshot":        true,
 		"/api/v1/rasp/event":            true,
 	}
 	for _, route := range ArchitectureRouteSnapshot {
