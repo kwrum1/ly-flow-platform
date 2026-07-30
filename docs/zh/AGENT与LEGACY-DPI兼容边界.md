@@ -20,6 +20,10 @@ libpcap，可覆盖 Linux 3.10 及更高内核。Linux 抓包使用纯 Go AF_PAC
 日志审计、心跳和本地 spool 保持可用。安装验收必须检查：静态 ELF、无 `NEEDED` 动态库、
 `GOAMD64=v1`、目标机 AF_PACKET 权限，以及 auditd 可用性。
 
+远端 Agent 的生产网络模型只允许访问平台 HTTPS，不应要求现场主机直连 Redis。
+流量、运行时和资产主链路已经具备 Agent 凭据保护的 HTTP 接口，但少量 RASP 健康状态和兼容发布路径
+仍保留 Redis 客户端代码；这些路径在完成远端现场验收前必须迁移到统一 HTTPS 摄取面。
+
 ## legacy DPI
 
 `ly-dpi-engine` 是早期独立流量检测器：消费 Redis `flows:raw`，执行旧规则/域名名单，

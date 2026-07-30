@@ -48,14 +48,14 @@
 | POST | `/auth/register` | 创建用户 |
 | PUT | `/auth/users/{id}` | 更新用户 |
 | DELETE | `/auth/users/{id}` | 删除用户 |
-| PUT | `/auth/users/password` | 管理员重置用户密码 |
+| POST | `/auth/users/password` | 管理员重置用户密码 |
 
 ### 登录示例
 
 ```bash
 curl -k -X POST https://<server>/api/v1/auth/login \
   -H 'Content-Type: application/json' \
-  -d '{"username":"admin","password":"password"}'
+  -d @login-request.json
 ```
 
 ## 4. Agent 与资产
@@ -65,7 +65,8 @@ curl -k -X POST https://<server>/api/v1/auth/login \
 | GET | `/agents` | Agent 列表 |
 | GET | `/agents/{agent_id}` | Agent 详情 |
 | DELETE | `/agents/{agent_id}` | 删除离线 Agent |
-| POST | `/agent/enroll` | Agent 自注册 |
+| POST | `/agent/enroll` | 使用一次性 enrollment token 注册 Agent |
+| POST | `/agent/identity` | 管理员签发注册令牌、轮换或恢复 Agent 身份 |
 | POST | `/agent/heartbeat` | Agent 心跳与状态更新 |
 | POST | `/agent/config` | Agent 拉取配置 |
 | POST | `/agent/task-result` | Agent 任务结果上报 |

@@ -120,7 +120,7 @@ node -e '
   if (result.duplicate_api_records !== 0 || result.unowned_actions !== 0) process.exit(1)
   if (result.unknown_protected_path_meets_404_requirement !== false || result.unknown_protected_path_red_gap_recorded !== true) process.exit(1)
   const auth = result.auth_contract_results
-  if (auth.public_routes !== 2 || auth.jwt_protected_routes !== 104 || auth.agent_credential_routes !== 9 || auth.loopback_routes !== 1) process.exit(1)
+  if (auth.public_routes !== 2 || auth.jwt_protected_routes !== 103 || auth.agent_credential_routes !== 10 || auth.loopback_routes !== 1) process.exit(1)
   if (auth.unauthenticated_jwt_status !== 401 || auth.unauthorized_role_status !== 403 || auth.authorized_role_status !== 200) process.exit(1)
   if (auth.remote_loopback_status !== 403 || auth.local_loopback_status !== 204) process.exit(1)
 ' "$result"

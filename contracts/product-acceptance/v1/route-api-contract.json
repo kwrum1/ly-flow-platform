@@ -1442,14 +1442,11 @@
     },
     {
       "path": "/api/v1/agent/snapshot",
-      "auth_mode": "jwt",
+      "auth_mode": "agent-credential",
       "operations": [
         {
           "method": "POST",
-          "allowed_roles": [
-            "admin",
-            "analyst"
-          ],
+          "allowed_roles": [],
           "valid_fixture": {
             "method": "POST",
             "path": "/api/v1/agent/snapshot",
@@ -1484,7 +1481,7 @@
           "persistence": "durable"
         }
       ],
-      "disposition": "ui-workflow"
+      "disposition": "agent-only"
     },
     {
       "path": "/api/v1/agent/task-result",

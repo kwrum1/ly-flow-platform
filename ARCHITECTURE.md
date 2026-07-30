@@ -51,7 +51,7 @@ ly-local-mirror
   ├─ HTTPS enroll/config/heartbeat
   ├─ traffic capture
   ├─ runtime/log audit/RASP
-  └─ Redis telemetry publish
+  └─ authenticated HTTPS telemetry delivery
 ```
 
 ## 3. 容器与端口
@@ -74,10 +74,11 @@ ly-local-mirror
 
 1. 外部主机执行 `https://<server>/api/v1/agent/install.sh`。
 2. 安装脚本使用 `curl -kfsSL` / `wget --no-check-certificate` 适配自签证书。
-3. Agent 调用 `/api/v1/agent/enroll` 自注册并写入 `agents`。
-4. 心跳 `/api/v1/agent/heartbeat` 更新 Agent 状态。
-5. 资产快照 `/api/v1/agent/snapshot` 更新 `hosts.metadata`。
-6. 资产 API 返回前同步超时 Agent 和 Host 状态，避免 Agent 离线但资产仍显示实时。
+3. 管理员签发短时、一次性、绑定 Agent ID 的 enrollment token。
+4. Agent 调用 `/api/v1/agent/enroll` 消费令牌，取得持久身份并写入 `agents`。
+5. 心跳 `/api/v1/agent/heartbeat` 更新 Agent 状态。
+6. 资产快照 `/api/v1/agent/snapshot` 更新 `hosts.metadata`。
+7. 资产 API 返回前同步超时 Agent 和 Host 状态，避免 Agent 离线但资产仍显示实时。
 
 ### 4.2 流量会话与威胁
 
@@ -146,4 +147,5 @@ lyflow-offline-install-*/
 - 离线包不内置 Docker 安装包；没有 Docker 的机器需要可访问 Docker 软件源，或提前安装 Docker。
 - 容器化 `ly-agent` 和 legacy `ly-dpi-engine` 是 profile-gated QA/兼容项，默认运行面不依赖它们。
 - 现场主机使用无容器的静态 Linux Agent；Linux 3.10/CentOS 7 运行时监控回退到 auditd，详见 `docs/zh/AGENT与LEGACY-DPI兼容边界.md`。
+- 远端 Agent 的目标网络边界只开放平台 HTTPS；仍直接依赖 Redis 的兼容状态路径属于待清理技术债，不能作为远端部署前提。
 - 流量威胁默认保留有网络上下文的安全告警，不展示纯识别类噪声。
