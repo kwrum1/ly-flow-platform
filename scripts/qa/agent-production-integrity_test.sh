@@ -27,7 +27,7 @@ trap report_failure ERR
 openssl genpkey -algorithm ED25519 -out "$tmp/release-signer.key" >/dev/null 2>&1
 openssl pkey -in "$tmp/release-signer.key" -pubout -out "$tmp/release-root.pem" >/dev/null 2>&1
 
-(cd "$root/agent" && GOWORK=off go build -o "$tmp/ly-agent" ./cmd)
+(cd "$root/agent" && GOWORK=off GOTOOLCHAIN=auto GOSUMDB=sum.golang.org CGO_ENABLED=0 go build -o "$tmp/ly-agent" ./cmd)
 AGENT_RELEASE_BINARY="$tmp/ly-agent" AGENT_RELEASE_OUTPUT="$root/$release_dir" RELEASE_SIGNING_KEY="$tmp/release-signer.key" \
   "$root/scripts/prepare-agent-release.sh"
 
@@ -36,6 +36,7 @@ docker build --no-cache --build-arg "RUNTIME_IMAGE=ly-flow/server@${runtime_id}"
   -f "$root/agent/Dockerfile" -t "$image" "$root" >/dev/null
 
 mkdir -p "$package/images" "$package/rules" "$package/scripts"
+printf "amd64\n" >"$package/ARCH"
 docker save "$image" | gzip -n >"$package/images/lyflow-images.tar.gz"
 cp "$root/scripts/install-offline.sh" "$package/scripts/install-offline.sh"
 printf '{"fixture":true}\n' >"$package/rules/active.json"
@@ -56,7 +57,7 @@ EOF
 "$root/scripts/release-provenance.sh" sign --package "$package" --key "$tmp/release-signer.key"
 
 LYFLOW_INSTALL_DIR="$install_dir" LYFLOW_TRUST_DIR="$tmp/trust" \
-  bash "$package/scripts/install-offline.sh" --trust-root "$tmp/release-root.pem" >/dev/null
+  bash "$package/scripts/install-offline.sh" --trust-root "$tmp/release-root.pem" --generate-admin-password >/dev/null
 
 container=ly-agent-todo15-integrity-fixture
 running=$(docker inspect "$container" --format '{{.State.Running}}')
