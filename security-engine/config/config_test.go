@@ -18,6 +18,21 @@ func TestLoad_readsRedisBridgeCredentials(t *testing.T) {
 	}
 }
 
+func TestLoad_keepsControlHealthOutsideDetectionInputs(t *testing.T) {
+	t.Setenv("SECURITY_ENGINE_CONTROL_HEALTH_STREAM", "")
+
+	cfg := Load()
+
+	if cfg.ControlHealthStream != "control:health" {
+		t.Fatalf("control health stream = %q, want control:health", cfg.ControlHealthStream)
+	}
+	for _, input := range cfg.InputStreams {
+		if input == cfg.ControlHealthStream {
+			t.Fatalf("control health stream must not be a detection input: %v", cfg.InputStreams)
+		}
+	}
+}
+
 func TestLoad_ignores_legacy_unpinned_bundle_bypass(t *testing.T) {
 	// Given
 	t.Setenv("SECURITY_ENGINE_BUNDLE", "/tmp/untrusted-bundle.json")

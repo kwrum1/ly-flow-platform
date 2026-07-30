@@ -68,8 +68,7 @@ def test_reporter_enforces_max_events_per_second(monkeypatch):
         def xadd(self, stream, event):
             self.events.append((stream, event))
 
-    times = iter([100.0, 100.1, 100.2])
-    monkeypatch.setattr("ly_rasp.reporter.time.monotonic", lambda: next(times))
+    monkeypatch.setattr("ly_rasp.reporter.time.monotonic", lambda: 100.0)
     reporter = Reporter.__new__(Reporter)
     reporter.config = RASPConfig(policy_version=1, max_events_per_second=2)
     reporter.bridge_client = None

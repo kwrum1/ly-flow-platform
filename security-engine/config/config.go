@@ -63,7 +63,7 @@ func Load() Config {
 		CPUBudget:           time.Duration(envInt("SECURITY_ENGINE_CPU_BUDGET_MS", 100, 10, 5000)) * time.Millisecond,
 		MemoryBudgetBytes:   envInt("SECURITY_ENGINE_MEMORY_BUDGET_BYTES", 16<<20, 1<<20, 128<<20),
 		RestartBudget:       envInt("SECURITY_ENGINE_RESTART_BUDGET", 3, 1, 10),
-		ControlHealthStream: env("SECURITY_ENGINE_CONTROL_HEALTH_STREAM", "telemetry:runtime"),
+		ControlHealthStream: env("SECURITY_ENGINE_CONTROL_HEALTH_STREAM", "control:health"),
 	}
 }
 

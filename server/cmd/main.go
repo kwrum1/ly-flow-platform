@@ -7755,14 +7755,18 @@ func cleanupPostgresEvents(cfg *Config, cutoff time.Time) {
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
-	for _, stmt := range []string{
-		"DELETE FROM events WHERE timestamp < $1",
-		"DELETE FROM xdr_events WHERE created_at < $1",
-		"DELETE FROM threat_events WHERE observed_at < $1",
-	} {
+	for _, stmt := range postgresRetentionStatements() {
 		if _, err := cfg.DBPool.Exec(ctx, stmt, cutoff); err != nil {
 			log.Printf("PostgreSQL日志清理跳过/失败: stmt=%q err=%v", stmt, err)
 		}
+	}
+}
+
+func postgresRetentionStatements() []string {
+	return []string{
+		"DELETE FROM events WHERE timestamp < $1",
+		"DELETE FROM xdr_events_v2 WHERE observed_at < $1",
+		"DELETE FROM threat_events WHERE observed_at < $1",
 	}
 }
 

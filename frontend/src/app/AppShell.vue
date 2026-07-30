@@ -68,8 +68,9 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { overviewClient } from '../api/domain'
 import { productNavigation, canAccessNavigationItem, flattenNavigation } from '../shared/navigation'
-import { formatChinaTime } from '../shared/time'
+import { formatChinaTime, refreshPlatformTimeOffset } from '../shared/time'
 import { useAuthStore } from '../stores/auth'
 
 const route = useRoute()
@@ -96,6 +97,7 @@ const handleLogout = async () => {
 }
 
 onMounted(() => {
+  refreshPlatformTimeOffset(overviewClient.systemTime).catch(() => {})
   timer = setInterval(() => {
     currentTime.value = formatChinaTime()
   }, 1000)

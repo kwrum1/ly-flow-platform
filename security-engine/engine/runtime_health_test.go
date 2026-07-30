@@ -205,7 +205,7 @@ func TestRuntimeHealth_emits_canonical_control_health_fields(t *testing.T) {
 
 func TestRuntimeHealth_matches_shared_canonical_fixture_bytes(t *testing.T) {
 	// Given
-	eng := New(config.Config{ReadCount: 128, MaxMessageBytes: 1 << 20, CPUBudget: 100 * time.Millisecond, MemoryBudgetBytes: 256 << 10, RestartBudget: 3}, redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}))
+	eng := New(config.Config{ReadCount: 128, MaxMessageBytes: 1 << 20, CPUBudget: 1000 * time.Millisecond, MemoryBudgetBytes: 256 << 10, RestartBudget: 3}, redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}))
 	eng.health.mu.Lock()
 	eng.health.status = controlHealthDegraded
 	eng.health.reason = "control_health_delivery_unavailable"

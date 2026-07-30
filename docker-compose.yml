@@ -203,6 +203,7 @@ services:
       SECURITY_ENGINE_GROUP: security-engine-workers
       SECURITY_ENGINE_NAME: security-engine-1
       SECURITY_ENGINE_INPUT_STREAMS: telemetry:traffic,telemetry:runtime,telemetry:rasp,telemetry:log_audit
+      SECURITY_ENGINE_CONTROL_HEALTH_STREAM: control:health
       ALERTS_DPI_STREAM: alerts:dpi
       ALERTS_RUNTIME_STREAM: alerts:runtime
       ALERTS_RASP_STREAM: alerts:rasp

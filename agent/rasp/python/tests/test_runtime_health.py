@@ -51,7 +51,7 @@ class TestPythonRuntimeHealth(TestCase):
             policy_version=15,
             queue_capacity=128,
             read_limit_bytes=1 << 20,
-            cpu_budget_ms=100,
+            cpu_budget_ms=1000,
             memory_budget_bytes=256 << 10,
             restart_budget=3,
         )
