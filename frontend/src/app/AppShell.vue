@@ -1,24 +1,11 @@
 <template>
-  <div class="ly-shell">
+  <div class="ly-shell" :class="{ 'is-collapsed': collapsed, 'is-mobile-open': mobileOpen }">
+    <button v-if="mobileOpen" class="nav-scrim" aria-label="关闭导航" @click="mobileOpen = false" />
+
     <aside class="ly-sidebar">
-      <RouterLink class="ly-brand" to="/dashboard" aria-label="流影首页">
-        <span class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 64 64" role="img" focusable="false">
-            <circle class="mark-orbit mark-orbit-wide" cx="34" cy="30" r="25" />
-            <circle class="mark-orbit" cx="34" cy="30" r="16" />
-            <path class="mark-shadow" d="M31 38c8-4 17-5 26-3-5 10-16 17-29 17-7 0-13-2-18-6 8 1 15-1 21-8Z" />
-            <path class="mark-flow mark-flow-back" d="M4 42C14 28 27 27 36 31c-9 1-15 5-21 13-4 5-8 8-11 9 0-4 0-7 0-11Z" />
-            <path class="mark-flow" d="M3 36c14-10 25-9 35-3-12 0-18 5-25 15-3 4-6 7-10 9 1-7 1-14 0-21Z" />
-            <path class="mark-hotline" d="M6 39c11-7 20-7 29-3-10 1-15 5-21 13" />
-            <path class="mark-glow" d="M21 42c9-7 18-9 34-7-11 0-20 4-29 13" />
-            <circle class="mark-dot" cx="49" cy="22" r="3.4" />
-            <circle class="mark-dot mark-dot-small" cx="35" cy="15" r="2.2" />
-          </svg>
-        </span>
-        <span>
-          <strong>流影</strong>
-          <small>XDR Security Console</small>
-        </span>
+      <RouterLink class="ly-brand" to="/dashboard" aria-label="流影首页" @click="mobileOpen = false">
+        <span class="brand-mark" aria-hidden="true">LY</span>
+        <span class="brand-copy"><strong>流影安全</strong><small>态势感知平台</small></span>
       </RouterLink>
 
       <nav class="ly-nav" aria-label="主导航">
@@ -29,28 +16,47 @@
             :key="item.path"
             :to="item.path"
             class="nav-item"
+            :title="collapsed ? item.label : undefined"
+            @click="mobileOpen = false"
           >
+            <el-icon><component :is="iconFor(item.path)" /></el-icon>
             <span class="nav-label">{{ item.label }}</span>
-            <span class="nav-desc">{{ item.description }}</span>
           </RouterLink>
         </section>
       </nav>
+
+      <div class="sidebar-foot">
+        <span class="status-dot online" />
+        <span class="sidebar-foot-copy">服务运行正常</span>
+      </div>
     </aside>
 
     <section class="ly-main">
       <header class="ly-topbar">
-        <div>
-          <p class="route-kicker">LYFLOW COMMAND</p>
-          <h1>{{ routeTitle }}</h1>
+        <div class="topbar-title">
+          <button class="icon-button mobile-trigger" type="button" aria-label="打开导航" @click="mobileOpen = true">
+            <el-icon><Menu /></el-icon>
+          </button>
+          <button class="icon-button collapse-trigger" type="button" :aria-label="collapsed ? '展开导航' : '收起导航'" @click="collapsed = !collapsed">
+            <el-icon><Fold v-if="!collapsed" /><Expand v-else /></el-icon>
+          </button>
+          <div><p>{{ routeGroup }}</p><h1>{{ routeTitle }}</h1></div>
         </div>
         <div class="topbar-right">
-          <div class="time-card">
-            <span>中国时间</span>
-            <strong>{{ currentTime }}</strong>
-          </div>
-          <button type="button" class="user-button" @click="handleLogout">
-            {{ authStore.user?.username || '管理员' }} · 退出
-          </button>
+          <div class="system-chip"><span class="status-dot online" /><span>设备在线</span></div>
+          <time class="system-time">{{ currentTime }}</time>
+          <el-dropdown trigger="click">
+            <button class="user-button" type="button">
+              <span class="user-avatar">{{ userInitial }}</span>
+              <span class="user-name">{{ authStore.user?.username || '管理员' }}</span>
+              <el-icon><ArrowDown /></el-icon>
+            </button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item @click="handleLogout"><el-icon><SwitchButton /></el-icon>退出登录</el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
         </div>
       </header>
 
@@ -68,6 +74,10 @@
 <script setup>
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import {
+  Aim, ArrowDown, Collection, Connection, DataAnalysis, DataLine, Document,
+  Expand, Fold, Key, Lock, Menu, Monitor, Operation, Setting, SwitchButton, User,
+} from '@element-plus/icons-vue'
 import { overviewClient } from '../api/domain'
 import { productNavigation, canAccessNavigationItem, flattenNavigation } from '../shared/navigation'
 import { formatChinaTime, refreshPlatformTimeOffset } from '../shared/time'
@@ -77,19 +87,33 @@ const route = useRoute()
 const router = useRouter()
 const authStore = useAuthStore()
 const currentTime = ref(formatChinaTime())
+const collapsed = ref(false)
+const mobileOpen = ref(false)
 let timer = null
 
+const icons = {
+  '/dashboard': Monitor,
+  '/incidents': Aim,
+  '/assets': Connection,
+  '/traffic-threats': DataLine,
+  '/runtime': DataAnalysis,
+  '/rasp': Lock,
+  '/events': Document,
+  '/rules': Collection,
+  '/control-center': Operation,
+  '/install-config': Setting,
+  '/users': User,
+}
+
 const visibleGroups = computed(() => productNavigation
-  .map((group) => ({
-    ...group,
-    items: group.items.filter((item) => canAccessNavigationItem(item, authStore.user?.role || 'viewer')),
-  }))
+  .map((group) => ({ ...group, items: group.items.filter((item) => canAccessNavigationItem(item, authStore.user?.role || 'viewer')) }))
   .filter((group) => group.items.length > 0))
 
-const routeTitle = computed(() => {
-  const item = flattenNavigation().find((entry) => entry.path === route.path)
-  return item?.label || '运营总览'
-})
+const activeItem = computed(() => flattenNavigation().find((entry) => entry.path === route.path))
+const routeTitle = computed(() => activeItem.value?.label || '运营总览')
+const routeGroup = computed(() => activeItem.value?.group || '核心运营')
+const userInitial = computed(() => String(authStore.user?.username || 'A').slice(0, 1).toUpperCase())
+const iconFor = (path) => icons[path] || Key
 
 const handleLogout = async () => {
   await authStore.logout()
@@ -98,358 +122,19 @@ const handleLogout = async () => {
 
 onMounted(() => {
   refreshPlatformTimeOffset(overviewClient.systemTime).catch(() => {})
-  timer = setInterval(() => {
-    currentTime.value = formatChinaTime()
-  }, 1000)
+  timer = setInterval(() => { currentTime.value = formatChinaTime() }, 1000)
 })
-
-onUnmounted(() => {
-  if (timer) clearInterval(timer)
-})
+onUnmounted(() => { if (timer) clearInterval(timer) })
 </script>
 
 <style scoped>
-.ly-shell {
-  display: grid;
-  grid-template-columns: 268px minmax(0, 1fr);
-  height: 100vh;
-  min-width: 0;
-  color: var(--text-primary);
-  background:
-    linear-gradient(90deg, rgba(56,189,248,.05) 1px, transparent 1px),
-    linear-gradient(0deg, rgba(56,189,248,.04) 1px, transparent 1px),
-    radial-gradient(circle at 78% 0%, rgba(20,184,166,.14), transparent 30%),
-    linear-gradient(135deg, #050b14 0%, #08111f 46%, #0c1728 100%);
-  background-size: 44px 44px, 44px 44px, auto, auto;
-}
-
-.ly-sidebar {
-  min-width: 0;
-  padding: 18px 14px;
-  background: linear-gradient(180deg, rgba(3, 10, 22, .98), rgba(6, 16, 32, .94));
-  border-right: 1px solid rgba(56, 189, 248, .18);
-  box-shadow: inset -1px 0 0 rgba(255,255,255,.04), 22px 0 80px rgba(0,0,0,.22);
-  overflow-y: auto;
-}
-
-.ly-brand {
-  display: flex;
-  gap: 14px;
-  align-items: center;
-  padding: 10px 10px 16px;
-  color: inherit;
-  text-decoration: none;
-}
-
-.brand-mark {
-  display: grid;
-  place-items: center;
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  background:
-    radial-gradient(circle at 42% 45%, rgba(56,189,248,.24), transparent 20%),
-    radial-gradient(circle at 72% 32%, rgba(96,165,250,.34), transparent 24%),
-    linear-gradient(145deg, #031127, #071d3c 58%, #03101d);
-  border: 1px solid rgba(96,165,250,.62);
-  box-shadow: 0 0 0 1px rgba(59,130,246,.18), 0 18px 52px rgba(37,99,235,.34), inset 0 0 28px rgba(14,165,233,.18);
-  overflow: hidden;
-}
-
-.brand-mark svg {
-  width: 48px;
-  height: 48px;
-  filter: drop-shadow(0 0 12px rgba(56,189,248,.42));
-}
-
-.mark-orbit {
-  fill: none;
-  stroke: rgba(59,130,246,.34);
-  stroke-width: 1;
-}
-
-.mark-orbit-wide {
-  stroke: rgba(96,165,250,.58);
-  stroke-width: 1.35;
-}
-
-.mark-shadow {
-  fill: rgba(148,197,255,.32);
-  opacity: .68;
-}
-
-.mark-flow {
-  fill: none;
-  stroke: #dbeafe;
-  stroke-width: 4.8;
-  stroke-linecap: round;
-  opacity: .96;
-}
-
-.mark-flow-back {
-  stroke: #2563eb;
-  stroke-width: 7.2;
-  opacity: .66;
-}
-
-.mark-hotline, .mark-glow {
-  fill: none;
-  stroke-linecap: round;
-}
-
-.mark-hotline {
-  stroke: #38bdf8;
-  stroke-width: 2;
-}
-
-.mark-glow {
-  stroke: rgba(147,197,253,.82);
-  stroke-width: 1.2;
-}
-
-.mark-dot {
-  fill: #ff4d5e;
-  stroke: rgba(248,250,252,.82);
-  stroke-width: .8;
-}
-
-.mark-dot-small {
-  fill: #38bdf8;
-  stroke: rgba(191,219,254,.75);
-}
-
-.ly-brand strong {
-  display: block;
-  font-size: 22px;
-  letter-spacing: 0.08em;
-  color: #f8fafc;
-}
-
-.ly-brand small {
-  color: #7dd3fc;
-  font-size: 11px;
-  letter-spacing: .08em;
-}
-
-.ops-strip {
-  margin: 4px 8px 18px;
-  padding: 12px;
-  border-radius: 14px;
-  background: linear-gradient(135deg, rgba(14,165,233,.14), rgba(16,185,129,.08));
-  border: 1px solid rgba(125,211,252,.18);
-}
-
-.ops-strip span {
-  display: block;
-  color: var(--text-muted);
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: .16em;
-}
-
-.ops-strip b {
-  display: block;
-  margin-top: 5px;
-  color: #dff7ff;
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.ly-nav {
-  display: grid;
-  gap: 18px;
-}
-
-.nav-group h2 {
-  margin: 0 0 8px;
-  color: #5f7189;
-  font-size: 11px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  text-align: center;
-}
-
-.nav-item {
-  min-height: 54px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-  padding: 10px 12px;
-  color: #9aa8bb;
-  text-align: center;
-  text-decoration: none;
-  border-radius: 12px;
-  border: 1px solid transparent;
-  transition: color .18s ease, background .18s ease, border-color .18s ease, transform .18s ease;
-}
-
-.nav-item:hover,
-.nav-item.router-link-active {
-  color: #f8fafc;
-  background: linear-gradient(135deg, rgba(56,189,248,.14), rgba(34,197,94,.08));
-  border-color: rgba(125,211,252,.28);
-  box-shadow: 0 14px 34px rgba(2,8,23,.24);
-  transform: translateX(2px);
-}
-
-.nav-label {
-  width: 100%;
-  font-size: 14px;
-  font-weight: 850;
-  line-height: 1.15;
-}
-
-.nav-desc {
-  width: 100%;
-  color: #64748b;
-  font-size: 11px;
-  line-height: 1.35;
-}
-
-.ly-main {
-  min-width: 0;
-  min-height: 0;
-  display: grid;
-  grid-template-rows: clamp(64px, 7vh, 82px) minmax(0, 1fr);
-}
-
-.ly-topbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 20px;
-  min-width: 0;
-  padding: 0 clamp(16px, 2vw, 30px);
-  background: rgba(5, 12, 24, .74);
-  border-bottom: 1px solid rgba(125,211,252,.14);
-  backdrop-filter: blur(22px);
-}
-
-.route-kicker {
-  margin: 0 0 3px;
-  color: var(--primary-light);
-  font-size: 10px;
-  font-weight: 900;
-  letter-spacing: .18em;
-}
-
-.ly-topbar h1 {
-  margin: 0;
-  font-size: clamp(18px, 1.6vw, 24px);
-  color: #f8fafc;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.topbar-right {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
-.time-card {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 3px;
-  min-width: 136px;
-  height: 50px;
-  padding: 0 14px;
-  border-radius: 12px;
-  background: rgba(8,18,32,.72);
-  border: 1px solid rgba(125,211,252,.16);
-  backdrop-filter: blur(18px);
-}
-
-.time-card span {
-  color: #718096;
-  font-size: 12px;
-  line-height: 1;
-}
-
-.time-card strong {
-  font-variant-numeric: tabular-nums;
-  line-height: 1;
-  font-size: 17px;
-  letter-spacing: .04em;
-}
-
-.user-button {
-  height: 42px;
-  padding: 0 16px;
-  border: 1px solid rgba(125, 211, 252, 0.22);
-  border-radius: 12px;
-  color: #dff7ff;
-  background: rgba(8,18,32,.72);
-  backdrop-filter: blur(18px);
-  cursor: pointer;
-}
-
-.ly-content {
-  min-width: 0;
-  min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-  background: radial-gradient(circle at 50% 0%, rgba(56,189,248,.08), transparent 34%);
-}
-
-.ly-content :deep(th),
-.ly-content :deep(td),
-.ly-content :deep(.panel-title),
-.ly-content :deep(.detail-grid),
-.ly-content :deep(.empty-cell) {
-  text-align: center;
-}
-
-@media (max-width: 1180px) {
-  .ly-shell {
-    grid-template-columns: 220px minmax(0, 1fr);
-  }
-
-  .nav-desc,
-  .time-card {
-    display: none;
-  }
-}
-
-.module-fade-enter-active,
-.module-fade-leave-active {
-  transition: opacity .36s ease, transform .36s cubic-bezier(.2,.78,.16,1);
-}
-.module-fade-enter-from,
-.module-fade-leave-to {
-  opacity: 0;
-  transform: translateY(10px);
-}
-
-@media (max-width: 980px) {
-  .ly-shell {
-    grid-template-columns: 1fr;
-  }
-
-  .ly-sidebar {
-    display: none;
-  }
-
-  .ly-topbar {
-    flex-wrap: wrap;
-    align-content: center;
-    row-gap: 8px;
-  }
-
-  .topbar-right {
-    min-width: 0;
-  }
-
-  .user-button {
-    max-width: 48vw;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-}
+.ly-shell{display:grid;grid-template-columns:216px minmax(0,1fr);height:100vh;min-width:0;background:#f3f6fa;color:#27364a;transition:grid-template-columns .18s ease}.ly-shell.is-collapsed{grid-template-columns:64px minmax(0,1fr)}
+.ly-sidebar{position:relative;z-index:20;display:flex;min-width:0;flex-direction:column;overflow:hidden;background:#fff;border-right:1px solid #dce3ec}
+.ly-brand{display:flex;height:64px;flex:0 0 64px;align-items:center;gap:10px;padding:0 14px;color:#172b4d;text-decoration:none;border-bottom:1px solid #e6ebf1;white-space:nowrap}.brand-mark{display:grid;width:36px;height:36px;flex:0 0 36px;place-items:center;border-radius:6px;background:#1976d2;color:#fff;font-size:14px;font-weight:800}.brand-copy{min-width:0}.brand-copy strong,.brand-copy small{display:block;letter-spacing:0}.brand-copy strong{font-size:16px}.brand-copy small{margin-top:1px;color:#7b8798;font-size:11px;font-weight:500}
+.ly-nav{flex:1;overflow-x:hidden;overflow-y:auto;padding:10px 8px}.nav-group{margin-bottom:12px}.nav-group h2{height:24px;margin:0;padding:4px 10px;color:#98a2b3;font-size:11px;font-weight:600;line-height:16px;letter-spacing:0;white-space:nowrap}.nav-item{display:flex;height:40px;align-items:center;gap:10px;margin:2px 0;padding:0 10px;border-radius:5px;color:#475467;text-decoration:none;transition:background .15s ease,color .15s ease}.nav-item .el-icon{width:18px;flex:0 0 18px;font-size:18px}.nav-item:hover{background:#f1f6fc;color:#1769ba}.nav-item.router-link-active{background:#e8f3ff;color:#1268bd;font-weight:600;box-shadow:inset 3px 0 #1976d2}.nav-label{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.sidebar-foot{display:flex;height:46px;align-items:center;gap:9px;padding:0 18px;border-top:1px solid #e6ebf1;color:#667085;font-size:12px;white-space:nowrap}.status-dot{display:inline-block;width:7px;height:7px;flex:0 0 7px;border-radius:50%;background:#98a2b3}.status-dot.online{background:#20a66a;box-shadow:0 0 0 3px #e3f5ed}
+.is-collapsed .brand-copy,.is-collapsed .nav-label,.is-collapsed .nav-group h2,.is-collapsed .sidebar-foot-copy{display:none}.is-collapsed .ly-brand{padding:0 14px}.is-collapsed .nav-item{justify-content:center;padding:0}.is-collapsed .sidebar-foot{justify-content:center;padding:0}
+.ly-main{display:grid;min-width:0;min-height:0;grid-template-rows:64px minmax(0,1fr)}.ly-topbar{display:flex;min-width:0;align-items:center;justify-content:space-between;gap:20px;padding:0 20px;background:#fff;border-bottom:1px solid #dce3ec}.topbar-title,.topbar-right,.user-button,.system-chip{display:flex;align-items:center}.topbar-title{min-width:0;gap:8px}.topbar-title p{margin:0;color:#8792a2;font-size:11px;line-height:16px}.topbar-title h1{margin:0;color:#1d2939;font-size:18px;line-height:24px;letter-spacing:0}.topbar-right{gap:14px}.icon-button{display:grid;width:36px;height:36px;place-items:center;border:0;border-radius:5px;background:transparent;color:#667085;cursor:pointer}.icon-button:hover{background:#f1f5f9;color:#1976d2}.mobile-trigger{display:none}.system-chip{gap:7px;color:#475467;font-size:12px}.system-time{color:#667085;font-size:12px;font-variant-numeric:tabular-nums}.user-button{height:38px;gap:8px;padding:0 8px;border:0;border-radius:5px;background:transparent;color:#344054;cursor:pointer}.user-button:hover{background:#f3f6fa}.user-avatar{display:grid;width:28px;height:28px;place-items:center;border-radius:50%;background:#e7f2ff;color:#1769ba;font-weight:700}.ly-content{min-width:0;min-height:0;overflow:auto;overscroll-behavior:contain;background:#f3f6fa}.nav-scrim{display:none}
+.module-fade-enter-active,.module-fade-leave-active{transition:opacity .16s ease}.module-fade-enter-from,.module-fade-leave-to{opacity:0}
+@media(max-width:900px){.ly-shell,.ly-shell.is-collapsed{grid-template-columns:1fr}.ly-sidebar{position:fixed;inset:0 auto 0 0;width:216px;transform:translateX(-100%);transition:transform .18s ease;box-shadow:8px 0 28px rgb(15 23 42 / 18%)}.is-mobile-open .ly-sidebar{transform:translateX(0)}.nav-scrim{position:fixed;z-index:15;inset:0;display:block;border:0;background:rgb(15 23 42 / 40%)}.collapse-trigger{display:none}.mobile-trigger{display:grid}.system-chip,.system-time{display:none}.ly-main{grid-column:1}.ly-topbar{padding:0 12px}.user-name{display:none}}
 </style>

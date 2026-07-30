@@ -1,0 +1,48 @@
+services:
+  ly-engine-lab:
+    image: ${LY_ENGINE_LAB_IMAGE:-ly-flow/security-engines:latest}
+    restart: unless-stopped
+    environment:
+      ENGINE_LAB_INTERVAL: ${ENGINE_LAB_INTERVAL:-45}
+      ENGINE_LAB_EMIT_SAMPLE_EVENTS: ${ENGINE_LAB_EMIT_SAMPLE_EVENTS:-false}
+      SURICATA_EVE: /var/log/suricata/eve.json
+      WAZUH_ALERTS: /var/ossec/logs/alerts/alerts.json
+      YARA_RESULTS: /opt/ly-agent/yara/last-scan.json
+      RASP_EVENTS: /opt/ly-agent/rasp/events.jsonl
+      ENGINE_RULE_ROOT: /opt/ly-engine-lab/rules
+      ENGINE_STATUS_FILE: /opt/ly-engine-lab/runtime/status.json
+    volumes:
+      - ./.sisyphus/runtime/engine-outputs/suricata:/var/log/suricata
+      - ./.sisyphus/runtime/engine-outputs/wazuh:/var/ossec/logs/alerts
+      - ./.sisyphus/runtime/engine-outputs/yara:/opt/ly-agent/yara
+      - ./.sisyphus/runtime/engine-outputs/rasp:/opt/ly-agent/rasp
+      - ./.sisyphus/runtime/engine-outputs/status:/opt/ly-engine-lab/runtime
+      - ./rules:/opt/ly-engine-lab/rules:ro
+    networks: [core]
+
+  ly-agent-qa:
+    image: ${LY_AGENT_IMAGE:-ly-flow/agent:latest}
+    restart: unless-stopped
+    environment:
+      API_SERVER: http://ly-server:8080
+      REDIS_SERVER: redis:6379
+      REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
+      REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      AGENT_ID: ly-container-agent-qa
+      AGENT_KEY: ly-container-agent-qa-key
+      TRAFFIC_ENABLED: "false"
+      HIDS_ENABLED: "true"
+      RASP_ENABLED: "true"
+      ASSET_ENABLED: "true"
+      SPOOL_ENABLED: "true"
+      ENGINE_STATUS_FILE: /opt/ly-engine-lab/runtime/status.json
+    volumes:
+      - ./.sisyphus/runtime/engine-outputs:/opt/ly-engine-lab/runtime
+      - agent_spool:/opt/ly-agent/data
+      - policy_trust:/var/lib/lyflow/policy:ro
+    depends_on:
+      ly-server: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      ly-engine-lab: { condition: service_started }
+    networks: [core]

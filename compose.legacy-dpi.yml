@@ -1,0 +1,26 @@
+services:
+  ly-dpi-engine-legacy:
+    image: ${LY_LEGACY_DPI_IMAGE:-ly-flow/dpi-engine:latest}
+    restart: unless-stopped
+    command: [/app/ly-dpi-engine]
+    environment:
+      REDIS_ADDR: redis:6379
+      REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
+      REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_STREAM_IN: flows:raw
+      REDIS_STREAM_OUT: alerts:dpi
+      CONSUMER_GROUP: dpi-legacy-workers
+      CONSUMER_NAME: dpi-legacy-1
+      WORKERS: "4"
+      DOMAIN_MINING: /etc/ly/rules/domain/mining.txt
+      DOMAIN_FRAUD: /etc/ly/rules/domain/fraud.txt
+      DOMAIN_CUSTOM: /etc/ly/rules/domain/custom.txt
+      RULES_FILE: /etc/ly/rules/suricata/et-open.rules
+      DATABASE_RULES_PATH: /etc/ly/dpi-rules/database
+    volumes:
+      - ./rules:/etc/ly/rules:ro
+      - ./dpi-engine/rules:/etc/ly/dpi-rules:ro
+    depends_on:
+      redis: { condition: service_healthy }
+    networks: [core]

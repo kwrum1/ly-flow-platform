@@ -1,38 +1,54 @@
-# 流影安全态势感知平台 - Docker Compose
-# 版本: v2.0.1
-# 更新日期: 2026-05-08
+name: ly-flow-platform
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  init: true
+  stop_grace_period: 30s
+  logging:
+    driver: json-file
+    options:
+      max-size: 20m
+      max-file: "5"
+
+x-data-healthcheck: &data-healthcheck
+  interval: 10s
+  timeout: 5s
+  retries: 10
+  start_period: 10s
+
+x-core-environment: &core-environment
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_USER: lyflow
+  DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+  DB_NAME: lyflow
+  REDIS_ADDR: redis:6379
+  REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
+  REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-}
 
 services:
-  # =====================================================
-  # PostgreSQL 数据库
-  # =====================================================
   postgres:
+    <<: *service-defaults
     image: postgres:16-alpine
-    restart: unless-stopped
     environment:
       POSTGRES_DB: lyflow
       POSTGRES_USER: lyflow
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-lyflow_secret_password}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
     volumes:
       - postgres_data:/var/lib/postgresql/data
       - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
       - ./server/sql/asset_tables.sql:/docker-entrypoint-initdb.d/02-asset-tables.sql:ro
     ports:
-      - "127.0.0.1:${POSTGRES_BIND_PORT:-5432}:5432"
+      - 127.0.0.1:${POSTGRES_BIND_PORT:-5432}:5432
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U lyflow -d lyflow"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - ly-network
+      <<: *data-healthcheck
+      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -U lyflow -d lyflow]
+    networks: [core]
 
-  # =====================================================
-  # Redis 数据库
-  # =====================================================
   redis:
+    <<: *service-defaults
     image: redis:7-alpine
-    restart: unless-stopped
     environment:
       REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
       REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
@@ -41,74 +57,55 @@ services:
       - /bin/sh
       - -ec
       - >-
-        exec redis-server --appendonly yes --maxmemory "${REDIS_MAXMEMORY:-8gb}"
+        exec redis-server --appendonly yes --appendfsync everysec
+        --maxmemory "${REDIS_MAXMEMORY:-8gb}"
         --maxmemory-policy "${REDIS_MAXMEMORY_POLICY:-noeviction}"
         --requirepass "$$REDIS_PASSWORD"
         --user "$$REDIS_ACL_USERNAME" on ">$$REDIS_ACL_PASSWORD" "~*" "&*" "+@all"
     volumes:
       - redis_data:/data
     ports:
-      - "127.0.0.1:${REDIS_BIND_PORT:-6379}:6379"
+      - 127.0.0.1:${REDIS_BIND_PORT:-6379}:6379
     healthcheck:
-      test: ["CMD-SHELL", "reply=$$(redis-cli --no-auth-warning --user \"$$REDIS_ACL_USERNAME\" --pass \"$$REDIS_ACL_PASSWORD\" ping 2>/dev/null) && [ \"$$reply\" = PONG ]"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - ly-network
+      <<: *data-healthcheck
+      test: [CMD-SHELL, 'reply=$$(redis-cli --no-auth-warning --user "$$REDIS_ACL_USERNAME" --pass "$$REDIS_ACL_PASSWORD" ping 2>/dev/null) && [ "$$reply" = PONG ]']
+    networks: [core]
 
   clickhouse:
+    <<: *service-defaults
     image: clickhouse/clickhouse-server:24.8-alpine
-    restart: unless-stopped
     environment:
-      - CLICKHOUSE_DB=lyflow
-      - CLICKHOUSE_USER=lyflow
-      - CLICKHOUSE_PASSWORD=${CLICKHOUSE_PASSWORD:-lyflow_clickhouse_password}
+      CLICKHOUSE_DB: lyflow
+      CLICKHOUSE_USER: lyflow
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set}
     volumes:
       - clickhouse_data:/var/lib/clickhouse
     ports:
-      - "127.0.0.1:${CLICKHOUSE_HTTP_BIND_PORT:-8123}:8123"
-      - "127.0.0.1:${CLICKHOUSE_NATIVE_BIND_PORT:-9000}:9000"
+      - 127.0.0.1:${CLICKHOUSE_HTTP_BIND_PORT:-8123}:8123
+      - 127.0.0.1:${CLICKHOUSE_NATIVE_BIND_PORT:-9000}:9000
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8123/ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
-    networks:
-      - ly-network
+      <<: *data-healthcheck
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8123/ping]
+    networks: [core]
 
-  # =====================================================
-  # ly-server (后端API)
-  # =====================================================
   ly-server:
-    image: ly-flow/server:latest
-    build:
-      context: .
-      dockerfile: server/Dockerfile.final
-    restart: unless-stopped
-    command: ["/app/ly-server"]
+    <<: *service-defaults
+    image: ${LY_SERVER_IMAGE:-ly-flow/server:statusfix-arm14}
+    command: [/app/ly-server]
     environment:
-      DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_USER: lyflow
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-lyflow_secret_password}
-      DB_NAME: lyflow
+      <<: *core-environment
       DB_SSLMODE: disable
       DB_MAX_CONNS: "10"
       DB_MIN_CONNS: "2"
       DB_MAX_CONN_LIFETIME_MINUTES: "30"
       DB_MAX_CONN_IDLE_MINUTES: "5"
       DB_HEALTH_CHECK_SECONDS: "30"
-      REDIS_ADDR: redis:6379
-      REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
-      REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       CLICKHOUSE_ADDR: http://clickhouse:8123
       CLICKHOUSE_DB: lyflow
       CLICKHOUSE_USER: lyflow
-      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:-lyflow_clickhouse_password}
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set}
       SERVER_PORT: "8080"
-      JWT_SECRET: ${JWT_SECRET:-change_this_in_production}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-password}
       LYFLOW_RESET_ADMIN_PASSWORD: ${LYFLOW_RESET_ADMIN_PASSWORD:-false}
       LYFLOW_FORCE_FIRST_LOGIN_PASSWORD_CHANGE: ${LYFLOW_FORCE_FIRST_LOGIN_PASSWORD_CHANGE:-true}
@@ -126,75 +123,31 @@ services:
       POLICY_KEY_DIR: /var/lib/lyflow/policy/keys
       RASP_POLICY_OWNER: ${RASP_POLICY_OWNER:-lyflow-platform}
     ports:
-      - "127.0.0.1:${SERVER_BIND_PORT:-8080}:8080"
+      - 127.0.0.1:${SERVER_BIND_PORT:-8080}:8080
+    volumes:
+      - server_data:/data
+      - ./rules:/etc/ly/rules:ro
+      - ./rules:/app/rules
+      - rule_lifecycle:/app/rules/security-engine/lifecycle
+      - ./.sisyphus:/app/.sisyphus
+      - /sys:/host/sys:ro
+      - policy_trust:/var/lib/lyflow/policy
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+      clickhouse: { condition: service_healthy }
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/api/v1/health"]
       interval: 10s
       timeout: 5s
       retries: 30
       start_period: 30s
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-      clickhouse:
-        condition: service_healthy
-    volumes:
-      - ly_server_data:/data
-      - ./rules:/etc/ly/rules:ro
-      - ./rules:/app/rules
-      - ./.sisyphus:/app/.sisyphus
-      - /sys:/host/sys:ro
-      - policy_trust:/var/lib/lyflow/policy
-    networks:
-      - ly-network
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/api/v1/health]
+    networks: [core]
 
-  # =====================================================
-  # ly-dpi-engine (legacy fallback only; ly-security-engine is default DPI executor)
-  # =====================================================
-  ly-dpi-engine:
-    profiles: ["legacy-dpi"]
-    image: ly-flow/dpi-engine:latest
-    build:
-      context: .
-      dockerfile: dpi-engine/Dockerfile
-    restart: unless-stopped
-    command: ["/app/ly-dpi-engine"]
-    environment:
-      REDIS_ADDR: redis:6379
-      REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
-      REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-      REDIS_STREAM_IN: flows:raw
-      REDIS_STREAM_OUT: alerts:dpi
-      CONSUMER_GROUP: dpi-workers
-      CONSUMER_NAME: dpi-engine
-      WORKERS: "4"
-      DOMAIN_MINING: /etc/ly/rules/domain/mining.txt
-      DOMAIN_FRAUD: /etc/ly/rules/domain/fraud.txt
-      DOMAIN_CUSTOM: /etc/ly/rules/domain/custom.txt
-      RULES_FILE: /etc/ly/rules/suricata/et-open.rules
-      DATABASE_RULES_PATH: /etc/ly/dpi-rules/database
-    volumes:
-      - ./rules:/etc/ly/rules:ro
-      - ./dpi-engine/rules:/etc/ly/dpi-rules:ro
-    depends_on:
-      redis:
-        condition: service_healthy
-    networks:
-      - ly-network
-
-  # =====================================================
-  # ly-security-engine (统一检测引擎，DPI/Runtime/RASP/日志审计)
-  # =====================================================
   ly-security-engine:
-    image: ly-flow/security-engine:latest
-    build:
-      context: .
-      dockerfile: security-engine/Dockerfile
-    restart: unless-stopped
-    command: ["/app/ly-security-engine"]
+    <<: *service-defaults
+    image: ${LY_SECURITY_ENGINE_IMAGE:-ly-flow/security-engine:healthstream2-20260731}
+    command: [/app/ly-security-engine]
     environment:
       REDIS_ADDR: redis:6379
       REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
@@ -216,175 +169,80 @@ services:
     volumes:
       - security_engine_data:/data
       - ./rules:/app/rules:ro
+      - rule_lifecycle:/app/rules/security-engine/lifecycle:ro
       - policy_trust:/var/lib/lyflow/policy:ro
       - security_engine_audit:/var/lib/lyflow/audit
     depends_on:
-      redis:
-        condition: service_healthy
-      ly-server:
-        condition: service_healthy
+      redis: { condition: service_healthy }
+      ly-server: { condition: service_healthy }
     healthcheck:
-      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/health"]
       interval: 10s
       timeout: 5s
       retries: 12
       start_period: 10s
-    networks:
-      - ly-network
+      test: [CMD, wget, -q, -O, /dev/null, http://127.0.0.1:8080/health]
+    networks: [core]
 
-  # =====================================================
-  # ly-vis (Vue3 前端)
-  # =====================================================
-  ly-vis:
-    image: ly-flow/frontend:latest
-    build:
-      context: .
-      dockerfile: frontend/Dockerfile
-    restart: unless-stopped
-    environment:
-      - LY_SERVER_UPSTREAM=${LY_SERVER_UPSTREAM:-http://ly-server:8080}
-    ports:
-      - "${HTTPS_BIND_PORT:-443}:443"
-    depends_on:
-      ly-server:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "wget", "--no-check-certificate", "-q", "-O", "/dev/null", "https://127.0.0.1/"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-    networks:
-      - ly-network
-
-  # =====================================================
-  # ly-engine-lab (GitHub source/rule packaged external engines)
-  # =====================================================
-  ly-engine-lab:
-    image: ly-flow/security-engines:latest
-    build:
-      context: .
-      dockerfile: containers/security-engines/Dockerfile
-    restart: unless-stopped
-    environment:
-      - ENGINE_LAB_INTERVAL=${ENGINE_LAB_INTERVAL:-45}
-      - ENGINE_LAB_EMIT_SAMPLE_EVENTS=${ENGINE_LAB_EMIT_SAMPLE_EVENTS:-false}
-      - SURICATA_EVE=/var/log/suricata/eve.json
-      - WAZUH_ALERTS=/var/ossec/logs/alerts/alerts.json
-      - YARA_RESULTS=/opt/ly-agent/yara/last-scan.json
-      - RASP_EVENTS=/opt/ly-agent/rasp/events.jsonl
-      - ENGINE_RULE_ROOT=/opt/ly-engine-lab/rules
-      - ENGINE_STATUS_FILE=/opt/ly-engine-lab/runtime/status.json
-    volumes:
-      - engine_lab_data:/data
-      - ./.sisyphus/runtime/engine-outputs/suricata:/var/log/suricata
-      - ./.sisyphus/runtime/engine-outputs/wazuh:/var/ossec/logs/alerts
-      - ./.sisyphus/runtime/engine-outputs/yara:/opt/ly-agent/yara
-      - ./.sisyphus/runtime/engine-outputs/rasp:/opt/ly-agent/rasp
-      - ./.sisyphus/runtime/engine-outputs/status:/opt/ly-engine-lab/runtime
-      - ./rules:/opt/ly-engine-lab/rules:ro
-    healthcheck:
-      test: ["CMD", "python3", "-c", "import os, stat, time; path = os.environ.get('ENGINE_STATUS_FILE', '/opt/ly-engine-lab/runtime/status.json'); status = os.stat(path); age = time.time() - status.st_mtime; raise SystemExit(0 if stat.S_ISREG(status.st_mode) and status.st_size > 0 and 0 <= age <= 120 else 1)"]
-      interval: 30s
-      timeout: 5s
-      retries: 5
-      start_period: 30s
-    networks:
-      - ly-network
-
-  ly-suricata-sensor:
-    profiles:
-      - suricata-profile
-    image: ly-flow/suricata-profile:7.0.11
-    build:
-      context: .
-      dockerfile: containers/security-engines/Dockerfile
-      target: suricata-profile
-      args:
-        SURICATA_PROFILE_IMAGE: docker.io/jasonish/suricata@sha256:73cf099d6299f75dda2d9d6edcfb8238b7a7322566d6189a69d46442a366b7fa
-    restart: unless-stopped
-    network_mode: host
-    cap_add:
-      - NET_RAW
-      - NET_ADMIN
-      - SYS_NICE
-    command: ["-c", "/etc/suricata/lyflow-suricata-profile.yaml", "-i", "${SURICATA_INTERFACE:-eth0}"]
-    volumes:
-      - ./.sisyphus/runtime/engine-outputs/suricata-profile:/var/log/suricata
-    healthcheck:
-      test: ["CMD-SHELL", "suricata --build-info | grep -F 'Suricata 7.0.11' >/dev/null && pgrep -x suricata >/dev/null"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-
-  # =====================================================
-  # AgentCenter (Agent管理服务，gRPC)
-  # =====================================================
   agent-center:
-    image: ly-flow/server:latest
-    build:
-      context: .
-      dockerfile: server/Dockerfile.final
-    restart: unless-stopped
-    command: ["/app/ly-agent-center"]
+    <<: *service-defaults
+    image: ${LY_SERVER_IMAGE:-ly-flow/server:statusfix-arm14}
+    command: [/app/ly-agent-center]
     environment:
-      DB_HOST: postgres
-      DB_PORT: "5432"
-      DB_USER: lyflow
-      DB_PASSWORD: ${POSTGRES_PASSWORD:-lyflow_secret_password}
-      DB_NAME: lyflow
-      REDIS_ADDR: redis:6379
-      REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
-      REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      <<: *core-environment
       GRPC_PORT: "8081"
     ports:
-      - "${AGENT_CENTER_BIND_PORT:-8081}:8081"
+      - ${AGENT_CENTER_BIND_PORT:-8081}:8081
+    volumes:
+      - agent_center_data:/data
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
     healthcheck:
-      test: ["CMD", "/app/ly-agent-center", "healthcheck"]
       interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+      test: [CMD, /app/ly-agent-center, healthcheck]
+    networks: [core]
+
+  ly-vis:
+    <<: *service-defaults
+    image: ${LY_FRONTEND_IMAGE:-ly-flow/frontend:ui-ikuai-20260731}
+    environment:
+      LY_SERVER_UPSTREAM: http://ly-server:8080
+    ports:
+      - ${HTTPS_BIND_PORT:-443}:443
+    depends_on:
+      ly-server: { condition: service_healthy }
+    healthcheck:
+      interval: 20s
       timeout: 5s
       retries: 5
       start_period: 10s
-    depends_on:
-      postgres:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
-    volumes:
-      - agent_center_data:/data
-    networks:
-      - ly-network
+      test: [CMD, wget, --no-check-certificate, -q, -O, /dev/null, https://127.0.0.1/]
+    networks: [core]
 
-  # =====================================================
-  # ly-local-mirror (security-server passive mirror capture)
-  # =====================================================
   ly-local-mirror:
-    image: ly-flow/local-mirror:latest
-    build:
-      context: .
-      dockerfile: agent/Dockerfile.pfring
-    restart: unless-stopped
+    <<: *service-defaults
+    image: ${LY_LOCAL_MIRROR_IMAGE:-ly-flow/local-mirror:signed4}
     network_mode: host
-    cap_add:
-      - NET_RAW
-      - NET_ADMIN
+    cap_add: [NET_RAW, NET_ADMIN]
     environment:
       AGENT_MODE: local-mirror
       LOCAL_MIRROR_MODE: "true"
       MIRROR_CONFIG_FILE: /app/.sisyphus/runtime/mirror-capture-config.json
-      API_SERVER: "http://127.0.0.1:${SERVER_BIND_PORT:-8080}"
-      REDIS_SERVER: "127.0.0.1:${REDIS_BIND_PORT:-6379}"
+      API_SERVER: http://127.0.0.1:${SERVER_BIND_PORT:-8080}
+      REDIS_SERVER: 127.0.0.1:${REDIS_BIND_PORT:-6379}
       REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
       REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       TRAFFIC_ENABLED: "true"
-      TRAFFIC_INTERFACE: ${LOCAL_MIRROR_INTERFACE:-auto}
+      TRAFFIC_INTERFACE: ${LOCAL_MIRROR_INTERFACE:?LOCAL_MIRROR_INTERFACE must be set}
       CAPTURE_ENGINE: pfring
       PROMISCUOUS: "true"
       TRAFFIC_MAX_EVENTS_PER_SECOND: ${LOCAL_MIRROR_MAX_EVENTS_PER_SECOND:-0}
       HIDS_ENABLED: "false"
       RASP_ENABLED: "false"
-      RASP_POLICY_ROOT: /var/lib/lyflow/policy/trust/policy-root.pem
       ASSET_ENABLED: "false"
       SESSION_STREAM: sessions:semantic
       RAW_STREAM: flows:raw
@@ -400,100 +258,44 @@ services:
       - agent_spool:/opt/ly-agent/data
       - policy_trust:/var/lib/lyflow/policy:ro
       - ./.sisyphus:/app/.sisyphus:ro
+    depends_on:
+      ly-server: { condition: service_started }
+      redis: { condition: service_healthy }
     healthcheck:
-      test: ["CMD", "/app/ly-agent", "healthcheck", "local-mirror"]
       interval: 10s
       timeout: 5s
-      retries: 5
-      start_period: 10s
-    depends_on:
-      ly-server:
-        condition: service_started
-      redis:
-        condition: service_healthy
+      retries: 10
+      start_period: 15s
+      test: [CMD, /app/ly-agent, healthcheck, local-mirror]
 
-  # =====================================================
-  # ly-agent (containerized universal agent for local full-system QA)
-  # =====================================================
-  ly-agent:
-    profiles:
-      - container-agent
-      - suricata-profile
-    image: ly-flow/agent:latest
-    build:
-      context: .
-      dockerfile: agent/Dockerfile
-    restart: unless-stopped
-    environment:
-      API_SERVER: http://ly-server:8080
-      REDIS_SERVER: redis:6379
-      REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
-      REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-      AGENT_ID: ly-container-agent
-      AGENT_KEY: ly-container-agent-key
-      TRAFFIC_ENABLED: "false"
-      HIDS_ENABLED: "true"
-      RASP_ENABLED: "true"
-      RASP_POLICY_ROOT: /var/lib/lyflow/policy/trust/policy-root.pem
-      ASSET_ENABLED: "true"
-      SPOOL_ENABLED: "true"
-      SPOOL_DIR: /opt/ly-agent/data/spool
-      SPOOL_MAX_BYTES: ${AGENT_SPOOL_MAX_BYTES:-10737418240}
-      ENGINE_STATUS_FILE: /opt/ly-engine-lab/runtime/status.json
-      SURICATA_PROFILE_ENABLED: "true"
-      SURICATA_EVE: /var/log/suricata-profile/eve.json
-      SURICATA_DEAD_LETTER_PATH: /var/log/suricata-profile/dead-letter.jsonl
-      LOG_FILE: /opt/ly-agent/logs/agent.log
+  ly-suricata-sensor:
+    <<: *service-defaults
+    image: "${LY_SURICATA_IMAGE:-ly-flow/suricata-profile:release-rc-652a7b620dfd-todo5-20260730T071221Z-amd64}"
+    network_mode: host
+    cap_add: [NET_RAW, NET_ADMIN, SYS_NICE]
+    command: ["-c", "/etc/suricata/lyflow-suricata-profile.yaml", "-i", "${SURICATA_INTERFACE:-ens35}"]
     volumes:
-      - ./.sisyphus/runtime/engine-outputs/suricata:/var/log/suricata
-      - ./.sisyphus/runtime/engine-outputs/suricata-profile:/var/log/suricata-profile
-      - ./.sisyphus/runtime/engine-outputs/wazuh:/var/ossec/logs/alerts
-      - ./.sisyphus/runtime/engine-outputs/yara:/opt/ly-agent/yara
-      - ./.sisyphus/runtime/engine-outputs/rasp:/opt/ly-agent/rasp
-      - ./.sisyphus/runtime/engine-outputs/status:/opt/ly-engine-lab/runtime:ro
-      - agent_spool:/opt/ly-agent/data
-      - policy_trust:/var/lib/lyflow/policy:ro
-    depends_on:
-      ly-server:
-        condition: service_started
-      redis:
-        condition: service_healthy
-      ly-engine-lab:
-        condition: service_started
-    networks:
-      - ly-network
+      - ./.sisyphus/runtime/engine-outputs/suricata-profile:/var/log/suricata
+    healthcheck:
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+      test: [CMD-SHELL, "pgrep -x Suricata-Main >/dev/null"]
 
-# =====================================================
-# 网络配置
-# =====================================================
 networks:
-  ly-network:
-    driver: bridge
+  core:
+    name: ly-flow-platform-core
 
-# =====================================================
-# 存储卷
-# =====================================================
 volumes:
   postgres_data:
-    driver: local
   redis_data:
-    driver: local
   clickhouse_data:
-    driver: local
-  agent_spool:
-    driver: local
+  server_data:
   policy_trust:
-    driver: local
-  security_engine_audit:
-    driver: local
-  ly_server_data:
-    driver: local
-  agent_center_data:
-    driver: local
+  rule_lifecycle:
   security_engine_data:
-    driver: local
-  engine_lab_data:
-    driver: local
+  security_engine_audit:
+  agent_center_data:
   local_mirror_data:
-    driver: local
+  agent_spool:
