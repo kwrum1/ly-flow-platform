@@ -931,6 +931,17 @@ func (a *Agent) runTrafficCapture() {
 			fmt.Printf("[probe] %s requested; using %s fallback: %s\n", capability.RequestedEngine, capability.ActiveEngine, capability.FallbackReason)
 		}
 
+		if engine == "pfring" {
+			if err := a.runPFRingCapture(); err == nil {
+				return
+			} else {
+				fmt.Printf("[mirror] PF_RING capture restarting: %v\n", err)
+				if !a.waitTrafficRestart() {
+					return
+				}
+				continue
+			}
+		}
 		if engine == "af_packet" {
 			if err := a.runAFPacketCapture(); err == nil {
 				return
@@ -1023,12 +1034,14 @@ func resolveCaptureCapability(requested string) captureCapability {
 			capability.FallbackReason = "full_ebpf_program_loader_not_implemented"
 		}
 	case "pfring":
-		capability.ActiveEngine = "af_packet"
-		capability.Status = "fallback"
-		if pfRingAvailable() {
-			capability.FallbackReason = "pfring_adapter_not_implemented"
-		} else {
-			capability.FallbackReason = "pfring_unavailable"
+		if !pfringAdapterCompiled() {
+			capability.ActiveEngine = "af_packet"
+			capability.Status = "fallback"
+			capability.FallbackReason = "pfring_adapter_not_compiled"
+		} else if !pfRingAvailable() {
+			capability.ActiveEngine = "af_packet"
+			capability.Status = "fallback"
+			capability.FallbackReason = "pfring_kernel_module_unavailable"
 		}
 	case "procfs":
 		capability.Status = "fallback"

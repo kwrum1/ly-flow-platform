@@ -1,0 +1,4 @@
+**
+!agent/**
+!pkg/**
+!third_party/gopacket/**

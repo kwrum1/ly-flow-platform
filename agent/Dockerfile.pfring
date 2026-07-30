@@ -1,0 +1,34 @@
+FROM golang:1.26-bookworm AS builder
+
+ARG PF_RING_REF=210a95f1445d0e2fbfd2c66088a972ed62db8cae
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git build-essential autoconf automake libtool pkg-config flex bison libnuma-dev libpcap-dev libnl-genl-3-dev \
+    && git -c http.version=HTTP/1.1 init /tmp/PF_RING \
+    && git -C /tmp/PF_RING remote add origin https://github.com/ntop/PF_RING.git \
+    && git -C /tmp/PF_RING -c http.version=HTTP/1.1 fetch --depth 1 origin "${PF_RING_REF}" \
+    && git -C /tmp/PF_RING checkout --detach FETCH_HEAD \
+    && mkdir -p /usr/local/include/linux \
+    && cp /tmp/PF_RING/kernel/linux/pf_ring.h /usr/local/include/linux/pf_ring.h \
+    && cd /tmp/PF_RING/userland/lib \
+    && ./configure --disable-archopt --disable-ft --disable-xdp \
+    && make -j"$(nproc)" \
+    && make install \
+    && ldconfig \
+    && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /src
+COPY agent ./agent
+COPY pkg ./pkg
+COPY third_party/gopacket ./third_party/gopacket
+WORKDIR /src/agent
+RUN CGO_ENABLED=1 go build -tags pfring -trimpath -ldflags="-s -w" -o /out/ly-agent ./cmd
+
+FROM debian:bookworm-slim
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends libpcap0.8 libnuma1 libibverbs1 libdbus-1-3 libnl-3-200 libnl-genl-3-200 libnl-route-3-200 libsystemd0 libcap2 ca-certificates \
+    && rm -rf /var/lib/apt/lists/*
+COPY --from=builder /usr/local/lib/libpfring.so* /usr/local/lib/
+COPY --from=builder /out/ly-agent /app/ly-agent
+RUN ldconfig && mkdir -p /opt/ly-agent/data/spool /opt/ly-agent/logs
+ENTRYPOINT ["/app/ly-agent"]

@@ -356,10 +356,10 @@ services:
   # ly-local-mirror (security-server passive mirror capture)
   # =====================================================
   ly-local-mirror:
-    image: ly-flow/agent:latest
+    image: ly-flow/local-mirror:latest
     build:
       context: .
-      dockerfile: agent/Dockerfile
+      dockerfile: agent/Dockerfile.pfring
     restart: unless-stopped
     network_mode: host
     cap_add:
@@ -375,7 +375,7 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       TRAFFIC_ENABLED: "true"
       TRAFFIC_INTERFACE: ${LOCAL_MIRROR_INTERFACE:-auto}
-      CAPTURE_ENGINE: af_packet
+      CAPTURE_ENGINE: pfring
       PROMISCUOUS: "true"
       TRAFFIC_MAX_EVENTS_PER_SECOND: ${LOCAL_MIRROR_MAX_EVENTS_PER_SECOND:-0}
       HIDS_ENABLED: "false"

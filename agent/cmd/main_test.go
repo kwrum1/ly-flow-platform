@@ -274,6 +274,14 @@ func defaultCaptureEngineForTest() string {
 }
 
 func TestResolveCaptureCapabilityIsHonestAboutFallbacks(t *testing.T) {
+	pfringActiveEngine := "af_packet"
+	pfringStatus := "fallback"
+	pfringReasonEmpty := false
+	if pfringAdapterCompiled() && pfRingAvailable() {
+		pfringActiveEngine = "pfring"
+		pfringStatus = "active"
+		pfringReasonEmpty = true
+	}
 	tests := []struct {
 		name            string
 		requested       string
@@ -283,6 +291,7 @@ func TestResolveCaptureCapabilityIsHonestAboutFallbacks(t *testing.T) {
 	}{
 		{"af packet active", "af_packet", "af_packet", "active", true},
 		{"ebpf falls back", "ebpf", "af_packet", "fallback", false},
+		{"pfring capability follows appliance build and kernel module", "pfring", pfringActiveEngine, pfringStatus, pfringReasonEmpty},
 		{"procfs fallback", "procfs", "procfs", "fallback", false},
 	}
 	for _, tc := range tests {
