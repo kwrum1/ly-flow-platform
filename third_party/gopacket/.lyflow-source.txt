@@ -1,0 +1,5 @@
+upstream=https://github.com/gopacket/gopacket
+tag=v1.7.0
+commit=d33818550d69d4ae2bb340b6e26cd67af4f46dbd
+archive_sha256=8e712ba0139933322de37025b67c25a6bd71e76fa45c1af1533a34ec473254f2
+purpose=pure-Go AF_PACKET implementation for static Linux 3.10-compatible Agent builds

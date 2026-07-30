@@ -90,21 +90,9 @@ log "building static Go binaries"
 run_in "$ROOT_DIR/server" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENABLED=0 GOWORK=off go build -trimpath -buildvcs=false -o ly-server ./cmd
 run_in "$ROOT_DIR/server" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENABLED=0 GOWORK=off go build -trimpath -buildvcs=false -o ly-agent-center ./agentcenter
 mkdir -p "$ROOT_DIR/agent/dist/linux/amd64" "$ROOT_DIR/agent/dist/linux/arm64" "$ROOT_DIR/agent/dist/windows/amd64"
-if [[ "$TARGET_ARCH" == "amd64" ]]; then
-  run_in "$ROOT_DIR/agent" env GOOS=linux GOARCH="$TARGET_ARCH" GOWORK=off go build -trimpath -buildvcs=false -o ly-agent ./cmd
-  cp "$ROOT_DIR/agent/ly-agent" "$ROOT_DIR/agent/ly-agent-linux-amd64"
-  cp "$ROOT_DIR/agent/ly-agent" "$ROOT_DIR/agent/dist/linux/amd64/ly-agent"
-else
-  if [[ -n "${ARM64_AGENT_BINARY:-}" && -f "${ARM64_AGENT_BINARY:-}" ]]; then
-    log "using supplied ARM64 agent binary: $ARM64_AGENT_BINARY"
-    cp "$ARM64_AGENT_BINARY" "$ROOT_DIR/agent/ly-agent"
-    cp "$ARM64_AGENT_BINARY" "$ROOT_DIR/agent/ly-agent-linux-arm64"
-    cp "$ARM64_AGENT_BINARY" "$ROOT_DIR/agent/dist/linux/arm64/ly-agent"
-  else
-    printf '[lyflow-release] ERROR: TARGET_ARCH=arm64 requires an ARM64 ly-agent binary because agent depends on CGO/libpcap. Set ARM64_AGENT_BINARY=/path/to/ly-agent built on ARM64 or install an ARM64 CGO cross toolchain.\n' >&2
-    exit 1
-  fi
-fi
+run_in "$ROOT_DIR/agent" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENABLED=0 GOWORK=off go build -trimpath -buildvcs=false -o ly-agent ./cmd
+cp "$ROOT_DIR/agent/ly-agent" "$ROOT_DIR/agent/ly-agent-linux-$TARGET_ARCH"
+cp "$ROOT_DIR/agent/ly-agent" "$ROOT_DIR/agent/dist/linux/$TARGET_ARCH/ly-agent"
 run env RELEASE_SIGNING_KEY="$RELEASE_SIGNING_KEY" "$ROOT_DIR/scripts/prepare-agent-release.sh"
 run_in "$ROOT_DIR/agent" env GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOWORK=off go build -trimpath -buildvcs=false -ldflags=-H=windowsgui -o ly-agent-windows-amd64.exe ./cmd
 cp "$ROOT_DIR/agent/ly-agent-windows-amd64.exe" "$ROOT_DIR/agent/dist/windows/amd64/ly-agent.exe"

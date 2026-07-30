@@ -82,14 +82,11 @@ assert (
 
 mirror_test, mirror_command = healthcheck("ly-local-mirror")
 assert mirror_test[1:] == [
-    "/opt/ly-runtime-libs/ld-linux-x86-64.so.2",
-    "--library-path",
-    "/opt/ly-runtime-libs",
     "/app/ly-agent",
     "healthcheck",
     "local-mirror",
 ], (
-    "ly-local-mirror does not use the runtime-loader capture-watchdog health checker"
+    "ly-local-mirror does not use the static Agent capture-watchdog health checker"
 )
 PY
 }

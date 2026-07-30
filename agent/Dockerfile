@@ -28,4 +28,4 @@ ENV LD_LIBRARY_PATH=/opt/ly-runtime-libs \
 
 EXPOSE 8080
 
-ENTRYPOINT ["/opt/ly-runtime-libs/ld-linux-x86-64.so.2", "--library-path", "/opt/ly-runtime-libs", "/app/ly-agent"]
+ENTRYPOINT ["/app/ly-agent"]

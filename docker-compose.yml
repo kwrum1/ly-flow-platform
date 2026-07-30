@@ -50,7 +50,7 @@ services:
     ports:
       - "127.0.0.1:${REDIS_BIND_PORT:-6379}:6379"
     healthcheck:
-      test: ["CMD-SHELL", "redis-cli --user \"$$REDIS_ACL_USERNAME\" --pass \"$$REDIS_ACL_PASSWORD\" ping"]
+      test: ["CMD-SHELL", "reply=$$(redis-cli --no-auth-warning --user \"$$REDIS_ACL_USERNAME\" --pass \"$$REDIS_ACL_PASSWORD\" ping 2>/dev/null) && [ \"$$reply\" = PONG ]"]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -396,7 +396,7 @@ services:
       - agent_spool:/opt/ly-agent/data
       - policy_trust:/var/lib/lyflow/policy:ro
     healthcheck:
-      test: ["CMD", "/opt/ly-runtime-libs/ld-linux-x86-64.so.2", "--library-path", "/opt/ly-runtime-libs", "/app/ly-agent", "healthcheck", "local-mirror"]
+      test: ["CMD", "/app/ly-agent", "healthcheck", "local-mirror"]
       interval: 10s
       timeout: 5s
       retries: 5

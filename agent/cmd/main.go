@@ -23,8 +23,8 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
+	"github.com/gopacket/gopacket"
+	"github.com/gopacket/gopacket/layers"
 	"github.com/lyflow/ly-flow-platform/contracts"
 	shared "github.com/lyflow/ly-flow-platform/rasppolicy"
 	transport "github.com/lyflow/ly-flow-platform/transportreliability"

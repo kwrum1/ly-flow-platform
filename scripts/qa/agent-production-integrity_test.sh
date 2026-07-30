@@ -68,13 +68,13 @@ fi
 [[ "$boot_logs" == *'Local mirror capture starting'* ]]
 
 if binary_tamper=$(docker run --rm --entrypoint /bin/sh -e AGENT_BINARY_PATH=/tmp/ly-agent "$image" -ec \
-  'cp /app/ly-agent /tmp/ly-agent; printf X >>/tmp/ly-agent; exec /opt/ly-runtime-libs/ld-linux-x86-64.so.2 --library-path /opt/ly-runtime-libs /tmp/ly-agent' 2>&1); then
+  'cp /app/ly-agent /tmp/ly-agent; printf X >>/tmp/ly-agent; exec /tmp/ly-agent' 2>&1); then
   binary_status=0
 else
   binary_status=$?
 fi
 if config_tamper=$(docker run --rm --entrypoint /bin/sh -e AGENT_CONFIG=/tmp/agent.yaml "$image" -ec \
-  'cp /opt/ly-agent/etc/agent.yaml /tmp/agent.yaml; printf X >>/tmp/agent.yaml; exec /opt/ly-runtime-libs/ld-linux-x86-64.so.2 --library-path /opt/ly-runtime-libs /app/ly-agent' 2>&1); then
+  'cp /opt/ly-agent/etc/agent.yaml /tmp/agent.yaml; printf X >>/tmp/agent.yaml; exec /app/ly-agent' 2>&1); then
   config_status=0
 else
   config_status=$?

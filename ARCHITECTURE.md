@@ -145,4 +145,5 @@ lyflow-offline-install-*/
 - 默认使用自签证书，生产环境可替换为正式证书。
 - 离线包不内置 Docker 安装包；没有 Docker 的机器需要可访问 Docker 软件源，或提前安装 Docker。
 - 容器化 `ly-agent` 和 legacy `ly-dpi-engine` 是 profile-gated QA/兼容项，默认运行面不依赖它们。
+- 现场主机使用无容器的静态 Linux Agent；Linux 3.10/CentOS 7 运行时监控回退到 auditd，详见 `docs/zh/AGENT与LEGACY-DPI兼容边界.md`。
 - 流量威胁默认保留有网络上下文的安全告警，不展示纯识别类噪声。

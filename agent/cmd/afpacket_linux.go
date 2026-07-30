@@ -9,10 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/afpacket"
-	"github.com/google/gopacket/layers"
-	"github.com/google/gopacket/pcap"
+	"github.com/gopacket/gopacket"
+	"github.com/gopacket/gopacket/afpacket"
+	"github.com/gopacket/gopacket/layers"
 	"golang.org/x/net/bpf"
 )
 
@@ -68,7 +67,7 @@ func (a *Agent) runAFPacketCapture() error {
 	return runAFPacketCaptureAttempt(a.ctx, zeroCopyAFPacketReader{handle: handle}, watchdog, captureAttemptCallbacks{
 		Ready: func(context.Context) error {
 			if strings.TrimSpace(trafficConfig.BPFFilter) != "" {
-				compiled, err := pcapBPF(layers.LinkTypeEthernet, 65536, trafficConfig.BPFFilter)
+				compiled, err := compileLinuxCaptureBPF(trafficConfig.BPFFilter, 65536)
 				if err != nil {
 					return fmt.Errorf("compile bpf: %w", err)
 				}
@@ -139,14 +138,59 @@ func (a *Agent) recordAFPacketSocketStats(handle *afpacket.TPacket) {
 	})
 }
 
-func pcapBPF(linkType layers.LinkType, snapLen int, filter string) ([]bpf.RawInstruction, error) {
-	instructions, err := pcap.CompileBPFFilter(linkType, snapLen, filter)
-	if err != nil {
-		return nil, err
+// compileLinuxCaptureBPF keeps the Linux agent independent of libpcap/CGO so
+// one static binary can run on Linux 3.10 and newer systems. The management
+// plane only publishes these protocol filters. Rejecting unknown syntax is
+// safer than silently capturing more traffic than requested.
+func compileLinuxCaptureBPF(filter string, snapLen int) ([]bpf.RawInstruction, error) {
+	normalized := strings.ToLower(strings.Join(strings.Fields(filter), " "))
+	var acceptTCP, acceptUDP bool
+	switch normalized {
+	case "tcp":
+		acceptTCP = true
+	case "udp":
+		acceptUDP = true
+	case "tcp or udp", "udp or tcp":
+		acceptTCP, acceptUDP = true, true
+	default:
+		return nil, fmt.Errorf("unsupported static Linux BPF filter %q (supported: tcp, udp, tcp or udp)", filter)
 	}
-	raw := make([]bpf.RawInstruction, 0, len(instructions))
-	for _, ins := range instructions {
-		raw = append(raw, bpf.RawInstruction{Op: ins.Code, Jt: ins.Jt, Jf: ins.Jf, K: ins.K})
+	if snapLen <= 0 {
+		return nil, fmt.Errorf("invalid capture snap length %d", snapLen)
+	}
+
+	const (
+		acceptIndex = 9
+		rejectIndex = 10
+	)
+	jump := func(index int, protocol uint32, accepted bool, next int) bpf.JumpIf {
+		target := rejectIndex
+		if accepted {
+			target = acceptIndex
+		}
+		return bpf.JumpIf{
+			Cond:      bpf.JumpEqual,
+			Val:       protocol,
+			SkipTrue:  uint8(target - index - 1),
+			SkipFalse: uint8(next - index - 1),
+		}
+	}
+	instructions := []bpf.Instruction{
+		bpf.LoadAbsolute{Off: 12, Size: 2},
+		bpf.JumpIf{Cond: bpf.JumpEqual, Val: 0x0800, SkipTrue: 1},
+		bpf.JumpIf{Cond: bpf.JumpEqual, Val: 0x86dd, SkipTrue: 3, SkipFalse: 7},
+		bpf.LoadAbsolute{Off: 23, Size: 1},
+		jump(4, 6, acceptTCP, 5),
+		jump(5, 17, acceptUDP, rejectIndex),
+		bpf.LoadAbsolute{Off: 20, Size: 1},
+		jump(7, 6, acceptTCP, 8),
+		jump(8, 17, acceptUDP, rejectIndex),
+		bpf.RetConstant{Val: uint32(snapLen)},
+		bpf.RetConstant{Val: 0},
+	}
+	raw, err := bpf.Assemble(instructions)
+	if err != nil {
+		return nil, fmt.Errorf("assemble static Linux BPF: %w", err)
 	}
 	return raw, nil
 }

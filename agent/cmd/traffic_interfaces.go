@@ -61,9 +61,6 @@ func validateCaptureInterface(name string, interfaces []captureInterfaceMetadata
 		if iface.Flags&net.FlagUp == 0 {
 			return fmt.Errorf("capture interface %s is down", selected)
 		}
-		if iface.Flags&net.FlagLoopback != 0 {
-			return fmt.Errorf("capture interface %s is loopback", selected)
-		}
 		return nil
 	}
 	return fmt.Errorf("capture interface %s not found", selected)

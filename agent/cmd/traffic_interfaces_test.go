@@ -38,7 +38,7 @@ func TestContainerBridgePolicyKeepsTrafficWhenSelectedInterfaceIsBridge(t *testi
 	}
 }
 
-func TestValidateCaptureInterfaceRejectsMissingDownAndLoopbackSelection(t *testing.T) {
+func TestValidateCaptureInterfaceAllowsUpLoopbackAndRejectsMissingOrDown(t *testing.T) {
 	// Given
 	interfaces := []captureInterfaceMetadata{
 		{Name: "down0", Addresses: mustCIDRs(t, "192.0.2.1/24")},
@@ -48,12 +48,12 @@ func TestValidateCaptureInterfaceRejectsMissingDownAndLoopbackSelection(t *testi
 	}
 
 	// When / Then
-	for _, name := range []string{"missing0", "down0", "lo"} {
+	for _, name := range []string{"missing0", "down0"} {
 		if err := validateCaptureInterface(name, interfaces); err == nil {
 			t.Fatalf("validateCaptureInterface(%q) succeeded", name)
 		}
 	}
-	for _, name := range []string{"empty0", "ens33"} {
+	for _, name := range []string{"empty0", "lo", "ens33"} {
 		if err := validateCaptureInterface(name, interfaces); err != nil {
 			t.Fatalf("validateCaptureInterface(%s): %v", name, err)
 		}

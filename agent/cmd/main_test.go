@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/gopacket"
-	"github.com/google/gopacket/layers"
+	"github.com/gopacket/gopacket"
+	"github.com/gopacket/gopacket/layers"
 	transport "github.com/lyflow/ly-flow-platform/transportreliability"
 	"github.com/redis/go-redis/v9"
 )
