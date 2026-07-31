@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"testing"
@@ -41,12 +42,23 @@ func TestRealDetectionEVE_publishesFiveNativeSourcesToRedis(t *testing.T) {
 		filepath.Join(evidenceDir, "four-source", "eve.json"),
 		filepath.Join(evidenceDir, "stamus", "eve.json"),
 	} {
-		next, err := agent.consumeSuricataEVEFile(path, 0)
-		if err != nil {
-			t.Fatalf("consume generated EVE %s: %v", path, err)
-		}
-		if next <= 0 {
-			t.Fatalf("generated EVE offset for %s = %d", path, next)
+		offset := int64(0)
+		for {
+			next, err := agent.consumeSuricataEVEFile(path, offset)
+			if err != nil && !errors.Is(err, errRuntimeCPUBudget) {
+				t.Fatalf("consume generated EVE %s at offset %d: %v", path, offset, err)
+			}
+			if next <= offset {
+				t.Fatalf("generated EVE offset did not advance for %s: %d", path, next)
+			}
+			info, statErr := os.Stat(path)
+			if statErr != nil {
+				t.Fatalf("stat generated EVE %s: %v", path, statErr)
+			}
+			if next >= info.Size() {
+				break
+			}
+			offset = next
 		}
 	}
 	if agent.trafficSpool == nil {
