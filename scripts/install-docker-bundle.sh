@@ -41,18 +41,18 @@ EOF
   chmod 600 .env
 fi
 docker compose up -d
-for attempt in 0 0seq 1 12); do
-  expected=0 0docker compose config --services | wc -l | tr -d " ")
-  running=0 0docker compose ps --status running -q | wc -l | tr -d " ")
-  [ "" = "" ] && break
+for attempt in $(seq 1 12); do
+  expected=$(docker compose config --services | wc -l | tr -d " ")
+  running=$(docker compose ps --status running -q | wc -l | tr -d " ")
+  [ "$running" = "$expected" ] && break
   sleep 5
   docker compose up -d
 done
-expected=0 0docker compose config --services | wc -l | tr -d " ")
-running=0 0docker compose ps --status running -q | wc -l | tr -d " ")
-if [ "" != "" ]; then
+expected=$(docker compose config --services | wc -l | tr -d " ")
+running=$(docker compose ps --status running -q | wc -l | tr -d " ")
+if [ "$running" != "$expected" ]; then
   docker compose ps
-  echo "LyFlow startup incomplete: running  of  services" >&2
+  echo "LyFlow startup incomplete: running $running of $expected services" >&2
   exit 1
 fi
 docker compose ps
