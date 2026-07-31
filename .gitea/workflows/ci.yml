@@ -87,7 +87,7 @@ jobs:
           set -euo pipefail
           sensor='docker.io/jasonish/suricata@sha256:73cf099d6299f75dda2d9d6edcfb8238b7a7322566d6189a69d46442a366b7fa'
           docker image inspect "$sensor" >/dev/null 2>&1 || docker pull "$sensor"
-          npm --prefix frontend exec playwright install --with-deps chromium
+          npm --prefix frontend exec -- playwright install --with-deps chromium
           scripts/qa/run-go-tests.sh real-detection
 
       - name: Run delivery QA and current-source smoke
