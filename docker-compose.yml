@@ -30,7 +30,7 @@ x-core-environment: &core-environment
 services:
   postgres:
     <<: *service-defaults
-    image: postgres:16-alpine
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
     environment:
       POSTGRES_DB: lyflow
       POSTGRES_USER: lyflow
@@ -48,7 +48,7 @@ services:
 
   redis:
     <<: *service-defaults
-    image: redis:7-alpine
+    image: ${REDIS_IMAGE:-redis:7-alpine}
     environment:
       REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
       REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
@@ -73,7 +73,7 @@ services:
 
   clickhouse:
     <<: *service-defaults
-    image: clickhouse/clickhouse-server:24.8-alpine
+    image: ${CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server:24.8-alpine}
     environment:
       CLICKHOUSE_DB: lyflow
       CLICKHOUSE_USER: lyflow
@@ -241,7 +241,7 @@ services:
       REDIS_PASSWORD: ${REDIS_PASSWORD:-}
       TRAFFIC_ENABLED: "true"
       TRAFFIC_INTERFACE: ${LOCAL_MIRROR_INTERFACE:?LOCAL_MIRROR_INTERFACE must be set}
-      CAPTURE_ENGINE: pfring
+      CAPTURE_ENGINE: ${LOCAL_MIRROR_CAPTURE_ENGINE:-pfring}
       PROMISCUOUS: "true"
       TRAFFIC_MAX_EVENTS_PER_SECOND: ${LOCAL_MIRROR_MAX_EVENTS_PER_SECOND:-0}
       HIDS_ENABLED: "false"

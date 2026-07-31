@@ -1,0 +1,29 @@
+# Suricata 规则 - ET Open
+# 版本: v1.0.0
+# 更新日期: 2026-05-08
+
+# DNS隧道检测
+alert dns $HOME_NET any -> $EXTERNAL_NET any (msg:"ET TROJAN Possible DNS Tunnel"; dns.query; pcre:"/[a-zA-Z0-9]{20,}/"; sid:1000001; rev:1;)
+
+# 挖矿域名访问
+alert dns any any -> any any (msg:"ET MALWARE Known Mining Pool Domain"; dns.query; content:"pool.btc.com"; sid:1000002; rev:1;)
+alert dns any any -> any any (msg:"ET MALWARE Known Mining Pool Domain"; dns.query; content:"ethermine.org"; sid:1000003; rev:1;)
+
+# 涉诈域名检测
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET FRAUD Suspected Phishing Site"; http.host; content:"phishing"; sid:1000010; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET FRAUD Suspected Scam Site"; http.host; content:"scam"; sid:1000011; rev:1;)
+
+# TLS SNI检测
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"ET MALWARE Suspicious TLS SNI"; tls.sni; pcre:"/[a-z]{20,}\.(xyz|tk|ml|ga|cf|gq)$/"; sid:1000020; rev:1;)
+
+# 可疑DGA域名
+alert dns $HOME_NET any -> $EXTERNAL_NET any (msg:"ET TROJAN Possible DGA Domain"; dns.query; pcre:"/^[a-z]+-[a-z]+-[a-z]+\.(com|net|org)$/"; sid:1000030; rev:1;)
+
+# HTTP可疑下载
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET MALWARE Suspicious Download"; http.host; content:"download"; http.uri; content:".exe"; sid:1000040; rev:1;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET MALWARE Suspicious Download"; http.host; content:"download"; http.uri; content:".zip"; sid:1000041; rev:1;)
+
+# DNS Tunnel子域名数量过多
+alert dns $HOME_NET any -> $EXTERNAL_NET any (msg:"ET TROJAN High DNS Query Count Possible Tunnel"; dns.query; pcre:"/[a-z]+\.[a-z]{5,}\.[a-z]{2,4}$/"; threshold: type threshold, track by_src, count 50, seconds 60; sid:1000050; rev:1;)
+
+alert dns $HOME_NET any -> $EXTERNAL_NET 53 (msg:"LYFLOW INERT pinned profile verification"; dns.query; content:"profile.test"; nocase; classtype:misc-activity; sid:9000001; rev:1;)

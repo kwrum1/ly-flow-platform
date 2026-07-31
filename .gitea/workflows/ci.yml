@@ -1,11 +1,12 @@
-name: LyFlow Docker Bundle
+name: LyFlow Multi-Architecture Docker Bundles
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
 jobs:
-  docker-bundle:
-    name: Build Docker deployment bundle
+  docker-bundles:
+    name: Build amd64 and arm64 deployment bundles
     runs-on: docker
     steps:
       - name: Checkout from Gitea
@@ -18,45 +19,75 @@ jobs:
             rm -rf "$d"
           fi
           test -f docker-compose.yml
-      - name: Build product images
+
+      - name: Compile product binaries
         run: |
           set -euo pipefail
           export GOTOOLCHAIN=auto GOSUMDB=sum.golang.org GOPROXY=https://proxy.golang.org
-          (cd server && GOWORK=off CGO_ENABLED=0 go build -trimpath -buildvcs=false -o ly-server ./cmd && CGO_ENABLED=0 go build -trimpath -buildvcs=false -o ly-agent-center ./agentcenter)
-          mkdir -p agent/dist/linux/amd64 agent/dist/linux/arm64 agent/dist/windows/amd64
-          (cd agent && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -buildvcs=false -o ly-agent ./cmd)
-          cp agent/ly-agent agent/dist/linux/amd64/ly-agent
-          (cd agent && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -buildvcs=false -o dist/linux/arm64/ly-agent ./cmd)
+          mkdir -p server/dist/linux/{amd64,arm64} security-engine/dist/linux/{amd64,arm64} agent/dist/linux/{amd64,arm64} agent/dist/windows/amd64
+          for arch in amd64 arm64; do
+            (cd server && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -buildvcs=false -o "dist/linux/$arch/ly-server" ./cmd)
+            (cd server && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -buildvcs=false -o "dist/linux/$arch/ly-agent-center" ./agentcenter)
+            (cd security-engine && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -buildvcs=false -o "dist/linux/$arch/ly-security-engine" ./cmd)
+            (cd agent && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -buildvcs=false -o "dist/linux/$arch/ly-agent" ./cmd)
+          done
           (cd agent && GOWORK=off CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -buildvcs=false -ldflags=-H=windowsgui -o dist/windows/amd64/ly-agent.exe ./cmd)
           (cd frontend && npm ci --no-audit --no-fund && npm run build)
-          docker build --build-arg RUNTIME_IMAGE=ly-flow/server:release-138986fe8514d6eb0eb4a7ea037bf7f8dd9a7644-amd64 -f server/Dockerfile -t ly-flow/server:bugfix-20260801-v3 .
-          docker build --build-arg RUNTIME_IMAGE=ly-flow/frontend:release-138986fe8514d6eb0eb4a7ea037bf7f8dd9a7644-amd64 -f frontend/Dockerfile -t ly-flow/frontend:bugfix-20260801 .
-      - name: Build Docker bundle
+
+      - name: Build architecture images and bundles
         run: |
           set -euo pipefail
-          bash scripts/build-docker-bundle.sh
-      - name: Verify bundle
+          docker buildx version
+          for arch in amd64 arm64; do
+            platform="linux/$arch"
+            docker pull --platform "$platform" postgres:16-alpine
+            docker tag postgres:16-alpine "ly-flow/vendor/postgres:16-alpine-$arch"
+            docker pull --platform "$platform" redis:7-alpine
+            docker tag redis:7-alpine "ly-flow/vendor/redis:7-alpine-$arch"
+            docker pull --platform "$platform" clickhouse/clickhouse-server:24.8-alpine
+            docker tag clickhouse/clickhouse-server:24.8-alpine "ly-flow/vendor/clickhouse:24.8-alpine-$arch"
+
+            docker buildx build --platform "$platform" --load --build-arg TARGETARCH="$arch" --build-arg RUNTIME_IMAGE=redis:7-alpine -f deploy/docker/server.Dockerfile -t "ly-flow/server:release-$arch" .
+            docker buildx build --platform "$platform" --load --build-arg TARGETARCH="$arch" --build-arg RUNTIME_IMAGE=redis:7-alpine -f deploy/docker/security-engine.Dockerfile -t "ly-flow/security-engine:release-$arch" .
+            docker buildx build --platform "$platform" --load --build-arg RUNTIME_IMAGE=nginx:1.27-alpine -f frontend/Dockerfile -t "ly-flow/frontend:release-$arch" .
+            if [ "$arch" = amd64 ]; then
+              docker buildx build --platform "$platform" --load -f agent/Dockerfile.pfring -t "ly-flow/local-mirror:release-$arch" .
+            else
+              docker buildx build --platform "$platform" --load --build-arg TARGETARCH="$arch" -f deploy/docker/local-mirror.Dockerfile -t "ly-flow/local-mirror:release-$arch" .
+            fi
+            docker buildx build --platform "$platform" --load -f deploy/docker/suricata.Dockerfile -t "ly-flow/suricata-profile:release-$arch" .
+
+            LYFLOW_TARGET_ARCH="$arch" bash scripts/build-docker-bundle.sh
+          done
+
+      - name: Verify both bundles
         run: |
           set -euo pipefail
-          bundle=$(ls -1 release/lyflow-docker-bundle-*.tar.gz | tail -n 1)
-          tar -tzf "$bundle" | grep -E 'docker-compose.yml|images/lyflow-images.tar.gz|scripts/install-docker-bundle.sh'
-          sha256sum --check "$bundle.sha256"
-      - name: Upload Docker bundle
+          for arch in amd64 arm64; do
+            bundle="release/lyflow-docker-bundle-${GITHUB_SHA}-$arch.tar.gz"
+            test -s "$bundle"
+            tar -xOzf "$bundle" ly-flow-platform/images/architecture | grep -qx "$arch"
+            tar -tzf "$bundle" | grep -q 'ly-flow-platform/images/lyflow-images.tar.gz'
+            sha256sum --check "$bundle.sha256"
+          done
+
+      - name: Upload both Docker bundles
         if: github.event_name != 'pull_request'
         env:
           LYFLOW_GITEA_TOKEN: ${{ secrets.LYFLOW_GITEA_TOKEN }}
         run: |
           set -euo pipefail
-          bundle=$(ls -1 release/lyflow-docker-bundle-*.tar.gz | tail -n 1)
-          tag="docker-bundle-${GITHUB_SHA:-main}-${GITHUB_RUN_ID:-local}"
+          tag="docker-bundles-${GITHUB_SHA:-main}-${GITHUB_RUN_ID:-local}"
           api="${GITEA_SERVER_URL:-http://127.0.0.1:10000}/api/v1/repos/ly-flow-platform/ly-flow-platform"
           token="${LYFLOW_GITEA_TOKEN:-}"
           test -n "$token"
           release=$(curl -fsS -H "Authorization: token $token" "$api/releases/tags/$tag" 2>/dev/null || true)
           if ! printf '%s' "$release" | grep -q '"id"'; then
-            payload=$(TAG="$tag" python3 -c 'import json,os; print(json.dumps({"tag_name":os.environ["TAG"],"target_commitish":"main","name":os.environ["TAG"],"body":"Docker deployment bundle"}))')
+            payload=$(TAG="$tag" python3 -c 'import json,os; print(json.dumps({"tag_name":os.environ["TAG"],"target_commitish":"main","name":os.environ["TAG"],"body":"AMD64 and ARM64 Docker deployment bundles"}))')
             release=$(curl -fsS -X POST -H "Authorization: token $token" -H 'Content-Type: application/json' -d "$payload" "$api/releases")
           fi
           id=$(printf '%s' "$release" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
-          curl -fsS -X POST -H "Authorization: token $token" -F "attachment=@$bundle" "$api/releases/$id/assets"
-          curl -fsS -X POST -H "Authorization: token $token" -F "attachment=@$bundle.sha256" "$api/releases/$id/assets"
+          for bundle in release/lyflow-docker-bundle-*.tar.gz; do
+            curl -fsS -X POST -H "Authorization: token $token" -F "attachment=@$bundle" "$api/releases/$id/assets"
+            curl -fsS -X POST -H "Authorization: token $token" -F "attachment=@$bundle.sha256" "$api/releases/$id/assets"
+          done
