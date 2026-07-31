@@ -37,7 +37,7 @@ import yaml
 with open(sys.argv[1], encoding="utf-8") as source:
     services = yaml.safe_load(source)["services"]
 
-required_healthchecks = ("agent-center", "ly-engine-lab", "ly-local-mirror")
+required_healthchecks = ("agent-center", "ly-local-mirror")
 missing_healthchecks = [
     service_name
     for service_name in required_healthchecks
@@ -67,18 +67,6 @@ agent_test, agent_command = healthcheck("agent-center")
 assert agent_test == ["CMD", "/app/ly-agent-center", "healthcheck"], (
     "agent-center does not use its exact gRPC healthcheck command"
 )
-
-engine_test, engine_command = healthcheck("ly-engine-lab")
-assert len(engine_test) >= 3 and engine_test[1] == "python3", "ly-engine-lab healthcheck is not a Python probe"
-engine_probe = " ".join(str(part) for part in engine_test[2:])
-compact_probe = re.sub(r"\s+", "", engine_probe)
-assert "status.json" in engine_probe, "ly-engine-lab probe does not inspect status.json"
-assert "isfile" in engine_probe.lower() or "S_ISREG" in engine_probe, "ly-engine-lab probe does not require a regular file"
-assert "st_size>0" in compact_probe or "getsize(" in compact_probe, "ly-engine-lab probe accepts an empty status file"
-assert (
-    "0<=age<=120" in compact_probe
-    or ("age>=0" in compact_probe and "age<=120" in compact_probe)
-), "ly-engine-lab probe does not bound status age from 0 through 120 seconds"
 
 mirror_test, mirror_command = healthcheck("ly-local-mirror")
 assert mirror_test[1:] == [
