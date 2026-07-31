@@ -116,13 +116,23 @@ suricata_build_id=$(docker image inspect "$SURICATA_BUILD_IMAGE" --format '{{.Id
 [[ "$suricata_build_id" == "${SURICATA_PROFILE_IMAGE##*@}" ]] \
   || { printf '[lyflow-release] ERROR: local Suricata build alias does not match the pinned upstream digest\n' >&2; exit 1; }
 
+build_alias() {
+  local source=$1 alias=$2
+  docker image tag "$source" "$alias"
+  printf '%s\n' "$alias"
+}
+BUILD_SERVER_BASE=$(build_alias "$SERVER_BASE_IMAGE" "lyflow-release/server-base:$RELEASE_ID")
+BUILD_FRONTEND_BASE=$(build_alias "$FRONTEND_BASE_IMAGE" "lyflow-release/frontend-base:$RELEASE_ID")
+BUILD_REDIS_BASE=$(build_alias "$DB_REDIS_IMAGE" "lyflow-release/redis-base:$RELEASE_ID")
+BUILD_SURICATA_BASE=$(build_alias "$SURICATA_BUILD_IMAGE" "lyflow-release/suricata-base:$RELEASE_ID")
+
 log "rebuilding application images from pinned local bases without network access"
-run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$SERVER_BASE_IMAGE" -f server/Dockerfile -t "ly-flow/server:$APP_TAG" .
-run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$FRONTEND_BASE_IMAGE" -f frontend/Dockerfile -t "ly-flow/frontend:$APP_TAG" .
-run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$DB_REDIS_IMAGE" -f dpi-engine/Dockerfile -t "ly-flow/dpi-engine:$APP_TAG" .
-run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$DB_REDIS_IMAGE" -f security-engine/Dockerfile -t "ly-flow/security-engine:$APP_TAG" .
-run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "SURICATA_PROFILE_IMAGE=$SURICATA_BUILD_IMAGE" --target suricata-profile -f containers/security-engines/Dockerfile -t "ly-flow/suricata-profile:$APP_TAG" .
-run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$SERVER_BASE_IMAGE" -f agent/Dockerfile -t "ly-flow/agent:$APP_TAG" .
+run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$BUILD_SERVER_BASE" -f server/Dockerfile -t "ly-flow/server:$APP_TAG" .
+run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$BUILD_FRONTEND_BASE" -f frontend/Dockerfile -t "ly-flow/frontend:$APP_TAG" .
+run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$BUILD_REDIS_BASE" -f dpi-engine/Dockerfile -t "ly-flow/dpi-engine:$APP_TAG" .
+run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$BUILD_REDIS_BASE" -f security-engine/Dockerfile -t "ly-flow/security-engine:$APP_TAG" .
+run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "SURICATA_PROFILE_IMAGE=$BUILD_SURICATA_BASE" --target suricata-profile -f containers/security-engines/Dockerfile -t "ly-flow/suricata-profile:$APP_TAG" .
+run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$BUILD_SERVER_BASE" -f agent/Dockerfile -t "ly-flow/agent:$APP_TAG" .
 
 image_digest_ref() {
   local image=$1 repository=$2 digest
