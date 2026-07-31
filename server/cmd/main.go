@@ -55,31 +55,31 @@ import (
 
 // 配置结构体
 type Config struct {
-	DBHost             string
-	DBPort             int
-	DBUser             string
-	DBPassword         string
-	DBName             string
-	DBPool             *pgxpool.Pool
-	RedisAddr          string
-	Redis              *redis.Client
-	ServerPort         int
-	AgentID            string
-	AgentKey           string
-	AgentSelfEnroll    bool
-	AgentIdentity      *agentidentity.Manager
-	IngestionAuth      *ingestionauth.Authenticator
-	IngestionWriter    IngestionWriter
-	EventStorage       *StorageEventRuntime
-	XDRInput           xdrCanonicalInputSource
-	XDRGraph           *xdrGraphRuntime
-	Incidents          *incidentlifecycle.PostgresStore
-	AdvisoryResponses  *advisoryresponse.PostgresStore
-	IncidentSnapshot   *incidentSnapshotState
-	IncidentCheckpoint incidentLegacyCheckpointer
-	IncidentLegacyMode bool
-	TransportProducer  *transport.RedisProducer
-	HostNetClassPath   string
+	DBHost              string
+	DBPort              int
+	DBUser              string
+	DBPassword          string
+	DBName              string
+	DBPool              *pgxpool.Pool
+	RedisAddr           string
+	Redis               *redis.Client
+	ServerPort          int
+	AgentID             string
+	AgentKey            string
+	AgentSelfEnroll     bool
+	AgentIdentity       *agentidentity.Manager
+	IngestionAuth       *ingestionauth.Authenticator
+	IngestionWriter     IngestionWriter
+	EventStorage        *StorageEventRuntime
+	XDRInput            xdrCanonicalInputSource
+	XDRGraph            *xdrGraphRuntime
+	Incidents           *incidentlifecycle.PostgresStore
+	AdvisoryResponses   *advisoryresponse.PostgresStore
+	IncidentSnapshot    *incidentSnapshotState
+	IncidentCheckpoint  incidentLegacyCheckpointer
+	IncidentLegacyMode  bool
+	TransportProducer   *transport.RedisProducer
+	HostNetClassPath    string
 	ManagementInterface string
 
 	SecurityEngineEnabled       bool
@@ -105,19 +105,19 @@ func loadConfig() *Config {
 		log.Fatalf("RASP policy configuration rejected: %v", err)
 	}
 	cfg := &Config{
-		DBHost:             getEnv("DB_HOST", "postgres"),
-		DBPort:             toInt(getEnv("DB_PORT", "5432")),
-		DBUser:             getEnv("DB_USER", "lyflow"),
-		DBPassword:         getEnv("DB_PASSWORD", "lyflow_secret_password"),
-		DBName:             getEnv("DB_NAME", "lyflow"),
-		RedisAddr:          getEnv("REDIS_ADDR", "redis:6379"),
-		ServerPort:         toInt(getEnv("SERVER_PORT", "8080")),
-		AgentID:            normalizeAgentID(getEnv("AGENT_ID", "")),
-		AgentKey:           getEnv("AGENT_KEY", ""),
-		AgentSelfEnroll:    toBool(getEnv("AGENT_SELF_ENROLL", "false")),
-		HostNetClassPath:   getEnv("HOST_NET_CLASS_PATH", "/host/sys/class/net"),
+		DBHost:              getEnv("DB_HOST", "postgres"),
+		DBPort:              toInt(getEnv("DB_PORT", "5432")),
+		DBUser:              getEnv("DB_USER", "lyflow"),
+		DBPassword:          getEnv("DB_PASSWORD", "lyflow_secret_password"),
+		DBName:              getEnv("DB_NAME", "lyflow"),
+		RedisAddr:           getEnv("REDIS_ADDR", "redis:6379"),
+		ServerPort:          toInt(getEnv("SERVER_PORT", "8080")),
+		AgentID:             normalizeAgentID(getEnv("AGENT_ID", "")),
+		AgentKey:            getEnv("AGENT_KEY", ""),
+		AgentSelfEnroll:     toBool(getEnv("AGENT_SELF_ENROLL", "false")),
+		HostNetClassPath:    getEnv("HOST_NET_CLASS_PATH", "/host/sys/class/net"),
 		ManagementInterface: strings.TrimSpace(getEnv("MANAGEMENT_INTERFACE", "")),
-		IncidentLegacyMode: toBool(getEnv("INCIDENT_LIFECYCLE_LEGACY_MODE", "false")),
+		IncidentLegacyMode:  toBool(getEnv("INCIDENT_LIFECYCLE_LEGACY_MODE", "false")),
 
 		SecurityEngineEnabled:       toBool(getEnv("SECURITY_ENGINE_ENABLED", "true")),
 		SecurityEngineReloadURL:     getEnv("SECURITY_ENGINE_RELOAD_URL", "http://ly-security-engine:8080/reload"),
@@ -1948,16 +1948,25 @@ func ruleSourcesHandler(cfg *Config) http.HandlerFunc {
 			if sourceType != "external_subscription" {
 				continue
 			}
-			current := firstNonEmpty(asString(manifest["version"]), "2026.05")
-			latest := current
-			updateAvailable := false
-			if sourceType == "external_subscription" {
-				latest = "2026.05.latest"
-				updateAvailable = true
-			}
+			current := firstNonEmpty(asString(manifest["version"]), "已安装")
+			latest := "在线校验后显示"
+			updateAvailable := true
 			sourceID := asString(manifest["source_id"])
+			if upstream := upstreamRuleVersion(r.Context(), sourceID); upstream != "" {
+				latest = upstream
+			}
+			if installed := installedRuleSourceVersion(r.Context(), cfg, sourceID); installed != "" {
+				current = installed
+				if latest == "在线校验后显示" {
+					latest = installed
+				}
+				updateAvailable = current != latest
+			}
 			sourceURL := asString(manifest["source_url"])
 			if sourceState, ok := state[sourceID].(map[string]interface{}); ok {
+				if upstreamVersion := strings.TrimSpace(asString(sourceState["upstream_version"])); upstreamVersion != "" && upstreamVersion != "在线校验完成" {
+					latest = upstreamVersion
+				}
 				if asBool(sourceState["latest_applied"]) {
 					current = latest
 					updateAvailable = false
@@ -2092,6 +2101,14 @@ func ruleSourceUpdateHandler(cfg *Config) http.HandlerFunc {
 			}
 			syncResult = result
 		}
+		remoteVersion := firstNonEmpty(upstreamRuleVersion(r.Context(), sourceID), asString(syncResult["version"]))
+		if contentHash := asString(syncResult["content_hash"]); contentHash != "" {
+			if len(contentHash) > 12 {
+				contentHash = contentHash[:12]
+			}
+			remoteVersion = "sha256-" + contentHash
+		}
+		sourceState["upstream_version"] = firstNonEmpty(remoteVersion, "在线校验完成")
 		sourceState["updated_at"] = time.Now().Format(time.RFC3339)
 		sourceState["latest_applied"] = true
 		state[sourceID] = sourceState
@@ -5956,10 +5973,10 @@ func mirrorCaptureConfigHandler(cfg *Config) http.HandlerFunc {
 func mirrorCaptureConfigResponse(cfg *Config) map[string]interface{} {
 	config := loadMirrorCaptureConfig()
 	return map[string]interface{}{
-		"enabled":    strings.TrimSpace(config.Interface) != "",
-		"interface":  config.Interface,
-		"updated_at": config.UpdatedAt,
-		"interfaces": mirrorCaptureInterfaces(cfg, config.Interface),
+		"enabled":              strings.TrimSpace(config.Interface) != "",
+		"interface":            config.Interface,
+		"updated_at":           config.UpdatedAt,
+		"interfaces":           mirrorCaptureInterfaces(cfg, config.Interface),
 		"management_interface": hostManagementInterface(cfg),
 	}
 }

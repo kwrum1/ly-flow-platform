@@ -11,9 +11,9 @@ images=(
   postgres:16-alpine
   redis:7-alpine
   clickhouse/clickhouse-server:24.8-alpine
-  ly-flow/server:release-138986fe8514d6eb0eb4a7ea037bf7f8dd9a7644-amd64
+  ly-flow/server:bugfix-20260801-v2
   ly-flow/security-engine:release-138986fe8514d6eb0eb4a7ea037bf7f8dd9a7644-amd64
-  ly-flow/frontend:release-138986fe8514d6eb0eb4a7ea037bf7f8dd9a7644-amd64
+  ly-flow/frontend:bugfix-20260801
   ly-flow/local-mirror:signed4
   ly-flow/suricata-profile:release-rc-652a7b620dfd-todo5-20260730T071221Z-amd64
 )

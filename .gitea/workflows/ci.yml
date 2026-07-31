@@ -18,6 +18,14 @@ jobs:
             rm -rf "$d"
           fi
           test -f docker-compose.yml
+      - name: Build product images
+        run: |
+          set -euo pipefail
+          export GOTOOLCHAIN=auto GOSUMDB=sum.golang.org GOPROXY=https://proxy.golang.org
+          (cd server && GOWORK=off CGO_ENABLED=0 go build -trimpath -buildvcs=false -o ly-server ./cmd)
+          (cd frontend && npm ci --no-audit --no-fund && npm run build)
+          docker build --build-arg RUNTIME_IMAGE=ly-flow/server:release-138986fe8514d6eb0eb4a7ea037bf7f8dd9a7644-amd64 -f server/Dockerfile -t ly-flow/server:bugfix-20260801-v2 .
+          docker build --build-arg RUNTIME_IMAGE=ly-flow/frontend:release-138986fe8514d6eb0eb4a7ea037bf7f8dd9a7644-amd64 -f frontend/Dockerfile -t ly-flow/frontend:bugfix-20260801 .
       - name: Build Docker bundle
         run: |
           set -euo pipefail

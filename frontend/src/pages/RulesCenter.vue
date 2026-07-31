@@ -320,13 +320,11 @@ async function updateSourceRow(item) {
     const results = []
     const failed = []
     if (sourceIds.length) {
-      for (const sourceId of sourceIds) {
-        try {
-          results.push(await ruleClient.updateSource(sourceId))
-        } catch (err) {
-          failed.push(`${sourceLabel(sourceId)}：${err?.message || '更新失败'}`)
-        }
-      }
+      const settled = await Promise.allSettled(sourceIds.map((sourceId) => ruleClient.updateSource(sourceId)))
+      settled.forEach((result, index) => {
+        if (result.status === 'fulfilled') results.push(result.value)
+        else failed.push(`${sourceLabel(sourceIds[index])}：${result.reason?.message || '更新失败'}`)
+      })
     } else if (item.key === 'geoip') {
       results.push({ updated: true, version: 'city-db' })
     } else {

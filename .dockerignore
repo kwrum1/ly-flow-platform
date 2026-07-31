@@ -1,0 +1,10 @@
+.git
+release
+**/node_modules
+.sisyphus
+.remote-tools
+*.tar
+*.tar.gz
+*.zip
+*.img
+*.iso

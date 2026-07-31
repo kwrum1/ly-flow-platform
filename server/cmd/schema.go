@@ -369,6 +369,9 @@ func ensureRuntimeSchema(ctx context.Context, db *pgxpool.Pool) error {
 	if db == nil {
 		return fmt.Errorf("db pool is nil")
 	}
+	if _, err := db.Exec(ctx, coreSchema); err != nil {
+		return fmt.Errorf("apply core schema: %w", err)
+	}
 	if _, err := db.Exec(ctx, assetSchema); err != nil {
 		return fmt.Errorf("apply asset schema: %w", err)
 	}
