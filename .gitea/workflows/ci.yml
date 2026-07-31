@@ -41,7 +41,8 @@ jobs:
           test -n "$token"
           release=$(curl -fsS -H "Authorization: token $token" "$api/releases/tags/$tag" 2>/dev/null || true)
           if ! printf '%s' "$release" | grep -q '"id"'; then
-            release=$(curl -fsS -X POST -H "Authorization: token $token" -H 'Content-Type: application/json' -d "{"tag_name":"$tag","target_commitish":"main","name":"$tag","body":"Docker deployment bundle"}" "$api/releases")
+            payload=$(TAG="$tag" python3 -c 'import json,os; print(json.dumps({"tag_name":os.environ["TAG"],"target_commitish":"main","name":os.environ["TAG"],"body":"Docker deployment bundle"}))')
+            release=$(curl -fsS -X POST -H "Authorization: token $token" -H 'Content-Type: application/json' -d "$payload" "$api/releases")
           fi
           id=$(printf '%s' "$release" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
           curl -fsS -X POST -H "Authorization: token $token" -F "attachment=@$bundle" "$api/releases/$id/assets"
