@@ -96,7 +96,9 @@ jobs:
         run: |
           set -euo pipefail
           sensor='docker.io/jasonish/suricata@sha256:73cf099d6299f75dda2d9d6edcfb8238b7a7322566d6189a69d46442a366b7fa'
-          docker image inspect "$sensor" >/dev/null 2>&1 || docker pull "$sensor"
+          if ! docker image inspect "$sensor" >/dev/null 2>&1 && ! docker image inspect jasonish/suricata:7.0.11 >/dev/null 2>&1; then
+            docker pull "$sensor"
+          fi
           npm --prefix frontend exec -- playwright install --with-deps chromium
           scripts/qa/run-go-tests.sh real-detection
 
