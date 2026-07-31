@@ -168,7 +168,7 @@ docker compose version >/dev/null 2>&1 || { log 'docker compose plugin is unavai
 
 for image in postgres:16-alpine redis:7-alpine clickhouse/clickhouse-server:24.8-alpine \
   redis@sha256:9de71018be8413f419688ac34e19dbac432d1c6d9593d2ded99a82eebefeb18f \
-  ly-flow/frontend@sha256:98767ee96d258cdd023b6a620a4b1b44a2239a8f2742f51dc91d240615740707; do
+  ly-flow/frontend@sha256:89d88f6ad4e2119d564394a413bf95e26e4ada5d3773169cbc5543f6daf52179; do
   require_local_image "$image"
 done
 
@@ -213,7 +213,7 @@ CMD ["/app/ly-security-engine"]
 EOF
 docker image tag redis@sha256:9de71018be8413f419688ac34e19dbac432d1c6d9593d2ded99a82eebefeb18f "$SERVER_BASE_IMAGE"
 docker image tag redis@sha256:9de71018be8413f419688ac34e19dbac432d1c6d9593d2ded99a82eebefeb18f "$SECURITY_ENGINE_BASE_IMAGE"
-docker image tag ly-flow/frontend@sha256:98767ee96d258cdd023b6a620a4b1b44a2239a8f2742f51dc91d240615740707 "$FRONTEND_BASE_IMAGE"
+docker image tag ly-flow/frontend@sha256:89d88f6ad4e2119d564394a413bf95e26e4ada5d3773169cbc5543f6daf52179 "$FRONTEND_BASE_IMAGE"
 timeout "$SMOKE_BUILD_TIMEOUT_SECONDS" docker build --pull=false --network=none --build-arg RUNTIME_IMAGE="$SERVER_BASE_IMAGE" -t "$SERVER_IMAGE" -f "$SERVER_DOCKERFILE" "$SERVER_CONTEXT"
 timeout "$SMOKE_BUILD_TIMEOUT_SECONDS" docker build --pull=false --network=none --build-arg RUNTIME_IMAGE="$SECURITY_ENGINE_BASE_IMAGE" -t "$SECURITY_ENGINE_IMAGE" -f "$SECURITY_ENGINE_DOCKERFILE" "$SECURITY_ENGINE_CONTEXT"
 timeout "$SMOKE_BUILD_TIMEOUT_SECONDS" docker build --pull=false --network=none --build-arg RUNTIME_IMAGE="$FRONTEND_BASE_IMAGE" -t "$FRONTEND_IMAGE" -f "$ROOT/frontend/Dockerfile" "$FRONTEND_CONTEXT"
