@@ -22,7 +22,12 @@ jobs:
         run: |
           set -euo pipefail
           export GOTOOLCHAIN=auto GOSUMDB=sum.golang.org GOPROXY=https://proxy.golang.org
-          (cd server && GOWORK=off CGO_ENABLED=0 go build -trimpath -buildvcs=false -o ly-server ./cmd)
+          (cd server && GOWORK=off CGO_ENABLED=0 go build -trimpath -buildvcs=false -o ly-server ./cmd && go build -trimpath -buildvcs=false -o ly-agent-center ./agentcenter)
+          mkdir -p agent/dist/linux/amd64 agent/dist/linux/arm64 agent/dist/windows/amd64
+          (cd agent && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -buildvcs=false -o ly-agent ./cmd)
+          cp agent/ly-agent agent/dist/linux/amd64/ly-agent
+          (cd agent && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=arm64 go build -trimpath -buildvcs=false -o dist/linux/arm64/ly-agent ./cmd)
+          (cd agent && GOWORK=off CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -buildvcs=false -ldflags=-H=windowsgui -o dist/windows/amd64/ly-agent.exe ./cmd)
           (cd frontend && npm ci --no-audit --no-fund && npm run build)
           docker build --build-arg RUNTIME_IMAGE=ly-flow/server:release-138986fe8514d6eb0eb4a7ea037bf7f8dd9a7644-amd64 -f server/Dockerfile -t ly-flow/server:bugfix-20260801-v2 .
           docker build --build-arg RUNTIME_IMAGE=ly-flow/frontend:release-138986fe8514d6eb0eb4a7ea037bf7f8dd9a7644-amd64 -f frontend/Dockerfile -t ly-flow/frontend:bugfix-20260801 .
