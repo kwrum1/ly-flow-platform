@@ -41,5 +41,20 @@ EOF
   chmod 600 .env
 fi
 docker compose up -d
+for attempt in 0 0seq 1 12); do
+  expected=0 0docker compose config --services | wc -l | tr -d " ")
+  running=0 0docker compose ps --status running -q | wc -l | tr -d " ")
+  [ "" = "" ] && break
+  sleep 5
+  docker compose up -d
+done
+expected=0 0docker compose config --services | wc -l | tr -d " ")
+running=0 0docker compose ps --status running -q | wc -l | tr -d " ")
+if [ "" != "" ]; then
+  docker compose ps
+  echo "LyFlow startup incomplete: running  of  services" >&2
+  exit 1
+fi
+docker compose ps
 echo "LyFlow started: https://$(hostname -I | awk '{print $1}')/"
 echo "First login: admin / password (forced password change)"
