@@ -89,6 +89,29 @@ func (m *Manager) FetchSource(ctx context.Context, actor Actor, pin SourcePin) (
 	return fetched, nil
 }
 
+func (m *Manager) DiscoverSource(ctx context.Context, actor Actor, pin SourcePin) (FetchedSource, error) {
+	if err := m.authorize(ctx, actor, "rule.source.sync", pin.Revision); err != nil {
+		return FetchedSource{}, err
+	}
+	if m.fetcher == nil {
+		return FetchedSource{}, errors.New("rulelifecycle: fetcher is not configured")
+	}
+	if err := m.record(ctx, actor, "rule.source.discover.attempt", pin.Revision, AuditResultSucceeded, map[string]interface{}{"url": pin.URL}); err != nil {
+		return FetchedSource{}, err
+	}
+	fetched, err := m.fetcher.Discover(ctx, pin)
+	if err != nil {
+		if auditErr := m.record(ctx, actor, "rule.source.discover.outcome", pin.Revision, AuditResultFailed, map[string]interface{}{"error": err.Error()}); auditErr != nil {
+			return FetchedSource{}, auditErr
+		}
+		return FetchedSource{}, err
+	}
+	if err := m.record(ctx, actor, "rule.source.discover.outcome", pin.Revision, AuditResultSucceeded, map[string]interface{}{"digest": fetched.Pin.SHA256, "final_url": fetched.FinalURL}); err != nil {
+		return FetchedSource{}, err
+	}
+	return fetched, nil
+}
+
 func (m *Manager) ValidateSourceURL(ctx context.Context, rawURL string) error {
 	if m.fetcher == nil {
 		return errors.New("rulelifecycle: fetcher is not configured")

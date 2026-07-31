@@ -77,6 +77,10 @@ function normalizeEvidence(item = {}, index = 0) {
     stage: stageKey(firstNonEmpty(item.stage, item.stage_hint, item.phase, item.tactic)),
     rawReference: firstNonEmpty(item.raw_reference, item.rawReference, item.raw_ref, item.evidence_ref),
     entityId: firstNonEmpty(item.entity_id, item.entityId, item.asset_id, item.agent_id, item.host_id, item.process_id),
+    sourceIP: firstNonEmpty(item.src_ip, item.source_ip, item.entities?.source_ip, item.client_ip),
+    targetIP: firstNonEmpty(item.dst_ip, item.target_ip, item.entities?.target_ip, item.server_ip),
+    detectionSurface: firstNonEmpty(item.detection_surface, item.source_engine, item.engine, item.source_module, item.module, item.source, 'xdr'),
+    raw: item.raw_event || item.raw || item.payload || item,
   }
 }
 
@@ -111,6 +115,8 @@ export function normalizeIncident(raw = {}) {
     recommendedAction: firstNonEmpty(raw.recommended_action, raw.recommendedAction, raw.action, raw.remediation),
     createdAt: firstNonEmpty(raw.created_at, raw.createdAt, raw.timestamp, raw.first_seen),
     updatedAt: firstNonEmpty(raw.updated_at, raw.updatedAt, raw.last_seen),
+    sourceIPs: Array.isArray(raw.source_ips) ? raw.source_ips : Array.isArray(raw.sourceIPs) ? raw.sourceIPs : [firstNonEmpty(raw.src_ip, raw.source_ip)].filter(Boolean),
+    victimIPs: Array.isArray(raw.victim_ips) ? raw.victim_ips : Array.isArray(raw.victimIPs) ? raw.victimIPs : [firstNonEmpty(raw.dst_ip, raw.target_ip)].filter(Boolean),
     stages: stages.map(normalizeStage),
     evidence: evidence.map(normalizeEvidence),
     stageGroups: stageGroups.map(normalizeStageGroup).filter((group) => group.evidence.length),

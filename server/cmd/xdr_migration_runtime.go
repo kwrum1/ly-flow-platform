@@ -203,16 +203,19 @@ func canonicalEventsToGraph(events []contracts.CanonicalSecurityEvent) ([]*model
 			continue
 		}
 		severity := strings.ToLower(string(event.Severity))
-		stage := firstNonEmpty(normalizeXDRStage(xdrPickString(payload, "stage_hint")), inferXDRStage(payload))
+		explicitStage := normalizeXDRStage(xdrPickString(payload, "stage_hint", "details.stage_hint", "mitre_tactic", "details.mitre_tactic"))
+		stage := firstNonEmpty(explicitStage, inferXDRStage(payload))
 		technique, tactic, mappedStage := inferCanonicalAttackMapping(event, payload)
-		if mappedStage != "" {
+		technique = firstNonEmpty(strings.ToUpper(xdrPickString(payload, "mitre_technique", "details.mitre_technique")), technique)
+		tactic = firstNonEmpty(xdrPickString(payload, "mitre_tactic", "details.mitre_tactic"), tactic)
+		if mappedStage != "" && explicitStage == "" {
 			stage = mappedStage
 		}
 		out = append(out, &models.CanonicalEventV2{
 			TenantID: "default", EventUID: event.EventUID, SourceComponent: canonicalXDRCategory(event.Provenance.Source),
 			AgentID: event.Identity.AgentID, HostID: xdrPickString(payload, "host_id"), ObservedAt: event.Timestamps.ObservedAt,
 			IngestedAt: event.Timestamps.IngestedAt, EventType: event.EventType, RawEvent: event.Payload,
-			NormalizedSrcIP: xdrPickString(payload, "src_ip", "source_ip"), NormalizedDstIP: xdrPickString(payload, "dst_ip", "target_ip"),
+			NormalizedSrcIP: xdrPickString(payload, "src_ip", "source_ip", "details.src_ip", "entities.source_ip"), NormalizedDstIP: xdrPickString(payload, "dst_ip", "target_ip", "details.dst_ip", "entities.target_ip"),
 			ActorIdentity: firstNonEmpty(xdrPickString(payload, "user", "details.user", "entities.user")), VictimAsset: firstNonEmpty(xdrPickString(payload, "hostname", "victim_asset", "entities.hostname"), event.Identity.PrincipalID),
 			TechniqueID: technique, TacticID: tactic, StageHint: stage,
 			StageConfidence: 1, RiskScore: float64(severityBaseScore(severity)), ConfidenceScore: 100,

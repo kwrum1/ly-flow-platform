@@ -63,6 +63,20 @@ func (f *Fetcher) Fetch(ctx context.Context, pin SourcePin) (FetchedSource, erro
 	if err := validatePin(pin); err != nil {
 		return FetchedSource{}, err
 	}
+	return f.fetch(ctx, pin, true)
+}
+
+// Discover downloads an allowlisted source once and pins the exact bytes by
+// digest for the remainder of the lifecycle transaction.
+func (f *Fetcher) Discover(ctx context.Context, pin SourcePin) (FetchedSource, error) {
+	pin.SHA256 = strings.Repeat("0", sha256.Size*2)
+	if err := validatePin(pin); err != nil {
+		return FetchedSource{}, err
+	}
+	return f.fetch(ctx, pin, false)
+}
+
+func (f *Fetcher) fetch(ctx context.Context, pin SourcePin, verifyDigest bool) (FetchedSource, error) {
 	ctx, cancel := context.WithTimeout(ctx, f.policy.Timeout)
 	defer cancel()
 	current := pin.URL
@@ -118,9 +132,13 @@ func (f *Fetcher) Fetch(ctx context.Context, pin SourcePin) (FetchedSource, erro
 			return FetchedSource{}, ErrSizeLimit
 		}
 		actual := sha256.Sum256(content)
-		expected, err := hex.DecodeString(strings.ToLower(pin.SHA256))
-		if err != nil || subtle.ConstantTimeCompare(actual[:], expected) != 1 {
-			return FetchedSource{}, ErrDigestMismatch
+		if verifyDigest {
+			expected, err := hex.DecodeString(strings.ToLower(pin.SHA256))
+			if err != nil || subtle.ConstantTimeCompare(actual[:], expected) != 1 {
+				return FetchedSource{}, ErrDigestMismatch
+			}
+		} else {
+			pin.SHA256 = hex.EncodeToString(actual[:])
 		}
 		return FetchedSource{Pin: pin, FinalURL: parsed.String(), Content: content, Redirects: redirects, verified: true}, nil
 	}

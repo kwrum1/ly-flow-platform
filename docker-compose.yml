@@ -90,7 +90,7 @@ services:
 
   ly-server:
     <<: *service-defaults
-    image: ${LY_SERVER_IMAGE:-ly-flow/server:statusfix-arm14}
+    image: ${LY_SERVER_IMAGE:-ly-flow/server:productfix-20260731}
     command: [/app/ly-server]
     environment:
       <<: *core-environment
@@ -105,6 +105,7 @@ services:
       CLICKHOUSE_USER: lyflow
       CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set}
       SERVER_PORT: "8080"
+      MANAGEMENT_INTERFACE: ${MANAGEMENT_INTERFACE:-ens33}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-password}
       LYFLOW_RESET_ADMIN_PASSWORD: ${LYFLOW_RESET_ADMIN_PASSWORD:-false}
@@ -131,6 +132,7 @@ services:
       - rule_lifecycle:/app/rules/security-engine/lifecycle
       - ./.sisyphus:/app/.sisyphus
       - /sys:/host/sys:ro
+      - /proc:/host/proc:ro
       - policy_trust:/var/lib/lyflow/policy
     depends_on:
       postgres: { condition: service_healthy }
@@ -185,7 +187,7 @@ services:
 
   agent-center:
     <<: *service-defaults
-    image: ${LY_SERVER_IMAGE:-ly-flow/server:statusfix-arm14}
+    image: ${LY_SERVER_IMAGE:-ly-flow/server:productfix-20260731}
     command: [/app/ly-agent-center]
     environment:
       <<: *core-environment
@@ -207,7 +209,7 @@ services:
 
   ly-vis:
     <<: *service-defaults
-    image: ${LY_FRONTEND_IMAGE:-ly-flow/frontend:ui-ikuai-20260731}
+    image: ${LY_FRONTEND_IMAGE:-ly-flow/frontend:productfix-20260731}
     environment:
       LY_SERVER_UPSTREAM: http://ly-server:8080
     ports:

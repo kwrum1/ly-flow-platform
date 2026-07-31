@@ -79,3 +79,16 @@ cd frontend && npm run build
 容器化 QA Agent 与 legacy DPI 通过 Compose profile 启用，不属于默认生产启动面。
 政企现场采集端使用无容器、静态链接的 Linux Agent；当前生产兼容目标为
 Linux 3.10/CentOS 7 及以上内核。
+
+## 当前交付基线
+
+- 默认生产编排为 `docker-compose.yml`；容器化 Agent、legacy DPI 和实验性组件不属于默认生产组件。
+- ClickHouse 用于长期保存全量会话和溯源数据，PostgreSQL 用于配置、资产、规则和生命周期数据。
+- 本机旁路镜像抓包使用 PF_RING；Agent 侧使用 Linux AF_PACKET，兼容 CentOS 7 / Linux 3.10。
+- XDR Incident 只由关联攻击链产生，普通单点检测事件保留在检测面。
+- 规则源支持版本发现、固定版本同步、编译校验和热生效；不支持安全编译的单条规则会被隔离，不阻塞整包更新。
+- 首次登录账号为 `admin`，默认密码为 `password`，首次登录必须修改密码。
+
+## 工作流
+
+Gitea Actions 工作流位于 `.gitea/workflows/ci.yml`，不执行 Docker 构建；每次推送执行后端、Agent、前端测试和前端构建。推送到 `main` 时额外生成 Linux 服务端、Linux x86_64/ARM64 Agent、Windows x86_64 Agent、前端静态包及安装脚本，并作为 Gitea 构建产物提供下载。发布前仍需在目标主机执行容器级验收，CI 不代替真实网卡、PF_RING、ClickHouse 和 Agent 场景验证。

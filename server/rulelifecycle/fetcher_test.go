@@ -62,6 +62,28 @@ func TestFetcher_fetches_pinned_bundle_through_allowlisted_redirect(t *testing.T
 	}
 }
 
+func TestFetcher_discovers_and_pins_allowlisted_bundle(t *testing.T) {
+	bundle := []byte("alert http any any -> any any (msg:\"fixture\"; sid:1; rev:1;)")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(bundle)
+	}))
+	t.Cleanup(server.Close)
+	_, port, err := net.SplitHostPort(server.Listener.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	fetcher := newTestFetcher(t, server, staticResolver{"rules.example.test": {net.ParseIP("192.0.2.10")}}, FetchPolicy{
+		AllowedSchemes: []string{"http"}, AllowedDomains: []string{"rules.example.test"}, MaxBytes: 1 << 20, Timeout: time.Second, MaxRedirects: 1,
+	})
+	fetched, err := fetcher.Discover(context.Background(), SourcePin{URL: "http://rules.example.test:" + port + "/bundle", Revision: "sync-20260731"})
+	if err != nil {
+		t.Fatalf("discover source: %v", err)
+	}
+	if fetched.Pin.SHA256 != sha256Hex(bundle) || string(fetched.Content) != string(bundle) {
+		t.Fatalf("discovered source not pinned: %#v", fetched)
+	}
+}
+
 func TestFetcher_rejects_disallowed_redirect_before_following_it(t *testing.T) {
 	// Given
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {

@@ -22,8 +22,8 @@ describe('current route characterization', () => {
     const protectedRoutes = shell?.children ?? []
     const routeCount = routerCapture.routes.length + protectedRoutes.length
 
-    expect(routeCount).toBe(26)
-    expect(protectedRoutes).toHaveLength(21)
+    expect(routeCount).toBe(27)
+    expect(protectedRoutes).toHaveLength(22)
     expect(protectedRoutes.every((route) => route.meta?.roles?.join(',') === 'admin')).toBe(true)
   })
 

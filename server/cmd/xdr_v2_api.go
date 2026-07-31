@@ -23,6 +23,7 @@ type activeXDRRow struct {
 	Categories           []string              `json:"categories"`
 	Stages               []string              `json:"stages"`
 	SourceIPs            []string              `json:"source_ips"`
+	VictimIPs            []string              `json:"victim_ips"`
 	FirstSeen            string                `json:"first_seen"`
 	LastSeen             string                `json:"last_seen"`
 	Summary              string                `json:"summary"`
@@ -123,8 +124,23 @@ func buildActiveRows(events []*models.CanonicalEventV2, hypotheses []*models.Cha
 		limit = len(hypotheses)
 	}
 	out := make(activeXDRChains, 0, limit)
+	eventsByUID := make(map[string]*models.CanonicalEventV2, len(events))
+	for _, event := range events {
+		eventsByUID[event.EventUID] = event
+		eventsByUID["node-"+event.EventUID] = event
+	}
 	for _, hypothesis := range hypotheses[:limit] {
-		firstEvent := events[0]
+		chainEvents := make([]*models.CanonicalEventV2, 0, len(hypothesis.PathNodeUIDs))
+		for _, uid := range hypothesis.PathNodeUIDs {
+			if event := eventsByUID[uid]; event != nil {
+				chainEvents = append(chainEvents, event)
+			}
+		}
+		if len(chainEvents) == 0 {
+			chainEvents = events
+		}
+		firstEvent := chainEvents[0]
+		sourceIPs, victimIPs, evidence := xdrChainDisplayEvidence(chainEvents)
 		responseCandidates := make([]xdrResponseCandidate, 0)
 		if identity.IncidentEligible() && hypothesis.HypothesisStatus == models.HypothesisStatusCandidate {
 			for _, candidate := range buildResponseCandidatesFromFacts(
@@ -142,8 +158,8 @@ func buildActiveRows(events []*models.CanonicalEventV2, hypotheses []*models.Cha
 		out = append(out, activeXDRRow{ID: hypothesis.HypothesisUID, CorrelationKey: hypothesis.SeedNodeUID,
 			Entity: firstEvent.VictimAsset, Victim: firstEvent.VictimAsset, Score: hypothesis.ChainScore,
 			Severity: hypothesis.Severity, StageCount: len(hypothesis.PathNodeUIDs), EventCount: len(hypothesis.PathNodeUIDs),
-			Categories: []string{}, Stages: safeStages(hypothesis), SourceIPs: []string{}, FirstSeen: safeTime(hypothesis.FirstSeen),
-			LastSeen: safeTime(hypothesis.LastSeen), Summary: "", Evidence: []interface{}{}, ResponseCandidates: responseCandidates,
+			Categories: []string{}, Stages: safeStages(hypothesis), SourceIPs: sourceIPs, VictimIPs: victimIPs, FirstSeen: safeTime(hypothesis.FirstSeen),
+			LastSeen: safeTime(hypothesis.LastSeen), Summary: fmt.Sprintf("%d 个检测事件形成 %d 阶段攻击链", len(chainEvents), len(safeStages(hypothesis))), Evidence: evidence, ResponseCandidates: responseCandidates,
 			CandidateOnly: true, Algorithm: identity.String(), Engine: identity.String(), ScoreDetail: hypothesis.ScoreDetail,
 			PathEvidence: hypothesis.PathEvidence, Confidence: hypothesis.ConfidenceScore, Impact: hypothesis.ImpactScore,
 			Continuity: hypothesis.PathContinuityScore, AttackMappingVersion: hypothesis.AttackMappingVersion,
@@ -155,17 +171,60 @@ func buildActiveRows(events []*models.CanonicalEventV2, hypotheses []*models.Cha
 func activeEventOnlyChains(events []*models.CanonicalEventV2, identity models.AlgorithmIdentity) activeXDRChains {
 	out := make(activeXDRChains, 0, len(events))
 	for _, event := range events {
+		sourceIPs, victimIPs, evidence := xdrChainDisplayEvidence([]*models.CanonicalEventV2{event})
 		out = append(out, activeXDRRow{ID: event.EventUID, Score: event.RiskScore, Severity: severityFromScore(event.RiskScore), StageCount: 1,
-			EventCount: 1, Stages: []string{event.StageHint}, Categories: []string{}, SourceIPs: []string{}, FirstSeen: event.ObservedAt.Format(time.RFC3339),
+			EventCount: 1, Stages: []string{event.StageHint}, Categories: []string{}, SourceIPs: sourceIPs, VictimIPs: victimIPs, FirstSeen: event.ObservedAt.Format(time.RFC3339),
 			LastSeen: event.ObservedAt.Format(time.RFC3339), Algorithm: identity.String(), Engine: identity.String(), ScoreDetail: event.ScoreDetail,
-			Confidence: event.ConfidenceScore, Evidence: []interface{}{}, ResponseCandidates: xdrResponseCandidates{}, CandidateOnly: true,
+			Confidence: event.ConfidenceScore, Evidence: evidence, ResponseCandidates: xdrResponseCandidates{}, CandidateOnly: true,
 			HypothesisStatus: models.HypothesisStatusCandidate})
 	}
 	return out
 }
 
 func (row activeXDRRow) jsonRow() map[string]interface{} {
-	return map[string]interface{}{"id": row.ID, "correlation_key": row.CorrelationKey, "entity": row.Entity, "victim": row.Victim, "score": row.Score, "severity": row.Severity, "stage_count": row.StageCount, "event_count": row.EventCount, "categories": row.Categories, "stages": row.Stages, "source_ips": row.SourceIPs, "first_seen": row.FirstSeen, "last_seen": row.LastSeen, "summary": row.Summary, "evidence": row.Evidence, "response_candidates": row.ResponseCandidates.jsonRows(), "candidate_only": row.CandidateOnly, "algorithm": row.Algorithm, "engine": row.Engine, "score_detail": row.ScoreDetail, "path_evidence": row.PathEvidence, "confidence": row.Confidence, "impact": row.Impact, "continuity": row.Continuity, "attack_mapping_version": row.AttackMappingVersion, "hypothesis_status": row.HypothesisStatus}
+	return map[string]interface{}{"id": row.ID, "correlation_key": row.CorrelationKey, "entity": row.Entity, "victim": row.Victim, "score": row.Score, "severity": row.Severity, "stage_count": row.StageCount, "event_count": row.EventCount, "categories": row.Categories, "stages": row.Stages, "source_ips": row.SourceIPs, "victim_ips": row.VictimIPs, "first_seen": row.FirstSeen, "last_seen": row.LastSeen, "summary": row.Summary, "evidence": row.Evidence, "response_candidates": row.ResponseCandidates.jsonRows(), "candidate_only": row.CandidateOnly, "algorithm": row.Algorithm, "engine": row.Engine, "score_detail": row.ScoreDetail, "path_evidence": row.PathEvidence, "confidence": row.Confidence, "impact": row.Impact, "continuity": row.Continuity, "attack_mapping_version": row.AttackMappingVersion, "hypothesis_status": row.HypothesisStatus}
+}
+
+func xdrChainDisplayEvidence(events []*models.CanonicalEventV2) ([]string, []string, []interface{}) {
+	sourceIPs := make([]string, 0)
+	victimIPs := make([]string, 0)
+	evidence := make([]interface{}, 0, len(events))
+	seenSources := map[string]struct{}{}
+	seenVictims := map[string]struct{}{}
+	for _, event := range events {
+		if event == nil {
+			continue
+		}
+		if ip := strings.TrimSpace(event.NormalizedSrcIP); ip != "" && ip != event.NormalizedDstIP {
+			if _, exists := seenSources[ip]; !exists {
+				seenSources[ip] = struct{}{}
+				sourceIPs = append(sourceIPs, ip)
+			}
+		}
+		if ip := strings.TrimSpace(event.NormalizedDstIP); ip != "" {
+			if _, exists := seenVictims[ip]; !exists {
+				seenVictims[ip] = struct{}{}
+				victimIPs = append(victimIPs, ip)
+			}
+		}
+		evidence = append(evidence, map[string]interface{}{
+			"id":                event.EventUID,
+			"event_type":        event.EventType,
+			"source_module":     event.SourceComponent,
+			"source_engine":     event.SourceComponent,
+			"src_ip":            event.NormalizedSrcIP,
+			"dst_ip":            event.NormalizedDstIP,
+			"stage":             event.StageHint,
+			"tactic":            event.TacticID,
+			"technique":         event.TechniqueID,
+			"time":              event.ObservedAt.Format(time.RFC3339Nano),
+			"summary":           firstNonEmpty(event.EventType, event.TechniqueID, event.StageHint),
+			"raw_event":         event.RawEvent,
+			"raw_reference":     event.EventUID,
+			"entity_id":         firstNonEmpty(event.VictimAsset, event.HostID, event.AgentID),
+		})
+	}
+	return sourceIPs, victimIPs, evidence
 }
 
 func (rows activeXDRChains) jsonRows() []map[string]interface{} {

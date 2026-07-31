@@ -13,10 +13,16 @@ if (!baseURL || !username || !password || !evidenceDir) {
 
 const routes = [
   ['dashboard', '/dashboard'],
+  ['global-situation', '/situation/global'],
   ['xdr', '/xdr'],
   ['incidents', '/incidents'],
   ['agents', '/assets'],
-  ['rules', '/rule-updates'],
+  ['events', '/events'],
+  ['runtime', '/runtime'],
+  ['rules-center', '/rules'],
+  ['rule-updates', '/rule-updates'],
+  ['control-center', '/control-center'],
+  ['install-config', '/install-config'],
   ['traffic', '/traffic-threats'],
   ['rasp', '/rasp'],
 ]
@@ -73,7 +79,7 @@ async function main() {
       if (response.status() >= 400) result.badResponses.push(`${response.status()} ${response.request().method()} ${response.url()}`)
     })
 
-    await page.goto(`${baseURL}/login`, { waitUntil: 'domcontentloaded' })
+    result.pages.push(await inspectPage(page, 'login', '/login', { width: 1440, height: 900 }))
     await page.getByLabel('账号').fill(username)
     await page.getByLabel('密码').fill(password)
     await Promise.all([
@@ -95,6 +101,8 @@ async function main() {
     await page.setViewportSize({ width: 390, height: 844 })
     result.pages.push(await inspectPage(page, 'dashboard-mobile', '/dashboard', { width: 390, height: 844 }))
     result.pages.push(await inspectPage(page, 'agents-mobile', '/assets', { width: 390, height: 844 }))
+    await page.evaluate(() => localStorage.clear())
+    result.pages.push(await inspectPage(page, 'login-mobile', '/login', { width: 390, height: 844 }))
     result.unexpectedRequestFailures = result.requestFailures.filter((failure) => !failure.includes('net::ERR_ABORTED'))
     await fs.writeFile(path.join(evidenceDir, 'validation.json'), `${JSON.stringify(result, null, 2)}\n`)
     process.stdout.write(`${JSON.stringify(result, null, 2)}\n`)

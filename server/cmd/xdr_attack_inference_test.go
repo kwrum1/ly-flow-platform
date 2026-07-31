@@ -52,6 +52,30 @@ func TestCanonicalEventsToGraphDropsHeartbeatAndMapsAttack(t *testing.T) {
 	}
 }
 
+func TestCanonicalEventsToGraphReadsComponentAlertDetails(t *testing.T) {
+	alert := migrationTestAlert("evt-nested-details")
+	alert.Details = map[string]interface{}{
+		"src_ip": "198.51.100.24", "dst_ip": "10.1.18.100",
+		"stage_hint": "initial_access", "mitre_tactic": "initial_access", "mitre_technique": "T1190",
+	}
+	event, err := alert.Canonical(contracts.PrincipalIdentity(alert.Entities.AgentID), time.Now().UTC())
+	if err != nil {
+		t.Fatal(err)
+	}
+	graph, err := canonicalEventsToGraph([]contracts.CanonicalSecurityEvent{event})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(graph) != 1 {
+		t.Fatalf("graph length=%d", len(graph))
+	}
+	got := graph[0]
+	if got.NormalizedSrcIP != "198.51.100.24" || got.NormalizedDstIP != "10.1.18.100" ||
+		got.StageHint != "initial_access" || got.TechniqueID != "T1190" {
+		t.Fatalf("nested component fields not normalized: %#v", got)
+	}
+}
+
 func TestRejectedHypothesisHasNoIncidentOrResponseCandidate(t *testing.T) {
 	now := time.Now().UTC()
 	events := []*models.CanonicalEventV2{{EventUID: "evt-1", AgentID: "agent-1", VictimAsset: "host-1", ObservedAt: now}}

@@ -93,14 +93,26 @@ func syncActiveIncidentStore(ctx context.Context, store *incidentlifecycle.Postg
 		}
 		row := chain.jsonRow()
 		evidence := make([]incidentlifecycle.Evidence, 0)
+		displayEvidence := make(map[string]map[string]interface{}, len(chain.Evidence))
+		for _, item := range chain.Evidence {
+			value := asMap(item)
+			if eventUID := xdrPickString(value, "id", "event_id"); eventUID != "" {
+				displayEvidence[eventUID] = value
+			}
+		}
 		if chain.PathEvidence != nil {
 			for _, entry := range chain.PathEvidence.Timeline {
-				raw, err := json.Marshal(entry)
+				eventUID := strings.TrimPrefix(entry.NodeUID, "node-")
+				rawValue := map[string]interface{}{"path": entry}
+				for key, value := range displayEvidence[eventUID] {
+					rawValue[key] = value
+				}
+				raw, err := json.Marshal(rawValue)
 				if err != nil {
 					return fmt.Errorf("encode incident lineage %s: %w", chain.ID, err)
 				}
 				evidence = append(evidence, incidentlifecycle.Evidence{
-					EventUID: strings.TrimPrefix(entry.NodeUID, "node-"), SourceNodeUID: entry.NodeUID,
+					EventUID: eventUID, SourceNodeUID: entry.NodeUID,
 					Stage: entry.Stage, ObservedAt: entry.ObservedAt, Raw: raw,
 				})
 			}
@@ -150,12 +162,29 @@ func incidentJSONRow(incident incidentlifecycle.Incident) map[string]interface{}
 	evidenceValues := make([]interface{}, 0, len(incident.Evidence))
 	stages := make([]string, 0, len(incident.Evidence))
 	seenStages := map[string]struct{}{}
+	sourceIPs := map[string]struct{}{}
+	victimIPs := map[string]struct{}{}
 	for _, item := range incident.Evidence {
-		evidence = append(evidence, map[string]interface{}{
+		row := map[string]interface{}{
 			"event_id": item.EventUID, "stage": item.Stage, "time": item.ObservedAt.Format(time.RFC3339Nano),
 			"source_node_uid": item.SourceNodeUID, "raw": item.Raw,
-		})
-		evidenceValues = append(evidenceValues, evidence[len(evidence)-1])
+		}
+		var rawValue map[string]interface{}
+		if json.Unmarshal(item.Raw, &rawValue) == nil {
+			for _, key := range []string{"id", "event_type", "source_module", "source_engine", "src_ip", "dst_ip", "summary", "raw_event", "raw_reference", "entity_id", "tactic", "technique"} {
+				if value, exists := rawValue[key]; exists {
+					row[key] = value
+				}
+			}
+			if ip := xdrPickString(rawValue, "src_ip", "source_ip"); ip != "" {
+				sourceIPs[ip] = struct{}{}
+			}
+			if ip := xdrPickString(rawValue, "dst_ip", "target_ip"); ip != "" {
+				victimIPs[ip] = struct{}{}
+			}
+		}
+		evidence = append(evidence, row)
+		evidenceValues = append(evidenceValues, row)
 		if _, exists := seenStages[item.Stage]; item.Stage != "" && !exists {
 			seenStages[item.Stage] = struct{}{}
 			stages = append(stages, item.Stage)
@@ -172,6 +201,7 @@ func incidentJSONRow(incident incidentlifecycle.Incident) map[string]interface{}
 		"acknowledge_due_at": incident.AcknowledgeDueAt, "resolve_due_at": incident.ResolveDueAt,
 		"acknowledged_at": incident.AcknowledgedAt, "resolved_at": incident.ResolvedAt, "version": incident.Version,
 		"event_count": len(evidence), "stages": stages, "stage_labels": stageLabels(stages), "events": evidence,
-		"attack_chain": evidence, "stage_groups": incidentStageGroups(stages, evidenceValues), "audit": incident.Audit,
+		"attack_chain": evidence, "stage_groups": incidentStageGroups(stages, evidenceValues), "source_ips": sortedKeys(sourceIPs),
+		"victim_ips": sortedKeys(victimIPs), "audit": incident.Audit,
 	}
 }

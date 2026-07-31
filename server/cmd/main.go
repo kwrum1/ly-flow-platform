@@ -80,6 +80,7 @@ type Config struct {
 	IncidentLegacyMode bool
 	TransportProducer  *transport.RedisProducer
 	HostNetClassPath   string
+	ManagementInterface string
 
 	SecurityEngineEnabled       bool
 	SecurityEngineReloadURL     string
@@ -115,6 +116,7 @@ func loadConfig() *Config {
 		AgentKey:           getEnv("AGENT_KEY", ""),
 		AgentSelfEnroll:    toBool(getEnv("AGENT_SELF_ENROLL", "false")),
 		HostNetClassPath:   getEnv("HOST_NET_CLASS_PATH", "/host/sys/class/net"),
+		ManagementInterface: strings.TrimSpace(getEnv("MANAGEMENT_INTERFACE", "")),
 		IncidentLegacyMode: toBool(getEnv("INCIDENT_LIFECYCLE_LEGACY_MODE", "false")),
 
 		SecurityEngineEnabled:       toBool(getEnv("SECURITY_ENGINE_ENABLED", "true")),
@@ -2080,7 +2082,10 @@ func ruleSourceUpdateHandler(cfg *Config) http.HandlerFunc {
 		platformSourceID := platformRuleSourceID(sourceID)
 		var syncResult map[string]interface{}
 		if platformSourceID != "" {
-			result, err := syncRulePlatformSource(r.Context(), cfg, map[string]interface{}{"source_id": platformSourceID})
+			result, err := syncRulePlatformSource(r.Context(), cfg, map[string]interface{}{
+				"source_id": platformSourceID,
+				"version":   "sync-" + time.Now().UTC().Format("20060102T150405Z"),
+			})
 			if err != nil {
 				writeJSONError(w, http.StatusBadGateway, "rule_source_sync_failed", err.Error())
 				return
@@ -5931,6 +5936,12 @@ func mirrorCaptureConfigHandler(cfg *Config) http.HandlerFunc {
 				writeJSONError(w, http.StatusBadRequest, "invalid_mirror_capture_config", "Invalid mirror capture config")
 				return
 			}
+			managementInterface := hostManagementInterface(cfg)
+			if managementInterface != "" && strings.TrimSpace(req.Interface) == managementInterface {
+				writeJSONError(w, http.StatusBadRequest, "management_interface_not_allowed", "管理接口不能用于镜像抓包")
+				return
+			}
+			req.Enabled = strings.TrimSpace(req.Interface) != ""
 			if err := saveMirrorCaptureConfig(req); err != nil {
 				writeJSONError(w, http.StatusInternalServerError, "save_mirror_capture_config_failed", err.Error())
 				return
@@ -5945,19 +5956,21 @@ func mirrorCaptureConfigHandler(cfg *Config) http.HandlerFunc {
 func mirrorCaptureConfigResponse(cfg *Config) map[string]interface{} {
 	config := loadMirrorCaptureConfig()
 	return map[string]interface{}{
-		"enabled":    config.Enabled,
+		"enabled":    strings.TrimSpace(config.Interface) != "",
 		"interface":  config.Interface,
 		"updated_at": config.UpdatedAt,
 		"interfaces": mirrorCaptureInterfaces(cfg, config.Interface),
+		"management_interface": hostManagementInterface(cfg),
 	}
 }
 
 func mirrorCaptureInterfaces(cfg *Config, selected string) []map[string]interface{} {
 	items := []map[string]interface{}{}
 	seen := map[string]int{}
+	managementInterface := hostManagementInterface(cfg)
 	add := func(item map[string]interface{}) {
 		name := strings.TrimSpace(asString(item["name"]))
-		if name == "" {
+		if name == "" || name == managementInterface {
 			return
 		}
 		item["name"] = name
@@ -5987,6 +6000,28 @@ func mirrorCaptureInterfaces(cfg *Config, selected string) []map[string]interfac
 		return strings.ToLower(asString(items[i]["name"])) < strings.ToLower(asString(items[j]["name"]))
 	})
 	return items
+}
+
+func hostManagementInterface(cfg *Config) string {
+	if cfg != nil && strings.TrimSpace(cfg.ManagementInterface) != "" {
+		return strings.TrimSpace(cfg.ManagementInterface)
+	}
+	for _, path := range []string{"/host/proc/net/route", "/proc/net/route"} {
+		data, err := os.ReadFile(path)
+		if err != nil {
+			continue
+		}
+		for _, line := range strings.Split(string(data), "\n") {
+			fields := strings.Fields(line)
+			if len(fields) >= 4 && fields[1] == "00000000" && fields[0] != "lo" {
+				flags, _ := strconv.ParseUint(fields[3], 16, 32)
+				if flags&0x1 != 0 {
+					return fields[0]
+				}
+			}
+		}
+	}
+	return ""
 }
 
 func containerNetworkInterfaces() []map[string]interface{} {
@@ -7960,14 +7995,20 @@ func incidentStageGroups(stages []string, evidence []interface{}) []map[string]i
 			if itemStage != stage {
 				continue
 			}
-			items = append(items, map[string]interface{}{
+			row := map[string]interface{}{
 				"time":           firstNonEmpty(xdrPickString(m, "time"), xdrPickString(m, "timestamp", "created_at")),
 				"date":           firstNonEmpty(xdrPickString(m, "date"), xdrPickString(m, "time"), xdrPickString(m, "timestamp", "created_at")),
 				"summary":        firstNonEmpty(xdrPickString(m, "summary"), timelineSummary(m)),
 				"event_id":       xdrPickString(m, "event_id", "id", "message_id"),
 				"severity":       xdrPickString(m, "severity"),
 				"severity_label": severityLabel(xdrPickString(m, "severity")),
-			})
+			}
+			for key, value := range m {
+				if _, exists := row[key]; !exists {
+					row[key] = value
+				}
+			}
+			items = append(items, row)
 		}
 		if len(items) > 0 {
 			groups = append(groups, map[string]interface{}{"stage": stage, "stage_label": stageLabel(stage), "evidence": items})

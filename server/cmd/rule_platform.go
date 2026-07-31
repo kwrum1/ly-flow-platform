@@ -833,6 +833,9 @@ func syncRulePlatformSource(ctx context.Context, cfg *Config, req map[string]int
 	lifecycleRevision := slugifyRulePlatformID(sourceID + "-" + version)
 	runtimeRules := make([]compiledRuntimeRule, 0, len(converted))
 	for _, convertedRule := range converted {
+		if asString(convertedRule["support_level"]) == "unsupported" {
+			continue
+		}
 		rawRule, err := json.Marshal(convertedRule)
 		if err != nil {
 			return nil, fmt.Errorf("marshal converted rule: %w", err)
@@ -842,9 +845,20 @@ func syncRulePlatformSource(ctx context.Context, cfg *Config, req map[string]int
 			if err == nil {
 				err = errors.New("converted rule failed strict validation")
 			}
-			return nil, fmt.Errorf("compile converted rule %s: %w", asString(convertedRule["id"]), err)
+			previousSupport := firstNonEmpty(asString(convertedRule["support_level"]), "full_supported")
+			if report.SupportCounts[previousSupport] > 0 {
+				report.SupportCounts[previousSupport]--
+			}
+			report.SupportCounts["unsupported"]++
+			report.Unsupported++
+			convertedRule["support_level"] = "unsupported"
+			convertedRule["support_notes"] = []string{"runtime_compile: " + err.Error()}
+			continue
 		}
 		runtimeRules = append(runtimeRules, runtimeRule)
+	}
+	if len(runtimeRules) == 0 {
+		return nil, errors.New("rule source produced no runtime-compatible rules")
 	}
 	if err := ensureDefaultDetectionRules(ctx, cfg); err != nil {
 		return nil, err
@@ -1091,13 +1105,18 @@ func rulePlatformSourceMaterial(ctx context.Context, cfg *Config, actor rulelife
 		return nil, nil, "", "", false, errors.New("external rule source URL is required")
 	}
 	checksum := firstNonEmpty(asString(req["sha256"]), asString(req["checksum"]), asString(req["content_hash"]))
-	if checksum == "" {
-		return nil, nil, "", "", false, errors.New("external rule source sha256 is required")
-	}
 	if cfg.RuleLifecycle == nil {
 		return nil, nil, "", "", false, errors.New("secure rule lifecycle is unavailable")
 	}
-	fetched, err := cfg.RuleLifecycle.FetchSource(ctx, actor, rulelifecycle.SourcePin{URL: sourceURL, Revision: asString(req["version"]), SHA256: checksum})
+	pin := rulelifecycle.SourcePin{URL: sourceURL, Revision: asString(req["version"]), SHA256: checksum}
+	var fetched rulelifecycle.FetchedSource
+	var err error
+	if checksum == "" {
+		fetched, err = cfg.RuleLifecycle.DiscoverSource(ctx, actor, pin)
+		checksum = fetched.Pin.SHA256
+	} else {
+		fetched, err = cfg.RuleLifecycle.FetchSource(ctx, actor, pin)
+	}
 	if err != nil {
 		return nil, nil, "", "", false, err
 	}

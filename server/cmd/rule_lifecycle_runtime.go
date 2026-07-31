@@ -220,4 +220,4 @@ func splitRuleAllowlist(raw string) []string {
 	return allowed
 }
 
-const defaultRuleSourceDomains = "raw.githubusercontent.com,rules.emergingthreats.net,openinfosecfoundation.org,ti.stamus-networks.io,www.snort.org,rules.ptsecurity.com"
+const defaultRuleSourceDomains = "raw.githubusercontent.com,rules.emergingthreats.net,openinfosecfoundation.org,ti.stamus-networks.io,www.snort.org,snort-org-site.s3.amazonaws.com,rules.ptsecurity.com"

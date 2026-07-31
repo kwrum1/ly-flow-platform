@@ -45,14 +45,14 @@
         <ul v-else class="incident-list">
           <li v-for="chain in chains" :key="chain.id">
             <div>
-              <strong>{{ chainTitle(chain) }} · {{ pickNumber(chain.score, 0) }} 分</strong>
+              <strong>{{ chainTitle(chain) }} · {{ scoreText(chain.score) }} 分</strong>
               <p>{{ pickText(chain.summary, '该攻击链没有摘要字段') }}</p>
               <div v-if="stageGroups(chain).length" class="stage-evidence-groups">
                 <section v-for="group in stageGroups(chain)" :key="group.stage" class="stage-evidence-group">
                   <h4>{{ pickText(group.stage_label, group.stage) }}</h4>
                   <p v-for="item in group.evidence" :key="item.event_id || item.summary || item.time">
                     <time>{{ formatChinaDateTime(item.time || item.date || item.timestamp || item.created_at) }}</time>
-                    <span>{{ pickText(item.summary || item.message, '暂无证据说明') }}</span>
+                    <span>{{ readableText(item.summary || item.message, '暂无证据说明') }}</span>
                   </p>
                 </section>
               </div>
@@ -73,7 +73,7 @@
           <li v-for="item in timeline" :key="item.id">
             <time>{{ formatChinaDateTime(item.timestamp) }}</time>
             <strong>{{ pickText(item.stage_label, '风险发现') }}</strong>
-            <p>{{ pickText(item.summary || item.message, '后端未提供事件说明') }}</p>
+            <p>{{ readableText(item.summary || item.message, '后端未提供事件说明') }}</p>
           </li>
         </ol>
       </article>
@@ -99,7 +99,7 @@
             <td>{{ formatChinaDateTime(event.timestamp || event.created_at) }}</td>
             <td>{{ pickText(event.severity_label || event.severity, '提示') }}</td>
             <td>{{ pickText(event.source, '未知来源') }}</td>
-            <td>{{ pickText(event.message, '后端未提供事件说明') }}</td>
+            <td>{{ readableText(event.message, '后端未提供事件说明') }}</td>
           </tr>
         </tbody>
       </table>
@@ -131,6 +131,16 @@ const chainTotal = computed(() => chainsPayload.value.total)
 const timelineTotal = computed(() => timelinePayload.value.total)
 const eventTotal = computed(() => eventsPayload.value.total)
 const highRiskCount = computed(() => events.value.filter((event) => ['critical', 'high', '严重', '高危'].includes(String(event.severity || event.severity_label).toLowerCase())).length)
+
+function readableText(value, fallback) {
+  const result = String(pickText(value, fallback))
+  return /\?{2,}/.test(result) ? '检测引擎命中关联事件' : result
+}
+
+function scoreText(value) {
+  const score = Number(value)
+  return Number.isFinite(score) ? String(Math.round(score * 10) / 10) : '0'
+}
 
 function chainTitle(chain) {
   const name = pickText(chain.entity || chain.victim, '目标资产')
@@ -181,62 +191,66 @@ onMounted(loadAll)
 <style scoped>
 .attack-page {
   display: grid;
-  gap: 22px;
-  padding: 28px;
+  gap: 12px;
+  padding: 16px;
+  color: #243149;
+  background: #f3f6fa;
 }
 
 .attack-hero {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 30px;
-  border-radius: 26px;
-  background: linear-gradient(135deg, rgba(17, 31, 52, 0.94), rgba(8, 18, 32, 0.78));
-  border: 1px solid var(--border-light);
+  gap: 20px;
+  padding: 16px 18px;
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid #dce3ec;
 }
 
 .attack-hero p {
   margin: 0 0 8px;
-  color: var(--primary-light);
+  color: #1976d2;
   font-size: 12px;
   font-weight: 900;
-  letter-spacing: 0.16em;
+  letter-spacing: 0;
 }
 
 .attack-hero h2 {
   margin: 0;
-  font-size: clamp(34px, 4vw, 58px);
-  letter-spacing: -0.055em;
+  color: #1d2939;
+  font-size: 22px;
+  letter-spacing: 0;
 }
 
 .attack-hero span {
   display: block;
   max-width: 780px;
-  margin-top: 12px;
-  color: var(--text-secondary);
-  line-height: 1.8;
+  margin-top: 6px;
+  color: #667085;
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .attack-hero button {
   height: 44px;
   padding: 0 18px;
   border: 0;
-  border-radius: 14px;
-  color: #06101d;
+  border-radius: 5px;
+  color: #fff;
   font-weight: 900;
-  background: linear-gradient(135deg, #7dd3fc, #34d399);
+  background: #1976d2;
   cursor: pointer;
 }
 
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 16px;
+  gap: 10px;
 }
 
 .metric-card {
-  padding: 20px;
+  padding: 14px 16px;
 }
 
 .metric-card span,
@@ -254,12 +268,12 @@ onMounted(loadAll)
 .workbench-grid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-  gap: 18px;
+  gap: 10px;
 }
 
 .panel-card-main,
 .event-panel {
-  padding: 22px;
+  padding: 16px;
 }
 
 .panel-heading {
@@ -278,16 +292,16 @@ onMounted(loadAll)
 }
 
 .state-card {
-  padding: 18px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border-light);
+  padding: 14px;
+  border-radius: 6px;
+  background: #f8fafc;
+  border: 1px solid #e1e7ef;
 }
 
 .error-state {
-  color: #fecaca;
-  border-color: rgba(248, 113, 113, 0.34);
-  background: rgba(248, 113, 113, 0.12);
+  color: #b42318;
+  border-color: #f0b5b1;
+  background: #fff3f2;
 }
 
 .incident-list,
@@ -300,15 +314,20 @@ onMounted(loadAll)
 .incident-list li,
 .timeline-list li {
   padding: 15px;
-  border-radius: 16px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: #fff;
+  border: 1px solid #dce3ec;
 }
 
 .incident-list li {
   display: flex;
   justify-content: space-between;
   gap: 16px;
+}
+
+.incident-list li > div {
+  min-width: 0;
+  flex: 1;
 }
 
 .incident-list p,
@@ -320,53 +339,73 @@ onMounted(loadAll)
 
 .stage-evidence-groups {
 	display: grid;
-	gap: 10px;
-	margin-top: 12px;
+	gap: 6px;
+	margin-top: 10px;
 }
 
 .stage-evidence-group {
-	padding: 10px 12px;
-	border-radius: 12px;
-	border: 1px solid var(--border-light);
-	background: rgba(15, 23, 42, 0.36);
+	display: flex;
+	align-items: center;
+	gap: 12px;
+	width: 100%;
+	padding: 8px 10px;
+	border-radius: 5px;
+	border: 1px solid #cfe0f1;
+	background: #edf6ff;
 }
 
 .stage-evidence-group h4 {
-	margin: 0 0 8px;
+	width: 128px;
+	flex: 0 0 128px;
+	margin: 0;
+	padding-right: 10px;
+	border-right: 1px solid #c9dced;
 	color: var(--text-primary);
+	overflow-wrap: anywhere;
 }
 
 .stage-evidence-group p {
 	display: grid;
-	gap: 4px;
-	margin: 8px 0 0;
+	grid-template-columns: 150px minmax(0, 1fr);
+	align-items: center;
+	gap: 10px;
+	min-width: 0;
+	flex: 1;
+	margin: 0;
 }
 
 .stage-evidence-group time {
-	color: var(--primary-light);
+	color: #1769ba;
 	font-size: 12px;
+}
+
+.stage-evidence-group p span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .timeline-list time {
   display: block;
   margin-bottom: 6px;
-  color: var(--primary-light);
+  color: #1769ba;
   font-size: 12px;
 }
 
 .severity-pill {
   align-self: flex-start;
   padding: 5px 10px;
-  border-radius: 999px;
-  background: rgba(125, 211, 252, 0.13);
-  border: 1px solid rgba(125, 211, 252, 0.24);
+  border-radius: 4px;
+  color: #1769ba;
+  background: #edf6ff;
+  border: 1px solid #b8d7f4;
 }
 
 .severity-pill.critical,
 .severity-pill.high {
-  color: #fecaca;
-  background: rgba(248, 113, 113, 0.13);
-  border-color: rgba(248, 113, 113, 0.3);
+  color: #b42318;
+  background: #fff0ef;
+  border-color: #f5b7b1;
 }
 
 .event-table {

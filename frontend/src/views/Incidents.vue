@@ -4,12 +4,11 @@
       <div>
         <span class="page-kicker">Incident Workbench</span>
         <h1 class="page-title" data-testid="incidents-title">Incidents 事件</h1>
-        <p class="page-subtitle">只展示由 XDR/规则关联形成的攻击链事件，用于分诊、复核证据和闭环处置。</p>
       </div>
       <div class="incident-summary">
-        <span>{{ summary.critical }} 严重</span>
-        <span>{{ summary.high }} 高危</span>
-        <span>{{ summary.open }} 待闭环</span>
+        <span class="critical">{{ summary.critical }} 严重</span>
+        <span class="high">{{ summary.high }} 高危</span>
+        <span class="open">{{ summary.open }} 待闭环</span>
       </div>
     </section>
 
@@ -50,7 +49,6 @@
         <div class="card-header">
           <div>
             <h2 class="card-title">攻击链列表</h2>
-            <p class="card-caption">Incident 必须来自关联链，不把单条普通事件升级为 Incident</p>
           </div>
           <span class="status-badge info">{{ filteredIncidents.length }} 条</span>
         </div>
@@ -93,6 +91,12 @@
             <button type="button" class="response-action critical" :disabled="statusUpdating" @click="updateIncidentStatus('resolved')">标记解决</button>
           </div>
 
+          <div class="route-summary">
+            <div><span>攻击 IP</span><strong>{{ incidentSourceIPs(selectedIncident) }}</strong></div>
+            <i>→</i>
+            <div><span>受害 IP / 资产</span><strong>{{ incidentVictims(selectedIncident) }}</strong></div>
+          </div>
+
           <section class="detail-section">
             <h3>攻击链阶段</h3>
             <div v-if="stageEvidenceGroups(selectedIncident).length === 0" class="table-state">暂无阶段证据，等待 XDR 关联输出。</div>
@@ -103,10 +107,16 @@
                   <small>{{ stage.tactic || 'XDR Detection' }}</small>
                   <strong>{{ stage.name }}</strong>
                   <div class="stage-evidence-list">
-                    <p v-for="item in stage.evidence" :key="item.id" class="stage-evidence-item">
+                    <div v-for="item in stage.evidence" :key="item.id" class="stage-evidence-item">
                       <time>{{ formatEvidenceTime(item) }}</time>
-                      <span>{{ item.summary || item.title || '暂无证据说明' }}</span>
-                    </p>
+                      <span class="evidence-engine">{{ detectionSurfaceText(item) }}</span>
+                      <span class="evidence-route">{{ evidenceRoute(item) }}</span>
+                      <span class="evidence-summary">{{ item.summary || item.title || '暂无证据说明' }}</span>
+                      <details>
+                        <summary>原始日志</summary>
+                        <pre>{{ rawEvidence(item) }}</pre>
+                      </details>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -184,6 +194,11 @@ const stageEvidenceGroups = (incident) => {
 }
 
 const formatEvidenceTime = (item) => item.time ? formatChinaDateTime(item.time) : '时间待补全'
+const incidentSourceIPs = (incident) => incident?.sourceIPs?.filter(Boolean).join('、') || incident?.evidence?.map((item) => item.sourceIP).filter(Boolean).join('、') || '待补全'
+const incidentVictims = (incident) => incident?.victimIPs?.filter(Boolean).join('、') || incidentSubtitle(incident) || incident?.evidence?.map((item) => item.targetIP).filter(Boolean).join('、') || '待补全'
+const detectionSurfaceText = (item) => ({ suricata: '流量 DPI', wazuh: '日志审计', runtime: '运行时审计', yara: '病毒/文件检测', rasp: 'RASP 审计', xdr: 'XDR 关联' }[String(item?.detectionSurface || '').toLowerCase()] || item?.detectionSurface || 'XDR 关联')
+const evidenceRoute = (item) => [item?.sourceIP, item?.targetIP].filter(Boolean).join(' → ') || '主机侧事件'
+const rawEvidence = (item) => JSON.stringify(item?.raw || item || {}, null, 2)
 
 const selectIncident = async (incident) => {
   selectedIncident.value = incident
@@ -273,13 +288,16 @@ onMounted(async () => {
 .incidents-workbench { display: flex; flex-direction: column; gap: 18px; }
 .incidents-hero { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; }
 .incident-summary, .detail-badges, .filter-row, .response-actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
-.auto-load-note { color: #94a3b8; font-size: 12px; }
-.incident-summary span { padding: 9px 12px; border: 1px solid var(--border-color); border-radius: 999px; background: rgba(15, 23, 42, 0.58); color: var(--text-secondary); font-weight: 850; }
+.auto-load-note { color: #758195; font-size: 12px; }
+.incident-summary span { padding: 8px 12px; border: 1px solid #dce4ef; border-radius: 4px; background: #fff; color: #445168; font-weight: 850; }
+.incident-summary .critical { border-color:#f0b7b5; background:#fff2f1; color:#b42318; }
+.incident-summary .high { border-color:#f4c695; background:#fff7ed; color:#b54708; }
+.incident-summary .open { border-color:#a9cdf3; background:#edf6ff; color:#1769d2; }
 .filter-card { padding: 16px; }
 .incidents-grid { display: grid; grid-template-columns: minmax(320px, 0.9fr) minmax(0, 1.4fr); gap: 18px; }
 .incident-list-card, .incident-detail-card { min-width: 0; }
-.incident-row { width: 100%; display: grid; grid-template-columns: 84px minmax(0, 1fr) 96px; align-items: center; gap: 12px; margin-bottom: 10px; padding: 14px; border: 1px solid var(--border-light); border-radius: 16px; background: rgba(8, 18, 32, 0.58); color: var(--text-primary); text-align: left; cursor: pointer; transition: all var(--transition-fast); }
-.incident-row:hover, .incident-row.active { transform: translateX(4px); border-color: var(--border-glow); background: rgba(56, 189, 248, 0.08); }
+.incident-row { width: 100%; display: grid; grid-template-columns: 84px minmax(0, 1fr) 96px; align-items: center; gap: 12px; margin-bottom: 8px; padding: 12px; border: 1px solid #e0e7f0; border-radius: 5px; background: #fff; color: #253148; text-align: left; cursor: pointer; transition: all var(--transition-fast); }
+.incident-row:hover, .incident-row.active { transform: translateX(2px); border-color: #83b8ee; background: #f2f8ff; }
 .incident-main { min-width: 0; display: flex; flex-direction: column; gap: 5px; }
 .incident-main strong, .incident-main em { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
 .incident-main em { color: var(--text-muted); font-size: 12px; font-style: normal; }
@@ -287,16 +305,18 @@ onMounted(async () => {
 .detail-section h3 { margin: 0 0 10px; color: var(--text-primary); }
 .detail-section p { margin: 0; color: var(--text-secondary); }
 .stage-list { display: flex; flex-direction: column; gap: 10px; }
-.stage-item { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; align-items: stretch; padding: 14px; border: 1px solid rgba(56,189,248,.22); border-radius: 16px; background: linear-gradient(135deg, rgba(8,18,32,.78), rgba(15,23,42,.56)); }
-.stage-index { display:flex; align-items:center; justify-content:center; min-height:64px; border-radius:14px; background:rgba(56,189,248,.12); border:1px solid rgba(56,189,248,.22); color:#7dd3fc; font-size:13px; font-weight:950; letter-spacing:.08em; }
+.stage-item { display: grid; grid-template-columns: 76px minmax(0, 1fr); gap: 12px; align-items: stretch; padding: 12px; border: 1px solid #dce6f2; border-radius: 5px; background: #f8fbff; }
+.stage-index { display:flex; align-items:center; justify-content:center; min-height:64px; border-radius:4px; background:#e5f2ff; border:1px solid #b8d7f5; color:#1769d2; font-size:13px; font-weight:950; }
 .stage-copy { min-width:0; display:flex; flex-direction:column; justify-content:center; gap:5px; }
-.stage-copy small { color:#38bdf8; font-size:12px; font-weight:900; letter-spacing:.08em; text-transform:uppercase; }
+.stage-copy small { color:#1769d2; font-size:12px; font-weight:900; text-transform:uppercase; }
 .stage-copy strong { color:var(--text-primary); font-size:16px; }
 .stage-evidence-list { display: grid; gap: 8px; margin-top: 8px; }
-.stage-evidence-item { display: grid; grid-template-columns: 154px minmax(0, 1fr); gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid rgba(125,211,252,.14); border-radius: 12px; background: rgba(2, 6, 23, .34); }
-.stage-evidence-item time { color:#7dd3fc; font-size:12px; font-weight:850; white-space:nowrap; }
-.stage-evidence-item span { color:var(--text-secondary); font-size:13px; line-height:1.55; }
-.response-action { padding: 8px 12px; border: 1px solid var(--border-color); border-radius: 999px; background: rgba(15, 23, 42, 0.76); color: var(--text-secondary); cursor: pointer; }
+.stage-evidence-item { display: grid; grid-template-columns: 145px 92px minmax(120px,.7fr) minmax(180px,1.3fr); gap: 8px; align-items: center; padding: 9px 10px; border: 1px solid #e0e7f0; border-radius: 4px; background: #fff; }
+.stage-evidence-item time { color:#53627a; font-size:11px; font-weight:750; white-space:nowrap; }
+.stage-evidence-item span { color:#445168; font-size:12px; line-height:1.45; }
+.stage-evidence-item .evidence-engine{display:inline-flex;align-items:center;justify-content:center;padding:3px 6px;border-radius:3px;background:#e8f3ff;color:#1769d2;font-weight:750}.stage-evidence-item .evidence-route{font-family:ui-monospace,monospace;color:#334155}.stage-evidence-item details{grid-column:1/-1}.stage-evidence-item summary{width:max-content;color:#1769d2;font-size:11px;cursor:pointer}.stage-evidence-item pre{max-height:180px;margin:8px 0 0;padding:10px;overflow:auto;border:1px solid #dce4ef;border-radius:4px;background:#f5f7fa;color:#273449;font-size:11px;white-space:pre-wrap;word-break:break-all}
+.response-action { padding: 8px 12px; border: 1px solid #d6dfeb; border-radius: 4px; background: #fff; color: #40506a; cursor: pointer; }
+.route-summary{display:grid;grid-template-columns:minmax(0,1fr) 28px minmax(0,1fr);align-items:center;margin-top:14px;padding:11px 14px;border:1px solid #cfe0f2;border-radius:5px;background:#f3f8fe}.route-summary>div{display:grid;gap:4px}.route-summary>div:last-child{text-align:right}.route-summary span{color:#758195;font-size:11px}.route-summary strong{overflow:hidden;text-overflow:ellipsis;color:#243149;font-family:ui-monospace,monospace;font-size:12px}.route-summary i{text-align:center;color:#2782e8;font-style:normal;font-weight:900}
 .response-action.critical { border-color: var(--risk-critical-border); color: var(--risk-critical); }
 .response-action:disabled { opacity: 0.55; cursor: not-allowed; }
 @media (max-width: 1120px) { .incidents-hero { align-items: flex-start; flex-direction: column; } .incidents-grid { grid-template-columns: 1fr; } }
