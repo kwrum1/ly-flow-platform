@@ -110,7 +110,6 @@ ensure_image "$DB_REDIS_IMAGE"
 ensure_image "$DB_CLICKHOUSE_IMAGE"
 ensure_image "$SERVER_BASE_IMAGE"
 ensure_image "$FRONTEND_BASE_IMAGE"
-ensure_image
 ensure_image "$SURICATA_PROFILE_IMAGE"
 ensure_image "$SURICATA_BUILD_IMAGE"
 suricata_build_id=$(docker image inspect "$SURICATA_BUILD_IMAGE" --format '{{.Id}}')
