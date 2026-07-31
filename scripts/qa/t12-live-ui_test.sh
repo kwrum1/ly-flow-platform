@@ -121,7 +121,10 @@ env \
   T12_UI_EVIDENCE_DIR="$evidence/screenshots" \
   npm --prefix "$root/frontend" exec -- playwright test \
   --config "$root/frontend/playwright.config.js" t12-real-detections.spec.js --project chromium \
-  >"$evidence/playwright.log" 2>&1
+  >"$evidence/playwright.log" 2>&1 || {
+    cat "$evidence/playwright.log" >&2
+    exit 1
+  }
 
 jq -e '.sources | length == 5' "$evidence/screenshots/t12-real-detections.json" >/dev/null
 jq -n --slurpfile detections "$evidence/screenshots/t12-real-detections.json" \
