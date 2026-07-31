@@ -95,10 +95,9 @@ jobs:
       - name: Run real-detection release gate
         run: |
           set -euo pipefail
-          sensor='docker.io/jasonish/suricata@sha256:73cf099d6299f75dda2d9d6edcfb8238b7a7322566d6189a69d46442a366b7fa'
-          if ! docker image inspect "$sensor" >/dev/null 2>&1 && ! docker image inspect jasonish/suricata:7.0.11 >/dev/null 2>&1; then
-            docker pull "$sensor"
-          fi
+          sensor='ly-flow/suricata-profile:release-rc-652a7b620dfd-todo5-20260730T071221Z-amd64'
+          docker image inspect "$sensor" >/dev/null
+          docker tag "$sensor" jasonish/suricata:7.0.11
           npm --prefix frontend exec -- playwright install --with-deps chromium
           scripts/qa/run-go-tests.sh real-detection
 
@@ -125,7 +124,7 @@ jobs:
           done
           openssl genpkey -algorithm ED25519 -out "$ci_tmp/release.key"
           openssl pkey -in "$ci_tmp/release.key" -pubout -out "$ci_tmp/release-root.pem"
-          suricata=$(docker image inspect jasonish/suricata:7.0.11 --format '{{index .RepoDigests 0}}')
+          suricata=$(docker image inspect ly-flow/suricata-profile:release-rc-652a7b620dfd-todo5-20260730T071221Z-amd64 --format '{{index .RepoDigests 0}}')
           RASP_PYTHON_310_IMAGE="${rasp_images[0]}" \
             RASP_PYTHON_311_IMAGE="${rasp_images[1]}" \
             RASP_PYTHON_312_IMAGE="${rasp_images[2]}" \

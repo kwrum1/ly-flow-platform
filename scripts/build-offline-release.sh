@@ -29,7 +29,7 @@ if [[ "$TARGET_ARCH" != "amd64" ]]; then
 fi
 
 if [[ "$TARGET_ARCH" == "amd64" ]]; then
-  DB_POSTGRES_IMAGE="${DB_POSTGRES_IMAGE:-postgres@sha256:57c72fd2a128e416c7fcc499958864df5301e940bca0a56f58fddf30ffc07777}"
+  DB_POSTGRES_IMAGE="${DB_POSTGRES_IMAGE:-postgres@sha256:4e6e670bb069649261c9c18031f0aded7bb249a5b6664ddec29c013a89310d50}"
   DB_REDIS_IMAGE="${DB_REDIS_IMAGE:-redis@sha256:9de71018be8413f419688ac34e19dbac432d1c6d9593d2ded99a82eebefeb18f}"
   DB_CLICKHOUSE_IMAGE="${DB_CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server@sha256:b002e56ed5c16e224c312527f6fcba7e77216fec5d7a88a7828f59efc614feb5}"
 else
@@ -37,11 +37,10 @@ else
   DB_REDIS_IMAGE="${DB_REDIS_IMAGE:-}"
   DB_CLICKHOUSE_IMAGE="${DB_CLICKHOUSE_IMAGE:-}"
 fi
-SERVER_BASE_IMAGE="${SERVER_BASE_IMAGE:-ly-flow/server@sha256:0d811fb49fa58642538b16ef43d7d791cf1f3839c9d3008580181b441cdab41d}"
-FRONTEND_BASE_IMAGE="${FRONTEND_BASE_IMAGE:-ly-flow/frontend@sha256:98767ee96d258cdd023b6a620a4b1b44a2239a8f2742f51dc91d240615740707}"
-SECURITY_ENGINES_BASE_IMAGE="${SECURITY_ENGINES_BASE_IMAGE:-ly-flow/security-engines@sha256:f165fe4fe3cb4e01229a8a2ba38c0e8ac060887566f8d9d9064648400e35a127}"
+SERVER_BASE_IMAGE="${SERVER_BASE_IMAGE:-ly-flow/server@sha256:bdec70a7c0c9841f0404c1fb54967bc89660aed49d7e8cb2d1066fa35e9e061e}"
+FRONTEND_BASE_IMAGE="${FRONTEND_BASE_IMAGE:-ly-flow/frontend@sha256:89d88f6ad4e2119d564394a413bf95e26e4ada5d3773169cbc5543f6daf52179}"
 SURICATA_PROFILE_IMAGE="${SURICATA_PROFILE_IMAGE:-}"
-SURICATA_BUILD_IMAGE="${SURICATA_BUILD_IMAGE:-ly-flow/suricata-base:todo9-sha256-73cf099d6299}"
+SURICATA_BUILD_IMAGE="${SURICATA_BUILD_IMAGE:-ly-flow/suricata-profile:release-rc-652a7b620dfd-todo5-20260730T071221Z-amd64}"
 : "${RASP_PYTHON_310_IMAGE:?RASP_PYTHON_310_IMAGE must be supplied as a local sha256 digest reference}"
 : "${RASP_PYTHON_311_IMAGE:?RASP_PYTHON_311_IMAGE must be supplied as a local sha256 digest reference}"
 : "${RASP_PYTHON_312_IMAGE:?RASP_PYTHON_312_IMAGE must be supplied as a local sha256 digest reference}"
@@ -61,7 +60,7 @@ if [[ "$TARGET_ARCH" != "amd64" && (-z "$DB_POSTGRES_IMAGE" || -z "$DB_REDIS_IMA
   printf '[lyflow-release] ERROR: non-amd64 releases require architecture-specific DB_POSTGRES_IMAGE, DB_REDIS_IMAGE, and DB_CLICKHOUSE_IMAGE digests\n' >&2
   exit 1
 fi
-for base in "$DB_POSTGRES_IMAGE" "$DB_REDIS_IMAGE" "$DB_CLICKHOUSE_IMAGE" "$SERVER_BASE_IMAGE" "$FRONTEND_BASE_IMAGE" "$SECURITY_ENGINES_BASE_IMAGE" "$SURICATA_PROFILE_IMAGE"; do
+for base in "$DB_POSTGRES_IMAGE" "$DB_REDIS_IMAGE" "$DB_CLICKHOUSE_IMAGE" "$SERVER_BASE_IMAGE" "$FRONTEND_BASE_IMAGE" "$SURICATA_PROFILE_IMAGE"; do
   [[ "$base" == *@sha256:* ]] || { printf '[lyflow-release] ERROR: every release base image must use a sha256 digest: %s\n' "$base" >&2; exit 1; }
 done
 
@@ -111,7 +110,7 @@ ensure_image "$DB_REDIS_IMAGE"
 ensure_image "$DB_CLICKHOUSE_IMAGE"
 ensure_image "$SERVER_BASE_IMAGE"
 ensure_image "$FRONTEND_BASE_IMAGE"
-ensure_image "$SECURITY_ENGINES_BASE_IMAGE"
+ensure_image
 ensure_image "$SURICATA_PROFILE_IMAGE"
 ensure_image "$SURICATA_BUILD_IMAGE"
 suricata_build_id=$(docker image inspect "$SURICATA_BUILD_IMAGE" --format '{{.Id}}')
@@ -123,7 +122,6 @@ run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none 
 run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$FRONTEND_BASE_IMAGE" -f frontend/Dockerfile -t "ly-flow/frontend:$APP_TAG" .
 run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$DB_REDIS_IMAGE" -f dpi-engine/Dockerfile -t "ly-flow/dpi-engine:$APP_TAG" .
 run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$DB_REDIS_IMAGE" -f security-engine/Dockerfile -t "ly-flow/security-engine:$APP_TAG" .
-run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$SECURITY_ENGINES_BASE_IMAGE" --build-arg "SURICATA_PROFILE_IMAGE=$SURICATA_BUILD_IMAGE" -f containers/security-engines/Dockerfile -t "ly-flow/security-engines:$APP_TAG" .
 run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "SURICATA_PROFILE_IMAGE=$SURICATA_BUILD_IMAGE" --target suricata-profile -f containers/security-engines/Dockerfile -t "ly-flow/suricata-profile:$APP_TAG" .
 run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$SERVER_BASE_IMAGE" -f agent/Dockerfile -t "ly-flow/agent:$APP_TAG" .
 
@@ -141,11 +139,10 @@ image_digest_ref() {
 SERVER_IMAGE=$(image_digest_ref "ly-flow/server:$APP_TAG" ly-flow/server)
 FRONTEND_IMAGE=$(image_digest_ref "ly-flow/frontend:$APP_TAG" ly-flow/frontend)
 SECURITY_ENGINE_IMAGE=$(image_digest_ref "ly-flow/security-engine:$APP_TAG" ly-flow/security-engine)
-SECURITY_ENGINES_IMAGE=$(image_digest_ref "ly-flow/security-engines:$APP_TAG" ly-flow/security-engines)
 AGENT_IMAGE=$(image_digest_ref "ly-flow/agent:$APP_TAG" ly-flow/agent)
 DPI_IMAGE=$(image_digest_ref "ly-flow/dpi-engine:$APP_TAG" ly-flow/dpi-engine)
 SURICATA_SENSOR_IMAGE=$(image_digest_ref "ly-flow/suricata-profile:$APP_TAG" ly-flow/suricata-profile)
-IMAGES=("$DB_POSTGRES_IMAGE" "$DB_REDIS_IMAGE" "$DB_CLICKHOUSE_IMAGE" "$SERVER_IMAGE" "$FRONTEND_IMAGE" "$SECURITY_ENGINE_IMAGE" "$SECURITY_ENGINES_IMAGE" "$AGENT_IMAGE" "$DPI_IMAGE" "$SURICATA_SENSOR_IMAGE")
+IMAGES=("$DB_POSTGRES_IMAGE" "$DB_REDIS_IMAGE" "$DB_CLICKHOUSE_IMAGE" "$SERVER_IMAGE" "$FRONTEND_IMAGE" "$SECURITY_ENGINE_IMAGE" "$AGENT_IMAGE" "$DPI_IMAGE" "$SURICATA_SENSOR_IMAGE")
 
 rm -rf "$RELEASE_DIR/.task22-evidence-$RELEASE_ID"
 TODO22_IMAGE_REFS=$(printf '%s\n' "${IMAGES[@]}" | paste -sd, -)
