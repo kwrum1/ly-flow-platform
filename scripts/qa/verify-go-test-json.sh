@@ -22,8 +22,8 @@ while IFS='|' read -r expected_category package test_name; do
   [[ -z "$expected_category" || "$expected_category" == \#* ]] && continue
   [[ "$expected_category" != "$category" ]] && continue
   found=1
-  if ! jq -e --arg package "$package" --arg test "$test_name" \
-    'select(.Action == "pass" and .Package == $package and .Test == $test)' "$events" >/dev/null; then
+  if ! jq -e -s --arg package "$package" --arg test "$test_name" \
+    'any(.[]; .Action == "pass" and (.Package == $package or (.Package | endswith("/" + $package))) and .Test == $test)' "$events" >/dev/null; then
     printf 'missing passing test event: %s %s\n' "$package" "$test_name" >&2
     exit 1
   fi
