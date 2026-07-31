@@ -21,6 +21,10 @@ for image in "${images[@]}"; do
   docker image inspect "$image" >/dev/null 2>&1 || { echo "missing local image: $image" >&2; exit 1; }
 done
 cp docker-compose.yml scripts/init-db.sql "$tmp/ly-flow-platform/"
+cp -a rules "$tmp/ly-flow-platform/rules"
+if [ -d .sisyphus ]; then
+  cp -a .sisyphus "$tmp/ly-flow-platform/.sisyphus"
+fi
 mkdir -p "$tmp/ly-flow-platform/server/sql" "$tmp/ly-flow-platform/scripts"
 cp server/sql/asset_tables.sql "$tmp/ly-flow-platform/server/sql/"
 cp scripts/install-docker-bundle.sh "$tmp/ly-flow-platform/scripts/"
