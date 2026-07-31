@@ -21,14 +21,14 @@ jobs:
       GITEA_SERVER_URL: http://127.0.0.1:10000
       TODO22_TOOL_DIR: /root/.cache/todo22/bin
       TODO22_GO_VULN_DB: /root/.cache/todo22/go-vulndb
-      TODO22_GO_REPORT_DIR: /opt/lyflow-evidence/task-22-final-20260717T032600Z/scans/go
-      TODO22_NPM_AUDIT_JSON: /opt/lyflow-evidence/task-22-final-20260717T032600Z/scans/npm-audit.json
-      TODO22_PYTHON_OSV_JSON: /opt/lyflow-evidence/task-22-final-20260717T032600Z/scans/python-osv.json
+      TODO22_GO_REPORT_DIR: /root/.cache/todo22/go-vulndb
+      TODO22_NPM_AUDIT_JSON: /root/ly-flow-platform/release/.task22-evidence-rc-652a7b620dfd-todo5-20260730T071221Z/scanners/npm-audit.json
+      TODO22_PYTHON_OSV_JSON: /root/ly-flow-platform/release/.task22-evidence-rc-652a7b620dfd-todo5-20260730T071221Z/scanners/python-osv.json
       TODO22_OSV_DB: /root/.cache/todo22/osv/osv-scanner/PyPI/all.zip
       TODO22_TRIVY_CACHE: /root/.cache/todo22/trivy
       TODO22_GRYPE_CACHE: /root/.cache/todo22/grype
-      TODO22_GRYPE_DB_STATUS: /opt/lyflow-evidence/task-22-final-20260717T032600Z/scans/grype-db-status.json
-      TODO22_JAVA_REPORT: /opt/lyflow-evidence/task-22-final-20260717T032600Z/scans/java-dependency-check.json
+      TODO22_GRYPE_DB_STATUS: /root/ly-flow-platform/release/.task22-evidence-rc-652a7b620dfd-todo5-20260730T071221Z/scanners/grype-db-status.json
+      TODO22_JAVA_REPORT: /root/ly-flow-platform/release/.task22-evidence-rc-652a7b620dfd-todo5-20260730T071221Z/scanners/java-dependency-check.json
       TODO22_JAVA_DB: /root/.cache/todo22/dependency-check-data/odc.mv.db
     steps:
       - name: Checkout repository from Gitea
