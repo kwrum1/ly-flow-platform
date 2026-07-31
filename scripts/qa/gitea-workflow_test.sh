@@ -2,7 +2,7 @@
 set -euo pipefail
 
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
-workflow="$root/.gitea/workflows/docker-build.yml"
+workflow="$root/.gitea/workflows/ci.yml"
 
 python3 - "$workflow" <<'PY'
 from __future__ import annotations

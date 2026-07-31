@@ -1,81 +1,170 @@
-name: ly-flow-platform-build
+name: Gitea Offline Delivery
 
 on:
   push:
-    branches: [main, takeover/**]
+    branches:
+      - main
   pull_request:
-    branches: [main]
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
-  backend:
-    runs-on: ubuntu-latest
+  release-amd64:
+    name: Build amd64 offline package
+    runs-on: docker
+    env:
+      CI: "true"
+      DEBIAN_FRONTEND: noninteractive
+      GIT_TERMINAL_PROMPT: "0"
+      GOTOOLCHAIN: local
+      GITEA_SERVER_URL: http://127.0.0.1:10000
+      TODO22_TOOL_DIR: /root/.cache/todo22/bin
+      TODO22_GO_VULN_DB: /root/.cache/todo22/go-vulndb
+      TODO22_GO_REPORT_DIR: /opt/lyflow-evidence/task-22-final-20260717T032600Z/scans/go
+      TODO22_NPM_AUDIT_JSON: /opt/lyflow-evidence/task-22-final-20260717T032600Z/scans/npm-audit.json
+      TODO22_PYTHON_OSV_JSON: /opt/lyflow-evidence/task-22-final-20260717T032600Z/scans/python-osv.json
+      TODO22_OSV_DB: /root/.cache/todo22/osv/osv-scanner/PyPI/all.zip
+      TODO22_TRIVY_CACHE: /root/.cache/todo22/trivy
+      TODO22_GRYPE_CACHE: /root/.cache/todo22/grype
+      TODO22_GRYPE_DB_STATUS: /opt/lyflow-evidence/task-22-final-20260717T032600Z/scans/grype-db-status.json
+      TODO22_JAVA_REPORT: /opt/lyflow-evidence/task-22-final-20260717T032600Z/scans/java-dependency-check.json
+      TODO22_JAVA_DB: /root/.cache/todo22/dependency-check-data/odc.mv.db
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: server/go.mod
-      - name: Test server
-        working-directory: server
-        run: GOWORK=off go test ./...
-
-  agent:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: agent/go.mod
-      - name: Test agent
-        working-directory: agent
-        run: GOWORK=off go test ./cmd
-
-  frontend:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-      - name: Test and build frontend
-        working-directory: frontend
-        run: npm ci && npm run test -- --run && npm run build
-      - name: Upload frontend bundle
-        uses: actions/upload-artifact@v4
-        with:
-          name: ly-flow-frontend-${{ github.sha }}
-          path: frontend/dist
-
-  packages:
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: [backend, agent, frontend]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: server/go.mod
-      - name: Build release packages
-        shell: bash
+      - name: Checkout repository from Gitea
         run: |
           set -euo pipefail
-          mkdir -p artifacts frontend/dist
-          cd server
-          GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -o ../artifacts/ly-server-linux-amd64 ./cmd
-          cd ../agent
-          for target in "linux amd64" "linux arm64" "windows amd64"; do
-            read -r os arch <<<"$target"
-            suffix=""
-            [ "$os" = windows ] && suffix=".exe"
-            GOWORK=off CGO_ENABLED=0 GOOS="$os" GOARCH="$arch" go build -trimpath -o "../artifacts/ly-agent-${os}-${arch}${suffix}" ./cmd
+          if [ ! -d .git ]; then
+            checkout_dir=$(mktemp -d "$PWD/.lyflow-checkout.XXXXXX")
+            trap 'rm -rf -- "$checkout_dir"' EXIT
+            gitea_url="${GITEA_INSTANCE_URL:-http://127.0.0.1:10000}"
+            repository="${GITHUB_REPOSITORY:-ly-flow-platform/ly-flow-platform}"
+            git clone --depth 1 "$gitea_url/$repository.git" "$checkout_dir/repository"
+            cp -a "$checkout_dir/repository/." .
+          fi
+          test -d .git || { echo "Gitea runner did not provide a repository checkout" >&2; exit 1; }
+          test -f scripts/build-offline-release.sh || { echo "runner checkout is incomplete" >&2; exit 1; }
+
+      - name: Check workspace and tools
+        run: |
+          set -euo pipefail
+          test -f scripts/build-offline-release.sh
+          command -v go
+          command -v node
+          command -v npm
+          docker version
+          docker compose version
+          go version
+          node --version
+          npm --version
+          python3 --version
+          python3 -c 'import yaml'
+          test -f /usr/include/pcap/pcap.h
+          printf '#include <pcap/pcap.h>\n' | cc -E -x c - >/dev/null
+          test "$(go env GOVERSION)" = go1.26.5
+          test "$(node --version)" = v22.22.2
+
+      - name: Install frontend dependencies
+        run: |
+          set -euo pipefail
+          npm --prefix frontend ci --offline
+
+      - name: Run targeted tests
+        run: |
+          set -euo pipefail
+          docker image inspect postgres:16-alpine >/dev/null 2>&1 || docker pull postgres:16-alpine
+          docker image inspect redis:7-alpine >/dev/null 2>&1 || docker pull redis:7-alpine
+          docker image inspect clickhouse/clickhouse-server:24.8-alpine >/dev/null 2>&1 || docker pull clickhouse/clickhouse-server:24.8-alpine
+          (cd agent && GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOWORK=off go test ./cmd)
+           (cd server && GOPROXY=off GOSUMDB=off GOTOOLCHAIN=local GOWORK=off go test ./cmd)
+
+      - name: Run real-detection release gate
+        run: |
+          set -euo pipefail
+          sensor='docker.io/jasonish/suricata@sha256:73cf099d6299f75dda2d9d6edcfb8238b7a7322566d6189a69d46442a366b7fa'
+          docker image inspect "$sensor" >/dev/null 2>&1 || docker pull "$sensor"
+          npm --prefix frontend exec playwright install chromium
+          scripts/qa/run-go-tests.sh real-detection
+
+      - name: Run delivery QA and current-source smoke
+        run: |
+          set -euo pipefail
+          bash scripts/qa/install-offline_test.sh
+          bash scripts/qa/container-smoke_test.sh
+          bash scripts/qa/prepare-rasp-conformance-images_test.sh
+          bash scripts/qa/build-offline-release_test.sh
+          bash scripts/qa/gitea-workflow_test.sh
+          LYFLOW_SMOKE_TIMEOUT_SECONDS=180 bash scripts/container-smoke.sh
+
+      - name: Build amd64 release package
+        run: |
+          set -euo pipefail
+          ci_tmp=$(mktemp -d "${RUNNER_TEMP:-/tmp}/lyflow-amd64.XXXXXX")
+          printf '%s\n' "$ci_tmp" >.lyflow-amd64-tmp
+          bash scripts/qa/prepare-rasp-conformance-images.sh >"$ci_tmp/rasp-image-refs.txt"
+          mapfile -t rasp_images <"$ci_tmp/rasp-image-refs.txt"
+          [[ ${#rasp_images[@]} -eq 3 ]]
+          for rasp_image in "${rasp_images[@]}"; do
+            [[ $rasp_image =~ ^[^[:space:]@]+@sha256:[0-9a-f]{64}$ ]]
           done
-          cd ..
-          cp scripts/install.sh scripts/install-offline.sh scripts/test-install.sh artifacts/
-          printf 'commit=%s\nbuilt_at=%s\n' "$GITHUB_SHA" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > artifacts/BUILD-MANIFEST.txt
-          tar -czf "artifacts/ly-flow-platform-${GITHUB_SHA}.tar.gz" -C artifacts .
-      - name: Upload release packages
-        uses: actions/upload-artifact@v4
-        with:
-          name: ly-flow-platform-${{ github.sha }}
-          path: artifacts
+          openssl genpkey -algorithm ED25519 -out "$ci_tmp/release.key"
+          openssl pkey -in "$ci_tmp/release.key" -pubout -out "$ci_tmp/release-root.pem"
+          suricata=$(docker image inspect jasonish/suricata:7.0.11 --format '{{index .RepoDigests 0}}')
+          RASP_PYTHON_310_IMAGE="${rasp_images[0]}" \
+            RASP_PYTHON_311_IMAGE="${rasp_images[1]}" \
+            RASP_PYTHON_312_IMAGE="${rasp_images[2]}" \
+          SOURCE_DATE_EPOCH=$(git show -s --format=%ct HEAD) \
+            RELEASE_ID="${GITHUB_SHA:-$(git rev-parse --short=12 HEAD)}" \
+            RELEASE_SIGNING_KEY="$ci_tmp/release.key" \
+            SURICATA_PROFILE_IMAGE="$suricata" \
+            LYFLOW_CI_LOCAL_CACHE=1 TARGET_ARCH=amd64 bash scripts/build-offline-release.sh
+
+      - name: Verify amd64 artifact
+        run: |
+          set -euo pipefail
+          ci_tmp=$(<.lyflow-amd64-tmp)
+          package=$(ls -1 release/lyflow-offline-install-amd64-*.tar.gz | tail -n 1)
+          tar -tzf "$package" | grep -E '(^|/)ARCH$|docker-compose.yml|images/lyflow-images.tar.gz'
+          mkdir -p "$ci_tmp/artifact"
+          tar -xzf "$package" -C "$ci_tmp/artifact" --strip-components=1
+          grep -qx 'amd64' "$ci_tmp/artifact/ARCH"
+          ! grep -Eq 'image:[[:space:]]+.*:latest' "$ci_tmp/artifact/docker-compose.yml"
+          bash scripts/release-provenance.sh verify --package "$ci_tmp/artifact" --root "$ci_tmp/release-root.pem"
+
+      - name: Upload amd64 package to Gitea release
+        if: ${{ github.event_name != 'pull_request' }}
+        env:
+          LYFLOW_GITEA_TOKEN: ${{ secrets.LYFLOW_GITEA_TOKEN }}
+        run: |
+          set -euo pipefail
+          ci_tmp=$(<.lyflow-amd64-tmp)
+          package=$(ls -1 release/lyflow-offline-install-amd64-*.tar.gz | tail -n 1)
+          tag="offline-${GITHUB_SHA:-$(git rev-parse --short HEAD)}-${GITHUB_RUN_ID:-local}"
+          api="${GITEA_SERVER_URL:-http://127.0.0.1:10000}/api/v1/repos/ly-flow-platform/ly-flow-platform"
+          token="${LYFLOW_GITEA_TOKEN:-}"
+          if [ -z "$token" ]; then
+            echo "LYFLOW_GITEA_TOKEN is required for release upload" >&2
+            exit 1
+          fi
+          release_json=$(curl -fsS -H "Authorization: token $token" "$api/releases/tags/$tag" 2>/dev/null || true)
+          if ! printf '%s' "$release_json" | python3 -c 'import json, sys; data=sys.stdin.read(); sys.exit(0 if data and "id" in json.loads(data) else 1)' 2>/dev/null; then
+            payload=$(TAG="$tag" TARGET="${GITHUB_SHA:-main}" python3 -c 'import json, os; print(json.dumps({"tag_name": os.environ["TAG"], "target_commitish": os.environ["TARGET"], "name": "Offline package " + os.environ["TAG"], "body": "Automated amd64 offline release package.", "draft": False, "prerelease": False}))')
+            if ! release_json=$(curl -fsS -X POST -H "Authorization: token $token" -H "Content-Type: application/json" \
+              -d "$payload" \
+              "$api/releases"); then
+              release_json=$(curl -fsS -H "Authorization: token $token" "$api/releases/tags/$tag")
+            fi
+          fi
+          release_id=$(printf '%s' "$release_json" | python3 -c 'import json,sys; print(json.load(sys.stdin)["id"])')
+          curl -fsS -X POST -H "Authorization: token $token" -F "attachment=@${package}" "$api/releases/$release_id/assets"
+          curl -fsS -X POST -H "Authorization: token $token" -F "attachment=@${ci_tmp}/release-root.pem" "$api/releases/$release_id/assets"
+
+      - name: Clean amd64 temporary files
+        if: always()
+        run: |
+          set -euo pipefail
+          if [ -f .lyflow-amd64-tmp ]; then
+            ci_tmp=$(<.lyflow-amd64-tmp)
+            rm -rf -- "$ci_tmp"
+            rm -f .lyflow-amd64-tmp
+          fi

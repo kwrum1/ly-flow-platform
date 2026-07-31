@@ -91,4 +91,4 @@ Linux 3.10/CentOS 7 及以上内核。
 
 ## 工作流
 
-Gitea Actions 工作流位于 `.gitea/workflows/ci.yml`，不执行 Docker 构建；每次推送执行后端、Agent、前端测试和前端构建。推送到 `main` 时额外生成 Linux 服务端、Linux x86_64/ARM64 Agent、Windows x86_64 Agent、前端静态包及安装脚本，并作为 Gitea 构建产物提供下载。发布前仍需在目标主机执行容器级验收，CI 不代替真实网卡、PF_RING、ClickHouse 和 Agent 场景验证。
+Gitea Actions 工作流位于 .gitea/workflows/ci.yml。Gitea Runner 直接完成代码测试、产品 Docker 镜像构建、镜像归档、签名与发布，不启动额外的构建容器。推送到 main 后生成包含 PostgreSQL、Redis、ClickHouse、服务端、前端、安全引擎、DPI、Suricata 和本机镜像探针的 amd64 离线安装包，并附带一键导入与安装脚本。
