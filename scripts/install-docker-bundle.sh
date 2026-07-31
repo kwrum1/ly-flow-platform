@@ -10,7 +10,7 @@ cp -a "$root/." "$install_dir/"
 cd "$install_dir"
 docker load < images/lyflow-images.tar.gz
 if [ ! -f .env ]; then
-  management="${MANAGEMENT_INTERFACE:-$(ip route get 1.1.1.1 2>/dev/null | awk '/dev/ {for(i=1;i<=NF;i++) if(\$i=="dev"){print \$(i+1); exit}}')}"
+  management="${MANAGEMENT_INTERFACE:-$(ip route get 1.1.1.1 2>/dev/null | awk '/dev/ {for(i=1;i<=NF;i++) if($i=="dev"){print $(i+1); exit}}')}"
   mirror="${LOCAL_MIRROR_INTERFACE:-$management}"
   cat > .env <<EOF
 POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-lyflow-postgres-$(openssl rand -hex 12)}
