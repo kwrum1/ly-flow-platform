@@ -48,6 +48,14 @@ jobs:
       - name: Check workspace and tools
         run: |
           set -euo pipefail
+          if ! command -v psql >/dev/null 2>&1; then
+            apt-get update -qq
+            apt-get install -y --no-install-recommends postgresql-client
+          fi
+          if ! command -v psql >/dev/null 2>&1; then
+            apt-get update -qq
+            apt-get install -y --no-install-recommends postgresql-client
+          fi
           test -f scripts/build-offline-release.sh
           command -v go
           command -v node
