@@ -99,7 +99,7 @@ jobs:
           docker image inspect "$sensor" >/dev/null
           docker tag "$sensor" jasonish/suricata:7.0.11
           npm --prefix frontend exec -- playwright install --with-deps chromium
-          scripts/qa/run-go-tests.sh real-detection
+          SURICATA_REPLAY_IMAGE="$sensor" scripts/qa/run-go-tests.sh real-detection
 
       - name: Run delivery QA and current-source smoke
         run: |

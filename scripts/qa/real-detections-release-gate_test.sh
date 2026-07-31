@@ -132,7 +132,7 @@ materialize_replay_rules() {
 run_replays() {
 	local rule_bundle=$1 image four_pcap stamus_pcap
 	materialize_replay_rules "$rule_bundle"
-	image=$(jq -er '.image' "$lock")
+	image=${SURICATA_REPLAY_IMAGE:-$(jq -er '.image' "$lock")}
   docker image inspect "$image" >/dev/null 2>&1 || fail "pinned Suricata image is not cached: $image"
   four_pcap=$root/$(jq -r '.packet_fixtures[] | select(.fixture_id == "four-source") | .path' "$manifest")
   stamus_pcap=$root/$(jq -r '.packet_fixtures[] | select(.fixture_id == "stamus-svcctl") | .path' "$manifest")
