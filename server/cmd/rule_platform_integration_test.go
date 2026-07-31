@@ -75,6 +75,7 @@ func TestRulePlatformInlineSync_realPostgres_is_pinned_immutable_audited_and_act
 	if dsn == "" {
 		t.Skip("LYFLOW_TEST_POSTGRES_DSN is required for real rule lifecycle QA")
 	}
+	t.Setenv("RULE_DEFAULT_BUNDLE", filepath.Join("..", "..", "rules", "security-engine", "default-bundle.json"))
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	ctx = context.WithValue(ctx, auth.UserContextKey, int64(1))

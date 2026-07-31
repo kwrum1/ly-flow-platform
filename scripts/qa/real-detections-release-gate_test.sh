@@ -91,7 +91,7 @@ materialize_packet_fixtures() {
 		else
 			url=$(jq -er --arg source_id "$(jq -r --arg fixture_id "$fixture_id" '.packet_fixtures[] | select(.fixture_id == $fixture_id) | .source_ids[0]' "$manifest")" '.external_packet_fixture | select(.source_id == $source_id) | .url' "$manifest")
 			curl --proto '=https' --tlsv1.2 --http1.1 --location --fail --silent --show-error \
-				--retry 3 --retry-all-errors --retry-delay 1 "$url" --output "$temp"
+				--retry 3 --retry-all-errors --retry-delay 1 --connect-timeout 15 --max-time 120 "$url" --output "$temp"
 		fi
 		actual=$(file_sha256 "$temp")
 		if [[ $actual != "$expected" ]]; then

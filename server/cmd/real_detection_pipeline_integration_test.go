@@ -182,13 +182,14 @@ INSERT INTO agents (uuid) VALUES ('t12-packet-sensor') ON CONFLICT (uuid) DO NOT
 	if err != nil {
 		t.Fatalf("derive first canonical event identity: %v", err)
 	}
+	threatEventUID := firstNonEmpty(firstAlert.ID, firstMessage.ID)
 	var canonicalVersionBefore int64
 	var canonicalPayloadBefore string
 	if err := pool.QueryRow(ctx, `SELECT version,payload_json FROM lyflow_event_storage_events WHERE event_uid=$1`, firstCanonical.EventUID).Scan(&canonicalVersionBefore, &canonicalPayloadBefore); err != nil {
 		t.Fatalf("read canonical event before replay: %v", err)
 	}
 	var threatUpdatedBefore time.Time
-	if err := pool.QueryRow(ctx, `SELECT updated_at FROM threat_events WHERE event_uid=$1`, firstMessage.ID).Scan(&threatUpdatedBefore); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT updated_at FROM threat_events WHERE event_uid=$1`, threatEventUID).Scan(&threatUpdatedBefore); err != nil {
 		t.Fatalf("read threat event before replay: %v", err)
 	}
 	dispatchUID := transport.DeterministicUID("server_dispatch", "component_alerts:v2", firstMessage.ID)
@@ -204,7 +205,7 @@ INSERT INTO agents (uuid) VALUES ('t12-packet-sensor') ON CONFLICT (uuid) DO NOT
 		t.Fatalf("read canonical event after replay: %v", err)
 	}
 	var threatUpdatedAfter time.Time
-	if err := pool.QueryRow(ctx, `SELECT updated_at FROM threat_events WHERE event_uid=$1`, firstMessage.ID).Scan(&threatUpdatedAfter); err != nil {
+	if err := pool.QueryRow(ctx, `SELECT updated_at FROM threat_events WHERE event_uid=$1`, threatEventUID).Scan(&threatUpdatedAfter); err != nil {
 		t.Fatalf("read threat event after replay: %v", err)
 	}
 	if canonicalVersionAfter != canonicalVersionBefore || canonicalPayloadAfter != canonicalPayloadBefore || !threatUpdatedAfter.Equal(threatUpdatedBefore) {

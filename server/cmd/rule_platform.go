@@ -436,7 +436,8 @@ func compileDefaultSecurityBundle(ctx context.Context, cfg *Config) (map[string]
 }
 
 func ensureDefaultDetectionRules(ctx context.Context, cfg *Config) error {
-	data, err := os.ReadFile("rules/security-engine/default-bundle.json")
+	bundlePath := getEnv("RULE_DEFAULT_BUNDLE", "rules/security-engine/default-bundle.json")
+	data, err := os.ReadFile(bundlePath)
 	if err != nil {
 		return err
 	}

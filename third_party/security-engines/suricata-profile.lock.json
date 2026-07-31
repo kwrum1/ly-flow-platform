@@ -27,7 +27,7 @@
   "vendored_source_commit": "367ca7f430f85be01a6cdc65ddaa1636a50ddefc",
   "vendored_source_role": "reference-only; runtime uses the pinned release image",
   "config_path": "rules/suricata/suricata-profile.yaml",
-  "config_sha256": "fb041a16e1dd0407a75570b4e7db96b8400c4acb2d8fc6851eb791ac2d835ee4",
+  "config_sha256": "235349b1944b1e9c14d33bc73c2459de92852af9612cf4684e877a7aaee7ea05",
   "rules_path": "rules/suricata/et-open.rules",
   "rules_sha256": "0845b83497f89690acfe1af2e2c11ae6972c24392d765ea87c1766391c8fd352",
   "pcap_path": "agent/cmd/testdata/suricata/7.0.11/inert.pcap",
@@ -40,11 +40,23 @@
   "generated_eve_path": "agent/cmd/testdata/suricata/7.0.11/eve.jsonl",
   "generated_eve_sha256": "31e2606f7993c22f13fc1d583f2d48e273d29d791ba3d3d9f1570ae13e78cea3",
   "generated_eve_records": 8,
-  "generated_eve_type_counts": {"alert": 1, "dns": 2, "flow": 3, "http": 1, "tls": 1},
+  "generated_eve_type_counts": {
+    "alert": 1,
+    "dns": 2,
+    "flow": 3,
+    "http": 1,
+    "tls": 1
+  },
   "golden_path": "agent/cmd/testdata/suricata/7.0.11/canonical.golden.json",
   "golden_sha256": "908ee79e3490b8a93bc9c3bb8d3cf504a6fa12127b5560e885e300e10a363582",
   "generation_command": "scripts/qa/generate-suricata-profile-fixtures.sh",
   "rule_pack_version": "lyflow-suricata-profile-rules-v1",
-  "coverage": ["flow", "alert", "dns", "http", "tls"],
+  "coverage": [
+    "flow",
+    "alert",
+    "dns",
+    "http",
+    "tls"
+  ],
   "enabled_by_default": false
 }
