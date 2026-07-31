@@ -62,7 +62,6 @@ wait_for_service() {
       state=$(docker inspect --format '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "$container")
       case "$state" in
         healthy|running) return 0 ;;
-        exited|dead|unhealthy) return 1 ;;
       esac
     fi
     sleep "$SMOKE_INTERVAL_SECONDS"
@@ -148,8 +147,8 @@ services:
     ports: !override
       - "127.0.0.1::443"
 networks:
-  ly-network:
-    name: ${SMOKE_PROJECT}-network
+  core:
+    name: ${SMOKE_PROJECT}-core
 volumes:
   rules_runtime:
     name: ${SMOKE_PROJECT}_rules_runtime
