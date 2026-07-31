@@ -56,6 +56,12 @@ jobs:
             apt-get update -qq
             apt-get install -y --no-install-recommends python3-yaml
           fi
+          cached_go="$(go env GOMODCACHE)/golang.org/toolchain@v0.0.1-go1.26.5.$(go env GOOS)-$(go env GOARCH)/bin/go"
+          if [ -x "$cached_go" ]; then
+            cached_go_dir="$(dirname "$cached_go")"
+            export PATH="$cached_go_dir:$PATH"
+            printf '%s\n' "$cached_go_dir" >> "${GITHUB_PATH:-/tmp/lyflow-github-path}"
+          fi
           test -f scripts/build-offline-release.sh
           command -v go
           command -v node
