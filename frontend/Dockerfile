@@ -12,6 +12,13 @@ RUN command -v openssl >/dev/null \
     && mkdir -p /etc/nginx/templates /etc/nginx/ssl \
     && chmod 0755 /docker-entrypoint.d/40-lyflow-tls.sh \
     && echo 'server { \
+    listen 80; \
+    listen [::]:80; \
+    server_name _; \
+    return 308 https://$host$request_uri; \
+} \
+\
+server { \
     listen 443 ssl; \
     server_name _; \
     ssl_certificate /etc/nginx/ssl/lyflow.crt; \

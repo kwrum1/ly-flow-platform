@@ -164,13 +164,11 @@ cat >"$PACKAGE_DIR/image-pins.tsv" <<EOF
 postgres:16-alpine	$DB_POSTGRES_IMAGE
 redis:7-alpine	$DB_REDIS_IMAGE
 clickhouse/clickhouse-server:24.8-alpine	$DB_CLICKHOUSE_IMAGE
-ly-flow/server:latest	$SERVER_IMAGE
-ly-flow/frontend:latest	$FRONTEND_IMAGE
-ly-flow/security-engine:latest	$SECURITY_ENGINE_IMAGE
-ly-flow/security-engines:latest	$SECURITY_ENGINES_IMAGE
-ly-flow/agent:latest	$AGENT_IMAGE
-ly-flow/dpi-engine:latest	$DPI_IMAGE
-ly-flow/suricata-profile:7.0.11	$SURICATA_SENSOR_IMAGE
+ly-flow/server:productfix-20260731	$SERVER_IMAGE
+ly-flow/frontend:productfix-20260731	$FRONTEND_IMAGE
+ly-flow/security-engine:healthstream2-20260731	$SECURITY_ENGINE_IMAGE
+ly-flow/local-mirror:signed4	$DPI_IMAGE
+ly-flow/suricata-profile:release-rc-652a7b620dfd-todo5-20260730T071221Z-amd64	$SURICATA_SENSOR_IMAGE
 EOF
 run "$ROOT_DIR/scripts/release-provenance.sh" pin-compose --input docker-compose.yml --output "$PACKAGE_DIR/docker-compose.yml" --pins "$PACKAGE_DIR/image-pins.tsv"
 cp scripts/install-offline.sh "$PACKAGE_DIR/scripts/install-offline.sh"
