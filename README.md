@@ -51,7 +51,7 @@ sudo bash scripts/install-docker-bundle.sh
 
 ## Agent 使用边界
 
-政企现场使用直接安装到宿主机的 Agent，不要求 Docker。Linux Agent 以静态二进制构建，面向 CentOS 7 / Linux 3.10 及以上内核；抓包使用 AF_PACKET，运行监控在旧内核回退到 auditd。容器 Agent 只用于自动化测试。
+使用直接安装到宿主机的 Agent，不要求 Docker。Linux Agent 以静态二进制构建，面向 CentOS 7 / Linux 3.10 及以上内核；抓包使用 AF_PACKET，运行监控在旧内核回退到 auditd。容器 Agent 只用于自动化测试。
 
 Agent 安装、卸载和 Windows/Npcap 下载入口由控制台“安装配置”页面提供。Npcap 单独分发，不集成到 Windows Agent 包中。
 
