@@ -46,6 +46,9 @@ jobs:
         run: |
           npm --prefix frontend exec playwright install chromium
           docker pull docker.io/jasonish/suricata:latest
+          docker pull redis:7-alpine
+          docker pull postgres:16-alpine
+          docker pull clickhouse/clickhouse-server:24.8-alpine
 
       - name: Run real-detection release gate
         run: scripts/qa/run-go-tests.sh real-detection
