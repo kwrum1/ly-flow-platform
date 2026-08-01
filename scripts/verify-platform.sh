@@ -37,9 +37,15 @@ run_frontend() {
 
 run_go_module() {
   local module_path="$1"
+  local packages
   cd "$ROOT_DIR/$module_path"
   if [[ ! -f go.mod ]]; then
     printf '\n==> go test skipped for %s: no go.mod\n' "$module_path"
+    return 0
+  fi
+  packages=$(env GOWORK=off GOFLAGS="$GOFLAGS" go list ./...)
+  if [[ -z $packages ]]; then
+    printf '\n==> go test skipped for %s: no Go packages\n' "$module_path"
     return 0
   fi
   run env GOWORK=off GOFLAGS="$GOFLAGS" go test ./...

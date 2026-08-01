@@ -20,6 +20,7 @@
   {"producer_path":"server/cmd/storage_event_runtime.go","fixture_source":"security_engine"},
   {"producer_path":"server/cmd/storage_migration_handler.go","fixture_source":"security_engine"},
   {"producer_path":"server/consumer/unified.go","fixture_source":"server.unified_legacy"},
+  {"producer_path":"server/rulelifecycle/bootstrap.go","fixture_source":"security_engine"},
   {"producer_path":"server/webhook/manager.go","fixture_source":"security_engine"},
   {"producer_path":"server/webhook/wecom.go","fixture_source":"security_engine"},
   {"producer_path":"server/xdr/xdr.go","fixture_source":"server.xdr_v2"}
