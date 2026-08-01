@@ -113,8 +113,8 @@ jobs:
           bash scripts/build-docker-bundle.sh
           bundle="release/lyflow-docker-bundle-${GITHUB_SHA}-${LYFLOW_TARGET_ARCH}.tar.gz"
           test -s "$bundle"
-          tar -xOzf "$bundle" ly-flow-platform/images/architecture | grep -qx "$LYFLOW_TARGET_ARCH"
-          tar -tzf "$bundle" | grep -q 'ly-flow-platform/rules/cloud-snapshot/manifest.json'
+          test "$(tar -xOzf "$bundle" ly-flow-platform/images/architecture)" = "$LYFLOW_TARGET_ARCH"
+          tar -tzf "$bundle" ly-flow-platform/rules/cloud-snapshot/manifest.json >/dev/null
           sha256sum --check "$bundle.sha256"
       - uses: actions/upload-artifact@v7
         with:
