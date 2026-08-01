@@ -1,0 +1,150 @@
+name: Cloud firmware build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  schedule:
+    - cron: '17 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: cloud-firmware-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rules:
+    name: Fetch and compile current public rules
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+      - name: Install rule build tools
+        run: sudo apt-get update && sudo apt-get install -y jq
+      - name: Fetch every rule source without cache
+        run: bash scripts/build-fresh-rule-snapshot.sh
+      - name: Verify rule snapshot
+        run: |
+          set -euo pipefail
+          jq -e '.cache_policy == "fresh-download-no-cross-run-cache" and (.sources | length == 5)' rules/cloud-snapshot/manifest.json
+          sha256sum --check rules/cloud-snapshot/compiled.sha256
+          tar -czf "$RUNNER_TEMP/lyflow-rules-${GITHUB_SHA}.tar.gz" rules/cloud-snapshot
+      - uses: actions/upload-artifact@v4
+        with:
+          name: current-rule-snapshot
+          path: ${{ runner.temp }}/lyflow-rules-${{ github.sha }}.tar.gz
+          retention-days: 3
+          compression-level: 0
+
+  build:
+    name: Build ${{ matrix.arch }} appliance
+    needs: rules
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    env:
+      LYFLOW_TARGET_ARCH: ${{ matrix.arch }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: server/go.mod
+          cache: false
+      - uses: actions/setup-node@v6
+        with:
+          node-version: 'lts/*'
+      - uses: actions/download-artifact@v5
+        with:
+          name: current-rule-snapshot
+          path: ${{ runner.temp }}/rules
+      - name: Install current-run rule snapshot
+        run: tar -xzf "$RUNNER_TEMP/rules/lyflow-rules-${GITHUB_SHA}.tar.gz"
+      - name: Compile product binaries from public dependencies
+        run: |
+          set -euo pipefail
+          export GOTOOLCHAIN=auto GOSUMDB=sum.golang.org GOPROXY=https://proxy.golang.org,direct
+          arch="${LYFLOW_TARGET_ARCH}"
+          mkdir -p "server/dist/linux/$arch" "security-engine/dist/linux/$arch" agent/dist/linux/{amd64,arm64} agent/dist/windows/amd64
+          (cd server && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -buildvcs=false -o "dist/linux/$arch/ly-server" ./cmd)
+          (cd server && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -buildvcs=false -o "dist/linux/$arch/ly-agent-center" ./agentcenter)
+          (cd security-engine && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -buildvcs=false -o "dist/linux/$arch/ly-security-engine" ./cmd)
+          for agent_arch in amd64 arm64; do
+            (cd agent && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$agent_arch" go build -trimpath -buildvcs=false -o "dist/linux/$agent_arch/ly-agent" ./cmd)
+          done
+          (cd agent && GOWORK=off CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -buildvcs=false -ldflags=-H=windowsgui -o dist/windows/amd64/ly-agent.exe ./cmd)
+          (cd frontend && npm ci --no-audit --no-fund --prefer-online && npm run build)
+      - name: Pull fresh vendor images
+        run: |
+          set -euo pipefail
+          arch="${LYFLOW_TARGET_ARCH}"
+          platform="linux/$arch"
+          docker pull --platform "$platform" postgres:16-alpine
+          docker tag postgres:16-alpine "ly-flow/vendor/postgres:16-alpine-$arch"
+          docker pull --platform "$platform" redis:7-alpine
+          docker tag redis:7-alpine "ly-flow/vendor/redis:7-alpine-$arch"
+          docker pull --platform "$platform" clickhouse/clickhouse-server:24.8-alpine
+          docker tag clickhouse/clickhouse-server:24.8-alpine "ly-flow/vendor/clickhouse:24.8-alpine-$arch"
+      - name: Build product images without Docker cache
+        run: |
+          set -euo pipefail
+          arch="${LYFLOW_TARGET_ARCH}"
+          platform="linux/$arch"
+          common=(--pull --no-cache --platform "$platform")
+          docker build "${common[@]}" --build-arg TARGETARCH="$arch" --build-arg RUNTIME_IMAGE=redis:7-alpine -f deploy/docker/server.Dockerfile -t "ly-flow/server:release-$arch" .
+          docker build "${common[@]}" --build-arg TARGETARCH="$arch" --build-arg RUNTIME_IMAGE=redis:7-alpine -f deploy/docker/security-engine.Dockerfile -t "ly-flow/security-engine:release-$arch" .
+          docker build "${common[@]}" --build-arg RUNTIME_IMAGE=nginx:alpine -f frontend/Dockerfile -t "ly-flow/frontend:release-$arch" .
+          if [ "$arch" = amd64 ]; then
+            docker build "${common[@]}" -f agent/Dockerfile.pfring -t "ly-flow/local-mirror:release-$arch" .
+          else
+            docker build "${common[@]}" --build-arg TARGETARCH="$arch" -f deploy/docker/local-mirror.Dockerfile -t "ly-flow/local-mirror:release-$arch" .
+          fi
+          docker build "${common[@]}" -f deploy/docker/suricata.Dockerfile -t "ly-flow/suricata-profile:release-$arch" .
+      - name: Create and verify offline appliance bundle
+        run: |
+          set -euo pipefail
+          bash scripts/build-docker-bundle.sh
+          bundle="release/lyflow-docker-bundle-${GITHUB_SHA}-${LYFLOW_TARGET_ARCH}.tar.gz"
+          test -s "$bundle"
+          tar -xOzf "$bundle" ly-flow-platform/images/architecture | grep -qx "$LYFLOW_TARGET_ARCH"
+          tar -tzf "$bundle" | grep -q 'ly-flow-platform/rules/cloud-snapshot/manifest.json'
+          sha256sum --check "$bundle.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: lyflow-${{ matrix.arch }}
+          path: |
+            release/lyflow-docker-bundle-${{ github.sha }}-${{ matrix.arch }}.tar.gz
+            release/lyflow-docker-bundle-${{ github.sha }}-${{ matrix.arch }}.tar.gz.sha256
+          retention-days: 14
+          compression-level: 0
+
+  release:
+    name: Publish both architectures
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v5
+        with:
+          pattern: lyflow-*
+          path: release
+          merge-multiple: true
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_REF_TYPE}" == tag ]]; then
+            tag="${GITHUB_REF_NAME}"
+          else
+            tag="cloud-${GITHUB_SHA::12}-${GITHUB_RUN_ID}"
+          fi
+          gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "LyFlow $tag" --notes "Cloud-built AMD64 and ARM64 appliance bundles with a fresh public-rule snapshot."
+          gh release upload "$tag" --repo "$GITHUB_REPOSITORY" release/* --clobber

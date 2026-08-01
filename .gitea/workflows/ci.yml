@@ -1,7 +1,5 @@
 name: LyFlow Multi-Architecture Docker Bundles
 on:
-  push:
-    branches: [main]
   workflow_dispatch:
 
 jobs:
