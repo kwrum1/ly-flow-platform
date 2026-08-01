@@ -33,10 +33,10 @@ jobs:
         with:
           node-version: 'lts/*'
 
-      - name: Setup current stable Python
+      - name: Setup latest supported Python
         uses: actions/setup-python@v7
         with:
-          python-version: '3.x'
+          python-version: '3.12'
 
       - name: Install frontend dependencies from registry
         working-directory: frontend
