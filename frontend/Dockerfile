@@ -8,7 +8,17 @@ COPY frontend/dist /usr/share/nginx/html
 COPY frontend/docker-entrypoint.d/40-lyflow-tls.sh /docker-entrypoint.d/40-lyflow-tls.sh
 
 ENV LY_SERVER_UPSTREAM=http://ly-server:8080
-RUN command -v openssl >/dev/null \
+RUN if ! command -v openssl >/dev/null 2>&1; then \
+        if command -v apk >/dev/null 2>&1; then \
+            apk add --no-cache openssl; \
+        elif command -v apt-get >/dev/null 2>&1; then \
+            apt-get update \
+            && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends openssl \
+            && rm -rf /var/lib/apt/lists/*; \
+        else \
+            echo 'unable to install openssl in frontend runtime image' >&2; exit 1; \
+        fi; \
+    fi \
     && mkdir -p /etc/nginx/templates /etc/nginx/ssl \
     && chmod 0755 /docker-entrypoint.d/40-lyflow-tls.sh \
     && echo 'server { \

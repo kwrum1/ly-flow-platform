@@ -31,7 +31,7 @@ jobs:
           jq -e '.cache_policy == "fresh-download-no-cross-run-cache" and (.sources | length == 5)' rules/cloud-snapshot/manifest.json
           sha256sum --check rules/cloud-snapshot/compiled.sha256
           tar -czf "$RUNNER_TEMP/lyflow-rules-${GITHUB_SHA}.tar.gz" rules/cloud-snapshot
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: current-rule-snapshot
           path: ${{ runner.temp }}/lyflow-rules-${{ github.sha }}.tar.gz
@@ -54,14 +54,14 @@ jobs:
       LYFLOW_TARGET_ARCH: ${{ matrix.arch }}
     steps:
       - uses: actions/checkout@v6
-      - uses: actions/setup-go@v6
+      - uses: actions/setup-go@v7
         with:
           go-version-file: server/go.mod
           cache: false
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 'lts/*'
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           name: current-rule-snapshot
           path: ${{ runner.temp }}/rules
@@ -116,7 +116,7 @@ jobs:
           tar -xOzf "$bundle" ly-flow-platform/images/architecture | grep -qx "$LYFLOW_TARGET_ARCH"
           tar -tzf "$bundle" | grep -q 'ly-flow-platform/rules/cloud-snapshot/manifest.json'
           sha256sum --check "$bundle.sha256"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: lyflow-${{ matrix.arch }}
           path: |
@@ -130,7 +130,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v8
         with:
           pattern: lyflow-*
           path: release

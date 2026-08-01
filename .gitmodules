@@ -1,0 +1,21 @@
+[submodule "third_party/security-engines/elkeid"]
+	path = third_party/security-engines/elkeid
+	url = https://github.com/bytedance/Elkeid.git
+[submodule "third_party/security-engines/openrasp"]
+	path = third_party/security-engines/openrasp
+	url = https://github.com/baidu/openrasp.git
+[submodule "third_party/security-engines/signature-base"]
+	path = third_party/security-engines/signature-base
+	url = https://github.com/Neo23x0/signature-base.git
+[submodule "third_party/security-engines/suricata"]
+	path = third_party/security-engines/suricata
+	url = https://github.com/OISF/suricata.git
+[submodule "third_party/security-engines/suricata-update"]
+	path = third_party/security-engines/suricata-update
+	url = https://github.com/OISF/suricata-update.git
+[submodule "third_party/security-engines/wazuh"]
+	path = third_party/security-engines/wazuh
+	url = https://github.com/wazuh/wazuh.git
+[submodule "third_party/security-engines/yara"]
+	path = third_party/security-engines/yara
+	url = https://github.com/VirusTotal/yara.git
