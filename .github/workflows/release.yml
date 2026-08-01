@@ -1,45 +1,45 @@
-name: Cloud firmware build
+name: 正式服务端发布
 
 on:
-  push:
-    branches: [main]
-    tags: ['v*']
   schedule:
-    - cron: '17 18 * * *'
+    - cron: '0 2 1,16 * *'
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
 
 concurrency:
-  group: cloud-firmware-${{ github.ref }}
+  group: lyflow-official-server-release
   cancel-in-progress: true
 
 jobs:
   rules:
-    name: Fetch and compile current public rules
+    name: 获取并编译最新公开规则
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
-      - name: Install rule build tools
+      - name: 检出源码
+        uses: actions/checkout@v6
+      - name: 安装规则构建工具
         run: sudo apt-get update && sudo apt-get install -y jq
-      - name: Fetch every rule source without cache
+      - name: 从公网重新获取全部规则源
         run: bash scripts/build-fresh-rule-snapshot.sh
-      - name: Verify rule snapshot
+      - name: 校验本次规则快照
         run: |
           set -euo pipefail
           jq -e '.cache_policy == "fresh-download-no-cross-run-cache" and (.sources | length == 5)' rules/cloud-snapshot/manifest.json
           sha256sum --check rules/cloud-snapshot/compiled.sha256
           tar -czf "$RUNNER_TEMP/lyflow-rules-${GITHUB_SHA}.tar.gz" rules/cloud-snapshot
-      - uses: actions/upload-artifact@v7
+      - name: 传递本次规则快照
+        uses: actions/upload-artifact@v7
         with:
           name: current-rule-snapshot
           path: ${{ runner.temp }}/lyflow-rules-${{ github.sha }}.tar.gz
-          retention-days: 3
+          retention-days: 1
           compression-level: 0
 
   build:
-    name: Build ${{ matrix.arch }} appliance
+    name: 构建 ${{ matrix.arch }} 服务端
     needs: rules
     strategy:
       fail-fast: false
@@ -53,21 +53,25 @@ jobs:
     env:
       LYFLOW_TARGET_ARCH: ${{ matrix.arch }}
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-go@v7
+      - name: 检出源码
+        uses: actions/checkout@v6
+      - name: 安装 Go 工具链
+        uses: actions/setup-go@v7
         with:
           go-version-file: server/go.mod
           cache: false
-      - uses: actions/setup-node@v7
+      - name: 安装 Node.js 长期支持版
+        uses: actions/setup-node@v7
         with:
           node-version: 'lts/*'
-      - uses: actions/download-artifact@v8
+      - name: 下载本次规则快照
+        uses: actions/download-artifact@v8
         with:
           name: current-rule-snapshot
           path: ${{ runner.temp }}/rules
-      - name: Install current-run rule snapshot
+      - name: 安装本次规则快照
         run: tar -xzf "$RUNNER_TEMP/rules/lyflow-rules-${GITHUB_SHA}.tar.gz"
-      - name: Compile product binaries from public dependencies
+      - name: 编译服务端与 Agent 程序
         run: |
           set -euo pipefail
           export GOTOOLCHAIN=auto GOSUMDB=sum.golang.org GOPROXY=https://proxy.golang.org,direct
@@ -81,7 +85,7 @@ jobs:
           done
           (cd agent && GOWORK=off CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -buildvcs=false -ldflags=-H=windowsgui -o dist/windows/amd64/ly-agent.exe ./cmd)
           (cd frontend && npm ci --no-audit --no-fund --prefer-online && npm run build)
-      - name: Pull fresh vendor images
+      - name: 获取当前架构基础镜像
         run: |
           set -euo pipefail
           arch="${LYFLOW_TARGET_ARCH}"
@@ -92,7 +96,7 @@ jobs:
           docker tag redis:7-alpine "ly-flow/vendor/redis:7-alpine-$arch"
           docker pull --platform "$platform" clickhouse/clickhouse-server:24.8-alpine
           docker tag clickhouse/clickhouse-server:24.8-alpine "ly-flow/vendor/clickhouse:24.8-alpine-$arch"
-      - name: Build product images without Docker cache
+      - name: 无缓存构建产品镜像
         run: |
           set -euo pipefail
           arch="${LYFLOW_TARGET_ARCH}"
@@ -107,44 +111,58 @@ jobs:
             docker build "${common[@]}" --build-arg TARGETARCH="$arch" -f deploy/docker/local-mirror.Dockerfile -t "ly-flow/local-mirror:release-$arch" .
           fi
           docker build "${common[@]}" -f deploy/docker/suricata.Dockerfile -t "ly-flow/suricata-profile:release-$arch" .
-      - name: Create and verify offline appliance bundle
+      - name: 生成并校验服务端安装包
         run: |
           set -euo pipefail
           bash scripts/build-docker-bundle.sh
-          bundle="release/lyflow-docker-bundle-${GITHUB_SHA}-${LYFLOW_TARGET_ARCH}.tar.gz"
+          bundle="release/lyflow-server-${LYFLOW_TARGET_ARCH}.tar.gz"
           test -s "$bundle"
+          gzip -t "$bundle"
           test "$(tar -xOzf "$bundle" ly-flow-platform/images/architecture)" = "$LYFLOW_TARGET_ARCH"
           tar -tzf "$bundle" ly-flow-platform/rules/cloud-snapshot/manifest.json >/dev/null
-          sha256sum --check "$bundle.sha256"
-      - uses: actions/upload-artifact@v7
+          tar -tzf "$bundle" ly-flow-platform/scripts/install-docker-bundle.sh >/dev/null
+      - name: 暂存当前架构服务端包
+        uses: actions/upload-artifact@v7
         with:
-          name: lyflow-${{ matrix.arch }}
-          path: |
-            release/lyflow-docker-bundle-${{ github.sha }}-${{ matrix.arch }}.tar.gz
-            release/lyflow-docker-bundle-${{ github.sha }}-${{ matrix.arch }}.tar.gz.sha256
-          retention-days: 14
+          name: lyflow-server-${{ matrix.arch }}
+          path: release/lyflow-server-${{ matrix.arch }}.tar.gz
+          retention-days: 1
           compression-level: 0
 
   release:
-    name: Publish both architectures
+    name: 发布正式服务端
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v8
+      - name: 下载双架构服务端包
+        uses: actions/download-artifact@v8
         with:
-          pattern: lyflow-*
+          pattern: lyflow-server-*
           path: release
           merge-multiple: true
-      - name: Publish GitHub release
+      - name: 清理历史构建记录与旧发布
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if [[ "${GITHUB_REF_TYPE}" == tag ]]; then
-            tag="${GITHUB_REF_NAME}"
-          else
-            tag="cloud-${GITHUB_SHA::12}-${GITHUB_RUN_ID}"
-          fi
-          gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
-            gh release create "$tag" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "LyFlow $tag" --notes "Cloud-built AMD64 and ARM64 appliance bundles with a fresh public-rule snapshot."
-          gh release upload "$tag" --repo "$GITHUB_REPOSITORY" release/* --clobber
+          gh api --paginate "/repos/$GITHUB_REPOSITORY/actions/runs?per_page=100" \
+            --jq '.workflow_runs[] | select(.status == "completed") | .id' |
+          while read -r run_id; do
+            gh api --method DELETE "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id" || true
+          done
+          gh release list --repo "$GITHUB_REPOSITORY" --limit 1000 --json tagName --jq '.[].tagName' |
+          while read -r tag; do
+            gh release delete "$tag" --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes
+          done
+      - name: 发布双架构正式服务端
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          test "$(find release -maxdepth 1 -type f -name 'lyflow-server-*.tar.gz' | wc -l)" -eq 2
+          gh release create latest-server \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "流影 LyFlow 正式服务端" \
+            --notes "包含 AMD64 与 ARM64 服务端一键部署包；规则库在本次构建中从公网重新获取并编译。"
+          gh release upload latest-server --repo "$GITHUB_REPOSITORY" release/lyflow-server-*.tar.gz

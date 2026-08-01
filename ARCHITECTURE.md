@@ -1,151 +1,135 @@
-# 流影软件架构 README
+# 流影 LyFlow 软件架构
 
-> 当前状态：验收阶段稳定版  
-> 默认入口：`https://<server>/`  
-> 部署方式：Docker Compose / 离线镜像包一键安装
+> 更新日期：2026-08-02
+> 当前形态：单机一体化 XDR 安全设备
+> 正式部署：Docker Compose 服务端 + 无容器主机 Agent
 
-## 1. 架构目标
+## 1. 产品边界
 
-流影的设计目标不是做全量包取证系统，也不是单点 IDS。它的核心是把多个安全观测面转换成统一、可持久化、可关联的安全事件：
+流影把网络、主机、应用和安全规则产生的事件统一为可查询、可关联、可处置的安全数据。它不是全包取证平台，也不承诺多节点高可用；当前重点是单机旁路流量审计、主机 Agent 审计、XDR/ATT&CK 关联和长期会话溯源。
 
-1. 资产与 Agent 状态可验收：在线/离线、最近上报、资产快照一致。
-2. 流量威胁可解释：只展示有网络上下文的流量威胁，降噪识别类和无上下文事件。
-3. 攻击链可信：Incident 必须来自 XDR 关联链，证据按阶段展示并带时间。
-4. 规则可运营：规则库同步、更新、编译、热加载、回滚闭环。
-5. 安装可交付：离线包包含运行镜像和脚本，目标机一键导入并启动。
+已实现主链路：采集 -> Redis 事件总线 -> 统一检测 -> PostgreSQL/ClickHouse 持久化 -> XDR 关联 -> Incident -> Web 处置。
 
-## 2. 服务拓扑
+## 2. 正式拓扑
 
 ```text
-用户浏览器
-  │ HTTPS 443
+浏览器
+  │ HTTP 80 自动跳转 HTTPS 443
   ▼
 ly-vis / Nginx
-  │ /api, /ws 反向代理
+  │ /api /ws
   ▼
-ly-server :8080 ───────────────┐
-  │                             │
-  ├─ PostgreSQL                 │
-  │   ├─ agents / hosts          │
-  │   ├─ threat_events           │
-  │   └─ traffic_sessions        │
-  │                             │
-  ├─ Redis Streams              │
-  │   ├─ telemetry:*             │
-  │   ├─ flows:*                 │
-  │   ├─ sessions:semantic       │
-  │   └─ alerts:*                │
-  │                             │
-  ├─ ClickHouse                  │
-  │                             │
-  └─ ly-security-engine :8080 ◄──┘
-        consumes telemetry:* and emits alerts:*
+ly-server :8080 ───────── PostgreSQL（账号、资产、规则、告警、处置）
+  │        │
+  │        ├───────────── ClickHouse（长期会话、分析事件、溯源）
+  │        │
+  │        └───────────── Redis Streams（实时事件总线、短期缓冲）
+  │
+  ├── agent-center :8081（Agent 注册、配置、任务）
+  └── ly-security-engine（统一规则检测与告警）
 
-agent-center :8081
-  └─ Agent gRPC 管理面
+镜像口 ──> ly-local-mirror(PF_RING) ──> ly-suricata-sensor ──> 流量遥测/告警
 
-ly-local-mirror
-  └─ 本机旁路镜像抓包，host network
-
-外部主机 ly-agent
-  ├─ HTTPS enroll/config/heartbeat
-  ├─ traffic capture
-  ├─ runtime/log audit/RASP
-  └─ authenticated HTTPS telemetry delivery
+外部主机 ly-agent（无容器）
+  ├── HTTPS 注册、心跳、配置与遥测
+  ├── AF_PACKET 小流量采集
+  ├── Runtime / auditd
+  ├── 日志审计
+  ├── YARA 文件扫描
+  └── Python RASP
 ```
 
-## 3. 容器与端口
+## 3. 默认容器
 
-| 服务 | 镜像 | 默认端口 | 责任 |
-|---|---|---:|---|
-| `ly-vis` | `ly-flow/frontend:latest` | 443 | 深色控制台、HTTPS、自签证书、API/WS 代理 |
-| `ly-server` | `ly-flow/server:latest` | 8080 | REST API、认证、持久化、XDR、规则中心、安装脚本 |
-| `agent-center` | `ly-flow/server:latest` | 8081 | Agent gRPC 管理服务 |
-| `ly-security-engine` | `ly-flow/security-engine:latest` | 内网 8080 | 消费 `telemetry:*`，输出 `alerts:*` |
-| `ly-engine-lab` | `ly-flow/security-engines:latest` | 无公开端口 | 外部引擎状态输出与规则运行时 |
-| `ly-local-mirror` | `ly-flow/agent:latest` | host network | 本机旁路流量镜像 |
-| `postgres` | `postgres:16-alpine` | 5432 | 关系数据、威胁、会话、资产 |
-| `redis` | `redis:7-alpine` | 6379 | 事件总线 |
-| `clickhouse` | `clickhouse/clickhouse-server:24.8-alpine` | 8123 / 9000 | 分析存储 |
+| 容器 | 责任 | 对外端口 |
+|---|---|---:|
+| `ly-vis` | HTTP 跳转、HTTPS 控制台、API/WS 代理 | 80、443 |
+| `ly-server` | 认证、REST API、XDR、Incident、规则生命周期 | 内网 8080 |
+| `agent-center` | Agent 注册、在线状态、配置和任务 | 内网 8081 |
+| `ly-local-mirror` | 本机 PF_RING 镜像采集 | host network |
+| `ly-suricata-sensor` | Suricata IDS 与 EVE 输出 | 无 |
+| `ly-security-engine` | 多源遥测检测和统一告警 | 内网 8080 |
+| `postgres` | 事务数据与配置 | 内网 5432 |
+| `clickhouse` | 长期会话与分析数据 | 内网 8123/9000 |
+| `redis` | 实时流与短期缓冲 | 内网 6379 |
 
-## 4. 数据流
+`ly-engine-lab` 已退出默认生产栈。容器 Agent 和 legacy DPI 只通过 QA/兼容 profile 启用。
 
-### 4.1 Agent 注册与资产
+## 4. 数据职责
 
-1. 外部主机执行 `https://<server>/api/v1/agent/install.sh`。
-2. 安装脚本使用 `curl -kfsSL` / `wget --no-check-certificate` 适配自签证书。
-3. 管理员签发短时、一次性、绑定 Agent ID 的 enrollment token。
-4. Agent 调用 `/api/v1/agent/enroll` 消费令牌，取得持久身份并写入 `agents`。
-5. 心跳 `/api/v1/agent/heartbeat` 更新 Agent 状态。
-6. 资产快照 `/api/v1/agent/snapshot` 更新 `hosts.metadata`。
-7. 资产 API 返回前同步超时 Agent 和 Host 状态，避免 Agent 离线但资产仍显示实时。
+### PostgreSQL
 
-### 4.2 流量会话与威胁
+保存账号、角色、首次改密状态、Agent、资产、规则版本、告警、攻击链、Incident、处置和审计记录。需要事务一致性和状态变更的数据以 PostgreSQL 为主。
 
-1. Agent 或本机镜像采集 TCP/UDP 包。
-2. 原始与语义数据写入 `flows:raw`、`flows:semantic`、`sessions:semantic`、`telemetry:traffic`。
-3. `ly-server` 消费 `sessions:semantic`，持久化到 `traffic_sessions`。
-4. `ly-security-engine` 消费 `telemetry:traffic`，规则命中后写 `alerts:dpi`。
-5. `ly-server` 消费 `alerts:*`，标准化并持久化到 `threat_events`。
-6. Nmap 风格 SYN 端口扫描在 Agent 抓包层、限速前聚合，触发 `traffic.port_scan`。
+### ClickHouse
 
-### 4.3 XDR 与 Incident
+保存高容量、追加写的会话和规范化安全事件，用于长期留存、查询和溯源。事件存储采用 UID 去重和分阶段迁移；切换规则见 [ClickHouse 事件迁移](docs/CLICKHOUSE_EVENT_MIGRATION.md)。
 
-1. DPI、Runtime、RASP、Log Audit 告警进入统一事件模型。
-2. XDR 关联器按实体、阶段、证据和时间窗口生成攻击链。
-3. Incident 只来自关联链，不由单条普通事件直接升级。
-4. 前端按阶段展示证据和日期。
+### Redis
 
-### 4.4 规则中心
+承担 `telemetry:*`、`alerts:*`、会话流和控制健康流的实时解耦及短期缓冲。Redis 不是正式数据仓库，服务重启或 Redis 清理不能造成 PostgreSQL/ClickHouse 正式数据丢失。
 
-1. 规则源同步到平台规则目录和数据库视图。
-2. 规则编译生成 `rules/security-engine/active-bundle.json`。
-3. `ly-server` 调用 `ly-security-engine /reload` 热加载。
-4. 前端提供版本、预览、更新、回滚入口。
+## 5. 检测数据流
 
-## 5. 持久化模型
+### 流量
 
-| 表 / 存储 | 内容 |
-|---|---|
-| `agents` | Agent 注册、能力、状态、心跳、显示名 |
-| `hosts` | 资产信息、性能快照、metadata、状态同步 |
-| `traffic_sessions` | 语义流量会话，支持关键字和 Agent 查询 |
-| `threat_events` | 统一威胁事件，按 category 聚合展示 |
-| Redis Streams | 热路径事件总线与异步解耦 |
-| ClickHouse | 版本化 UID 去重的事件分析存储；仅在校验和一致且完成读切换后成为搜索权威 |
+1. 管理员在控制中心选择镜像接口；管理访问口从候选列表中排除，镜像流量标识默认启用。
+2. AMD64 服务端由 PF_RING 本机探针采集，Suricata 生成 EVE 网络事件。
+3. 会话写入 ClickHouse，流量遥测进入统一安全引擎。
+4. ET Open、OISF、Snort、Stamus、PT 等兼容规则经编译后参与检测；不兼容项隔离并记录。
+5. 流量告警保留源/目的 IP、端口、协议、原始引用和规则来源。
 
-ClickHouse 事件迁移的阶段权威、显式一致性和回滚约束见 [ClickHouse event-storage migration](docs/CLICKHOUSE_EVENT_MIGRATION.md)。
+ARM64 服务端包可部署完整控制与分析栈；PF_RING 镜像路径以 AMD64 为主要生产目标，ARM64 本机采集使用当前可构建的兼容镜像实现，仍需要具体 ARM 网卡和驱动现场认证。
 
-## 6. 部署包架构
+### 主机与应用
 
-离线安装包包含：
+Agent 使用一次性注册令牌取得持久身份，通过控制中心下发日志、Runtime、YARA、RASP 和流量开关。Linux 3.10 不具备现代 eBPF 条件时回退到 auditd；AF_PACKET、日志、资产快照和本地加密 spool 继续工作。
+
+Python RASP 已具备 monitor/protect 策略、签名配置、健康状态和事件上报。Java RASP 仍为实验能力；未完成真实业务框架兼容矩阵前，不扩大阻断承诺。
+
+### XDR 与 ATT&CK
+
+统一事件包含来源、实体、时间、规则、证据引用和 ATT&CK 信息。关联器按共享实体、时间窗口和阶段连续性形成候选链；只有满足关联条件的链升级为 Incident，单条普通事件留在对应检测面。处置支持研判、处理中、解决和审计记录，当前不自动封禁网络或隔离主机。
+
+## 6. 规则生命周期
+
+规则中心负责版本发现、固定来源下载、摘要校验、格式转换、编译预览、签名、激活、热加载和回滚。流量规则和安全引擎规则分别适配其运行时；上游最新不等于直接可运行，编译失败的单条规则进入隔离区，不阻塞可用规则生效。
+
+正式服务端包在每次 GitHub 构建时重新获取五个公开规则源，不使用跨运行缓存。运行中在线更新仍通过规则中心执行并保留版本与审计记录。
+
+## 7. Agent 兼容架构
+
+- Linux AMD64/ARM64：静态 Go 二进制，目标 Linux 3.10/CentOS 7 及以上。
+- Windows AMD64：单文件 Agent；Npcap 单独下载和安装。
+- Linux 抓包：AF_PACKET/TPACKET，适合 Agent 小流量采集，可在控制中心关闭。
+- 本机镜像：AMD64 生产路径使用 PF_RING，承担高流量旁路镜像。
+- 容器 Agent：仅用于 QA，不是现场安装方式。
+- legacy DPI：仅用于旧 `flows:raw` 迁移对账，不与统一安全引擎长期并行。
+
+## 8. 正式部署包
+
+`lyflow-server-amd64.tar.gz` 和 `lyflow-server-arm64.tar.gz` 内部结构一致：
 
 ```text
-lyflow-offline-install-*/
+ly-flow-platform/
 ├── docker-compose.yml
-├── images/lyflow-images.tar.gz
+├── images/
+│   ├── architecture
+│   ├── image-pins.txt
+│   └── lyflow-images.tar.gz
 ├── rules/
 ├── scripts/
-│   ├── install-offline.sh
+│   ├── install-docker-bundle.sh
 │   └── init-db.sql
-├── server/sql/asset_tables.sql
-└── README.md
+└── server/sql/asset_tables.sql
 ```
 
-安装脚本会：
+安装器要求 root、Docker Engine 和 Compose Plugin，校验架构后安装到 `/opt/ly-flow-platform`，生成内部凭据并启动正式栈。首次登录固定为 `admin/password`，强制修改密码；80 自动跳转 443。
 
-1. 检查 root 权限。
-2. 检查 Docker；缺失时尝试安装 Docker 与 compose plugin。
-3. 复制包内容到 `/opt/ly-flow-platform` 或 `LYFLOW_INSTALL_DIR`。
-4. 写入 `.env`。
-5. `docker load` 导入镜像。
-6. `docker compose up -d` 启动流影。
+## 9. 当前限制
 
-## 7. 当前边界
-
-- 默认使用自签证书，生产环境可替换为正式证书。
-- 离线包不内置 Docker 安装包；没有 Docker 的机器需要可访问 Docker 软件源，或提前安装 Docker。
-- 容器化 `ly-agent` 和 legacy `ly-dpi-engine` 是 profile-gated QA/兼容项，默认运行面不依赖它们。
-- 现场主机使用无容器的静态 Linux Agent；Linux 3.10/CentOS 7 运行时监控回退到 auditd，详见 `docs/zh/AGENT与LEGACY-DPI兼容边界.md`。
-- 远端 Agent 的目标网络边界只开放平台 HTTPS；仍直接依赖 Redis 的兼容状态路径属于待清理技术债，不能作为远端部署前提。
-- 流量威胁默认保留有网络上下文的安全告警，不展示纯识别类噪声。
+1. 当前是单机部署，不包含多节点 HA、异地容灾或集中多租户管理。
+2. CentOS 7/Linux 3.10、ARM64 服务端和 ARM64 Agent 已具备构建能力，但仍需对应真实硬件长期运行认证。
+3. 全量会话指完整语义会话元数据长期留存，不等于保存所有原始 PCAP 字节。
+4. Wazuh、YARA、Suricata 和 RASP 适配器可消费真实引擎输出，但规则覆盖与检测质量仍需持续 corpus、误报率和召回率评估。
+5. 自动响应当前以人工处置建议为主；自动隔离和封禁需要审批、回滚及失联保护后才能进入生产。

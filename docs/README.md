@@ -13,7 +13,8 @@
 | [`zh/后续工作计划.md`](zh/后续工作计划.md) | 接盘后的唯一执行计划 |
 | [`zh/AGENT与LEGACY-DPI兼容边界.md`](zh/AGENT与LEGACY-DPI兼容边界.md) | 现场 Agent、容器 Agent、local-mirror 和 legacy DPI 的角色边界 |
 | [`CLICKHOUSE_EVENT_MIGRATION.md`](CLICKHOUSE_EVENT_MIGRATION.md) | 事件存储迁移和读切换约束 |
-| [`RELEASE_PROVENANCE.md`](RELEASE_PROVENANCE.md) | 离线发布、签名、来源和可复现边界 |
+| [`RELEASE_PROVENANCE.md`](RELEASE_PROVENANCE.md) | 当前服务端包来源、构建校验和交付边界 |
+| [`GITHUB-CI.md`](GITHUB-CI.md) | 当前正式服务端构建、周期、产物与历史清理 |
 | [`../DESIGN.md`](../DESIGN.md) | 当前前端视觉设计系统，不是产品功能计划 |
 
 机器可读权威包括：
@@ -35,3 +36,4 @@
 4. 运行时内存状态、测试夹具和页面占位不算持久化能力。
 5. 未完成目标写退出标准和证据，不以提交数量或目录数量代替完成度。
 6. 文档不得包含口令、token、私钥或真实环境凭据。
+7. 当前安装、架构和发布说明必须与正式 Compose、安装脚本和 GitHub 工作流同步；历史脚本只能在归档或 QA 边界中说明。

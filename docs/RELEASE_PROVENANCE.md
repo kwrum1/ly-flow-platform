@@ -1,40 +1,35 @@
-# Release provenance
+# 发布来源与交付边界
 
-Offline releases are fail-closed. The builder does not pull images, update scanner databases, resolve modules, or fetch package metadata. Every required base image must already exist locally and be supplied as a `repository@sha256:digest` reference.
+## 当前正式方式
 
-## Required inputs
+正式交付由 GitHub Actions 的“正式服务端发布”工作流生成。发布不是旧的 Gitea 签名验收包，也不要求包外 trust root。当前固定产物为 AMD64、ARM64 两个服务端一键部署包。
 
-- `RELEASE_SIGNING_KEY`: external Ed25519 private key. The corresponding public `release-root.pem` is distributed out of band and must not be placed in the package.
-- `RELEASE_ID` and `SOURCE_DATE_EPOCH`: stable release identity and archive timestamp. They default to the current Git commit only for local verification.
-- `NGINX_IMAGE` and `SURICATA_PROFILE_IMAGE`: locally present digest references.
-- `RASP_PYTHON_310_IMAGE`, `RASP_PYTHON_311_IMAGE`, and `RASP_PYTHON_312_IMAGE`: locally inspectable immutable references for the three required RASP conformance runtimes. The release builder rejects missing, mutable, or malformed values before compilation.
-- For non-amd64 releases, architecture-specific digest references in `DB_POSTGRES_IMAGE`, `DB_REDIS_IMAGE`, and `DB_CLICKHOUSE_IMAGE`.
-- Local, versioned advisory databases for npm, Python, Go, and image scanners. Missing database identity blocks release.
+## 来源
 
-Gitea CI runs `scripts/qa/prepare-rasp-conformance-images.sh` before package construction. The helper reuses an existing local conformance tag or builds a missing tag from the checked-in Dockerfile for `linux/amd64` with pulls disabled, no cache, and provenance disabled. It emits the three ordered content-addressed references, preferring a repository digest and falling back to the local image ID, and the workflow maps them directly to the required release inputs.
+- 源码来自触发运行的 GitHub `main` 提交。
+- Go 与 npm 依赖从公开模块仓库重新解析，不复用跨运行缓存。
+- PostgreSQL、Redis、ClickHouse、Nginx 和 Suricata 镜像在对应 CPU 架构 runner 上重新拉取。
+- 五个公开规则源在每次构建时重新下载、记录来源摘要、转换、去重和编译。
+- 产品 Docker 镜像使用 `--pull --no-cache` 构建。
 
-RASP conformance images are release-verification inputs only. They are not members of the packaged `IMAGES` array, are not written to `image-pins.tsv`, and are not included in `images/lyflow-images.tar.gz`.
+## 包内校验
 
-The builder runs `scripts/qa/generate-release-evidence.sh` before compilation. Any `BLOCKED` or `FAIL` scanner row stops the build. An empty scanner response without a locally provable database version is `BLOCKED`, not clean.
+工作流在发布前执行以下必要校验：
 
-## Produced evidence
+1. 五个规则源均生成有效清单，编译规则摘要可复算。
+2. 所有镜像架构与目标服务端架构一致。
+3. 服务端归档可通过 gzip 完整性检查。
+4. 包内 `images/architecture` 与文件名架构一致。
+5. 包内存在本次规则快照和一键安装脚本。
 
-The package contains deterministic CycloneDX 1.5 SBOMs for npm, Go, Python, Java, and container inputs. Raw scanner output and `scanner-summary.json` record tool and database versions. Reachable high or critical findings block release unless listed in the validated exception document.
+正式 Release 不附带 `.sha256` 文件。下载链路依赖 GitHub HTTPS；安装后依靠 Docker 镜像可读性、容器健康检查和应用健康接口判断部署结果。当前发布不宣称可复现字节级构建，也不宣称具备离线签名供应链认证。
 
-Each exception requires an ID, component, high/critical severity, owner, reachability evidence, compensating control, expiry after evidence generation but no more than 30 days later, and scanner name/version/database version. `scripts/release-provenance.sh validate-exceptions` enforces the schema.
+## 安装边界
 
-## Signature chain
+目标机必须是 Linux AMD64 或 ARM64，并预先安装 Docker Engine 与 Compose Plugin。安装器拒绝主机与包架构不一致，导入包内镜像并启动 `/opt/ly-flow-platform` 正式栈。
 
-1. `rules/rules-manifest.sha256` covers every packaged rule file and is signed as `rules-manifest.sha256.sig`.
-2. `release-manifest.sha256` covers the rule manifest/signature and every other package payload file, excluding only itself and its signature.
-3. `release-manifest.sha256.sig` is a raw Ed25519 signature over the exact manifest bytes.
-4. The outer normalized archive has a `.sha256` sidecar and raw Ed25519 `.sha256.sig` sidecar.
-5. `install-offline.sh --trust-root /external/release-root.pem` installs the external public root, verifies the release and rule manifests, and only then checks Docker, copies files, loads images, or starts services.
+首次登录固定为 `admin/password`，必须立即改密。PostgreSQL、Redis、ClickHouse、JWT 和内部控制口令由安装器写入本机 `.env`，不应提交到源码仓库或复制到文档。
 
-Candidate traffic provenance is recorded in `candidate-traffic-ledger.json`. Its five-source catalog binds vendor identity, license, raw-payload SHA-256 before decompression, parser, converter, and deduplication policy. Every retained candidate signature records its source IDs and converted-content SHA-256. The Ed25519 ledger signature and external public root allow the complete lineage to be verified without network access; missing source pins, altered converted bytes, unknown source IDs, or an unsigned ledger fail closed. Candidate counts are not reported as runtime-loaded counts. After lifecycle activation, the signed active manifest and its verified bundle are authoritative for active and runtime health counts.
+## 历史脚本
 
-## Reproducibility limits
-
-Normalized tar ordering, numeric ownership, timestamps, POSIX metadata, and gzip headers make the same staged package byte-identical. This does not establish that two clean application builds are identical.
-
-The remaining non-reproducible layers are Docker save metadata/order below the normalized outer gzip, certificate generation in the frontend Dockerfile, APK repository state when a base is not digest-pinned, the externally supplied CGO ARM agent, and any locally cached application image accepted by the CI cache path. Two clean builds with identical digest inputs must compare all image and archive digests before a full reproducibility claim is allowed.
+`scripts/build-offline-release.sh`、`scripts/install-offline.sh` 和相关签名验收脚本仍保留用于历史 QA 与回归，不是当前正式 Release 的操作入口。历史设计记录位于 `docs/archive/`，不得据此判断当前发布内容。
