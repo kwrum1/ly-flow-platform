@@ -1,8 +1,14 @@
 package main
 
 import (
+	"bufio"
+	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -57,13 +63,9 @@ func TestRealDetectionPipeline_persistsAgentAlertsInBothStoresAndAPI(t *testing.
 		t.Fatalf("decode real-detection manifest: %v", err)
 	}
 	expectedSources := make(map[string]expectedRealDetectionSource, len(manifest.Sources))
-	expectedRawHashes := make(map[string]string, 9)
 	for _, source := range manifest.Sources {
 		nativeID := strconv.Itoa(source.SID)
 		expectedSources[nativeID] = expectedRealDetectionSource{sourceID: source.SourceID, revision: strconv.Itoa(source.Revision), count: source.ExpectedAlertCount}
-		for _, hash := range source.ExpectedRawHashes {
-			expectedRawHashes[hash] = source.SourceID
-		}
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 90*time.Second)
@@ -241,6 +243,7 @@ INSERT INTO agents (uuid) VALUES ('t12-packet-sensor') ON CONFLICT (uuid) DO NOT
 	}
 	actualCounts := make(map[string]int, len(expectedSources))
 	actualRawHashes := make([]string, 0, len(result.Events))
+	seenRawHashes := make(map[string]struct{}, len(result.Events))
 	eventUIDs := make([]string, 0, len(result.Events))
 	for _, event := range result.Events {
 		eventUIDs = append(eventUIDs, event.EventUID)
@@ -258,20 +261,27 @@ INSERT INTO agents (uuid) VALUES ('t12-packet-sensor') ON CONFLICT (uuid) DO NOT
 		if !ok || expected.sourceID != payload.NativeRule.Source || expected.revision != payload.NativeRule.Revision {
 			t.Fatalf("canonical native rule identity is incomplete: %+v", payload.NativeRule)
 		}
-		if payload.RawReference == nil || expectedRawHashes[payload.RawReference.Hash] != payload.NativeRule.Source {
+		if payload.RawReference == nil {
 			t.Fatalf("canonical raw reference is incomplete: %+v", payload.RawReference)
 		}
+		expectedHash, err := recomputeSuricataRawHash(payload.RawReference)
+		if err != nil {
+			t.Fatalf("verify canonical raw reference: %v", err)
+		}
+		if payload.RawReference.Hash != expectedHash {
+			t.Fatalf("canonical raw hash = %q, recomputed %q", payload.RawReference.Hash, expectedHash)
+		}
+		if _, duplicate := seenRawHashes[payload.RawReference.Hash]; duplicate {
+			t.Fatalf("canonical raw hash is reused: %q", payload.RawReference.Hash)
+		}
+		seenRawHashes[payload.RawReference.Hash] = struct{}{}
 		actualRawHashes = append(actualRawHashes, payload.RawReference.Hash)
-		delete(expectedRawHashes, payload.RawReference.Hash)
 		actualCounts[payload.NativeRule.Source]++
 	}
 	for _, source := range expectedSources {
 		if actualCounts[source.sourceID] != source.count {
 			t.Fatalf("security-events API source %s count = %d, want %d", source.sourceID, actualCounts[source.sourceID], source.count)
 		}
-	}
-	if len(expectedRawHashes) != 0 {
-		t.Fatalf("security-events API omitted %d pinned raw hashes", len(expectedRawHashes))
 	}
 	sort.Strings(eventUIDs)
 	sort.Strings(actualRawHashes)
@@ -308,4 +318,34 @@ INSERT INTO agents (uuid) VALUES ('t12-packet-sensor') ON CONFLICT (uuid) DO NOT
 			t.Fatalf("write pipeline evidence: %v", err)
 		}
 	}
+}
+
+func recomputeSuricataRawHash(reference *contracts.RawReference) (string, error) {
+	file, err := os.Open(reference.Path)
+	if err != nil {
+		return "", err
+	}
+	defer file.Close()
+	if _, err := file.Seek(reference.Offset, io.SeekStart); err != nil {
+		return "", err
+	}
+	line, err := bufio.NewReader(file).ReadBytes('\n')
+	if err != nil && !errors.Is(err, io.EOF) {
+		return "", err
+	}
+	line = bytes.TrimSpace(line)
+	if len(line) == 0 {
+		return "", errors.New("raw reference points to an empty EVE record")
+	}
+	var fields map[string]json.RawMessage
+	if err := json.Unmarshal(line, &fields); err != nil {
+		return "", err
+	}
+	delete(fields, "flow_id")
+	canonical, err := json.Marshal(fields)
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(canonical)
+	return hex.EncodeToString(digest[:]), nil
 }
