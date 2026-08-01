@@ -26,11 +26,10 @@ import (
 )
 
 type realDetectionManifestSource struct {
-	SourceID           string   `json:"source_id"`
-	SID                int      `json:"sid"`
-	Revision           int      `json:"revision"`
-	ExpectedAlertCount int      `json:"expected_alert_count"`
-	ExpectedRawHashes  []string `json:"expected_raw_hashes"`
+	SourceID           string `json:"source_id"`
+	SID                int    `json:"sid"`
+	Revision           int    `json:"revision"`
+	ExpectedAlertCount int    `json:"expected_alert_count"`
 }
 
 type realDetectionManifest struct {

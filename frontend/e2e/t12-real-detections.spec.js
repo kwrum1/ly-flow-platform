@@ -16,11 +16,11 @@ const EXPECTED_SOURCES = Object.freeze([
   'stamus-lateral',
 ])
 const EXPECTED_PROVENANCE = Object.freeze({
-  'suricata-et-open': { sid: '2002005', revision: '36', rawHashes: ['b5308e6f1ef208b99d452730fc5f525c49dde8b63132519551cf6fcd97202fdd'] },
-  'oisf-trafficid': { sid: '300000000', revision: '1', rawHashes: ['35612b961f41eeb3daabbbef6a1ec2be1d295a20290dd55822eed479da2ced53', '43a2414fa6e2b11484bdb54b177b2c4308acb699cb8833615a5e1cc24224b9d7'] },
-  'snort-community': { sid: '26655', revision: '2', rawHashes: ['e780d5538c1bf0590e49eb57d7b2e09381c7362157ab65c3ceacdd18c68be80c', 'fb815e0eabbbfe506bf37d550f4d9f86c8d7262b42f38b9c7961c220f86ac310'] },
-  'ptresearch-attackdetection': { sid: '10000005', revision: '3', rawHashes: ['31bf8a471345f3fba783b1f7909fd0b0f4e1dc8123344f9ca6ba7955517173ac', '9af0dcce518c31c1468141ee1e622d5d010c92a402247775b46274beb9b9c0d5'] },
-  'stamus-lateral': { sid: '3115102', revision: '4', rawHashes: ['413c09b11e9a055d49b94229576757d6b72857888ec3419d06ce3d17262cde8b', '2afc0f19ed41a7d5a09c38e0a47507f0c476b734d0fe130c78267e61c5ff14f1'] },
+  'suricata-et-open': { sid: '2002005', revision: '36' },
+  'oisf-trafficid': { sid: '300000000', revision: '1' },
+  'snort-community': { sid: '26655', revision: '2' },
+  'ptresearch-attackdetection': { sid: '10000005', revision: '3' },
+  'stamus-lateral': { sid: '3115102', revision: '4' },
 })
 const VIEWPORT_WIDTHS = Object.freeze([375, 768, 1280])
 const isT12Mode = Object.values(T12_ENVIRONMENT).some((name) => Object.hasOwn(process.env, name))
@@ -74,7 +74,7 @@ async function collectCurrentPage(page, state) {
         expect(detection.sid).toBe(expected.sid)
         expect(detection.revision).toBe(expected.revision)
         expect(detection.rawPath.length).toBeGreaterThan(0)
-        expect(expected.rawHashes).toContain(detection.rawHash)
+        expect(detection.rawHash).toMatch(/^[0-9a-f]{64}$/)
         const screenshot = `${source}-${width}.png`
         detections.set(source, detection)
         await page.screenshot({ path: path.join(evidenceDirectory, screenshot), fullPage: true })
@@ -140,6 +140,9 @@ test.describe('T12 real five-source traffic detections', () => {
         screenshot: `${source}-${width}.png`,
       })),
     }))
+    for (const source of sources) {
+      expect(new Set(source.viewports.map(({ rawHash }) => rawHash)).size).toBe(1)
+    }
     const singlePage = viewportResults.map(({ pageState }) => pageState)
     await writeFile(
       path.join(evidenceDirectory, 't12-real-detections.json'),

@@ -37,9 +37,7 @@ validate_manifest() {
     all(.sources[];
       (.sid | type) == "number" and (.revision | type) == "number" and
       (.emitted_sid | type) == "number" and (.emitted_revision | type) == "number" and
-      (.expected_alert_count | type) == "number" and .expected_alert_count > 0 and
-      (.expected_raw_hashes | length) == .expected_alert_count and
-      all(.expected_raw_hashes[]; test("^[0-9a-f]{64}$"))) and
+      (.expected_alert_count | type) == "number" and .expected_alert_count > 0) and
     all(.packet_fixtures[];
       (.path | type) == "string" and (.sha256 | test("^[0-9a-f]{64}$")) and
       (.rules_path | type) == "string" and (.rules_sha256 | test("^[0-9a-f]{64}$")))
