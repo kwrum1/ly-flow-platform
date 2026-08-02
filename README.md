@@ -33,6 +33,45 @@ sudo bash scripts/install-docker-bundle.sh
 
 首次登录账号为 `admin`，密码为 `password`。首次登录必须修改密码，修改后不会在服务重启时恢复默认密码。
 
+### 曾部署过：彻底清理并全新安装
+
+以下命令用于旧部署异常、残留配置或数据卷导致新版本无法正常启动时的彻底重装。**它会永久删除 LyFlow 的账号、配置、规则状态、告警、会话、容器、数据卷和镜像，无法恢复**，不会清理其他 Compose 项目或其他仓库镜像。
+
+先将与服务器架构匹配的正式安装包放在 `/root` 等 `/opt/ly-flow-platform` 之外的位置，然后执行：
+
+```bash
+PACKAGE=/root/lyflow-server-amd64.tar.gz
+test -f "$PACKAGE" || { echo "安装包不存在: $PACKAGE" >&2; exit 1; }
+PACKAGE=$(readlink -f "$PACKAGE")
+
+sudo env PACKAGE="$PACKAGE" bash <<'LYFLOW_REINSTALL'
+set -euo pipefail
+
+install_dir=/opt/ly-flow-platform
+project=ly-flow-platform
+work_dir=$(mktemp -d /tmp/lyflow-reinstall.XXXXXX)
+trap 'rm -rf "$work_dir"' EXIT
+
+cd /
+if [ -f "$install_dir/docker-compose.yml" ]; then
+  docker compose -f "$install_dir/docker-compose.yml" down -v --remove-orphans || true
+fi
+
+docker ps -aq --filter "label=com.docker.compose.project=$project" | xargs -r docker rm -f
+docker volume ls -q --filter "label=com.docker.compose.project=$project" | xargs -r docker volume rm
+docker network ls -q --filter "label=com.docker.compose.project=$project" | xargs -r docker network rm
+docker image ls --format '{{.Repository}}:{{.Tag}}' | awk '/^ly-flow\// {print}' | xargs -r docker image rm -f
+rm -rf "$install_dir"
+
+tar -xzf "$PACKAGE" -C "$work_dir"
+cd "$work_dir/ly-flow-platform"
+unset LOCAL_MIRROR_INTERFACE
+bash scripts/install-docker-bundle.sh
+LYFLOW_REINSTALL
+```
+
+ARM64 服务器只需将第一行改为对应的 `lyflow-server-arm64.tar.gz`。重装完成后仍使用 `admin / password` 首次登录并强制修改密码；本机镜像接口初始不绑定，请登录后在“控制中心”选择管理口以外的实际镜像网口。
+
 ## 默认生产拓扑
 
 默认运行 9 个容器：
