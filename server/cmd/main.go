@@ -6077,7 +6077,11 @@ func hostNetworkInterfaces(cfg *Config) []map[string]interface{} {
 		if name == "" || name == "lo" {
 			continue
 		}
-		if target, err := os.Readlink(filepath.Join(path, name)); err == nil && strings.Contains(target, "/devices/virtual/") {
+		target, err := os.Readlink(filepath.Join(path, name))
+		if err != nil {
+			continue
+		}
+		if strings.Contains(target, "/devices/virtual/") {
 			continue
 		}
 		items = append(items, map[string]interface{}{
