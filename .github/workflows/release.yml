@@ -1,6 +1,9 @@
 name: 正式服务端发布
 
 on:
+  push:
+    branches:
+      - main
   schedule:
     - cron: '0 2 1,16 * *'
   workflow_dispatch:
