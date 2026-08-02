@@ -2,10 +2,12 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -70,12 +72,36 @@ func checkLocalMirrorCaptureHealth(path string, clock trafficClock) error {
 	return nil
 }
 
+func localMirrorCaptureConfigured() bool {
+	path := strings.TrimSpace(os.Getenv("MIRROR_CONFIG_FILE"))
+	if path == "" {
+		return true
+	}
+	body, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return false
+	}
+	if err != nil {
+		return true
+	}
+	var config struct {
+		Interface string `json:"interface"`
+	}
+	if err := json.Unmarshal(body, &config); err != nil {
+		return true
+	}
+	return strings.TrimSpace(config.Interface) != ""
+}
+
 func runHealthcheckSubcommand(args []string, path string, clock trafficClock) (bool, error) {
 	if len(args) == 0 || args[0] != "healthcheck" {
 		return false, nil
 	}
 	if len(args) != 2 || args[1] != "local-mirror" {
 		return true, fmt.Errorf("unsupported healthcheck")
+	}
+	if !localMirrorCaptureConfigured() {
+		return true, nil
 	}
 	return true, checkLocalMirrorCaptureHealth(path, clock)
 }
