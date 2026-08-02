@@ -3,7 +3,7 @@ FROM golang:1.26-bookworm AS builder
 ARG PF_RING_REF=210a95f1445d0e2fbfd2c66088a972ed62db8cae
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends git build-essential autoconf automake libtool pkg-config flex bison libnuma-dev libpcap-dev libnl-genl-3-dev \
+    && apt-get install -y --no-install-recommends git build-essential autoconf automake libtool pkg-config flex bison jq openssl libnuma-dev libpcap-dev libnl-genl-3-dev \
     && git -c http.version=HTTP/1.1 init /tmp/PF_RING \
     && git -C /tmp/PF_RING remote add origin https://github.com/ntop/PF_RING.git \
     && git -C /tmp/PF_RING -c http.version=HTTP/1.1 fetch --depth 1 origin "${PF_RING_REF}" \
@@ -21,8 +21,15 @@ WORKDIR /src
 COPY agent ./agent
 COPY pkg ./pkg
 COPY third_party/gopacket ./third_party/gopacket
+COPY scripts/release-provenance.sh ./scripts/release-provenance.sh
 WORKDIR /src/agent
 RUN CGO_ENABLED=1 go build -tags pfring -trimpath -ldflags="-s -w" -o /out/ly-agent ./cmd
+RUN openssl genpkey -algorithm Ed25519 -out /tmp/agent-release.key \
+    && printf '%s\n' '# Signed local mirror defaults.' 'agent:' '  log_level: info' > /out/agent.yaml \
+    && bash /src/agent/scripts/release-provenance.sh sign-artifact --artifact /out/ly-agent --output /out/agent-binary.digest.json --key /tmp/agent-release.key \
+    && bash /src/agent/scripts/release-provenance.sh sign-artifact --artifact /out/agent.yaml --output /out/agent-config.digest.json --key /tmp/agent-release.key \
+    && openssl pkey -in /tmp/agent-release.key -pubout -out /out/agent-integrity-root.pem \
+    && rm -f /tmp/agent-release.key
 
 FROM debian:bookworm-slim
 RUN apt-get update \
@@ -30,5 +37,10 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=builder /usr/local/lib/libpfring.so* /usr/local/lib/
 COPY --from=builder /out/ly-agent /app/ly-agent
-RUN ldconfig && mkdir -p /opt/ly-agent/data/spool /opt/ly-agent/logs
+COPY --from=builder /out/agent.yaml /opt/ly-agent/etc/agent.yaml
+COPY --from=builder /out/agent-binary.digest.json /out/agent-config.digest.json /out/agent-integrity-root.pem /etc/lyflow/trust/
+RUN ldconfig \
+    && mkdir -p /opt/ly-agent/data/spool /opt/ly-agent/logs \
+    && ln -s agent-integrity-root.pem /etc/lyflow/trust/agent-binary-root.pem \
+    && ln -s agent-integrity-root.pem /etc/lyflow/trust/agent-config-root.pem
 ENTRYPOINT ["/app/ly-agent"]

@@ -516,7 +516,10 @@ func (a *Agent) startLocalMirror() error {
 		a.cfg.TrafficInterface = iface
 	}
 	if strings.TrimSpace(a.cfg.TrafficInterface) == "" || strings.EqualFold(a.cfg.TrafficInterface, "auto") {
-		return fmt.Errorf("local mirror interface is not configured")
+		a.cfg.TrafficInterface = ""
+		fmt.Printf("[mirror] Local mirror started without a capture interface; configure it from the control center\n")
+		go a.mirrorConfigLoop()
+		return nil
 	}
 	fmt.Printf("[mirror] Local mirror capture starting: interface=%s raw=%s session=%s telemetry=%s\n", a.cfg.TrafficInterface, a.cfg.RawStream, a.cfg.SessionStream, a.cfg.TrafficTelemetryStream)
 	go a.mirrorConfigLoop()
@@ -544,13 +547,20 @@ func (a *Agent) applyMirrorConfig() {
 	}
 	a.cfgMu.Lock()
 	oldInterface := a.cfg.TrafficInterface
+	oldEnabled := a.cfg.TrafficEnabled
 	if strings.TrimSpace(config.Interface) != "" {
 		a.cfg.TrafficInterface = strings.TrimSpace(config.Interface)
+	} else {
+		a.cfg.TrafficInterface = ""
 	}
 	a.cfg.TrafficEnabled = config.Enabled
 	newInterface := a.cfg.TrafficInterface
+	newEnabled := a.cfg.TrafficEnabled
 	a.cfgMu.Unlock()
-	if oldInterface != "" && oldInterface != newInterface {
+	if oldInterface == "" && newInterface != "" && newEnabled && !a.trafficStarted {
+		a.trafficStarted = true
+		go a.runTrafficCapture()
+	} else if oldInterface != "" && (oldInterface != newInterface || oldEnabled != newEnabled) {
 		a.requestTrafficRestart()
 	}
 }
@@ -3507,6 +3517,9 @@ func resolveTrafficInterface(cfg *Config) string {
 	iface := strings.TrimSpace(cfg.TrafficInterface)
 	if iface != "" && !strings.EqualFold(iface, "auto") {
 		return iface
+	}
+	if strings.EqualFold(strings.TrimSpace(cfg.Mode), "local-mirror") || strings.EqualFold(strings.TrimSpace(cfg.Mode), "local_mirror") || strings.EqualFold(strings.TrimSpace(cfg.Mode), "mirror") {
+		return ""
 	}
 	if runtime.GOOS == "windows" {
 		return "auto"
