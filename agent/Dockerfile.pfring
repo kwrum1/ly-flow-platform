@@ -21,15 +21,24 @@ WORKDIR /src
 COPY agent ./agent
 COPY pkg ./pkg
 COPY third_party/gopacket ./third_party/gopacket
-COPY scripts/release-provenance.sh ./scripts/release-provenance.sh
 WORKDIR /src/agent
 RUN CGO_ENABLED=1 go build -tags pfring -trimpath -ldflags="-s -w" -o /out/ly-agent ./cmd
 RUN openssl genpkey -algorithm Ed25519 -out /tmp/agent-release.key \
     && printf '%s\n' '# Signed local mirror defaults.' 'agent:' '  log_level: info' > /out/agent.yaml \
-    && bash /src/agent/scripts/release-provenance.sh sign-artifact --artifact /out/ly-agent --output /out/agent-binary.digest.json --key /tmp/agent-release.key \
-    && bash /src/agent/scripts/release-provenance.sh sign-artifact --artifact /out/agent.yaml --output /out/agent-config.digest.json --key /tmp/agent-release.key \
+    && public_der=/tmp/agent-release-public.der \
+    && openssl pkey -in /tmp/agent-release.key -pubout -outform DER -out "$public_der" \
+    && fingerprint=$(tail -c 32 "$public_der" | sha256sum | cut -d' ' -f1) \
+    && for artifact in ly-agent agent.yaml; do \
+         digest=$(sha256sum "/out/$artifact" | cut -d' ' -f1); \
+         payload=$(jq -cn --arg artifact "$artifact" --arg digest "$digest" --arg fingerprint "$fingerprint" '{schema_version:"lyflow.signed_digest.v1",artifact:$artifact,digest:$digest,signer_fingerprint:$fingerprint}'); \
+         printf '%s' "$payload" >/tmp/agent-payload.json; \
+         openssl pkeyutl -sign -inkey /tmp/agent-release.key -rawin -in /tmp/agent-payload.json -out /tmp/agent-signature.bin; \
+         signature=$(od -An -vtx1 /tmp/agent-signature.bin | tr -d ' \\n'); \
+         if [ "$artifact" = ly-agent ]; then output=/out/agent-binary.digest.json; else output=/out/agent-config.digest.json; fi; \
+         printf '{"payload":%s,"signature":"%s"}\n' "$payload" "$signature" >"$output"; \
+       done \
     && openssl pkey -in /tmp/agent-release.key -pubout -out /out/agent-integrity-root.pem \
-    && rm -f /tmp/agent-release.key
+    && rm -f /tmp/agent-release.key "$public_der" /tmp/agent-payload.json /tmp/agent-signature.bin
 
 FROM debian:bookworm-slim
 RUN apt-get update \
