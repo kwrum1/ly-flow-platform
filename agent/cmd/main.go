@@ -512,8 +512,10 @@ func (a *Agent) startLocalMirror() error {
 	}
 	if config, ok := loadLocalMirrorConfig(); ok {
 		a.cfg.TrafficInterface = config.Interface
-	} else if iface := fetchMirrorInterface(a.cfg.API); iface != "" {
-		a.cfg.TrafficInterface = iface
+	} else if strings.TrimSpace(os.Getenv("MIRROR_CONFIG_FILE")) == "" {
+		if iface := fetchMirrorInterface(a.cfg.API); iface != "" {
+			a.cfg.TrafficInterface = iface
+		}
 	}
 	if strings.TrimSpace(a.cfg.TrafficInterface) == "" || strings.EqualFold(a.cfg.TrafficInterface, "auto") {
 		a.cfg.TrafficInterface = ""
@@ -542,7 +544,7 @@ func (a *Agent) mirrorConfigLoop() {
 
 func (a *Agent) applyMirrorConfig() {
 	config, ok := loadLocalMirrorConfig()
-	if !ok {
+	if !ok && strings.TrimSpace(os.Getenv("MIRROR_CONFIG_FILE")) == "" {
 		config = fetchMirrorConfig(a.cfg.API)
 	}
 	a.cfgMu.Lock()
