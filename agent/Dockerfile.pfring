@@ -33,7 +33,7 @@ RUN openssl genpkey -algorithm Ed25519 -out /tmp/agent-release.key \
          payload=$(jq -cn --arg artifact "$artifact" --arg digest "$digest" --arg fingerprint "$fingerprint" '{schema_version:"lyflow.signed_digest.v1",artifact:$artifact,digest:$digest,signer_fingerprint:$fingerprint}'); \
          printf '%s' "$payload" >/tmp/agent-payload.json; \
          openssl pkeyutl -sign -inkey /tmp/agent-release.key -rawin -in /tmp/agent-payload.json -out /tmp/agent-signature.bin; \
-         signature=$(od -An -vtx1 /tmp/agent-signature.bin | tr -d ' \\n'); \
+         signature=$(od -An -vtx1 /tmp/agent-signature.bin | tr -d '[:space:]'); \
          if [ "$artifact" = ly-agent ]; then output=/out/agent-binary.digest.json; else output=/out/agent-config.digest.json; fi; \
          printf '{"payload":%s,"signature":"%s"}\n' "$payload" "$signature" >"$output"; \
        done \
