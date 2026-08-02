@@ -34,6 +34,8 @@ cp docker-compose.yml scripts/init-db.sql "$tmp/ly-flow-platform/"
 cp -a rules "$tmp/ly-flow-platform/rules"
 if [ -d .sisyphus ]; then
   cp -a .sisyphus "$tmp/ly-flow-platform/.sisyphus"
+  # Runtime selections belong to the host and must not leak from the build machine.
+  rm -f "$tmp/ly-flow-platform/.sisyphus/runtime/mirror-capture-config.json"
 fi
 mkdir -p "$tmp/ly-flow-platform/server/sql" "$tmp/ly-flow-platform/scripts"
 cp server/sql/asset_tables.sql "$tmp/ly-flow-platform/server/sql/"
