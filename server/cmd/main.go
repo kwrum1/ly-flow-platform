@@ -98,6 +98,8 @@ type Config struct {
 	XDRV2WindowHours           int
 	XDRV2MaxPathsPerSeed       int
 	XDRDefaultTenant           string
+
+	Features FeatureFlags
 }
 
 func loadConfig() *Config {
@@ -132,6 +134,8 @@ func loadConfig() *Config {
 		XDRV2WindowHours:           toInt(getEnv("XDR_V2_WINDOW_HOURS", "24")),
 		XDRV2MaxPathsPerSeed:       toInt(getEnv("XDR_V2_MAX_PATHS_PER_SEED", "50")),
 		XDRDefaultTenant:           getEnv("XDR_DEFAULT_TENANT", "default"),
+
+		Features: loadFeatureFlags(),
 	}
 	sslMode := getEnv("DB_SSLMODE", "disable")
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
