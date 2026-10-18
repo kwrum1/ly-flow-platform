@@ -370,6 +370,19 @@
 - 状态：`REVIEW`。后端门面就绪；**HTTP API 与 UI 尚未接入**，下一步 T3.6b/T3.7。
 - 回滚：删除 `server/agentfacade` 即可。
 
+### T3.7 安装器/自检/回滚（REVIEW）
+
+- 新增 `scripts/agent/preflight.sh`：root/systemd/命令/磁盘/时间同步/SELinux 检查。
+- 新增 `scripts/agent/self-test.sh`：二进制、服务 active/enabled/重启次数、数据/日志目录、最近日志。
+- 新增 `scripts/agent/install-agent.sh`：备份 → 安装 → daemon-reload → 启动 → 自检；失败自动回滚。
+- 新增 `scripts/agent/rollback-agent.sh`：手动恢复备份。
+- 在测试 VM `lyflow-test` 实测：
+  - `preflight.sh` → exit 0，全部 OK（时钟已同步）。
+  - `self-test.sh ssh /usr/sbin/sshd` → exit 0。
+- 状态：`REVIEW`。脚本骨架与自检可用；真实 `ly-agent` 包/服务联调待 T3.7b。
+- 回滚：删除 `scripts/agent` 即可。
+
+
 
 
 
