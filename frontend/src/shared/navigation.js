@@ -13,7 +13,7 @@ export const productNavigation = Object.freeze([
       { path: '/traffic-threats', label: '流量威胁', description: '', roles: ['admin'] },
       { path: '/runtime', label: '运行威胁', description: '', roles: ['admin'] },
       { path: '/rasp', label: '应用威胁', description: '', roles: ['admin'] },
-      { path: '/events', label: '会话查询', description: '', roles: ['admin'] },
+      { path: '/events', label: '事件中心', description: '', roles: ['admin'] },
     ],
   },
   {

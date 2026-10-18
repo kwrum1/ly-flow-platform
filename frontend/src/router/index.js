@@ -13,7 +13,7 @@ const routes = [
     children: [
       { path: 'dashboard', name: 'Overview', component: () => import('../views/situation/GlobalSituation.vue'), meta: { roles: ['admin'] } },
       { path: 'situation/global', name: 'GlobalSituation', component: () => import('../views/situation/GlobalSituation.vue'), meta: { roles: ['admin'] } },
-      { path: 'events', name: 'EventsWorkbench', component: () => import('../pages/EventsWorkbench.vue'), meta: { roles: ['admin'] } },
+      { path: 'events', name: 'EventsWorkbench', component: () => import('../views/events/EventsRoute.vue'), meta: { roles: ['admin'] } },
       { path: 'incidents', name: 'Incidents', component: () => import('../views/Incidents.vue'), meta: { roles: ['admin'] } },
       { path: 'timeline', name: 'IncidentsTimeline', component: () => import('../pages/IncidentsTimeline.vue'), meta: { roles: ['admin'] } },
       { path: 'xdr', name: 'AttackWorkbench', component: () => import('../pages/AttackWorkbench.vue'), meta: { roles: ['admin'] } },

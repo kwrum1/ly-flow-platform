@@ -98,6 +98,7 @@ import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { attackWorkbenchClient, overviewClient } from '../../api/domain'
 import { eventsV2Client } from '../../api/v2'
+import { stageLabel } from '../../domain/attack-labels'
 
 const loading = ref(false)
 const error = ref('')
@@ -135,17 +136,6 @@ function buildRows(items, key) {
     .slice(0, 8)
   const max = rows[0]?.count || 1
   return rows.map((row) => ({ ...row, percent: Math.max(4, Math.round((row.count / max) * 100)) }))
-}
-
-function stageLabel(value) {
-  const labels = {
-    recon: '侦察', initial_access: '初始访问', execution: '执行', persistence: '持久化',
-    privilege_escalation: '提权', defense_evasion: '防御规避', credential_access: '凭据访问',
-    discovery: '发现', lateral_movement: '横向移动', collection: '收集',
-    command_and_control: '命令控制', exfiltration: '外传', impact: '影响',
-    unknown: '未映射',
-  }
-  return labels[value] || value || '-'
 }
 
 function formatNumber(value) {
