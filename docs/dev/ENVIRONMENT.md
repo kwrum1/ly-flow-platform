@@ -22,7 +22,14 @@
 
 ### Go 工具链
 
-`go.work` 要求 `go 1.26.5`。优先使用 `GOTOOLCHAIN=auto` 让 Go 自动下载匹配工具链；若网络受限，安装 1.26.5 到 `/usr/local/go` 或 `/opt/go1.26.5`。
+`go.work` 要求 `go 1.26.5`。当前已验证可用：
+
+```bash
+GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go test ...
+```
+
+Go 会自动下载 1.26.5；`GOSUMDB=off` 的环境变量会导致工具链校验失败，执行时必须覆盖为 `sum.golang.org`。后续在 `scripts/dev/test-all.sh` 和 CI 中固化。
+
 
 ## 2. 测试机（TEST_HOST）
 
