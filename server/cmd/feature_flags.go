@@ -1,5 +1,7 @@
 package main
 
+import "strings"
+
 // FeatureFlags holds server-side feature switches for the LyFlow v2 rollout.
 // Every flag must default to false so an existing deployment keeps its current
 // behavior until the flag is explicitly enabled.
@@ -14,11 +16,22 @@ type FeatureFlags struct {
 // loadFeatureFlags reads feature flags from the environment.
 func loadFeatureFlags() FeatureFlags {
 	return FeatureFlags{
-		EventSchemaV2:    toBool(getEnv("EVENT_SCHEMA_V2_ENABLED", "false")),
-		QueryV2:          toBool(getEnv("QUERY_V2_ENABLED", "false")),
-		CorrelationV2:    toBool(getEnv("CORRELATION_V2_ENABLED", "false")),
-		AgentFacade:      toBool(getEnv("AGENT_FACADE_ENABLED", "false")),
-		ResponseApproval: toBool(getEnv("RESPONSE_APPROVAL_ENABLED", "false")),
+		EventSchemaV2:    featureBool(getEnv("EVENT_SCHEMA_V2_ENABLED", "false")),
+		QueryV2:          featureBool(getEnv("QUERY_V2_ENABLED", "false")),
+		CorrelationV2:    featureBool(getEnv("CORRELATION_V2_ENABLED", "false")),
+		AgentFacade:      featureBool(getEnv("AGENT_FACADE_ENABLED", "false")),
+		ResponseApproval: featureBool(getEnv("RESPONSE_APPROVAL_ENABLED", "false")),
+	}
+}
+
+// featureBool accepts common human spellings used in deployment files while
+// keeping the shared toBool helper unchanged for existing configuration.
+func featureBool(value string) bool {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "1", "true", "yes", "on":
+		return true
+	default:
+		return false
 	}
 }
 
