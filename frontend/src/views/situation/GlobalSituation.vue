@@ -1,5 +1,6 @@
 <template>
-  <section class="situation-page">
+  <OverviewV2 v-if="features.attackV2" />
+  <section v-else class="situation-page">
     <header class="situation-header">
       <div>
         <p>GLOBAL THREAT SITUATION</p>
@@ -70,7 +71,9 @@ import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../../api'
 import worldMap from '../../assets/maps/world-110m.json'
+import { features } from '../../config/features'
 import { formatChinaDateTime, platformNow } from '../../shared/time'
+import OverviewV2 from './OverviewV2.vue'
 
 echarts.registerMap('ly-world', worldMap)
 
