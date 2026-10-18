@@ -247,6 +247,20 @@
 - 风险：当前为进程内图，未做持久化/时间滑窗；T2.4/T2.5 接入 Incident 与前端。
 - 回滚：删除 `server/correlation/graph` 即可。
 
+### T2.4 Incident API/生命周期（DONE）
+
+- 新增 `server/correlation/incident/builder.go`：
+  - 复用 `server/correlation/stage` 与 `server/correlation/graph`，把事件序列转成 `incidentlifecycle.Candidate`。
+  - 自动生成 Incident ID、摘要、最高严重度、首末时间、证据列表。
+  - 支持从 tactic 推导 stage；无 stage 的事件不生成 Incident。
+  - 兼容现有 `incidentlifecycle.NewActiveSnapshot`。
+- 生命周期/API 复用现有 `server/incidentlifecycle`（open/triaged/processing/resolved/closed、审计、抑制）。
+- 新增 `server/correlation/incident/builder_test.go`：3 段链、空输入、无 stage、tactic 推导。
+- 测试：`cd server && go test ./correlation/incident -count=1` → ok
+- 风险：builder 尚未挂到实时消费/持久化循环；T2.5 前端先用现有 v1 Incident API。
+- 回滚：删除 `server/correlation/incident` 即可。
+
+
 
 
 
