@@ -67,6 +67,15 @@ func (runtime *StorageEventRuntime) WriteCanonical(ctx context.Context, event co
 	return runtime.migration.Write(ctx, record)
 }
 
+// WriteEventsV2 persists validated canonical v2 events. The v2 path is a direct
+// ClickHouse append; the legacy v1 path keeps its migration/dual-write logic.
+func (runtime *StorageEventRuntime) WriteEventsV2(ctx context.Context, events []contracts.EventV2) error {
+	if runtime == nil || runtime.clickhouse == nil {
+		return fmt.Errorf("ClickHouse v2 event storage unavailable")
+	}
+	return runtime.clickhouse.InsertEventsV2(ctx, events)
+}
+
 func (runtime *StorageEventRuntime) WriteTrafficSession(ctx context.Context, session analytics.TrafficSessionRecord) error {
 	if runtime == nil || runtime.clickhouse == nil {
 		return fmt.Errorf("ClickHouse full-session storage unavailable")

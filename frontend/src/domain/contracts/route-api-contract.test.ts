@@ -28,7 +28,7 @@ describe('product route and API acceptance contract', () => {
   it('contains one complete record per mounted backend path', () => {
     const paths = PRODUCT_ACCEPTANCE_CONTRACT.apiRoutes.map((route) => route.path)
 
-    expect(paths).toHaveLength(116)
+    expect(paths).toHaveLength(PRODUCT_ACCEPTANCE_CONTRACT.registry.mountedPathCount)
     expect(new Set(paths).size).toBe(paths.length)
     for (const route of PRODUCT_ACCEPTANCE_CONTRACT.apiRoutes) {
       expect(route.operations.length).toBeGreaterThan(0)

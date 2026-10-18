@@ -23,7 +23,7 @@ run_go() {
 case "$MODE" in
   fast)
     run_go pkg ./...
-    run_go server ./analytics ./cmd -run 'TestV2|TestLoadFeatureFlags|TestStageForTactic|TestFromCanonicalV1|TestEventV2'
+    run_go server ./analytics ./cmd ./ingestv2 -run 'TestV2|TestLoadFeatureFlags|TestRouteAPIContract|TestStageForTactic|TestFromCanonicalV1|TestEventV2|TestHandler|TestClickHouseEventV2RowFrom'
     ;;
   full)
     for module in pkg server agent security-engine dpi-engine; do

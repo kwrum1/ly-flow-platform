@@ -1701,6 +1701,7 @@
         "TrafficSessionCount",
         "WriteCanonical",
         "WriteComponentAlert",
+        "WriteEventsV2",
         "WriteTrafficSession",
         "newProductionStorageEventRuntime",
         "normalizeStoredCanonicalPayload"
@@ -4035,6 +4036,7 @@
         "TrafficSessionCount",
         "WriteCanonical",
         "WriteComponentAlert",
+        "WriteEventsV2",
         "WriteTrafficSession",
         "newProductionStorageEventRuntime",
         "normalizeStoredCanonicalPayload"
@@ -6720,6 +6722,7 @@
         "TrafficSessionCount",
         "WriteCanonical",
         "WriteComponentAlert",
+        "WriteEventsV2",
         "WriteTrafficSession",
         "newProductionStorageEventRuntime",
         "normalizeStoredCanonicalPayload"
@@ -6783,6 +6786,31 @@
       ],
       "streams": [
         "events:unified"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
+      "id": "producer:server/ingestv2/handler.go",
+      "kind": "producer",
+      "path": "server/ingestv2/handler.go",
+      "symbols": [
+        "ServeHTTP",
+        "eventErrorMessage",
+        "writeError",
+        "writeJSON"
+      ],
+      "roles": [
+        "producer"
       ],
       "schemas": [
         "lyflow.security_event.v1"

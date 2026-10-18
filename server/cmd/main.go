@@ -39,6 +39,7 @@ import (
 	wsapi "github.com/lyflow/ly-flow-platform/server/api/websocket"
 	"github.com/lyflow/ly-flow-platform/server/incidentlifecycle"
 	"github.com/lyflow/ly-flow-platform/server/ingestionauth"
+	"github.com/lyflow/ly-flow-platform/server/ingestv2"
 	"github.com/lyflow/ly-flow-platform/server/internal/redisconfig"
 	"github.com/lyflow/ly-flow-platform/server/models"
 	"github.com/lyflow/ly-flow-platform/server/modules/asset"
@@ -307,6 +308,21 @@ func main() {
 	bootstrapHandler := auth.NewBootstrapHandler(auth.NewBootstrapTokenManager(userStore, authService, io.Discard))
 
 	mux := http.NewServeMux()
+
+	// v2 ingestion: agent/sensor credential in, canonical events out.
+	mux.Handle("/api/v2/ingest/events", ingestv2.Handler{
+		Auth: func(request *http.Request, surface string) (string, error) {
+			if cfg.IngestionAuth == nil {
+				return "", ingestv2.ErrAuthUnavailable
+			}
+			principal, err := cfg.IngestionAuth.HTTPPrincipal(request, surface)
+			if err != nil {
+				return "", err
+			}
+			return principal.AgentID(), nil
+		},
+		Writer: cfg.EventStorage,
+	})
 
 	// 路由
 	mux.HandleFunc("/", rootHandler)

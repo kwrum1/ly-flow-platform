@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "registry": {
-    "mounted_path_count": 116,
-    "sorted_path_sha256": "d7638dbb035951ba19e7672a4bb98af3d2eefb66e34cad9c25c3a388590896e6"
+    "mounted_path_count": 117,
+    "sorted_path_sha256": "379d57a96a610e958c99392e5802181bd629cad878e7ff39ba9e4d60988063de"
   },
   "roles": [
     "admin",
@@ -5518,6 +5518,38 @@
       ],
       "disposition": "ui-workflow",
       "notes": "Current handler lacks a method guard; intended contract is narrower than current behavior."
+    },
+    {
+      "path": "/api/v2/ingest/events",
+      "auth_mode": "agent-credential",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v2/ingest/events",
+            "body": {
+              "events": []
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v2/ingest/events",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "response",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "agent-only"
     }
   ],
   "expected_red_gaps": [

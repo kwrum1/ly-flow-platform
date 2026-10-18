@@ -46,6 +46,7 @@ func buildRouteRegistry() []RouteSpec {
 		"/api/v1/agent/realtime":        true,
 		"/api/v1/agent/snapshot":        true,
 		"/api/v1/rasp/event":            true,
+		"/api/v2/ingest/events":         true,
 	}
 	paths := []string{
 		"/", "/api/v1/health", "/api/v1/public/situation/global", "/api/v1/stats", "/api/v1/events",
@@ -77,6 +78,7 @@ func buildRouteRegistry() []RouteSpec {
 		"/api/v1/agent/install.sh", "/api/v1/agent/uninstall.sh", "/api/v1/agent/download", "/api/v1/agent/rasp/probe/python",
 		"/api/v1/agent/rasp/probe/php", "/api/v1/agent/rasp/probe/java", "/api/v1/agent/rasp/probe/java/source/",
 		"/api/v1/agent/rasp/probe/nodejs", "/api/v1/agent/rasp/probe/dotnet", "/api/v1/agent/snapshot", "/api/v1/realtime",
+		"/api/v2/ingest/events",
 	}
 	specs := make([]RouteSpec, 0, len(paths))
 	for _, path := range paths {
@@ -98,6 +100,9 @@ func buildRouteRegistry() []RouteSpec {
 
 func routeGroup(path string) string {
 	trimmed := strings.TrimPrefix(path, "/api/v1/")
+	if strings.HasPrefix(path, "/api/v2/") {
+		trimmed = strings.TrimPrefix(path, "/api/v2/")
+	}
 	if path == "/" {
 		return "public"
 	}

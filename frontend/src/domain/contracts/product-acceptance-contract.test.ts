@@ -86,7 +86,7 @@ describe('T02 current red gaps', () => {
     const recordsMissingDisposition = apiRecords.filter((record) => !('disposition' in record))
 
     expect(recordsMissingDisposition).toHaveLength(apiRecords.length)
-    expect(PRODUCT_ACCEPTANCE_CONTRACT.apiRoutes).toHaveLength(116)
+    expect(PRODUCT_ACCEPTANCE_CONTRACT.apiRoutes).toHaveLength(PRODUCT_ACCEPTANCE_CONTRACT.registry.mountedPathCount)
     expect(PRODUCT_ACCEPTANCE_CONTRACT.apiRoutes.every((route) => route.disposition.length > 0)).toBe(true)
   })
 
