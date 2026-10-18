@@ -199,6 +199,19 @@
 - 风险：证据下载/原始 JSON 复制待 T1.6/T2.5 完善；真实数据联调待测试 VM。
 - 回滚：关闭 `VITE_ATTACK_V2_ENABLED`。
 
+### T1.6 统一搜索（DONE）
+
+- 后端 `EventV2Query` 增加 `Query` 字段；ClickHouse 对 `src_ip/dst_ip/asset_id/user_id/process_exe/file_hash/rule_id/event_type` 做 `positionCaseInsensitive` 匹配。
+- `GET /api/v2/events?q=` 接入关键词。
+- 前端事件中心增加关键字输入；顶部全局搜索跳转 `/events?q=...` 后自动带入。
+- 测试：
+  - `go test ./queryv2 ./analytics` → ok
+  - `npm run typecheck` / `npm run build` → ok
+  - `bash scripts/dev/test-all.sh fast` → all fast checks passed
+- 风险：关键词搜索是大小写不敏感子串匹配，未做分词/相关性排序；后续可接 ClickHouse 全文索引。
+- 回滚：移除 `q` 参数与输入即可。
+
+
 
 
 
