@@ -211,6 +211,20 @@
 - 风险：关键词搜索是大小写不敏感子串匹配，未做分词/相关性排序；后续可接 ClickHouse 全文索引。
 - 回滚：移除 `q` 参数与输入即可。
 
+### T2.1 ATT&CK 元数据与映射（DONE）
+
+- 新增 `pkg/attack/mapping.go`：
+  - ATT&CK v16 战术表 + 常用技术表（含子技术）。
+  - 从 Suricata/Wazuh 规则 `metadata`、tags（`attack.technique:`/`attack.tactic:`/`mitre:`）解析。
+  - 技术已知时自动推导战术；战术映射到 `contracts.AttackStage`。
+  - 支持规则 ID fallback 表；未知时返回 `unknown`，不猜测。
+  - 置信度：显式技术 0.8、技术+战术 0.8、仅战术 0.6、fallback 由表定义。
+- 新增 `pkg/attack/mapping_test.go`：metadata、tag、tactic-only、fallback、unknown、大小写查找。
+- 测试：`cd pkg && go test ./attack -count=1` → ok
+- 风险：fallback 表目前为空；后续按规则库逐步补充并评审，避免猜技术 ID。
+- 回滚：删除 `pkg/attack` 即可。
+
+
 
 
 
