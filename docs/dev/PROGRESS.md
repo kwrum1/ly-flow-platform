@@ -77,4 +77,23 @@
 - 风险：v2 的存储 schema 尚未落地，T0.4 处理。
 - 回滚：删除两个新增文件即可，不影响 v1。
 
+### T0.4 证据模型与存储 schema（DONE）
+
+- ClickHouse 新增：
+  - `lyflow_events_v2`：按 `toDate(event_at)` 分区，排序键 `(event_at, source, event_type, asset_id)`，TTL 30 天。
+  - `lyflow_events_1m` / `lyflow_events_1h`：SummingMergeTree 聚合视图。
+- PostgreSQL 新增：
+  - `lyflow_evidence`：evidence_id、event_uid、incident_id、stage、type、ref、sha256、size、ttl、redaction、created_at、expires_at。
+  - `lyflow_incident_evidence`：incident_id + evidence_id 多对多，级联删除。
+  - `event_uid`、`incident_id` 索引。
+- 迁移版本：
+  - PostgreSQL 6–9。
+  - ClickHouse 4–6。
+- 测试：`cd server && GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go test ./analytics -count=1` → `ok`
+- 风险：
+  - 尚未在真实 ClickHouse/PostgreSQL 上执行迁移（测试 VM 未就绪）；T0.5/后续集成测试补。
+  - 迁移是 additive，回滚需手动 `DROP TABLE/INDEX`；生产执行前先备份。
+- 回滚：按版本反向 drop 新表/索引，不影响旧表。
+
+
 
