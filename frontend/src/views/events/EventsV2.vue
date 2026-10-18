@@ -9,6 +9,7 @@
     </header>
 
     <form class="filter-bar" @submit.prevent="load(true)">
+      <label><span>关键字</span><input v-model="filters.q" type="search" placeholder="IP、域名、哈希、进程、用户" /></label>
       <label><span>开始</span><input v-model="filters.from" type="datetime-local" /></label>
       <label><span>结束</span><input v-model="filters.to" type="datetime-local" /></label>
       <label><span>来源</span>
@@ -145,10 +146,12 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { eventsV2Client } from '../../api/v2'
 import { severityLabel, stageLabel, stageLabels } from '../../domain/attack-labels'
 
 const PAGE_SIZE = 50
+const route = useRoute()
 const loading = ref(false)
 const error = ref('')
 const items = ref([])
@@ -157,7 +160,7 @@ const selected = ref(null)
 const detailLoading = ref(false)
 const detailError = ref('')
 
-const filters = reactive({ from: '', to: '', source: '', severity: '', stage: '' })
+const filters = reactive({ q: '', from: '', to: '', source: '', severity: '', stage: '' })
 
 const prettyPayload = computed(() => {
   if (!selected.value?.payload) return ''
@@ -205,6 +208,7 @@ async function load(reset) {
     nextCursor.value = ''
   }
   const params = { limit: PAGE_SIZE }
+  if (filters.q) params.q = filters.q
   if (filters.from) params.from = toRFC3339(filters.from)
   if (filters.to) params.to = toRFC3339(filters.to)
   if (filters.source) params.source = filters.source
@@ -242,6 +246,7 @@ function closeDetail() {
 }
 
 onMounted(() => {
+  filters.q = String(route.query.q || '')
   const to = new Date()
   const from = new Date(to.getTime() - 24 * 60 * 60 * 1000)
   filters.to = toLocalInput(to)

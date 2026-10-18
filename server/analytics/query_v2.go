@@ -28,6 +28,7 @@ type EventV2Query struct {
 	Stage       string
 	AssetID     string
 	TechniqueID string
+	Query       string
 	Limit       int
 	CursorAt    time.Time
 	CursorUID   string
@@ -111,6 +112,15 @@ func (client *HTTPClickHouse) QueryEventsV2(ctx context.Context, query EventV2Qu
 	appendStringFilter("stage", query.Stage)
 	appendStringFilter("asset_id", query.AssetID)
 	appendStringFilter("technique_id", query.TechniqueID)
+	if keyword := strings.TrimSpace(query.Query); keyword != "" {
+		pattern := quoteClickHouseString(keyword)
+		fields := []string{"src_ip", "dst_ip", "asset_id", "user_id", "process_exe", "file_hash", "rule_id", "event_type"}
+		parts := make([]string, 0, len(fields))
+		for _, field := range fields {
+			parts = append(parts, fmt.Sprintf("positionCaseInsensitive(%s, %s) > 0", field, pattern))
+		}
+		conditions = append(conditions, "("+strings.Join(parts, " OR ")+")")
+	}
 	if !query.CursorAt.IsZero() {
 		cursorAt := quoteClickHouseTime(query.CursorAt)
 		cursorUID := quoteClickHouseString(query.CursorUID)

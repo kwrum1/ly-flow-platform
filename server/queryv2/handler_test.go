@@ -32,7 +32,7 @@ func TestListAppliesFilters(t *testing.T) {
 	store := &fakeStore{page: analytics.EventV2Page{Items: []analytics.EventV2View{{EventUID: "evt-1"}}}}
 	handler := Handler{Store: store}
 	request := httptest.NewRequest(http.MethodGet,
-		"/api/v2/events?from=2026-10-18T00:00:00Z&to=2026-10-19T00:00:00Z&source=adapter.suricata&severity=high&limit=10", nil)
+		"/api/v2/events?from=2026-10-18T00:00:00Z&to=2026-10-19T00:00:00Z&source=adapter.suricata&severity=high&limit=10&q=8.8.8.8", nil)
 	recorder := httptest.NewRecorder()
 	handler.List(recorder, request)
 
@@ -41,6 +41,9 @@ func TestListAppliesFilters(t *testing.T) {
 	}
 	if store.query.Source != "adapter.suricata" || store.query.Severity != "high" || store.query.Limit != 10 {
 		t.Fatalf("filters not applied: %+v", store.query)
+	}
+	if store.query.Query != "8.8.8.8" {
+		t.Fatalf("keyword not applied: %+v", store.query)
 	}
 	if !store.query.From.Equal(time.Date(2026, 10, 18, 0, 0, 0, 0, time.UTC)) {
 		t.Fatalf("from = %s", store.query.From)

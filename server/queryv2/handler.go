@@ -102,6 +102,7 @@ func parseQuery(request *http.Request, now time.Time) (analytics.EventV2Query, e
 		Stage:       strings.TrimSpace(values.Get("stage")),
 		AssetID:     strings.TrimSpace(values.Get("asset_id")),
 		TechniqueID: strings.TrimSpace(values.Get("technique_id")),
+		Query:       strings.TrimSpace(values.Get("q")),
 		Limit:       limit,
 	}
 	if cursor := strings.TrimSpace(values.Get("cursor")); cursor != "" {
