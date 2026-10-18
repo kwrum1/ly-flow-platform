@@ -37,8 +37,8 @@
 | T2.2 | 阶段状态机 | DONE | T2.1 | — |
 | T2.3 | 实体图与关联 | DONE | T2.1 | — |
 | T2.4 | Incident API/生命周期 | DONE | T2.2, T2.3 | — |
-| T2.5 | 攻击链/时间线 UI | IN_PROGRESS | T2.4, T1.3 | — |
-| T2.6 | ATT&CK 覆盖率 | TODO | T2.1, T2.4 | — |
+| T2.5 | 攻击链/时间线 UI | DONE | T2.4, T1.3 | — |
+| T2.6 | ATT&CK 覆盖率 | IN_PROGRESS | T2.1, T2.4 | — |
 | T2.7 | 关联验证 | TODO | T2.2–T2.6 | G3 |
 
 ## M3：Agent、RASP、响应

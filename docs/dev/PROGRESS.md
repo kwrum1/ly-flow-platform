@@ -260,6 +260,23 @@
 - 风险：builder 尚未挂到实时消费/持久化循环；T2.5 前端先用现有 v1 Incident API。
 - 回滚：删除 `server/correlation/incident` 即可。
 
+### T2.5 攻击链/时间线 UI（DONE）
+
+- 新增 `frontend/src/views/incidents/IncidentTimelineV2.vue`：
+  - 左侧 Incident 列表，右侧详情。
+  - 阶段时间线：按 `stage_groups`（或 `stages`）分组，证据挂在阶段下。
+  - 证据矩阵、源/受害 IP、资产、建议、状态流转。
+- 新增 `IncidentRoute.vue`：`features.attackV2` 开时用新页面，否则保留旧 `Incidents.vue`。
+- 路由 `/incidents` 改为包装器；路由数量不变。
+- 补充 `server/ingestv2/handler.go` 的 native fixture 绑定，重新生成 event inventory。
+- 测试：
+  - `npm run typecheck` / `npm run build` → ok
+  - `go test ./contracts ./eventinventory` → ok
+  - `bash scripts/dev/test-all.sh fast` → all fast checks passed
+- 风险：证据下载/原始 JSON 展开待后续；真实数据联调待测试 VM。
+- 回滚：关闭 `VITE_ATTACK_V2_ENABLED`。
+
+
 
 
 
