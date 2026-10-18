@@ -327,6 +327,26 @@
 - 状态：`REVIEW`。进程监管/Provider 已就绪；**事件规范化、注册/心跳、配置下发仍待接入**，因此不标记 DONE。
 - 回滚：删除 provider/process 文件即可。
 
+### 测试 VM 建成（T0.0 DONE）
+
+- 在 ESXi `10.1.18.124` 的 `data` 存储创建 `lyflow-test`：
+  - Ubuntu 24.04.5 cloud image（官方 VMDK，120G 虚拟盘）。
+  - 6 vCPU / 8 GiB / 根分区约 113G 可用。
+  - 静态 IP：见私有环境文件；网关 `10.1.18.1`。
+  - Docker 29.1.3 + Compose v2.40.3。
+  - 编译机 root SSH key 已注入；root 密码已设置。
+- 关键修复：
+  - ESXi VMX 使用 `guestOS = "ubuntu-64"`、`firmware = "bios"`、`lsilogic` + PCI bridges。
+  - 官方 VMDK 经 `vmkfstools -i` 转 VMFS thin，并扩展/`resize2fs` 到 120G。
+  - 通过离线挂载修好 netplan、SSH key、GRUB serial console、host keys。
+- 验证：
+  - 编译机 `ping 10.1.18.126` → OK
+  - `ssh root@10.1.18.126` → OK
+  - `docker version` → 29.1.3
+  - `docker compose version` → 2.40.3
+- 待补：ESXi 快照（API 暂时拒绝连接，稍后补）。
+
+
 
 
 

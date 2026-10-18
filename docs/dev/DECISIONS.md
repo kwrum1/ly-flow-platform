@@ -73,9 +73,11 @@
 
 - 日期：2026-10-19
 - 决策：`10.1.18.124` 是 ESXi 宿主机；现有 `mydist-lab` 仅 2C/2G，不作为 LyFlow 测试机。先做不依赖测试 VM 的 T0.1–T0.5，同时准备专用测试 VM。
+- 后续：已创建并启动专用测试 VM `lyflow-test`（Ubuntu 24.04.5，6C/8G/120G，Docker 29.1.3 + Compose 2.40.3，静态 IP 见私有环境文件）；编译机 root SSH key 已注入。
 - 原因：避免在资源不足的 VM 上得出错误结论。
 - 替代方案：直接在 `mydist-lab` 上测试；被否，资源不足且用途不符。
-- 后果：集成/E2E 任务在测试 VM 就绪前标记 `BLOCKED`。
+- 后果：集成/E2E 任务现在可以在 `lyflow-test` 上执行；ESXi 快照待 API 恢复后补。
+
 
 ## D-009 v2 Ingest 使用 agent credential + ClickHouse 直写
 

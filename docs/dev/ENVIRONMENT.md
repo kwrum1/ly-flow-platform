@@ -35,25 +35,30 @@ Go 会自动下载 1.26.5；`GOSUMDB=off` 的环境变量会导致工具链校�
 
 | 项 | 值 |
 |---|---|
-| 地址 | `TEST_HOST`（见私有环境文件） |
-| 类型 | ESXi 8.0.3 宿主机 |
-| 管理地址 | 私有环境文件 |
+| 宿主机 | ESXi 8.0.3，`ESXI_HOST`（见私有环境文件） |
 | 数据存储 | `data`，约 855G 可用 |
-| 现有 VM | `mydist-lab`，2 vCPU / 2 GiB，双网卡；**不作为 LyFlow 测试机** |
-| 目标测试 VM | 专用 Linux VM，建议 8 vCPU / 16–32 GiB / 200G+；待准备 |
+| 测试 VM | `lyflow-test` |
+| VM 地址 | `TEST_VM_HOST`（见私有环境文件） |
+| OS | Ubuntu 24.04.5 LTS |
+| CPU / 内存 | 6 vCPU / 8 GiB |
+| 磁盘 | 120G 虚拟盘，根分区已扩展，约 113G 可用 |
+| Docker | 29.1.3 |
+| Compose | v2.40.3 |
 | 部署目录 | `/opt/lyflow/deploy` |
 | 数据目录 | `/opt/lyflow/data` |
 | 报告目录 | `/opt/lyflow/reports` |
+| 访问 | 编译机 root SSH key 已注入 |
 
 ### 测试 VM 准备清单
 
-- [ ] 创建/准备专用 Linux VM（Ubuntu 24.04/25.04 或同等）
-- [ ] 8 vCPU / 16–32 GiB / 200G+ 磁盘
-- [ ] 安装 Docker Engine + Compose Plugin
-- [ ] 配置静态 IP / 可被编译机 SSH
-- [ ] 配置 SSH key（与编译机一致）
-- [ ] 打快照，记录回滚点
-- [ ] 在 `PROGRESS.md` 记录 VM 信息（不写密码）
+- [x] 创建专用 Linux VM（Ubuntu 24.04.5 cloud image）
+- [x] 6 vCPU / 8 GiB / 120G 磁盘
+- [x] 安装 Docker Engine + Compose Plugin
+- [x] 静态 IP / 可被编译机 SSH
+- [x] 配置 SSH key（与编译机一致）
+- [ ] 打快照，记录回滚点（ESXi API 暂时不稳定，稍后补）
+- [x] 在 `PROGRESS.md` 记录 VM 信息（不写密码）
+
 
 ## 3. 网络与端口
 
