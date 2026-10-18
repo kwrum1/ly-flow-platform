@@ -8,3 +8,5 @@ release
 *.zip
 *.img
 *.iso
+private/
+docs/dev/DEVELOPMENT_GUIDE.md

@@ -793,6 +793,36 @@
       ]
     },
     {
+      "id": "adapter:pkg/contracts/security_event_v2.go",
+      "kind": "adapter",
+      "path": "pkg/contracts/security_event_v2.go",
+      "symbols": [
+        "FromCanonicalV1",
+        "HasAny",
+        "IsKnownAttackStage",
+        "IsKnownEvidenceType",
+        "StageForTactic",
+        "Validate",
+        "validateGovernanceV2",
+        "validateQualityFlags"
+      ],
+      "roles": [
+        "adapter"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1",
+        "lyflow.security_event.v2"
+      ],
+      "owner": "pkg",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
       "id": "adapter:pkg/contracts/security_event_validate.go",
       "kind": "adapter",
       "path": "pkg/contracts/security_event_validate.go",
@@ -7171,6 +7201,36 @@
       ],
       "schemas": [
         "lyflow.security_event.v1"
+      ],
+      "owner": "pkg",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
+      "id": "schema:pkg/contracts/security_event_v2.go",
+      "kind": "schema",
+      "path": "pkg/contracts/security_event_v2.go",
+      "symbols": [
+        "FromCanonicalV1",
+        "HasAny",
+        "IsKnownAttackStage",
+        "IsKnownEvidenceType",
+        "StageForTactic",
+        "Validate",
+        "validateGovernanceV2",
+        "validateQualityFlags"
+      ],
+      "roles": [
+        "schema"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1",
+        "lyflow.security_event.v2"
       ],
       "owner": "pkg",
       "phases": [
