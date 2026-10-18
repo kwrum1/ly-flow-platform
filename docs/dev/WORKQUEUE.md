@@ -48,8 +48,8 @@
 | ID | 任务 | 状态 | 依赖 | Gate |
 |---|---|---|---|---|
 | T3.1 | `ly-agent` supervisor | DONE | T0.2 | — |
-| T3.2 | Linux Elkeid 集成 | IN_PROGRESS | T3.1 | — |
-| T3.3 | Windows Wazuh 集成 | TODO | T3.1 | — |
+| T3.2 | Linux Elkeid 集成 | REVIEW | T3.1 | — |
+| T3.3 | Windows Wazuh 集成 | REVIEW | T3.1 | — |
 | T3.4 | OpenRASP Java/PHP | TODO | T3.1 | — |
 | T3.5 | Elkeid RASP Python/Go/Node | TODO | T3.1 | — |
 | T3.6 | Agent 门面/API/UI | TODO | T3.2, T3.3 | — |

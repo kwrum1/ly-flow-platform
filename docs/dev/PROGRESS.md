@@ -313,6 +313,21 @@
 - 风险：尚未接入具体组件（Elkeid/Wazuh/YARA/RASP）；T3.2–T3.5 逐步接入。
 - 回滚：删除 `agent/supervisor` 即可。
 
+### T3.2/T3.3 进程组件与 Elkeid/Wazuh Provider（REVIEW）
+
+- 新增 `agent/supervisor/process.go`：
+  - 外部长驻进程生命周期、stdout/stderr 行日志、取消、非零退出错误、Probe。
+- 新增 `agent/supervisor/providers/elkeid`：
+  - 默认 `/opt/elkeid/agent/elkeid-agent`，可配置路径/参数/环境。
+- 新增 `agent/supervisor/providers/wazuh`：
+  - 默认 `/var/ossec/bin/wazuh-agentd`，可配置。
+- 测试：
+  - `cd agent && go test ./supervisor/... -count=1` → ok
+  - 覆盖：正常退出、非零退出、取消、日志、Probe、默认/显式路径。
+- 状态：`REVIEW`。进程监管/Provider 已就绪；**事件规范化、注册/心跳、配置下发仍待接入**，因此不标记 DONE。
+- 回滚：删除 provider/process 文件即可。
+
+
 
 
 
