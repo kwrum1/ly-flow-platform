@@ -393,6 +393,19 @@
 - 状态：`REVIEW`。策略引擎就绪；**执行器/回滚/审计持久化**尚未接入，T3.8b 处理。
 - 回滚：删除 `server/response` 即可。
 
+### T3.9 横向移动检测（REVIEW）
+
+- 新增 `server/correlation/lateral/detector.go`：
+  - SMB/RDP/WinRM/SSH 端口识别与目标聚合。
+  - 时间窗内多目标横向、凭据失败爆发两类 finding。
+  - 置信度、技术 ID、首末时间、证据事件 UID。
+- 新增 `server/correlation/lateral/detector_test.go`：SMB 横向、最少目标数、凭据爆发、时间窗。
+- 测试：`cd server && go test ./correlation/lateral -count=1` → ok
+- 状态：`REVIEW`。检测器就绪；**尚未接入实时消费与 Incident 阶段机**，T3.9b/M4 接入。
+- Gate G4：`READY_FOR_REVIEW`。
+- 回滚：删除 `server/correlation/lateral` 即可。
+
+
 
 
 

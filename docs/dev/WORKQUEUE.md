@@ -55,13 +55,15 @@
 | T3.6 | Agent 门面/API/UI | REVIEW | T3.2, T3.3 | — |
 | T3.7 | 安装器/自检/回滚 | REVIEW | T3.1–T3.6 | — |
 | T3.8 | 响应审批/时间窗/回滚 | REVIEW | T3.6 | — |
-| T3.9 | 横向移动检测 | IN_PROGRESS | T2.3, T3.2, T3.3 | G4 |
+| T3.9 | 横向移动检测 | REVIEW | T2.3, T3.2, T3.3 | G4 |
+
+> Gate G4：`READY_FOR_REVIEW`。Agent supervisor/provider、RASP 配置、安装自检、响应策略、横向移动检测均有代码与测试；真实端上联调待测试 VM/Agent 包。
 
 ## M4：内容、抓包、性能、交付
 
 | ID | 任务 | 状态 | 依赖 | Gate |
 |---|---|---|---|---|
-| T4.1 | 内容同步服务 | TODO | T1.1 | — |
+| T4.1 | 内容同步服务 | IN_PROGRESS | T1.1 | — |
 | T4.2 | Suricata/ET Open 集成 | TODO | T4.1 | — |
 | T4.3 | `ly_probe` 产品化补丁 | TODO | T0.0 | — |
 | T4.4 | `ly_probe` 规则转换 | TODO | T4.3 | — |
