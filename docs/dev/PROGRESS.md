@@ -131,6 +131,50 @@
 - 风险：尚未在测试 VM 上做真实 HTTP + ClickHouse 集成；T1.2/测试 VM 就绪后补。
 - 回滚：移除路由和 handler，保留 v2 表不影响旧链路。
 
+### T1.2 Query v2 + 查询治理（DONE）
+
+- 新增 `server/analytics/query_v2.go`：
+  - `QueryEventsV2`：时间范围、source/event_type/severity/stage/asset_id/technique_id 过滤，游标分页，`event_at DESC, event_uid DESC`。
+  - `GetEventV2`：单事件详情 + 证据 JSON。
+  - 查询治理：默认 24h、最大 30 天、默认 50 条、最大 500 条。
+  - ClickHouse 字符串转义 + 时间格式。
+- 新增 `server/queryv2/handler.go`：
+  - `GET /api/v2/events`
+  - `GET /api/v2/events/{id}`
+  - 统一错误/成功 envelope，游标编解码。
+- 路由注册与契约更新：119 条路由。
+- 测试：
+  - `go test ./queryv2 ./analytics` → ok
+  - `go test ./cmd -run 'TestRouteAPIContract'` → ok
+  - `bash scripts/dev/test-all.sh fast` → all fast checks passed
+- 风险：真实 ClickHouse 集成/分页边界待测试 VM；当前只有单元测试。
+- 回滚：移除两条 v2 路由和 query 包，不影响旧 API。
+
+### T1.3 新 UI shell（DONE）
+
+- 新增 `frontend/src/app/shell/AppShellV2.vue`：
+  - ly_vis 风格：50px 顶部一级导航 + 45px 二级页签 + 20px 内容区。
+  - 浅色默认；品牌、统一搜索、时间、用户、退出。
+  - 响应式：窄屏隐藏搜索/时钟，导航可横向滚动。
+- 新增 `frontend/src/app/shell/navigation.js`：按角色过滤、当前分组、页签计算。
+- `frontend/src/app/AppShell.vue` 通过 `features.uiShellV2` 切换新旧 shell；默认关闭。
+- 测试：
+  - `npm run typecheck` → ok
+  - `npm test -- src/app/shell/navigation.test.js` → 5 passed
+  - `npm run build` → ok
+  - `bash scripts/dev/test-all.sh fast` → all fast checks passed
+- 风险：尚未做浏览器截图/可访问性验收；T1.4–T1.6 页面接入时补。
+- 回滚：关闭 `VITE_UI_SHELL_V2_ENABLED` 即回到旧 shell。
+
+### 维护：编译机磁盘清理（2026-10-19）
+
+- 清理 `/root/ly-flow-platform` 的旧生成物：`release/`、`images/`、`node_modules/`、`frontend/dist/`、`server/dist/`、旧编译产物、`rules/compiled/live/` 等。
+- 删除旧 takeover 备份目录 `ly-flow-takeover-archive-20260730.*`。
+- 清理 Docker build cache/悬空镜像。
+- 结果：根分区可用空间从约 60G 提升到约 116G（59% used）。
+- 未删除：`/root/ly-flow-platform/.git`、当前 worktree `/opt/lyflow/src`、`/opt/lyflow/repo.git`、签名目录、其他项目目录。
+
+
 
 
 
