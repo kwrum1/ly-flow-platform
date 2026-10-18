@@ -276,6 +276,23 @@
 - 风险：证据下载/原始 JSON 展开待后续；真实数据联调待测试 VM。
 - 回滚：关闭 `VITE_ATTACK_V2_ENABLED`。
 
+### T2.6 ATT&CK 覆盖率（DONE）
+
+- 新增 `pkg/attack/coverage.go`：
+  - 基于 ATT&CK 表统计已知战术/技术、观测技术数、覆盖率。
+  - 战术维度聚合，技术按命中次数排序；未知技术忽略。
+- 新增 `frontend/src/domain/attack-matrix.js`：
+  - 阶段顺序、阶段/技术聚合、未映射归入 unknown。
+- 总览页新增“ATT&CK 覆盖（样本）”矩阵：阶段 × 技术 chip，显示样本命中数。
+- 测试：
+  - `go test ./attack` → ok
+  - `npm test -- src/domain/attack-matrix.test.js` → 3 passed
+  - `npm run typecheck` / `npm run build` → ok
+  - `bash scripts/dev/test-all.sh fast` → all fast checks passed
+- 风险：当前矩阵基于最近 100 条样本，不是全量覆盖率；后续接服务端聚合。
+- 回滚：移除矩阵组件/覆盖率包。
+
+
 
 
 
