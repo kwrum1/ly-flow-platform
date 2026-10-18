@@ -64,3 +64,17 @@
   - 服务端仍强制 `GOTOOLCHAIN=auto` + `GOSUMDB=sum.golang.org` 下载 Go 1.26.5；后续在 CI/脚本中固化。
 - 回滚：删除新增文件并回退 `server/cmd/main.go` 的 `Features` 字段。
 
+### T0.3 Event v2 契约（DONE）
+
+- 新增 `pkg/contracts/security_event_v2.go`：
+  - `SecurityEventSchemaV2 = "lyflow.security_event.v2"`
+  - `AttackStage` 与 `StageForTactic`（ATT&CK v16 战术映射）
+  - `EventV2`、`Entities`、`Detection`、`EvidenceRef`、`RawRef`
+  - `Validate()`：身份、来源、时间、实体、严重度、置信度、ATT&CK、证据、原始摘要、质量标记、治理
+  - `FromCanonicalV1()`：v1 → v2 适配，合成 Asset 实体并从 tactic 推导 stage
+- 新增 `pkg/contracts/security_event_v2_test.go`：正常路径 + 缺字段/非法枚举/非法置信度/证据缺哈希/重复质量标记/治理缺失 + v1 适配。
+- 测试：`cd pkg && GOTOOLCHAIN=auto GOSUMDB=sum.golang.org go test ./contracts -count=1` → `ok`
+- 风险：v2 的存储 schema 尚未落地，T0.4 处理。
+- 回滚：删除两个新增文件即可，不影响 v1。
+
+

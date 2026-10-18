@@ -11,8 +11,8 @@
 | T0.0 | 环境接入与基线 | IN_PROGRESS | — | — |
 | T0.1 | 建立开发规范与进度文件 | DONE | T0.0 | — |
 | T0.2 | Feature flags 与配置 | DONE | T0.1 | — |
-| T0.3 | Event v2 契约 | IN_PROGRESS | T0.1 | — |
-| T0.4 | 证据模型与存储 schema | TODO | T0.3 | — |
+| T0.3 | Event v2 契约 | DONE | T0.1 | — |
+| T0.4 | 证据模型与存储 schema | IN_PROGRESS | T0.3 | — |
 | T0.5 | CI/测试脚本与许可检查 | TODO | T0.2 | G1 |
 
 ## M1：数据主链与 UI shell
