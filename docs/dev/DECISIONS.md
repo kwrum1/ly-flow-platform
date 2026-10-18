@@ -76,3 +76,12 @@
 - 原因：避免在资源不足的 VM 上得出错误结论。
 - 替代方案：直接在 `mydist-lab` 上测试；被否，资源不足且用途不符。
 - 后果：集成/E2E 任务在测试 VM 就绪前标记 `BLOCKED`。
+
+## D-009 v2 Ingest 使用 agent credential + ClickHouse 直写
+
+- 日期：2026-10-19
+- 决策：`/api/v2/ingest/events` 使用现有 `ingestionauth` 的 agent credential；校验后直接写入 ClickHouse `lyflow_events_v2`。
+- 原因：复用现有认证与审计链路；v2 事件是追加写，不需要走 v1 的双写迁移状态机。
+- 替代方案：新开独立 token；被否，增加一套认证与轮换成本。
+- 后果：Vector/Wazuh/Elkeid 接入时需要配置一个 agent/sensor 身份；后续在部署文档中说明。
+

@@ -13,14 +13,16 @@
 | T0.2 | Feature flags 与配置 | DONE | T0.1 | — |
 | T0.3 | Event v2 契约 | DONE | T0.1 | — |
 | T0.4 | 证据模型与存储 schema | DONE | T0.3 | — |
-| T0.5 | CI/测试脚本与许可检查 | IN_PROGRESS | T0.2 | G1 |
+| T0.5 | CI/测试脚本与许可检查 | DONE | T0.2 | G1 |
+
+> Gate G1：`READY_FOR_REVIEW`。Event v2、证据 schema、许可/密钥/私有边界检查已完成；等待人工评审。按“不停止”策略继续 M1 中不依赖 G1 的任务。
 
 ## M1：数据主链与 UI shell
 
 | ID | 任务 | 状态 | 依赖 | Gate |
 |---|---|---|---|---|
-| T1.1 | Ingest v2 | TODO | T0.3, T0.4 | — |
-| T1.2 | Query v2 + 查询治理 | TODO | T1.1 | — |
+| T1.1 | Ingest v2 | DONE | T0.3, T0.4 | — |
+| T1.2 | Query v2 + 查询治理 | IN_PROGRESS | T1.1 | — |
 | T1.3 | 新 UI shell | TODO | T0.2 | — |
 | T1.4 | 总览页 | TODO | T1.2, T1.3 | — |
 | T1.5 | 事件中心 + 详情 + 证据面板 | TODO | T1.2, T1.3 | — |

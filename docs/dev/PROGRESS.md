@@ -95,5 +95,42 @@
   - 迁移是 additive，回滚需手动 `DROP TABLE/INDEX`；生产执行前先备份。
 - 回滚：按版本反向 drop 新表/索引，不影响旧表。
 
+### T0.5 CI/测试脚本与许可检查（DONE）
+
+- 新增 `scripts/dev/test-all.sh`：`fast` 模式（pkg + server 纯测试 + 前端 typecheck/test/lint + 策略检查）和 `full` 模式。
+- 新增策略脚本：
+  - `check-secrets.sh`：拦截已知密码、私钥、未忽略的 `.env`。
+  - `check-private.sh`：`private/` 不得入库；默认 compose 不得引用 Elkeid HUB/Console。
+  - `check-licenses.sh`：拦截已知 AGPL/SSPL 依赖；有 `go-licenses`/`license-checker` 时跑 SPDX 报告。
+- 新增 `.github/workflows/ci.yml`（fast checks）。
+- `.gitignore`/`.dockerignore` 增加 `private/` 边界。
+- 重新生成 `docs/generated/event-contract-inventory.json`。
+- 测试：`bash scripts/dev/test-all.sh fast` → `all fast checks passed`
+- 已知：前端 lint 有 1442 个 warning、0 error（历史问题，后续单独清理）。
+- Gate G1：`READY_FOR_REVIEW`。
+- 回滚：删除脚本/工作流并恢复 `.gitignore`/`.dockerignore`。
+
+### T1.1 Ingest v2（DONE）
+
+- 新增 `server/ingestv2/handler.go`：
+  - `POST /api/v2/ingest/events`，agent credential 认证。
+  - 批量上限 1000，body 上限 4 MiB。
+  - 默认填充 tenant/correlation/asset/ingested_at；payload SHA-256 自动计算。
+  - 校验 `contracts.EventV2`，返回 `{code:0,data:{accepted}}`。
+- 新增 `server/analytics/clickhouse_v2.go`：`InsertEventsV2` 写入 `lyflow_events_v2`。
+- `StorageEventRuntime` 新增 `WriteEventsV2`。
+- 路由注册：
+  - `route_registry_data.go`：新增 `/api/v2/ingest/events`，agent-credential。
+  - `route_registry_methods.go`：POST。
+  - `route-api-contract.json`：117 条路由，更新 digest。
+- 前端契约测试改为从 `registry.mountedPathCount` 读取，不再硬编码 116。
+- 测试：
+  - `go test ./ingestv2 ./analytics` → ok
+  - `go test ./cmd -run 'TestRouteAPIContract|TestLoadFeatureFlags'` → ok
+  - `bash scripts/dev/test-all.sh fast` → all fast checks passed
+- 风险：尚未在测试 VM 上做真实 HTTP + ClickHouse 集成；T1.2/测试 VM 就绪后补。
+- 回滚：移除路由和 handler，保留 v2 表不影响旧链路。
+
+
 
 
