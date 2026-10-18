@@ -236,6 +236,18 @@
 - 风险：状态机目前是内存态，尚未接 ClickHouse/实体图；T2.3/T2.4 接入。
 - 回滚：删除 `server/correlation/stage` 即可。
 
+### T2.3 实体图与关联（DONE）
+
+- 新增 `server/correlation/graph/graph.go`：
+  - 节点：asset/user/process/file/ip/domain。
+  - 边：spawn/write/connect/login/resolve。
+  - 事件去重、邻接表、BFS 最短路径、连通分量。
+- 新增 `server/correlation/graph/graph_test.go`：实体节点、资产→文件路径、用户→资产登录、断链分量、重复事件去重。
+- 测试：`cd server && go test ./correlation/graph -count=1` → ok
+- 风险：当前为进程内图，未做持久化/时间滑窗；T2.4/T2.5 接入 Incident 与前端。
+- 回滚：删除 `server/correlation/graph` 即可。
+
+
 
 
 
