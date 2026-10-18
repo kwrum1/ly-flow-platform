@@ -405,6 +405,18 @@
 - Gate G4：`READY_FOR_REVIEW`。
 - 回滚：删除 `server/correlation/lateral` 即可。
 
+### T4.1 内容同步服务（REVIEW）
+
+- 新增 `server/content/registry.go`：
+  - 源模型（ID/名称/Kind/URL/License/Cadence/Enabled）。
+  - `Due` 按 cadence 计算待同步源。
+  - 许可门：拒绝 Elkeid License、proprietary、unknown。
+- 新增 `server/content/registry_test.go`：待同步、Elkeid License 拒绝、非法源、许可白名单。
+- 测试：`cd server && go test ./content -count=1` → ok
+- 状态：`REVIEW`。注册表/许可门就绪；**实际下载/编译/灰度**由 `suricata-update`、`sigma-cli`、`yara` 适配器接入，T4.2 处理。
+- 回滚：删除 `server/content` 即可。
+
+
 
 
 

@@ -63,8 +63,8 @@
 
 | ID | 任务 | 状态 | 依赖 | Gate |
 |---|---|---|---|---|
-| T4.1 | 内容同步服务 | IN_PROGRESS | T1.1 | — |
-| T4.2 | Suricata/ET Open 集成 | TODO | T4.1 | — |
+| T4.1 | 内容同步服务 | REVIEW | T1.1 | — |
+| T4.2 | Suricata/ET Open 集成 | IN_PROGRESS | T4.1 | — |
 | T4.3 | `ly_probe` 产品化补丁 | TODO | T0.0 | — |
 | T4.4 | `ly_probe` 规则转换 | TODO | T4.3 | — |
 | T4.5 | Capture doctor | TODO | T4.3 | — |
