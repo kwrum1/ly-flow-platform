@@ -346,6 +346,20 @@
   - `docker compose version` → 2.40.3
 - 待补：ESXi 快照（API 暂时拒绝连接，稍后补）。
 
+### T3.4/T3.5 RASP 配置助手（REVIEW）
+
+- 新增 `agent/supervisor/rasp/openrasp`：
+  - Java `-javaagent` 参数生成（jar/root/config/cloud.enable=false）。
+  - PHP `extension`/ini 生成。
+  - `Probe` 检查 jar/so 是否存在。
+- 新增 `agent/supervisor/rasp/elkeidrasp`：
+  - Python `PYTHONPATH`/`LYFLOW_RASP_CONFIG`/`LYFLOW_RASP_ROOT`/monitor 模式环境。
+  - `Probe` 检查探针目录。
+- 测试：`cd agent && go test ./supervisor/... -count=1` → all ok
+- 状态：`REVIEW`。配置生成/探针检查就绪；**真实注入、attach、事件上报仍待测试 VM 联调**。
+- 回滚：删除 `agent/supervisor/rasp` 即可。
+
+
 
 
 

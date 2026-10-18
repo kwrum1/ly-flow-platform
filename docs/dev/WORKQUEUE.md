@@ -50,9 +50,9 @@
 | T3.1 | `ly-agent` supervisor | DONE | T0.2 | — |
 | T3.2 | Linux Elkeid 集成 | REVIEW | T3.1 | — |
 | T3.3 | Windows Wazuh 集成 | REVIEW | T3.1 | — |
-| T3.4 | OpenRASP Java/PHP | TODO | T3.1 | — |
-| T3.5 | Elkeid RASP Python/Go/Node | TODO | T3.1 | — |
-| T3.6 | Agent 门面/API/UI | TODO | T3.2, T3.3 | — |
+| T3.4 | OpenRASP Java/PHP | REVIEW | T3.1 | — |
+| T3.5 | Elkeid RASP Python/Go/Node | REVIEW | T3.1 | — |
+| T3.6 | Agent 门面/API/UI | IN_PROGRESS | T3.2, T3.3 | — |
 | T3.7 | 安装器/自检/回滚 | TODO | T3.1–T3.6 | — |
 | T3.8 | 响应审批/时间窗/回滚 | TODO | T3.6 | — |
 | T3.9 | 横向移动检测 | TODO | T2.3, T3.2, T3.3 | G4 |
