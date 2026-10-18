@@ -292,6 +292,18 @@
 - 风险：当前矩阵基于最近 100 条样本，不是全量覆盖率；后续接服务端聚合。
 - 回滚：移除矩阵组件/覆盖率包。
 
+### T2.7 关联验证（DONE）
+
+- 新增 `server/correlation/incident/validation_test.go`：
+  - Web Exploit → Execution → C2。
+  - Credential Access → Discovery → Lateral Movement。
+  - WebShell → Persistence → Privilege Escalation。
+- 每条链校验：阶段、证据数、技术数、最高严重度。
+- 测试：`cd server && go test ./correlation/incident -count=1` → ok
+- Gate G3：`READY_FOR_REVIEW`；真实 PCAP/EVTX 回放待测试 VM。
+- 回滚：删除验证测试即可。
+
+
 
 
 

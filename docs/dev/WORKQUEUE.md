@@ -39,13 +39,15 @@
 | T2.4 | Incident API/生命周期 | DONE | T2.2, T2.3 | — |
 | T2.5 | 攻击链/时间线 UI | DONE | T2.4, T1.3 | — |
 | T2.6 | ATT&CK 覆盖率 | DONE | T2.1, T2.4 | — |
-| T2.7 | 关联验证 | IN_PROGRESS | T2.2–T2.6 | G3 |
+| T2.7 | 关联验证 | DONE | T2.2–T2.6 | G3 |
+
+> Gate G3：`READY_FOR_REVIEW`。3 条合成攻击链通过 builder/阶段状态机验证；真实 PCAP/EVTX 回放待测试 VM。
 
 ## M3：Agent、RASP、响应
 
 | ID | 任务 | 状态 | 依赖 | Gate |
 |---|---|---|---|---|
-| T3.1 | `ly-agent` supervisor | TODO | T0.2 | — |
+| T3.1 | `ly-agent` supervisor | IN_PROGRESS | T0.2 | — |
 | T3.2 | Linux Elkeid 集成 | TODO | T3.1 | — |
 | T3.3 | Windows Wazuh 集成 | TODO | T3.1 | — |
 | T3.4 | OpenRASP Java/PHP | TODO | T3.1 | — |
