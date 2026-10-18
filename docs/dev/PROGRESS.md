@@ -303,6 +303,17 @@
 - Gate G3：`READY_FOR_REVIEW`；真实 PCAP/EVTX 回放待测试 VM。
 - 回滚：删除验证测试即可。
 
+### T3.1 `ly-agent` supervisor（DONE）
+
+- 新增 `agent/supervisor/supervisor.go`：
+  - 组件生命周期（starting/running/restarting/stopped/failed）。
+  - 指数退避重启、最大重启次数、上下文取消、状态快照。
+- 新增 `agent/supervisor/supervisor_test.go`：正常停止、flaky 重启、永久失败、状态顺序。
+- 测试：`cd agent && go test ./supervisor -count=1` → ok
+- 风险：尚未接入具体组件（Elkeid/Wazuh/YARA/RASP）；T3.2–T3.5 逐步接入。
+- 回滚：删除 `agent/supervisor` 即可。
+
+
 
 
 
