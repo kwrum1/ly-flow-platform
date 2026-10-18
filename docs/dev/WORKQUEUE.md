@@ -54,8 +54,8 @@
 | T3.5 | Elkeid RASP Python/Go/Node | REVIEW | T3.1 | — |
 | T3.6 | Agent 门面/API/UI | REVIEW | T3.2, T3.3 | — |
 | T3.7 | 安装器/自检/回滚 | REVIEW | T3.1–T3.6 | — |
-| T3.8 | 响应审批/时间窗/回滚 | IN_PROGRESS | T3.6 | — |
-| T3.9 | 横向移动检测 | TODO | T2.3, T3.2, T3.3 | G4 |
+| T3.8 | 响应审批/时间窗/回滚 | REVIEW | T3.6 | — |
+| T3.9 | 横向移动检测 | IN_PROGRESS | T2.3, T3.2, T3.3 | G4 |
 
 ## M4：内容、抓包、性能、交付
 

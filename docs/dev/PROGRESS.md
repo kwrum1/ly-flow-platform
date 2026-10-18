@@ -382,6 +382,18 @@
 - 状态：`REVIEW`。脚本骨架与自检可用；真实 `ly-agent` 包/服务联调待 T3.7b。
 - 回滚：删除 `scripts/agent` 即可。
 
+### T3.8 响应审批/时间窗/回滚（REVIEW）
+
+- 新增 `server/response/policy.go`：
+  - 动作风险分级 L1/L2/L3。
+  - L1 自动；L2 默认审批，指定时间窗内可自动；L3 永远审批。
+  - 四眼原则、审批 TTL、时间窗校验。
+- 新增 `server/response/policy_test.go`：L1/L2/L3、时间窗、四眼、未知动作。
+- 测试：`cd server && go test ./response -count=1` → ok
+- 状态：`REVIEW`。策略引擎就绪；**执行器/回滚/审计持久化**尚未接入，T3.8b 处理。
+- 回滚：删除 `server/response` 即可。
+
+
 
 
 
