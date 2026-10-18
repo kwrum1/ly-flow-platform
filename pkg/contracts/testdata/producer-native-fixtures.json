@@ -15,6 +15,7 @@
   {"producer_path":"server/cmd/event_migration_handler.go","fixture_source":"security_engine"},
   {"producer_path":"server/cmd/event_migration_runtime.go","fixture_source":"security_engine"},
   {"producer_path":"server/cmd/ingestion_auth.go","fixture_source":"agent.runtime"},
+  {"producer_path":"server/ingestv2/handler.go","fixture_source":"adapter.suricata"},
   {"producer_path":"server/cmd/main.go","fixture_source":"server.unified_legacy"},
   {"producer_path":"server/cmd/security_event_handler.go","fixture_source":"server.xdr_v2"},
   {"producer_path":"server/cmd/storage_event_runtime.go","fixture_source":"security_engine"},

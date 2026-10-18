@@ -519,6 +519,39 @@
       ]
     },
     {
+      "id": "adapter:pkg/attack/mapping.go",
+      "kind": "adapter",
+      "path": "pkg/attack/mapping.go",
+      "symbols": [
+        "Resolve",
+        "ResolveWithFallback",
+        "TacticByID",
+        "TechniqueByID",
+        "firstSource",
+        "indexTactics",
+        "indexTechniques",
+        "metadataValue",
+        "normalizeID",
+        "resolveTactic",
+        "resolveTechnique",
+        "tagValue"
+      ],
+      "roles": [
+        "adapter"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "pkg",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
       "id": "adapter:pkg/contracts/contracts.go",
       "kind": "adapter",
       "path": "pkg/contracts/contracts.go",
