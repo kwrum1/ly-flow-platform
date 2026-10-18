@@ -1,0 +1,69 @@
+# LyFlow 开发环境
+
+> 本文件不包含密码/密钥。实际地址与凭据见编译机上的 `/opt/lyflow/ENVIRONMENT.local.md`（权限 600，不入库）。
+
+## 1. 编译机（BUILD_HOST）
+
+| 项 | 值 |
+|---|---|
+| 地址 | `BUILD_HOST`（见私有环境文件） |
+| 用户 | `root`（首次登录后改用 SSH key） |
+| OS | Ubuntu 25.10 |
+| CPU | 40 vCPU |
+| 内存 | 62 GiB |
+| 磁盘 | `/` 295G，剩余约 62G（需持续关注） |
+| Docker | 29.2.1 |
+| Go | 默认 1.24.4；`/opt/go1.26-clean/bin/go` 为 1.26.0；仓库要求 1.26.5 |
+| Node | v22.22.2 |
+| 源码 | `/opt/lyflow/src` |
+| 产物 | `/opt/lyflow/artifacts` |
+| 日志 | `/opt/lyflow/logs` |
+| 原工作区 | `/root/ly-flow-platform`（保留，勿覆盖未提交改动） |
+
+### Go 工具链
+
+`go.work` 要求 `go 1.26.5`。优先使用 `GOTOOLCHAIN=auto` 让 Go 自动下载匹配工具链；若网络受限，安装 1.26.5 到 `/usr/local/go` 或 `/opt/go1.26.5`。
+
+## 2. 测试机（TEST_HOST）
+
+| 项 | 值 |
+|---|---|
+| 地址 | `TEST_HOST`（见私有环境文件） |
+| 类型 | ESXi 8.0.3 宿主机 |
+| 管理地址 | 私有环境文件 |
+| 数据存储 | `data`，约 855G 可用 |
+| 现有 VM | `mydist-lab`，2 vCPU / 2 GiB，双网卡；**不作为 LyFlow 测试机** |
+| 目标测试 VM | 专用 Linux VM，建议 8 vCPU / 16–32 GiB / 200G+；待准备 |
+| 部署目录 | `/opt/lyflow/deploy` |
+| 数据目录 | `/opt/lyflow/data` |
+| 报告目录 | `/opt/lyflow/reports` |
+
+### 测试 VM 准备清单
+
+- [ ] 创建/准备专用 Linux VM（Ubuntu 24.04/25.04 或同等）
+- [ ] 8 vCPU / 16–32 GiB / 200G+ 磁盘
+- [ ] 安装 Docker Engine + Compose Plugin
+- [ ] 配置静态 IP / 可被编译机 SSH
+- [ ] 配置 SSH key（与编译机一致）
+- [ ] 打快照，记录回滚点
+- [ ] 在 `PROGRESS.md` 记录 VM 信息（不写密码）
+
+## 3. 网络与端口
+
+| 用途 | 端口 |
+|---|---|
+| SSH | 22 |
+| Gitea（编译机） | 10000 |
+| 平台 HTTPS | 443 |
+| 平台 HTTP | 80（跳转 443） |
+| Wazuh Manager | 1514/1515/55000 |
+| Elkeid AgentCenter | 6751/6752 |
+| ClickHouse | 8123/9000（仅内网） |
+| PostgreSQL | 5432（仅内网） |
+
+## 4. 安全要求
+
+- 不在仓库、脚本、Dockerfile、日志、镜像中写密码。
+- 首次登录后配置 SSH key，轮换初始密码。
+- 破坏性操作前打快照。
+- 测试数据使用合成数据，不提交真实 PCAP/客户数据。
