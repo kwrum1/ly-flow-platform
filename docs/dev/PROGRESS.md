@@ -359,6 +359,18 @@
 - 状态：`REVIEW`。配置生成/探针检查就绪；**真实注入、attach、事件上报仍待测试 VM 联调**。
 - 回滚：删除 `agent/supervisor/rasp` 即可。
 
+### T3.6 Agent 统一门面（REVIEW）
+
+- 新增 `server/agentfacade/facade.go`：
+  - 统一 `Agent` 模型（ID/名称/平台/版本/状态/Provider/最后心跳/组/能力）。
+  - `Provider` 接口 + 多 Provider 合并、部分失败返回、按心跳排序。
+  - `Filter`（查询/状态/Provider）、`Page`（offset/limit）。
+- 新增 `server/agentfacade/facade_test.go`：合并排序、部分失败、过滤、分页。
+- 测试：`cd server && go test ./agentfacade -count=1` → ok
+- 状态：`REVIEW`。后端门面就绪；**HTTP API 与 UI 尚未接入**，下一步 T3.6b/T3.7。
+- 回滚：删除 `server/agentfacade` 即可。
+
+
 
 
 
