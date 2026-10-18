@@ -59,6 +59,19 @@
       </section>
     </div>
 
+    <section class="panel attack-panel">
+      <div class="panel-head"><h3>ATT&CK 覆盖（样本）</h3><span>{{ attackMatrix.observedTechniques }} 个技术</span></div>
+      <div class="attack-grid">
+        <div v-for="cell in attackMatrix.matrix" :key="cell.key" class="attack-cell" :class="{ muted: cell.count === 0 }">
+          <div class="attack-stage"><b>{{ cell.label }}</b><span>{{ cell.count }}</span></div>
+          <div class="attack-techniques">
+            <span v-for="technique in cell.techniques" :key="technique.id" class="tech-chip">{{ technique.id }} <b>{{ technique.count }}</b></span>
+            <span v-if="!cell.techniques.length" class="attack-empty">—</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <section class="panel">
       <div class="panel-head">
         <h3>最近事件</h3>
@@ -98,6 +111,7 @@ import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import { attackWorkbenchClient, overviewClient } from '../../api/domain'
 import { eventsV2Client } from '../../api/v2'
+import { buildAttackMatrix } from '../../domain/attack-matrix'
 import { stageLabel } from '../../domain/attack-labels'
 
 const loading = ref(false)
@@ -118,6 +132,7 @@ const kpis = computed(() => ({
 
 const stageRows = computed(() => buildRows(eventItems.value, 'stage'))
 const sourceRows = computed(() => buildRows(eventItems.value, 'source'))
+const attackMatrix = computed(() => buildAttackMatrix(eventItems.value))
 const recentEvents = computed(() => eventItems.value.slice(0, 8))
 
 function unwrap(response) {
@@ -205,12 +220,23 @@ onMounted(load)
 .event-table th, .event-table td { padding: 8px 10px; border-bottom: 1px solid #eef2f6; text-align: left; white-space: nowrap; }
 .event-table th { color: #667085; font-weight: 500; background: #f8fafc; }
 .event-table tr:last-child td { border-bottom: 0; }
+.attack-panel { overflow: hidden; }
+.attack-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.attack-cell { min-height: 64px; padding: 8px; border: 1px solid #eef2f6; border-radius: 6px; background: #fbfdff; }
+.attack-cell.muted { opacity: .55; }
+.attack-stage { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+.attack-stage b { font-size: 11px; }
+.attack-stage span { color: #1268bd; font-size: 11px; font-variant-numeric: tabular-nums; }
+.attack-techniques { display: flex; flex-wrap: wrap; gap: 4px; }
+.tech-chip { padding: 2px 5px; border-radius: 4px; background: #e8f3ff; color: #1268bd; font-family: Consolas, monospace; font-size: 10px; }
+.tech-chip b { font-weight: 600; }
+.attack-empty { color: #c4cdd9; font-size: 11px; }
 .mono { font-family: Consolas, monospace; color: #475467; }
 .severity { padding: 2px 6px; border-radius: 4px; background: #f1f5f9; color: #475467; font-size: 11px; }
 .severity.critical { background: #fdecec; color: #c43838; }
 .severity.high { background: #fff3e6; color: #ad6800; }
 .severity.medium { background: #fff8db; color: #8a6d00; }
 .severity.low { background: #eef7f1; color: #168a55; }
-@media (max-width: 960px) { .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .panel-grid { grid-template-columns: 1fr; } }
+@media (max-width: 960px) { .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .panel-grid { grid-template-columns: 1fr; } .attack-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 560px) { .kpi-grid { grid-template-columns: 1fr; } }
 </style>
