@@ -24,9 +24,9 @@
 | T1.1 | Ingest v2 | DONE | T0.3, T0.4 | — |
 | T1.2 | Query v2 + 查询治理 | DONE | T1.1 | — |
 | T1.3 | 新 UI shell | DONE | T0.2 | — |
-| T1.4 | 总览页 | IN_PROGRESS | T1.2, T1.3 | — |
-| T1.5 | 事件中心 + 详情 + 证据面板 | TODO | T1.2, T1.3 | — |
-| T1.6 | 统一搜索 | TODO | T1.2 | — |
+| T1.4 | 总览页 | DONE | T1.2, T1.3 | — |
+| T1.5 | 事件中心 + 详情 + 证据面板 | DONE | T1.2, T1.3 | — |
+| T1.6 | 统一搜索 | IN_PROGRESS | T1.2 | — |
 | T1.7 | M1 验收 | TODO | T1.1–T1.6 | G2 |
 
 ## M2：ATT&CK 与 Incident

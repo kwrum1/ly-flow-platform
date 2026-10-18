@@ -174,6 +174,32 @@
 - 结果：根分区可用空间从约 60G 提升到约 116G（59% used）。
 - 未删除：`/root/ly-flow-platform/.git`、当前 worktree `/opt/lyflow/src`、`/opt/lyflow/repo.git`、签名目录、其他项目目录。
 
+### T1.4 总览页（DONE）
+
+- 新增 `frontend/src/api/v2.js`：`/api/v2/events` 列表/详情。
+- 新增 `frontend/src/views/situation/OverviewV2.vue`：
+  - KPI：24h 新增、高危/严重、在线 Agent、Incident。
+  - ATT&CK 阶段分布、数据来源覆盖。
+  - 最近事件表格；加载/错误/空态；无数据不伪造。
+- `GlobalSituation.vue` 通过 `features.attackV2` 切换到新总览；默认关闭。
+- 测试：`npm run typecheck`、`npm run build`、`bash scripts/dev/test-all.sh fast` 均通过。
+- 风险：阶段/来源分布基于最近 100 条样本，T2.6 改为服务端聚合。
+- 回滚：关闭 `VITE_ATTACK_V2_ENABLED`。
+
+### T1.5 事件中心 + 详情 + 证据面板（DONE）
+
+- 新增 `frontend/src/views/events/EventsV2.vue`：
+  - 时间/来源/严重度/阶段筛选。
+  - 游标分页 + 加载更多。
+  - 事件表格：时间/来源/类型/阶段/严重度/资产/规则/置信度。
+  - 详情抽屉：实体字段、证据列表（type/ref/sha256/size）、原始载荷、原始来源。
+- 新增 `EventsRoute.vue`：`features.attackV2` 开时用新事件中心，否则保留旧会话查询。
+- 导航 `/events` 改为“事件中心”；新增 `frontend/src/domain/attack-labels.js`。
+- 测试：`npm run typecheck`、`npm run build`、`bash scripts/dev/test-all.sh fast` 均通过。
+- 风险：证据下载/原始 JSON 复制待 T1.6/T2.5 完善；真实数据联调待测试 VM。
+- 回滚：关闭 `VITE_ATTACK_V2_ENABLED`。
+
+
 
 
 
