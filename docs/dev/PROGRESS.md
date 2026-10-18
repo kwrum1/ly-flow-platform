@@ -224,6 +224,19 @@
 - 风险：fallback 表目前为空；后续按规则库逐步补充并评审，避免猜技术 ID。
 - 回滚：删除 `pkg/attack` 即可。
 
+### T2.2 阶段状态机（DONE）
+
+- 新增 `server/correlation/stage/state.go`：
+  - 阶段顺序：Recon → Initial Access → … → Impact。
+  - 初始/推进/同阶段/回退/时间窗/跳阶/低置信度/多源佐证/重复事件处理。
+  - 证据列表、来源集合、阶段置信度、整体置信度、快照。
+  - 默认：时间窗 24h、最小置信度 0.5、最大跳阶 2；可配置 `RequireCorroboration`。
+- 新增 `server/correlation/stage/state_test.go`：推进、回退、同阶段、跳阶、时间窗、低置信度、多源门控、重复/未知、快照隔离。
+- 测试：`cd server && go test ./correlation/stage -count=1` → ok
+- 风险：状态机目前是内存态，尚未接 ClickHouse/实体图；T2.3/T2.4 接入。
+- 回滚：删除 `server/correlation/stage` 即可。
+
+
 
 
 
