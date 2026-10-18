@@ -29,6 +29,96 @@ const ClickHouseFinalQuery = `SELECT event_uid, version, timestamp, source_modul
 
 const ClickHouseEventMigrationDDL = clickHouseEventTableDDL + ";\n" + ClickHouseFinalQuery
 
+const clickHouseEventsV2DDL = `CREATE TABLE IF NOT EXISTS lyflow_events_v2 (
+  event_uid String,
+  correlation_id String,
+  tenant_id LowCardinality(String),
+  source LowCardinality(String),
+  event_type String,
+  event_at DateTime64(3, 'UTC'),
+  observed_at DateTime64(3, 'UTC'),
+  ingested_at DateTime64(3, 'UTC'),
+  asset_id String,
+  user_id String,
+  process_pid Int32,
+  process_exe String,
+  file_hash String,
+  src_ip String,
+  dst_ip String,
+  src_port UInt16,
+  dst_port UInt16,
+  proto LowCardinality(String),
+  rule_id String,
+  rule_source LowCardinality(String),
+  severity LowCardinality(String),
+  confidence Float32,
+  tactic_id LowCardinality(String),
+  technique_id LowCardinality(String),
+  stage LowCardinality(String),
+  evidence_count UInt16,
+  evidence_json String,
+  payload_json String,
+  raw_schema String,
+  raw_event_id String,
+  raw_sha256 String
+) ENGINE = MergeTree()
+PARTITION BY toDate(event_at)
+ORDER BY (event_at, source, event_type, asset_id)
+TTL event_at + INTERVAL 30 DAY`
+
+const clickHouseEvents1mDDL = `CREATE MATERIALIZED VIEW IF NOT EXISTS lyflow_events_1m
+ENGINE = SummingMergeTree()
+PARTITION BY toDate(bucket)
+ORDER BY (bucket, source, event_type, severity, stage)
+AS SELECT
+  toStartOfMinute(event_at) AS bucket,
+  source,
+  event_type,
+  severity,
+  stage,
+  count() AS events
+FROM lyflow_events_v2
+GROUP BY bucket, source, event_type, severity, stage`
+
+const clickHouseEvents1hDDL = `CREATE MATERIALIZED VIEW IF NOT EXISTS lyflow_events_1h
+ENGINE = SummingMergeTree()
+PARTITION BY toDate(bucket)
+ORDER BY (bucket, source, event_type, severity, stage)
+AS SELECT
+  toStartOfHour(event_at) AS bucket,
+  source,
+  event_type,
+  severity,
+  stage,
+  count() AS events
+FROM lyflow_events_v2
+GROUP BY bucket, source, event_type, severity, stage`
+
+const postgresEvidenceDDL = `CREATE TABLE IF NOT EXISTS lyflow_evidence (
+evidence_id TEXT PRIMARY KEY,
+event_uid TEXT NOT NULL,
+incident_id TEXT,
+stage TEXT NOT NULL DEFAULT '',
+type TEXT NOT NULL,
+ref TEXT NOT NULL,
+sha256 TEXT NOT NULL DEFAULT '',
+size BIGINT NOT NULL DEFAULT 0,
+ttl_seconds BIGINT NOT NULL DEFAULT 0,
+redaction TEXT NOT NULL DEFAULT '',
+created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+expires_at TIMESTAMPTZ NOT NULL)`
+
+const postgresIncidentEvidenceDDL = `CREATE TABLE IF NOT EXISTS lyflow_incident_evidence (
+incident_id TEXT NOT NULL,
+evidence_id TEXT NOT NULL REFERENCES lyflow_evidence(evidence_id) ON DELETE CASCADE,
+stage TEXT NOT NULL DEFAULT '',
+added_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+PRIMARY KEY (incident_id, evidence_id))`
+
+const postgresEvidenceEventIndexDDL = `CREATE INDEX IF NOT EXISTS lyflow_evidence_event_uid_idx ON lyflow_evidence(event_uid)`
+
+const postgresEvidenceIncidentIndexDDL = `CREATE INDEX IF NOT EXISTS lyflow_evidence_incident_id_idx ON lyflow_evidence(incident_id)`
+
 var postgresStorageMigrations = []struct {
 	version uint64
 	query   string
@@ -54,6 +144,10 @@ queued_at TIMESTAMPTZ NOT NULL DEFAULT NOW())`},
 ADD COLUMN IF NOT EXISTS write_revision BIGINT NOT NULL DEFAULT 0,
 ADD COLUMN IF NOT EXISTS reconcile_write_revision BIGINT NOT NULL DEFAULT 0,
 ADD COLUMN IF NOT EXISTS reconcile_checkpoint_uid TEXT NOT NULL DEFAULT ''`},
+	{6, postgresEvidenceDDL},
+	{7, postgresIncidentEvidenceDDL},
+	{8, postgresEvidenceEventIndexDDL},
+	{9, postgresEvidenceIncidentIndexDDL},
 }
 
 var clickHouseStorageMigrations = []struct {
@@ -64,6 +158,9 @@ var clickHouseStorageMigrations = []struct {
 version UInt64, applied_at DateTime64(3, 'UTC')) ENGINE = ReplacingMergeTree(applied_at) ORDER BY version`},
 	{2, clickHouseEventTableDDL},
 	{3, ""},
+	{4, clickHouseEventsV2DDL},
+	{5, clickHouseEvents1mDDL},
+	{6, clickHouseEvents1hDDL},
 }
 
 func (migration *StorageMigration) Migrate(ctx context.Context) error {
