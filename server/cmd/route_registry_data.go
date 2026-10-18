@@ -79,6 +79,8 @@ func buildRouteRegistry() []RouteSpec {
 		"/api/v1/agent/rasp/probe/php", "/api/v1/agent/rasp/probe/java", "/api/v1/agent/rasp/probe/java/source/",
 		"/api/v1/agent/rasp/probe/nodejs", "/api/v1/agent/rasp/probe/dotnet", "/api/v1/agent/snapshot", "/api/v1/realtime",
 		"/api/v2/ingest/events",
+		"/api/v2/events",
+		"/api/v2/events/{id}",
 	}
 	specs := make([]RouteSpec, 0, len(paths))
 	for _, path := range paths {

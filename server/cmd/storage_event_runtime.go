@@ -76,6 +76,20 @@ func (runtime *StorageEventRuntime) WriteEventsV2(ctx context.Context, events []
 	return runtime.clickhouse.InsertEventsV2(ctx, events)
 }
 
+func (runtime *StorageEventRuntime) QueryEventsV2(ctx context.Context, query analytics.EventV2Query) (analytics.EventV2Page, error) {
+	if runtime == nil || runtime.clickhouse == nil {
+		return analytics.EventV2Page{}, fmt.Errorf("ClickHouse v2 event storage unavailable")
+	}
+	return runtime.clickhouse.QueryEventsV2(ctx, query)
+}
+
+func (runtime *StorageEventRuntime) GetEventV2(ctx context.Context, eventUID string) (analytics.EventV2View, error) {
+	if runtime == nil || runtime.clickhouse == nil {
+		return analytics.EventV2View{}, fmt.Errorf("ClickHouse v2 event storage unavailable")
+	}
+	return runtime.clickhouse.GetEventV2(ctx, eventUID)
+}
+
 func (runtime *StorageEventRuntime) WriteTrafficSession(ctx context.Context, session analytics.TrafficSessionRecord) error {
 	if runtime == nil || runtime.clickhouse == nil {
 		return fmt.Errorf("ClickHouse full-session storage unavailable")

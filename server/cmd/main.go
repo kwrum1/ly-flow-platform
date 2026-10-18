@@ -46,6 +46,7 @@ import (
 	"github.com/lyflow/ly-flow-platform/server/modules/auth"
 	"github.com/lyflow/ly-flow-platform/server/modules/rasp"
 	"github.com/lyflow/ly-flow-platform/server/modules/trace"
+	"github.com/lyflow/ly-flow-platform/server/queryv2"
 	"github.com/lyflow/ly-flow-platform/server/rulelifecycle"
 	"github.com/lyflow/ly-flow-platform/server/unified"
 	xdrprocessor "github.com/lyflow/ly-flow-platform/server/xdr"
@@ -323,6 +324,10 @@ func main() {
 		},
 		Writer: cfg.EventStorage,
 	})
+
+	queryV2Handler := queryv2.Handler{Store: cfg.EventStorage}
+	mux.HandleFunc("/api/v2/events", queryV2Handler.List)
+	mux.HandleFunc("/api/v2/events/", queryV2Handler.Get)
 
 	// 路由
 	mux.HandleFunc("/", rootHandler)

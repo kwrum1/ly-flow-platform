@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "registry": {
-    "mounted_path_count": 117,
-    "sorted_path_sha256": "379d57a96a610e958c99392e5802181bd629cad878e7ff39ba9e4d60988063de"
+    "mounted_path_count": 119,
+    "sorted_path_sha256": "1b7457ea5e03172a1480b9c908f8f5c80dc5a00d3267c58159b131e74da7339e"
   },
   "roles": [
     "admin",
@@ -5550,6 +5550,79 @@
         }
       ],
       "disposition": "agent-only"
+    },
+    {
+      "path": "/api/v2/events",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v2/events",
+            "body": {
+              "items": [],
+              "next_cursor": ""
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "GET",
+            "path": "/api/v2/events",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": false,
+          "readback": "response",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "api-only"
+    },
+    {
+      "path": "/api/v2/events/{id}",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v2/events/evt-1",
+            "body": {
+              "event_uid": "evt-1"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "GET",
+            "path": "/api/v2/events/evt-1",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": false,
+          "readback": "response",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "api-only"
     }
   ],
   "expected_red_gaps": [

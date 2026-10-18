@@ -936,6 +936,37 @@
       ]
     },
     {
+      "id": "adapter:server/analytics/query_v2.go",
+      "kind": "adapter",
+      "path": "server/analytics/query_v2.go",
+      "symbols": [
+        "DecodeEventV2Cursor",
+        "GetEventV2",
+        "QueryEventsV2",
+        "decodeEventV2Rows",
+        "encodeEventV2Cursor",
+        "normalized",
+        "parseClickHouseTime",
+        "quoteClickHouseString",
+        "quoteClickHouseTime",
+        "view"
+      ],
+      "roles": [
+        "adapter"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
       "id": "adapter:server/analytics/storage_migration.go",
       "kind": "adapter",
       "path": "server/analytics/storage_migration.go",
@@ -1696,6 +1727,8 @@
       "path": "server/cmd/storage_event_runtime.go",
       "symbols": [
         "Delete",
+        "GetEventV2",
+        "QueryEventsV2",
         "Read",
         "ReadCanonicalPayloads",
         "TrafficSessionCount",
@@ -4031,6 +4064,8 @@
       "path": "server/cmd/storage_event_runtime.go",
       "symbols": [
         "Delete",
+        "GetEventV2",
+        "QueryEventsV2",
         "Read",
         "ReadCanonicalPayloads",
         "TrafficSessionCount",
@@ -6717,6 +6752,8 @@
       "path": "server/cmd/storage_event_runtime.go",
       "symbols": [
         "Delete",
+        "GetEventV2",
+        "QueryEventsV2",
         "Read",
         "ReadCanonicalPayloads",
         "TrafficSessionCount",
