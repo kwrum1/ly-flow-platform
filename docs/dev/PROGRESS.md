@@ -677,5 +677,5 @@
     `/api/v1/engine-runtime/status` 恢复 200，XDR/运行态页面不再出现 503。
 - 未完成：真实 Agent/RASP、Vector 告警链、ESXi 快照。
 - 自签证书已接受，不再作为 UI 验收阻塞项。
-- 残余风险：测试机多条合成链共用源 IP，XDR `weak_same_ip` 可能交叉生成额外
-  Incident；生产需按资产/会话收紧密集度。
+- 残余风险：测试机历史合成 Incident 仍保留；新路径已过滤 `weak_same_ip`，
+  不再因同源 IP 交叉提升。

@@ -131,6 +131,7 @@ G5_E2E_OK
 - `WriteEventsV2` 在写 ClickHouse 后生成 canonical 投影，供既有 XDR graph 消费。
 - 投影保留 `agent_id`、ATT&CK tactic/technique/stage、网络五元组、规则和治理字段。
 - XDR graph 生成攻击链，`/api/v1/incidents` 同步为持久化 Incident。
+- 路径包含 `weak_same_ip` 时不提升为 Incident，避免同源 IP 的不同资产被误并。
 - 不改变 v2 ClickHouse 主写入路径；投影失败只记录日志，不影响事件入库/查询。
 
 实测写入 2 条同资产、不同阶段的 v2 事件（`initial_access` + `execution`）：
@@ -178,9 +179,8 @@ docker compose --env-file lean.env -f g5-host.yml restart
    Vector 尚未加入 lean。
 5. **未做 ESXi 快照**：发布前必须补快照。
 6. **容量**：T4.6 结论保持不变；6 vCPU/8 GiB 不是正式 20k EPS + 1Gbps 保证配置。
-7. **XDR weak_same_ip 关联**：测试机多条合成链共用 `10.1.18.126` 源 IP，弱同 IP
-   边会把不同测试链交叉成额外 Incident；本轮验证的是 v2→Incident 能力，生产需按
-   资产/会话收紧密集度并清理测试数据。
+7. **XDR weak_same_ip 关联**：已阻止包含 `weak_same_ip` 的新路径提升为 Incident；
+   测试机历史合成 Incident 仍保留在测试库中，正式验收前需清理测试数据。
 
 ## 11. 证据
 
