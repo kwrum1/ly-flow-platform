@@ -10257,9 +10257,15 @@ func agentInstallScriptHandler(cfg *Config) http.HandlerFunc {
 			http.Error(w, "invalid request host", http.StatusBadRequest)
 			return
 		}
+		enrollmentToken := strings.TrimSpace(r.URL.Query().Get("enrollment_token"))
+		if enrollmentToken != "" && !safeEnrollmentToken(enrollmentToken) {
+			http.Error(w, "invalid enrollment token", http.StatusBadRequest)
+			return
+		}
 		w.Header().Set("Content-Type", "text/x-shellscript; charset=utf-8")
 		fmt.Fprintf(w, `#!/bin/sh
 set -eu
+ENROLL_TOKEN="%s"
 REQUEST_API_SERVER="%s"
 REQUEST_HOST=$(printf "%%s" "$REQUEST_API_SERVER" | sed -E 's#^https?://([^/:]+).*#\1#')
 API_SERVER="$REQUEST_API_SERVER"
@@ -10385,6 +10391,8 @@ AGENT_CONFIG_EOF
 sed -i "s|__API_SERVER__|$API_SERVER|g" "$CONFIG_FILE"
 sed -i "s|__REDIS_SERVER__|$REDIS_SERVER|g" "$CONFIG_FILE"
 sed -i "s|__TRAFFIC_INTERFACE__|$TRAFFIC_INTERFACE|g" "$CONFIG_FILE"
+printf 'AGENT_ENROLL_TOKEN=%%s\n' "$ENROLL_TOKEN" > "$INSTALL_DIR/etc/agent.env"
+chmod 0600 "$INSTALL_DIR/etc/agent.env"
 curl -kfsSL "$API_SERVER/api/v1/agent/rasp/probe/python" -o "$INSTALL_DIR/rasp/python/sitecustomize.py" 2>/dev/null || true
 curl -kfsSL "$API_SERVER/api/v1/agent/rasp/probe/php" -o "$INSTALL_DIR/rasp/php/ly_rasp_prepend.php" 2>/dev/null || true
 if curl -kfsSL "$API_SERVER/api/v1/agent/rasp/probe/java" -o "$INSTALL_DIR/rasp/java/ly-rasp-agent.jar" 2>/dev/null \
@@ -10407,6 +10415,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=root
+EnvironmentFile=-/opt/ly-agent/etc/agent.env
 ExecStart=/opt/ly-agent/bin/ly-agent --config /opt/ly-agent/etc/agent.yaml
 Restart=always
 RestartSec=5
@@ -10419,8 +10428,21 @@ systemctl daemon-reload
 systemctl enable ly-agent
 systemctl restart ly-agent
 printf 'ly-agent installed. API_SERVER=%%s REDIS_SERVER=%%s TRAFFIC_INTERFACE=%%s\n' "$API_SERVER" "$REDIS_SERVER" "$TRAFFIC_INTERFACE"
-`, apiServer)
+`, enrollmentToken, apiServer)
 	}
+}
+
+func safeEnrollmentToken(value string) bool {
+	if len(value) > 256 {
+		return false
+	}
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' || r == '~' {
+			continue
+		}
+		return false
+	}
+	return value != ""
 }
 
 func agentDownloadHandler(cfg *Config) http.HandlerFunc {

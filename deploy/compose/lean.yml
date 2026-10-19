@@ -214,6 +214,8 @@ services:
     <<: *service-defaults
     profiles: ["core"]
     image: ${LY_FRONTEND_IMAGE:-ly-flow/frontend:latest}
+    ulimits:
+      nofile: 65536
     environment:
       LYFLOW_WEB_ROOT: /usr/share/lyflow/web
       LY_SERVER_HOST: ly-server
