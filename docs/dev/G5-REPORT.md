@@ -235,11 +235,12 @@ docker compose --env-file lean.env -f g5-host.yml restart
 - 资产数据来自真实 Agent：
   - CPU / 内存 / 磁盘 / 主机名 / 网卡 / 进程数
   - 资产页面显示 `fresh`
-- 能力上报：
-  - `runtime_sensor=enabled`（eBPF fallback，monitor）
-  - `yara_scanner=degraded`（测试机未安装 yara）
-  - `rasp_probe_manager=disabled`
-  - `traffic_collector=disabled`
+- 能力上报（2026-10-19 最终态）：
+  - `runtime_sensor=enabled`（eBPF fallback，active）
+  - `yara_scanner=enabled`（native-yara-cli，active）
+  - `rasp_probe_manager=enabled`（monitor）
+  - `log_collector=enabled`
+  - `traffic_collector=enabled`
 - 结果：`G5_REAL_AGENT_OK`。
 
 ### 12.2 告警链路
@@ -297,8 +298,12 @@ Agent Suricata EVE adapter 仍保留作为无 Vector 环境的备用路径；当
 - 安装端点无 JWT 即可访问：
   - `install.sh` 200
   - `uninstall.sh` 200
-  - `agent/download?os=linux&arch=amd64` 200（约 13 MB）
+  - `agent/download?os=linux&arch=amd64` 200（约 13.7 MB）
+  - `agent/download?os=linux&arch=arm64` 200（约 12.9 MB）
+  - `agent/download?os=windows&arch=amd64` 200（约 14.0 MB）
   - Python/Java RASP probe 200
+- `scripts/build-agent-binaries.sh` 统一构建三平台二进制，`build-core-images.sh`
+  在构建镜像前自动执行。
 - `server-lean.Dockerfile` 已包含 Agent 二进制和 `probe/` 资产。
 - 安装令牌流程：
   - 安装页调用 `/api/v1/agent/identity` 生成 10 分钟一次性 token；

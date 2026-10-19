@@ -13,7 +13,12 @@ COPY rules/ /etc/ly/rules/
 COPY agent/rasp/python/ /app/agent/rasp/python/
 COPY probe/ /app/probe/
 COPY agent/ly-agent /app/agents/linux/amd64/ly-agent
-RUN chmod 0755 /app/ly-server /app/ly-agent-center /app/agents/linux/amd64/ly-agent
+COPY agent/ly-agent-linux-arm64 /app/agents/linux/arm64/ly-agent
+COPY agent/ly-agent-windows-amd64 /app/agents/windows/amd64/ly-agent.exe
+RUN chmod 0755 /app/ly-server /app/ly-agent-center \
+  /app/agents/linux/amd64/ly-agent \
+  /app/agents/linux/arm64/ly-agent \
+  /app/agents/windows/amd64/ly-agent.exe
 
 EXPOSE 8080 8081
 CMD ["/app/ly-server"]

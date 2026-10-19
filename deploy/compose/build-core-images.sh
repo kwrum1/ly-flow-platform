@@ -5,11 +5,15 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+bash "$ROOT/scripts/build-agent-binaries.sh"
 for file in \
   "$ROOT/server/ly-server" \
   "$ROOT/server/ly-agent-center" \
   "$ROOT/security-engine/ly-security-engine" \
-  "$ROOT/frontend/dist/index.html"; do
+  "$ROOT/frontend/dist/index.html" \
+  "$ROOT/agent/ly-agent" \
+  "$ROOT/agent/ly-agent-linux-arm64" \
+  "$ROOT/agent/ly-agent-windows-amd64"; do
   [ -e "$file" ] || { echo "missing core build artifact: $file" >&2; exit 1; }
 done
 

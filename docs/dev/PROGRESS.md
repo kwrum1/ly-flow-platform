@@ -706,6 +706,9 @@
   - 自签证书生产 dist 验收 17 页，0 console/page/network error、0 4xx/5xx。
 - Installer：
   - install.sh/uninstall.sh/download/Python/Java RASP probe 均公开返回 200。
+  - linux/amd64、linux/arm64、windows/amd64 三种 Agent 下载均为 200。
+  - `scripts/build-agent-binaries.sh` 统一构建三平台二进制，核心镜像构建脚本
+    自动调用。
   - 安装页生成 10 分钟一次性 enrollment token，脚本写入 agent.env 并由
     systemd EnvironmentFile 注入；危险 token 字符会被拒绝。
   - server image 已包含 Agent 二进制和 probe 资产。
