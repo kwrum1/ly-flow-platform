@@ -9214,6 +9214,18 @@ func agentConfigHandler(cfg *Config) http.HandlerFunc {
 			http.Error(w, "agent desired config lookup failed", http.StatusInternalServerError)
 			return
 		}
+		if enabled, _ := capabilityEnabled(req.Capabilities, "traffic_collector"); enabled {
+			trafficEnabled = true
+		}
+		if enabled, _ := capabilityEnabled(req.Capabilities, "runtime_sensor"); enabled {
+			hidsEnabled = true
+		}
+		if enabled, _ := capabilityEnabled(req.Capabilities, "yara_scanner"); enabled {
+			hidsEnabled = true
+		}
+		if enabled, _ := capabilityEnabled(req.Capabilities, "rasp_probe_manager"); enabled {
+			raspEnabled = true
+		}
 		desiredStates := engineDesiredStatesForAgent(trafficEnabled, hidsEnabled, raspEnabled)
 		if cfg.RASPPolicy == nil {
 			http.Error(w, "RASP policy lifecycle unavailable", http.StatusServiceUnavailable)
