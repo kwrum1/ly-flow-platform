@@ -1,0 +1,18 @@
+﻿[package]
+name = "lyflow-frontend"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.85"
+
+[dependencies]
+async-trait = "0.1"
+bytes = "1"
+env_logger = "0.11"
+log = "0.4"
+pingora = { version = "0.9", features = ["proxy", "openssl"] }
+
+[profile.release]
+opt-level = 2
+lto = "thin"
+codegen-units = 1
+

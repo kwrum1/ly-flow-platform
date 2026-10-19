@@ -35,7 +35,7 @@ v2 主链已落地：Event v2、ClickHouse/PostgreSQL 存储、ATT&CK/Incident�
 浏览器
   │ HTTP 80 自动跳转 HTTPS 443
   ▼
-ly-vis / Nginx
+ly-vis / Pingora
   │ /api /ws
   ▼
 ly-server :8080 ───────── PostgreSQL（账号、资产、规则、告警、处置）

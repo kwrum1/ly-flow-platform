@@ -623,3 +623,29 @@
   - Elkeid 私有模块需在私有仓库独立审计。
 - 状态：`REVIEW`。公开仓库许可/密钥/私有边界和主要安全修复已完成；G5 全栈验收仍受 core 镜像流水线阻塞。
 - 回滚：还原 Host 校验/安全头/前端依赖即回到审计前状态；许可文档和 SBOM 只增不删。
+
+### G5 全栈验收（PASS_WITH_EXCEPTIONS）
+
+- 新增 `deploy/compose/g5-host.yml`（测试专用 host-network 拓扑）和
+  `deploy/docker/{server,security-engine,pingora-frontend,suricata,redis}-lean.Dockerfile`。
+- 前端改为 **Pingora 0.9**：
+  - Rust builder 从 `docker.1ms.run/library/rust:1.85-bookworm` 拉取。
+  - 静态文件 + `/api/` `/ws/` 反向代理 + HTTP 80→443 重定向。
+  - 注入 `X-Forwarded-Proto: https`，安装脚本生成 HTTPS API 地址。
+- 测试机 core + capture 10 个容器全部 healthy：
+  - ly-server、agent-center、security-engine、ly-vis(Pingora)、
+    postgres、redis、lyprobe、suricata、rulecompiler、capturedoctor。
+  - ClickHouse 使用测试机原生 26.9.21.9。
+- 端到端：
+  - 管理员登录/强制改密。
+  - 签发 enrollment token，注册 `g5-agent`。
+  - v2 ingest 接收 1 个事件；`/api/v2/events` 查询命中同一 `event_uid`。
+  - `/api/v1/agents` 返回 agent。
+  - `docker compose restart` 后 10 服务恢复 healthy，事件仍可查询。
+- 例外：
+  - Docker Hub 镜像站不稳定；Postgres 使用本地 `safeline-postgres:15.18`，
+    ClickHouse 使用原生进程，Redis/Pingora/core 镜像本地构建。
+  - 真实 Elkeid/Wazuh/OpenRASP Agent 链路、Suricata→Vector 告警链、
+    ESXi 快照仍未完成。
+- 报告：`docs/dev/G5-REPORT.md`，证据 `/opt/lyflow/reports/G5/`。
+- 状态：`PASS_WITH_EXCEPTIONS`，不是无条件可发布。

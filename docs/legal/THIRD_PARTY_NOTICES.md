@@ -21,6 +21,7 @@ LyFlow's proprietary Go binaries.
 | PCRE | 8.39 | BSD-3-Clause | linked by ly_probe | https://www.pcre.org/ |
 | gopacket | upstream/fork | BSD-3-Clause | Go dependency | https://github.com/gopacket/gopacket |
 | pgx, viper, go-redis, gRPC, protobuf, websocket, YAML | module versions in `go.mod` | MIT / Apache-2.0 / BSD | Go dependencies | see `docs/dev/SBOM` / module manifests |
+| Pingora | 0.9.0 | Apache-2.0 | separate frontend container | https://github.com/cloudflare/pingora |
 | Vue, Element Plus, ECharts, Axios, Pinia, G6 | `frontend/package-lock.json` | MIT / Apache-2.0 | frontend bundle | see `frontend-licenses.json` SBOM |
 
 ## License boundaries

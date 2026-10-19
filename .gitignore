@@ -16,6 +16,7 @@ server/ly-agent
 dpi-engine/ly-dpi-engine
 frontend/dist/
 frontend/node_modules/
+frontend/pingora/target/
 
 # IDE
 .idea/

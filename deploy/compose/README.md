@@ -20,9 +20,21 @@ LYFLOW_ARTIFACTS=/opt/lyflow/artifacts \
   bash deploy/compose/build-sensor-images.sh
 ```
 
-This builds `ly-flow/lyprobe`, `ly-flow/capturedoctor` and
-`ly-flow/rulecompiler`. Set `LYFLOW_BUILD_SURICATA=1` to also build the
-Suricata image (requires the upstream `jasonish/suricata` base image).
+This builds the Pingora frontend, server, security-engine, Suricata and Redis
+images from local binaries/dist. `deploy/compose/pull-image.sh` tries several
+Docker Hub mirrors (including 毫秒镜像 `docker.1ms.run` and an optional
+`ALIYUN_MIRROR`) for base images that the daemon cannot pull directly.
+
+The frontend is a Pingora 0.9 service:
+
+- `:80` returns a 308 redirect to HTTPS.
+- `:443` serves `frontend/dist`.
+- `/api/` and `/ws/` proxy to `ly-server:8080`.
+- Injected `X-Forwarded-Proto` keeps install/API URLs HTTPS behind the proxy.
+
+The test-only `g5-host.yml` uses host networking and a native ClickHouse because
+public mirrors were unreliable during G5. See `docs/dev/G5-REPORT.md`; production
+must use pinned digests or an offline image bundle.
 
 ## Lean quick start
 

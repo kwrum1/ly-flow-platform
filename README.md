@@ -78,7 +78,7 @@ ARM64 服务器只需将第一行改为对应的 `lyflow-server-arm64.tar.gz`。
 
 **core**
 
-1. `ly-vis`：HTTP 跳转、HTTPS 控制台和 API/WS 代理。
+1. `ly-vis`：Pingora 前端，HTTP 跳转、HTTPS 控制台和 API/WS 代理。
 2. `ly-server`：认证、业务 API、规则生命周期、XDR 与 Incident。
 3. `agent-center`：Agent 注册、上线、配置和任务管理。
 4. `ly-security-engine`：多源遥测检测和统一告警。
