@@ -42,6 +42,26 @@ func TestActionManagerApproveDispatchRollback(t *testing.T) {
 	}
 }
 
+func TestActionManagerAutoApprovesL2InsideWindow(t *testing.T) {
+	manager, err := NewActionManager(filepath.Join(t.TempDir(), "actions.json"), Policy{
+		AllowScheduledAuto: true, WindowStartHour: 0, WindowEndHour: 23, ApprovalTTL: time.Minute,
+	})
+	if err != nil {
+		t.Fatalf("new manager: %v", err)
+	}
+	record, err := manager.Create(ActionRequest{AgentID: "agent-1", Action: ActionBlockIP, Target: "203.0.113.77", RequestedBy: "user:1"})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	if record.Status != "approved" || !record.AutoApproved {
+		t.Fatalf("auto approval did not apply: %+v", record)
+	}
+	tasks, err := manager.PendingTasks("agent-1")
+	if err != nil || len(tasks) != 1 {
+		t.Fatalf("auto task dispatch: %+v %v", tasks, err)
+	}
+}
+
 func TestActionManagerReversibleActionRollbackMapping(t *testing.T) {
 	manager, err := NewActionManager(filepath.Join(t.TempDir(), "actions.json"), Policy{RequireDifferentApprover: true})
 	if err != nil {
