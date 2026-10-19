@@ -176,6 +176,9 @@ docker compose --env-file lean.env -f g5-host.yml restart
 ├── stats.json
 ├── events-v2.json
 ├── g5-incident-e2e.out
+├── g5-heartbeat.out
+├── restart-check.json
+├── restart-check-final.json
 ├── ui-acceptance.txt
 ├── install.sh
 ├── g5-restart.txt
