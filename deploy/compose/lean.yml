@@ -51,7 +51,7 @@ services:
   redis:
     <<: *service-defaults
     profiles: ["core"]
-    image: ${REDIS_IMAGE:-redis:7-alpine}
+    image: ${REDIS_IMAGE:-redis:7.2-alpine}
     command:
       - /bin/sh
       - -ec

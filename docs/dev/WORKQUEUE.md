@@ -70,7 +70,7 @@
 | T4.5 | Capture doctor | REVIEW | T4.3 | — |
 | T4.6 | 查询性能与压测 | REVIEW | T1.2, T4.2 | — |
 | T4.7 | 打包与 Compose profiles | REVIEW | T3.7, T4.2 | — |
-| T4.8 | 文档/许可/安全审计 | TODO | 全部 | G5 |
+| T4.8 | 文档/许可/安全审计 | REVIEW | 全部 | G5 |
 
 ## Gate 定义
 

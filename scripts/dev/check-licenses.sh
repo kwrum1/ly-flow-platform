@@ -8,6 +8,9 @@ cd "$ROOT_DIR"
 
 fail() { echo "ERROR: $*" >&2; exit 1; }
 
+[[ -f docs/legal/THIRD_PARTY_NOTICES.md ]] || fail "missing third-party notices"
+[[ -f docs/legal/GPL-SOURCE-OFFER.md ]] || fail "missing GPL source offer"
+
 # 1. Forbidden dependencies in Go modules.
 FORBIDDEN_GO='(Elkeid-HUB|Velocidex/velociraptor|grafana/grafana|minio/minio)'
 if grep -RInE "$FORBIDDEN_GO" --include='go.mod' --include='go.sum' . >/tmp/lyflow-forbidden-go.txt 2>/dev/null; then
@@ -29,6 +32,11 @@ for file in docker-compose.yml deploy/compose/lean.yml; do
     fail "$file references a private Elkeid component"
   fi
 done
+
+# 3b. Redis changed license after 7.2; public lean must pin the BSD release.
+if grep -Eq 'redis:(latest|7-alpine|7\.4|8)' deploy/compose/lean.yml deploy/compose/lean.env.example 2>/dev/null; then
+  fail "public compose must pin Redis 7.2 (BSD) or Valkey; post-7.2 Redis licenses are not OSI"
+fi
 
 # 4. Optional SPDX scan.
 if command -v go-licenses >/dev/null 2>&1; then

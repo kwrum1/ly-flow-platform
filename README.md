@@ -74,23 +74,39 @@ ARM64 服务器只需将第一行改为对应的 `lyflow-server-arm64.tar.gz`。
 
 ## 默认生产拓扑
 
-默认运行 9 个容器：
+2026-10 v2 使用 `deploy/compose/lean.yml`，默认启动 **core + capture** 两组服务：
+
+**core**
 
 1. `ly-vis`：HTTP 跳转、HTTPS 控制台和 API/WS 代理。
 2. `ly-server`：认证、业务 API、规则生命周期、XDR 与 Incident。
 3. `agent-center`：Agent 注册、上线、配置和任务管理。
-4. `ly-local-mirror`：本机 PF_RING 镜像采集。
-5. `ly-suricata-sensor`：网络 IDS。
-6. `ly-security-engine`：统一检测与告警输出。
-7. `postgres`：事务与配置数据。
-8. `clickhouse`：长期会话和分析数据。
-9. `redis`：实时事件总线。
+4. `ly-security-engine`：多源遥测检测和统一告警。
+5. `postgres`：账号、资产、Incident 和配置。
+6. `clickhouse`：事件、会话和长期分析数据。
+7. `redis`：实时事件总线与短期缓冲（公开 lean 固定 Redis 7.2 BSD）。
+
+**capture**
+
+8. `lyprobe-sensor`：ly_probe 主机网络采集，`network_mode: host`。
+9. `suricata-sensor`：Suricata 签名协处理，`network_mode: host`。
+10. `lyflow-rulecompiler`：Suricata → ly_probe threat.json 热转换。
+11. `lyflow-capturedoctor`：运行时丢包/队列/进程诊断与受控告警。
+
+`full-private.yml` 是私有 overlay，仅用于 Elkeid HUB/Console/AgentCenter/Manager/ServiceDiscovery，不进入公开构建产物。
 
 `ly-engine-lab`、容器化 Agent 和 legacy DPI 不属于默认生产组件，只保留为 QA/兼容 profile。
 
+当前实现状态、已知限制和容量基线见：
+
+- [v2 进度](docs/dev/PROGRESS.md)
+- [T4.6 性能报告](docs/dev/T4.6-REPORT.md)
+- [T4.7 打包报告](docs/dev/T4.7-REPORT.md)
+- [T4.8 安全审计](docs/dev/T4.8-AUDIT.md)
+
 ## Agent 使用边界
 
-使用直接安装到宿主机的 Agent，不要求 Docker。Linux Agent 以静态二进制构建，面向 CentOS 7 / Linux 3.10 及以上内核；抓包使用 AF_PACKET，运行监控在旧内核回退到 auditd。容器 Agent 只用于自动化测试。
+使用直接安装到宿主机的 Agent，不要求 Docker。Linux Agent 以静态二进制构建，面向现代 Linux（Ubuntu 22.04+/Debian 12+/RHEL 9+）；抓包使用 AF_PACKET/PF_RING，运行监控在旧内核回退到 auditd。容器 Agent 只用于自动化测试。
 
 Agent 安装、卸载和 Windows/Npcap 下载入口由控制台“安装配置”页面提供。Npcap 单独分发，不集成到 Windows Agent 包中。
 

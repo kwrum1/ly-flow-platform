@@ -4,6 +4,25 @@
 > 当前形态：单机一体化 XDR 安全设备
 > 正式部署：Docker Compose 服务端 + 无容器主机 Agent
 
+## 0. 2026-10 v2 实现状态
+
+v2 主链已落地：Event v2、ClickHouse/PostgreSQL 存储、ATT&CK/Incident、ly_vis 风格 UI、Agent supervisor、内容源许可门、Suricata/ET Open、ly_probe 产品化与规则热加载、Capture doctor、性能压测基线和 lean/full-private Compose profiles。
+
+当前默认部署使用 `deploy/compose/lean.yml`：
+
+- core：`ly-vis`、`ly-server`、`agent-center`、`ly-security-engine`、PostgreSQL、ClickHouse、Redis。
+- capture：`lyprobe-sensor`、`suricata-sensor`、`lyflow-rulecompiler`、`lyflow-capturedoctor`。
+- `full-private.yml` 是私有 Elkeid overlay，不进入公开产物。
+
+与早期文档的差异：
+
+- 默认不再使用 `ly-local-mirror` 作为唯一采集入口；ly_probe 是主探针，Suricata 是签名协处理。
+- 目标 Linux 为现代发行版（Ubuntu 22.04+/Debian 12+/RHEL 9+），不再要求 CentOS 7 / 3.10。
+- 事件/会话查询以 ClickHouse 为主，PostgreSQL 保存配置、账号、资产、Incident 和处置；不恢复 MariaDB 查询层。
+- 公开 lean 固定 Redis 7.2（BSD）；`full-private` 才引入 Elkeid 私有组件和 MongoDB（SSPL，非公开分发）。
+
+历史拓扑章节保留用于兼容旧部署；新部署请以 `deploy/compose/README.md` 和 `docs/dev/T4.7-REPORT.md` 为准。
+
 ## 1. 产品边界
 
 流影把网络、主机、应用和安全规则产生的事件统一为可查询、可关联、可处置的安全数据。它不是全包取证平台，也不承诺多节点高可用；当前重点是单机旁路流量审计、主机 Agent 审计、XDR/ATT&CK 关联和长期会话溯源。

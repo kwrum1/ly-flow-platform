@@ -490,7 +490,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.ServerPort),
-		Handler:      EnforceRoutePolicy(mux, authMiddleware),
+		Handler:      SecurityHeaders(EnforceRoutePolicy(mux, authMiddleware)),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
@@ -10005,7 +10005,11 @@ func agentInstallConfigHandler(cfg *Config) http.HandlerFunc {
 			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
 			return
 		}
-		apiServer := inferAPIServer(r)
+		apiServer, ok := inferAPIServer(r)
+		if !ok {
+			http.Error(w, "invalid request host", http.StatusBadRequest)
+			return
+		}
 		ruleBundle := currentAgentRuleBundleSummary(r.Context(), cfg)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"code":    0,
@@ -10192,7 +10196,11 @@ func agentInstallScriptHandler(cfg *Config) http.HandlerFunc {
 			return
 		}
 
-		apiServer := inferAPIServer(r)
+		apiServer, ok := inferAPIServer(r)
+		if !ok {
+			http.Error(w, "invalid request host", http.StatusBadRequest)
+			return
+		}
 		w.Header().Set("Content-Type", "text/x-shellscript; charset=utf-8")
 		fmt.Fprintf(w, `#!/bin/sh
 set -eu
@@ -10517,29 +10525,68 @@ func agentSnapshotHandler(cfg *Config) http.HandlerFunc {
 	}
 }
 
-func inferAPIServer(r *http.Request) string {
+func inferAPIServer(r *http.Request) (string, bool) {
 	scheme := "http"
 	if r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
 		scheme = "https"
 	}
-	host := r.Host
-	if forwardedHost := r.Header.Get("X-Forwarded-Host"); forwardedHost != "" {
-		host = forwardedHost
+	// Never trust X-Forwarded-Host here: the value is embedded into a shell
+	// installer script. Only a syntactically valid Host header is accepted.
+	host, ok := sanitizeRequestHost(r.Host)
+	if !ok {
+		return "", false
 	}
-	if _, _, err := net.SplitHostPort(host); err != nil && !strings.Contains(host, ":") {
+	if !strings.Contains(host, ":") {
 		if port := serverPortFromRequest(r, scheme); port != "" {
 			host = net.JoinHostPort(host, port)
 		}
 	}
-	return scheme + "://" + host
+	return scheme + "://" + host, true
+}
+
+func sanitizeRequestHost(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || len(raw) > 253 || strings.ContainsAny(raw, "\"'`;$(){}|&<>\\ \t\r\n") {
+		return "", false
+	}
+	parsed, err := url.Parse("//" + raw)
+	if err != nil || parsed.Host != raw || parsed.Hostname() == "" || parsed.User != nil {
+		return "", false
+	}
+	hostname := parsed.Hostname()
+	if net.ParseIP(hostname) == nil {
+		for _, label := range strings.Split(hostname, ".") {
+			if label == "" || len(label) > 63 || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
+				return "", false
+			}
+			for _, character := range label {
+				if (character < 'a' || character > 'z') &&
+					(character < 'A' || character > 'Z') &&
+					(character < '0' || character > '9') && character != '-' {
+					return "", false
+				}
+			}
+		}
+	}
+	if port := parsed.Port(); port != "" {
+		value, err := strconv.Atoi(port)
+		if err != nil || value < 1 || value > 65535 {
+			return "", false
+		}
+	}
+	return raw, true
 }
 
 func serverPortFromRequest(r *http.Request, scheme string) string {
 	if p := r.URL.Port(); p != "" {
-		return p
+		if value, err := strconv.Atoi(p); err == nil && value > 0 && value <= 65535 {
+			return strconv.Itoa(value)
+		}
 	}
 	if forwardedPort := strings.TrimSpace(r.Header.Get("X-Forwarded-Port")); forwardedPort != "" {
-		return forwardedPort
+		if value, err := strconv.Atoi(forwardedPort); err == nil && value > 0 && value <= 65535 {
+			return strconv.Itoa(value)
+		}
 	}
 	if scheme == "https" {
 		return ""

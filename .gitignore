@@ -61,6 +61,7 @@ agent/ly-agent-arm64
 security-engine/ly-security-engine
 release/
 lyflow-offline-install-*.tar.gz
+artifacts/
 .playwright-mcp/
 
 # Local test and build outputs

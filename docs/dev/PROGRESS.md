@@ -592,3 +592,34 @@
 - 证据：`/opt/lyflow/reports/T4.7/`，详细报告 `docs/dev/T4.7-REPORT.md`。
 - 状态：`REVIEW`。capture plane 打包和运行已验证；core 全栈启动待镜像流水线。
 - 回滚：停止 capture profile，删除 sensor 镜像/`deploy/build-context`；core 用 `lyflowctl rollback` 恢复 env 备份；不自动删除 named volume。
+
+### T4.8 文档/许可/安全审计（REVIEW）
+
+- 文档：
+  - README 更新为 v2 core + capture 11 服务拓扑、现代 Linux Agent 边界。
+  - ARCHITECTURE 增加 v2 实现状态和旧拓扑差异说明。
+  - API 文档增加 Event v2 ingest/query。
+  - 新增 `docs/legal/THIRD_PARTY_NOTICES.md`、`docs/legal/GPL-SOURCE-OFFER.md`。
+  - 新增 `docs/dev/T4.8-AUDIT.md`。
+- 许可：
+  - 公开 lean Redis 固定 `7.2-alpine`（BSD-3）；`check-licenses.sh` 增加 Redis 版本回归检查。
+  - ly_probe GPL-3.0 独立进程/容器边界、补丁/构建/source offer 记录。
+  - full-private 的 MongoDB（SSPL）和 Elkeid 私有组件明确不进入公开产物。
+  - 新增 `scripts/dev/generate-sbom.sh`，生成 Go module、前端依赖/许可、镜像和元数据清单。
+- 安全：
+  - 修复安装脚本 Host 注入：`sanitizeRequestHost`，拒绝 shell 元字符，忽略 `X-Forwarded-Host`，端口白名单。
+  - 新增 `SecurityHeaders`（nosniff/frame/referrer/permissions）。
+  - 前端高危依赖升级：Vue 3.5.42、axios 1.20.0，postcss/source-map-js/nanoid 传递依赖更新；`npm audit` high=0/critical=0。
+- 验证：
+  - `check-secrets.sh`、`check-private.sh`、`check-licenses.sh` 通过。
+  - `go vet ./...`（pkg/server/agent/security-engine/dpi-engine）通过。
+  - 前端 typecheck、31 files/114 tests、lint（0 errors）通过。
+  - `scripts/dev/test-all.sh fast` 通过。
+  - SBOM 输出 `/opt/lyflow/artifacts/sbom`。
+- 残余风险：
+  - ingest v2 的 TenantID/AssetID 未绑定认证 principal（多租户前需修）。
+  - ECharts 5.6.0 仍有 1 个 moderate XSS advisory；升级 6.1.0 属 breaking，留待单独验证。
+  - core 全栈未在测试 VM 启动（缺本地镜像），发布前需补一次完整安全冒烟。
+  - Elkeid 私有模块需在私有仓库独立审计。
+- 状态：`REVIEW`。公开仓库许可/密钥/私有边界和主要安全修复已完成；G5 全栈验收仍受 core 镜像流水线阻塞。
+- 回滚：还原 Host 校验/安全头/前端依赖即回到审计前状态；许可文档和 SBOM 只增不删。
