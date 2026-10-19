@@ -10,20 +10,20 @@ Two deployment modes:
 
 - Linux host with Docker Engine + Compose v2.
 - Same architecture for all images.
-- Core images from the existing LyFlow image pipeline:
-  `ly-flow/server`, `ly-flow/security-engine`, `ly-flow/frontend`.
-- Sensor images can be built from the current artifacts:
+- Core and sensor images can be built from the current tree/binaries:
 
 ```bash
 cd /path/to/lyflow
+# Build server, security-engine, Pingora frontend, Suricata and Redis.
+bash deploy/compose/build-core-images.sh
+# Build lyprobe, capturedoctor and rulecompiler from /opt/lyflow/artifacts.
 LYFLOW_ARTIFACTS=/opt/lyflow/artifacts \
   bash deploy/compose/build-sensor-images.sh
 ```
 
-This builds the Pingora frontend, server, security-engine, Suricata and Redis
-images from local binaries/dist. `deploy/compose/pull-image.sh` tries several
-Docker Hub mirrors (including 毫秒镜像 `docker.1ms.run` and an optional
-`ALIYUN_MIRROR`) for base images that the daemon cannot pull directly.
+`deploy/compose/pull-image.sh` tries several Docker Hub mirrors (including
+毫秒镜像 `docker.1ms.run` and an optional `ALIYUN_MIRROR`) for base images that
+the daemon cannot pull directly.
 
 The frontend is a Pingora 0.9 service:
 

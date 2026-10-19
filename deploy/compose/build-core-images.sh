@@ -25,4 +25,4 @@ docker build --network host -f "$ROOT/deploy/docker/suricata-lean.Dockerfile" \
   -t "${LY_SURICATA_IMAGE:-ly-flow/suricata:latest}" "$ROOT"
 
 docker images --format '{{.Repository}}:{{.Tag}} {{.Size}}' | \
-  grep -E 'ly-flow/(server|security-engine|frontend|suricata):' || true
+  grep -E 'ly-flow/(server|security-engine|frontend|redis|suricata):' || true
