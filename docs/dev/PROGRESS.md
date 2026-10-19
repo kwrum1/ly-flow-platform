@@ -431,26 +431,31 @@
 - 状态：`REVIEW`。规则/引擎集成已验证；容器化与自动灰度待 T4.7。
 - 回滚：恢复旧 profile；删除新增测试脚本/manifest 即可。
 
+### T4.3 `ly_probe` 产品化（REVIEW）
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+- 新增 `agent/supervisor/providers/lyprobe`：
+  - 外部进程生命周期交给 supervisor。
+  - `CommandArgs` 校验 `-i`/`-n`，支持 `ExtraArgs`。
+  - `New` 默认 `/opt/lyflow/bin/lyprobe`，`Probe` 检查可执行文件。
+  - 测试：`cd agent && go test ./supervisor/providers/lyprobe -count=1` → ok
+- 新增 `scripts/dev/lyprobe-build.sh`：
+  - Ubuntu 24.04 容器内构建，不污染编译机宿主依赖。
+  - `--network host` 解决容器 DNS；`--cpus=1.5`、`--cpu-shares=128`、`--blkio-weight=100` 降低对共享编译机影响。
+  - 只构建 `lyprobe`，跳过带 macOS-only 链接参数的 `plugins/`。
+  - `patchelf --set-rpath '$ORIGIN'`，产物含 `lyprobe` + `liblyprobe-1.0.0.so` + `SHA256SUMS` + `BUILD-INFO`。
+- 新增 `scripts/agent/lyprobe-preflight.sh`：root、binary、runtime lib、`ldd`、接口状态、GRO/GSO、RX ring、libpcap、PF_RING、CPU、MTU。
+- 新增 `scripts/dev/lyprobe-netflow-smoke.sh`：本地 UDP collector + 14 秒抓包 + IPv4 流量，验证 NetFlow v5 导出。
+- 新增 `deploy/lyprobe/{lyprobe.service,lyprobe.env.example,README.md}`。
+- 测试 VM 实测（`10.1.18.126`，ens160）：
+  - 上游 revision `06c097dd5c69e391efd3c8b3776d672e03386e49`，Ubuntu 24.04 容器构建成功。
+  - 产物：`lyprobe` 203K，`liblyprobe-1.0.0.so` 542K；SHA256 校验通过。
+  - preflight：binary/runtime/ldd/interface/libpcap/CPU/MTU 全部 OK；GRO on、RX ring 1024、PF_RING 未加载为 WARN。
+  - NetFlow smoke：单次 23–27 包捕获，0 dropped，collector 收到 2–4 个 NetFlow v5 包。
+  - `suricata-replay.sh` 改为纯 Python 生成 PCAP（移除 scapy 依赖），仍触发 sid `9000001`。
+- 已知上游问题：
+  - `lyprobe -P <dir> -D t` 文本 dump 触发 `*** buffer overflow detected ***`。
+  - `-D b` 仅写 IPv4 NetFlow v5；IPv6-only 窗口会得到 0 字节 dump。
+  - LyFlow 产品路径使用 NetFlow collector，不在生产启用文本 dump。
+- 存储清理：测试 VM 清除 `python3-scapy`/`matplotlib`/`numpy`、apt cache、临时 dump/core；根分区 `3.2G → 2.5G`，清理后重新跑 preflight/NetFlow/Suricata replay 均通过。
+- 状态：`REVIEW`。规则转换、采集诊断、打包分别进入 T4.4/T4.5/T4.7。
+- 回滚：删除 provider、preflight、unit、构建/冒烟脚本及 `/opt/lyflow/bin/lyprobe`、`liblyprobe-1.0.0.so`；不影响现有 Suricata。

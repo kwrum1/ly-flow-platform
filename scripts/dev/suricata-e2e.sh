@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 set -euo pipefail
 ROOT=/opt/lyflow/src
 scp "$ROOT/deploy/suricata/lyflow-suricata-test.yaml" root@10.1.18.126:/etc/suricata/lyflow-suricata-test.yaml

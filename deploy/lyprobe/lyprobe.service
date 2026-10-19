@@ -1,0 +1,22 @@
+[Unit]
+Description=LyFlow ly_probe traffic sensor
+Documentation=https://github.com/Abyssal-Fish-Technology/ly_probe
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/lyflow/lyprobe.env
+ExecStart=/opt/lyflow/bin/lyprobe -i ${LYPROBE_INTERFACE} -n ${LYPROBE_COLLECTOR} $LYPROBE_EXTRA_ARGS
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+AmbientCapabilities=CAP_NET_RAW CAP_NET_ADMIN
+CapabilityBoundingSet=CAP_NET_RAW CAP_NET_ADMIN
+ProtectSystem=full
+ProtectHome=true
+PrivateTmp=true
+NoNewPrivileges=false
+
+[Install]
+WantedBy=multi-user.target
