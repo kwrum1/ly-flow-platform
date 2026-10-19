@@ -461,3 +461,44 @@
   - 编译机删除旧 Ubuntu/VMDK staging 2.3G、临时 `ly_probe` 源码 29M；根分区可用 `93G → 95G`。未执行全局 Docker prune，避免影响其他构建/测试。
 - 状态：`REVIEW`。规则转换、采集诊断、打包分别进入 T4.4/T4.5/T4.7。
 - 回滚：删除 provider、preflight、unit、构建/冒烟脚本及 `/opt/lyflow/bin/lyprobe`、`liblyprobe-1.0.0.so`；不影响现有 Suricata。
+
+### T4.4 `ly_probe` 规则转换与热加载（REVIEW）
+
+- 新增 `server/rulecompiler`：
+  - Suricata 简单规则解析：单个 `content` 或简单 `pcre`。
+  - HTTP URI/Header/Body、TLS SNI、精确 DNS 查询名（编码为 DNS label regex）。
+  - `nocase`、PCRE `i` 支持；Go/RE2 先行校验。
+  - 复杂规则（多 content、flowbits、byte_test、threshold、dataset、复杂 PCRE）记录到 manifest，保留 Suricata。
+  - 原子写 `threat.json` + `manifest.json`，失败保留旧规则。
+  - `Watcher` 轮询源目录，按 SHA256 去重，变更后编译并可选执行 reload hook。
+- 新增 `server/cmd/rulecompiler`：
+  - `-once` 单次生成；默认 watch 模式。
+  - `-source`、`-output`、`-manifest`、`-interval`、`-reload-command`。
+- 新增 `rules/lyprobe/`：
+  - `source/lyflow-sample.rules`。
+  - 生成的 `threat.json`（6 条）与 `manifest.json`（2 条跳过原因）。
+- 新增 `deploy/rulecompiler/{lyflow-rulecompiler.service,rulecompiler.env.example,README.md}`。
+- 新增 `patches/lyprobe/0001-hot-reload.patch`：
+  - servicePlugin 读入完整新规则集后，在 `pthread_rwlock` 保护下原子交换。
+  - 2 秒轮询 inode/size/mtime，原子 rename 触发零停机热加载。
+  - 解析失败保留旧规则。
+  - 修复上游 sentinel 节点未初始化导致的 reload 非法 free。
+- 更新 `scripts/dev/lyprobe-build.sh`：
+  - 容器内安装 `libpcre3-dev`，编译 `servicePlugin.so`。
+  - 应用 `patches/lyprobe/*.patch`。
+  - 支持 `LYPROBE_SOURCE_DIR` 离线构建。
+- 更新 `deploy/lyprobe`：
+  - 服务插件、`fp-patterns`、`WorkingDirectory=/opt/lyflow`。
+  - `-T` 模板包含 `%PROTOCOL` 与 `%THREAT_*`，避免协议过滤被禁用。
+- 测试 VM 实测：
+  - `go test ./rulecompiler ./cmd/rulecompiler` → ok。
+  - 生成：6 条转换、2 条跳过；输出确定性（重复生成 sha256 一致）。
+  - 合成 HTTP/DNS PCAP 命中 `9100001` 和 `9100005`。
+  - 真实 `ens160` HTTP 请求 + 规则热更新：日志出现 `Hot-reloaded 101 patterns`，随后命中 `9200001`，**lyprobe 进程未重启**。
+  - `lyprobe` 初始加载 101 条 fingerprint，reload 后仍为 101。
+- 已知限制：
+  - 转换是保守子集，不做复杂 PCRE/多 content 语义推断。
+  - DNS 只支持精确域名 label 序列，不支持通配/子域泛化。
+  - 未打补丁的 ly_probe 可用 `-reload-command 'systemctl restart lyprobe'` 兜底，但有短暂抓包中断。
+- 状态：`REVIEW`。规则源 freshness、热转换、零停机 reload 已端到端验证。
+- 回滚：停止 `lyflow-rulecompiler`，恢复旧 `threat.json`；ly_probe 可继续运行，仅失去自动规则刷新。

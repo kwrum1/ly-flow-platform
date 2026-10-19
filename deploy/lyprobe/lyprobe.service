@@ -6,8 +6,9 @@ Wants=network-online.target
 
 [Service]
 Type=simple
+WorkingDirectory=/opt/lyflow
 EnvironmentFile=-/etc/lyflow/lyprobe.env
-ExecStart=/opt/lyflow/bin/lyprobe -i ${LYPROBE_INTERFACE} -n ${LYPROBE_COLLECTOR} $LYPROBE_EXTRA_ARGS
+ExecStart=/opt/lyflow/bin/lyprobe -i ${LYPROBE_INTERFACE} -n ${LYPROBE_COLLECTOR} -T "${LYPROBE_TEMPLATE}" $LYPROBE_EXTRA_ARGS
 Restart=always
 RestartSec=5
 LimitNOFILE=65536

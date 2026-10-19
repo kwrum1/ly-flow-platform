@@ -1,0 +1,27 @@
+[Unit]
+Description=LyFlow ly_probe rule compiler
+Documentation=file:/opt/lyflow/src/rules/lyprobe/README.md
+After=network-online.target lyprobe.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/lyflow
+Environment=LYFLOW_RULE_SOURCE=/var/lib/lyflow/rules/source
+Environment=LYFLOW_RULE_OUTPUT=/opt/lyflow/fp-patterns/threat.json
+Environment=LYFLOW_RULE_MANIFEST=/opt/lyflow/fp-patterns/manifest.json
+Environment=LYFLOW_RULE_INTERVAL=2s
+Environment=LYFLOW_RULE_RELOAD=
+EnvironmentFile=-/etc/lyflow/rulecompiler.env
+ExecStart=/opt/lyflow/bin/lyflow-rulecompiler \
+  -source ${LYFLOW_RULE_SOURCE} \
+  -output ${LYFLOW_RULE_OUTPUT} \
+  -manifest ${LYFLOW_RULE_MANIFEST} \
+  -interval ${LYFLOW_RULE_INTERVAL} \
+  -reload-command "${LYFLOW_RULE_RELOAD}"
+Restart=always
+RestartSec=2
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

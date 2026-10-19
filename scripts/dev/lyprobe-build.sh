@@ -16,6 +16,9 @@ JOBS="${LYPROBE_JOBS:-2}"
 CPUS="${LYPROBE_CPUS:-1.5}"
 MEMORY="${LYPROBE_MEMORY:-2g}"
 KEEP_SOURCE="${LYPROBE_KEEP_SOURCE:-0}"
+SOURCE_DIR="${LYPROBE_SOURCE_DIR:-}"
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PATCH_DIR="${LYPROBE_PATCH_DIR:-$SCRIPT_DIR/../../patches/lyprobe}"
 
 command -v docker >/dev/null 2>&1 || {
   echo "lyprobe-build: docker is required" >&2
@@ -27,13 +30,29 @@ mkdir -p "$WORK/src" "$OUT"
 rm -f "$OUT/lyprobe" "$OUT/liblyprobe-1.0.0.so" "$OUT/SHA256SUMS" "$OUT/BUILD-INFO" "$OUT/lyprobe-help.txt"
 trap 'if [ "$KEEP_SOURCE" != "1" ]; then rm -rf "$WORK"; fi' EXIT
 
-echo "lyprobe-build: cloning $GIT_URL"
-if [ -n "$GIT_REF" ]; then
-  git clone --depth 1 --branch "$GIT_REF" "$GIT_URL" "$WORK/src"
+if [ -n "$SOURCE_DIR" ]; then
+  [ -d "$SOURCE_DIR/.git" ] || {
+    echo "lyprobe-build: LYPROBE_SOURCE_DIR must be a git clone: $SOURCE_DIR" >&2
+    exit 1
+  }
+  if [ -n "$(git -C "$SOURCE_DIR" status --porcelain)" ]; then
+    echo "lyprobe-build: LYPROBE_SOURCE_DIR must be clean: $SOURCE_DIR" >&2
+    exit 1
+  fi
+  echo "lyprobe-build: using local source $SOURCE_DIR"
+  cp -a "$SOURCE_DIR/." "$WORK/src/"
 else
-  git clone --depth 1 "$GIT_URL" "$WORK/src"
+  echo "lyprobe-build: cloning $GIT_URL"
+  if [ -n "$GIT_REF" ]; then
+    git clone --depth 1 --branch "$GIT_REF" "$GIT_URL" "$WORK/src"
+  else
+    git clone --depth 1 "$GIT_URL" "$WORK/src"
+  fi
 fi
 REVISION=$(git -C "$WORK/src" rev-parse HEAD)
+if [ -d "$PATCH_DIR" ]; then
+  cp "$PATCH_DIR"/*.patch "$WORK/src/" 2>/dev/null || true
+fi
 
 cat >"$WORK/build.sh" <<'INNER'
 #!/usr/bin/env bash
@@ -41,8 +60,13 @@ set -euo pipefail
 export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq
 apt-get install -y -qq build-essential autoconf automake libtool libtool-bin \
-  pkg-config libpcap-dev patchelf >/dev/null
+  pkg-config libpcap-dev libpcre3-dev patchelf git >/dev/null
 cd /src
+for patch in /src/*.patch; do
+  [ -e "$patch" ] || continue
+  echo "lyprobe-build: applying $(basename "$patch")"
+  git apply --whitespace=nowarn "$patch"
+done
 if [ ! -x ./configure ]; then
   bash ./autogen.sh
 fi
@@ -63,6 +87,13 @@ fi
 install -m 0755 "$BIN" /out/lyprobe
 install -m 0644 "$LIB" /out/liblyprobe-1.0.0.so
 patchelf --set-rpath '$ORIGIN' /out/lyprobe
+mkdir -p /out/plugins
+# Build the servicePlugin directly: upstream's automake plugin recipe hardcodes
+# macOS linker flags (-bundle, -flat_namespace), and the base sensor path only
+# needs this plugin. Undefined core symbols resolve from the lyprobe binary.
+gcc -shared -fPIC -DHAVE_CONFIG_H -I. -Iplugins \
+  -o /out/plugins/servicePlugin.so \
+  plugins/servicePlugin.c plugins/cJSON.c -lpcre -lpthread
 LD_LIBRARY_PATH=/out ldd /out/lyprobe | grep -q liblyprobe
 LD_LIBRARY_PATH=/out /out/lyprobe -h >/out/lyprobe-help.txt 2>&1 || true
 INNER
@@ -74,7 +105,7 @@ docker run --rm --network host --cpus="$CPUS" --memory="$MEMORY" \
   "$IMAGE" bash /tmp/build.sh
 
 cd "$OUT"
-sha256sum lyprobe liblyprobe-1.0.0.so >SHA256SUMS
+sha256sum lyprobe liblyprobe-1.0.0.so plugins/servicePlugin.so >SHA256SUMS
 {
   echo "name=ly_probe"
   echo "source=$GIT_URL"
@@ -84,5 +115,5 @@ sha256sum lyprobe liblyprobe-1.0.0.so >SHA256SUMS
   echo "jobs=$JOBS"
   echo "cpus=$CPUS"
 } >BUILD-INFO
-ls -lh lyprobe liblyprobe-1.0.0.so SHA256SUMS BUILD-INFO lyprobe-help.txt
+ls -lh lyprobe liblyprobe-1.0.0.so plugins/servicePlugin.so SHA256SUMS BUILD-INFO lyprobe-help.txt
 echo "lyprobe-build: published $OUT"
