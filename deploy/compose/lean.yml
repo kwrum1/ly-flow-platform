@@ -282,6 +282,31 @@ services:
       start_period: 20s
       test: [CMD-SHELL, "pgrep -x Suricata-Main >/dev/null || exit 1"]
 
+  lyflow-vector:
+    <<: *service-defaults
+    profiles: ["capture"]
+    image: ${LYFLOW_VECTOR_IMAGE:-docker.1ms.run/timberio/vector:0.49.0-alpine}
+    command: ["--config", "/etc/vector/vector.toml"]
+    environment:
+      VECTOR_SURICATA_EVE: ${VECTOR_SURICATA_EVE:-/var/log/suricata/eve.json}
+      VECTOR_READ_FROM: ${VECTOR_READ_FROM:-end}
+      LYFLOW_INGEST_URL: ${LYFLOW_INGEST_URL:-http://ly-server:8080/api/v1/agent/component-alert}
+      VECTOR_AGENT_ID: ${VECTOR_AGENT_ID:?VECTOR_AGENT_ID must be set}
+      VECTOR_AGENT_KEY: ${VECTOR_AGENT_KEY:?VECTOR_AGENT_KEY must be set}
+    volumes:
+      - ../vector/vector.toml:/etc/vector/vector.toml:ro
+      - ./runtime/suricata:/var/log/suricata:ro
+      - vector_data:/var/lib/vector
+    depends_on:
+      ly-server: {condition: service_healthy}
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+      test: [CMD-SHELL, "vector --version >/dev/null"]
+    networks: [core]
+
   lyflow-rulecompiler:
     <<: *service-defaults
     profiles: ["capture"]
@@ -348,3 +373,4 @@ volumes:
   security_engine_data:
   security_engine_audit:
   agent_center_data:
+  vector_data:

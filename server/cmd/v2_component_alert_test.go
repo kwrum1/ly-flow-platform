@@ -27,6 +27,22 @@ func TestAgentComponentAlertHandlerRejectsInvalidAlert(t *testing.T) {
 	}
 }
 
+func TestDecodeComponentAlertsAcceptsSingleAndBatch(t *testing.T) {
+	single := `{"schema_version":"lyflow.component_alert.v1","id":"a1"}`
+	alerts, err := decodeComponentAlerts(json.RawMessage(single))
+	if err != nil || len(alerts) != 1 || alerts[0].ID != "a1" {
+		t.Fatalf("single decode = %#v, %v", alerts, err)
+	}
+	batch := `[{"schema_version":"lyflow.component_alert.v1","id":"a1"},{"schema_version":"lyflow.component_alert.v1","id":"a2"}]`
+	alerts, err = decodeComponentAlerts(json.RawMessage(batch))
+	if err != nil || len(alerts) != 2 || alerts[1].ID != "a2" {
+		t.Fatalf("batch decode = %#v, %v", alerts, err)
+	}
+	if _, err := decodeComponentAlerts(json.RawMessage(`[]`)); err == nil {
+		t.Fatal("empty batch accepted")
+	}
+}
+
 func TestStoreV2ComponentAlertRequiresRedis(t *testing.T) {
 	alert := contracts.ComponentAlert{SchemaVersion: contracts.ComponentAlertSchemaVersion, ID: "a1", Category: contracts.TelemetryNetwork, SourceEngine: contracts.SourceEngineSuricata, RuleID: "1:1", RuleName: "test", Severity: contracts.SeverityHigh, ScoreHint: 80, OccurredAt: time.Now(), Source: "suricata", Summary: "test"}
 	if _, err := storeV2ComponentAlert(httptest.NewRequest(http.MethodPost, "/", nil).Context(), &Config{}, alert); err == nil {

@@ -18,6 +18,7 @@
 - ClickHouse 26.9.21.9（测试机原生进程）
 - `lyprobe-sensor`
 - `suricata-sensor` 7.0.3
+- `lyflow-vector` 0.49.0（Suricata EVE → component alert）
 - `ly-flow-rulecompiler`
 - `ly-flow-capturedoctor`
 
@@ -32,6 +33,7 @@ lyflow-g5-postgres-1              healthy
 lyflow-g5-redis-1                 healthy
 lyflow-g5-lyprobe-sensor-1        healthy
 lyflow-g5-suricata-sensor-1       healthy
+lyflow-g5-lyflow-vector-1         healthy
 lyflow-g5-lyflow-rulecompiler-1   healthy
 lyflow-g5-lyflow-capturedoctor-1  healthy
 ```
@@ -154,7 +156,7 @@ G5_INCIDENT_OK
 docker compose --env-file lean.env -f g5-host.yml restart
 ```
 
-重启后 10 个服务全部回到 healthy，使用 admin token 再次查询 `/api/v2/events` 仍返回
+重启后 11 个服务全部回到 healthy，使用 admin token 再次查询 `/api/v2/events` 仍返回
 `g5-e2e-...`，PostgreSQL/ClickHouse/Redis 数据保留。
 
 ## 9. 采集面
@@ -175,13 +177,11 @@ docker compose --env-file lean.env -f g5-host.yml restart
    必须补齐可复现镜像源/离线包。
 3. **Elkeid/Wazuh/OpenRASP 原生产品未接入**：当前已验证 `ly-agent` 真实注册、心跳、
    资产采集、Suricata EVE 适配；YARA 因测试机缺二进制处于 degraded，RASP 未启用。
-4. **Vector 未进入 lean**：当前实际告警链路由 Agent EVE adapter 承担；Vector 打包
-   仍是后续项，不能把现有链路称为 Suricata→Vector→ly-server。
-5. **未做 ESXi 快照**：发布前必须补快照。
-6. **容量**：T4.6 结论保持不变；6 vCPU/8 GiB 不是正式 20k EPS + 1Gbps 保证配置。
-7. **XDR weak_same_ip 关联**：已阻止包含 `weak_same_ip` 的新路径提升为 Incident；
+4. **未做 ESXi 快照**：发布前必须补快照。
+5. **容量**：T4.6 结论保持不变；6 vCPU/8 GiB 不是正式 20k EPS + 1Gbps 保证配置。
+6. **XDR weak_same_ip 关联**：已阻止包含 `weak_same_ip` 的新路径提升为 Incident；
    测试机历史合成 Incident 仍保留在测试库中，正式验收前需清理测试数据。
-8. **YARA/RASP 运行时**：测试机未安装 yara；RASP probe manager 未启用，UI 已按
+7. **YARA/RASP 运行时**：测试机未安装 yara；RASP probe manager 未启用，UI 已按
    Agent capability 显示未启用原因。
 
 ## 11. 证据
@@ -199,6 +199,7 @@ docker compose --env-file lean.env -f g5-host.yml restart
 ├── real-agent.out
 ├── runtime-integration.out
 ├── suricata-alert-chain.out
+├── vector-integration.txt
 ├── real-integration.txt
 ├── restart-check.json
 ├── restart-check-final.json
@@ -239,16 +240,21 @@ docker compose --env-file lean.env -f g5-host.yml restart
 
 ```text
 Suricata 7.0.11 EVE
-  → ly-agent Suricata profile adapter
+  → Vector 0.49.0 file source + VRL component alert mapping
+  → HTTP POST /api/v1/agent/component-alert
   → Redis component_alerts:v2
   → ly-server 持久化
-  → /api/v1/threats/traffic
+  → /api/v1/component-alerts/traffic
   → UI /traffic-threats
 ```
 
-真实 PCAP 回放命中 SID `9000001`，Agent 适配器 `parsed_lines=3`、
-`status=healthy`；API 返回 1 组威胁，UI 流量页显示 Suricata 告警。
-当前链路由 Agent EVE adapter 承担；Vector 仍未加入 lean，作为后续打包项。
+真实 PCAP 回放命中 SID `9000001`，Vector 生成
+`vector-suricata-...-9000001`；服务端接受单对象和 JSON 数组，写入 canonical
+并发布 `component_alerts:v2`。UI 流量页显示 Vector 告警，XDR 事件模块为 `dpi`。
+
+Agent Suricata EVE adapter 仍保留作为无 Vector 环境的备用路径；当前 G5/lean
+默认启用 Vector，测试 Agent 已关闭自己的 Suricata profile 以避免重复告警。
+服务端同时补了数组请求支持，兼容 Vector HTTP sink 的批量编码。
 
 ### 12.3 UI 后端能力对齐
 

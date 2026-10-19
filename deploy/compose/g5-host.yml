@@ -230,6 +230,31 @@ services:
       retries: 5
       start_period: 20s
 
+  lyflow-vector:
+    <<: *defaults
+    image: ${LYFLOW_VECTOR_IMAGE:-docker.1ms.run/timberio/vector:0.49.0-alpine}
+    network_mode: host
+    command: ["--config", "/etc/vector/vector.toml"]
+    environment:
+      VECTOR_SURICATA_EVE: ${VECTOR_SURICATA_EVE:-/var/log/suricata/eve.json}
+      VECTOR_READ_FROM: ${VECTOR_READ_FROM:-end}
+      RUST_LOG: info
+      LYFLOW_INGEST_URL: ${LYFLOW_INGEST_URL:-http://127.0.0.1:8080/api/v1/agent/component-alert}
+      VECTOR_AGENT_ID: ${VECTOR_AGENT_ID:?VECTOR_AGENT_ID must be set}
+      VECTOR_AGENT_KEY: ${VECTOR_AGENT_KEY:?VECTOR_AGENT_KEY must be set}
+    volumes:
+      - ../vector/vector.toml:/etc/vector/vector.toml:ro
+      - ./runtime/suricata:/var/log/suricata:ro
+      - g5_vector_data:/var/lib/vector
+    depends_on:
+      ly-server: {condition: service_healthy}
+    healthcheck:
+      test: [CMD-SHELL, "vector --version >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
   lyflow-rulecompiler:
     <<: *defaults
     image: ${LYFLOW_RULECOMPILER_IMAGE:-ly-flow/rulecompiler:latest}
@@ -289,4 +314,5 @@ volumes:
   g5_policy_trust:
   g5_security_engine_audit:
   g5_agent_center_data:
+  g5_vector_data:
 

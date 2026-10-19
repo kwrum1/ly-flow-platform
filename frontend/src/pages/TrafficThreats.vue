@@ -129,7 +129,7 @@ async function loadAll() {
   error.value = ''
   try {
     const category = apiCategory()
-    const data = ['runtime', 'rasp', 'log_audit'].includes(category)
+    const data = ['traffic', 'runtime', 'rasp', 'log_audit'].includes(category)
       ? normalizeItems(await trafficClient.componentAlerts(category, params()))
       : normalizeItems(await trafficClient.threatCategory(category, params()))
     threats.value = data.items.map(normalizeAlert)

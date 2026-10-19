@@ -641,12 +641,11 @@
   - 签发 enrollment token，注册 `g5-agent`。
   - v2 ingest 接收 1 个事件；`/api/v2/events` 查询命中同一 `event_uid`。
   - `/api/v1/agents` 返回 agent。
-  - `docker compose restart` 后 10 服务恢复 healthy，事件仍可查询。
+  - `docker compose restart` 后 11 服务恢复 healthy，事件仍可查询。
 - 例外：
   - Docker Hub 镜像站不稳定；Postgres 使用本地 `safeline-postgres:15.18`，
     ClickHouse 使用原生进程，Redis/Pingora/core 镜像本地构建。
-  - 真实 Elkeid/Wazuh/OpenRASP Agent 链路、Suricata→Vector 告警链、
-    ESXi 快照仍未完成。
+  - 真实 Elkeid/Wazuh/OpenRASP Agent 链路、ESXi 快照仍未完成。
 - 报告：`docs/dev/G5-REPORT.md`，证据 `/opt/lyflow/reports/G5/`。
 - 状态：`PASS_WITH_EXCEPTIONS`，不是无条件可发布。
 
@@ -688,10 +687,12 @@
   - runtime sensor 启用（eBPF fallback）；YARA 因缺二进制 degraded；RASP disabled。
 - 告警链路：
   - Suricata 7.0.11 PCAP 回放 SID `9000001`。
-  - Agent Suricata EVE adapter 解析 3 行并写入 `component_alerts:v2`。
-  - `/api/v1/threats/traffic` 返回 1 组；UI `/traffic-threats` 显示真实告警。
-  - 修复 EVE adapter 在 CPU budget 后永久退出的问题。
-  - 当前链路不是 Vector；Vector 仍是后续打包项。
+  - Vector 0.49.0 读取 EVE，VRL 映射 ComponentAlert，HTTP POST
+    `/api/v1/agent/component-alert`。
+  - 服务端接受单对象/数组，写 canonical 并发布 `component_alerts:v2`。
+  - UI `/traffic-threats` 从 `/api/v1/component-alerts/traffic` 显示 Vector 告警。
+  - Agent Suricata EVE adapter 保留为无 Vector 环境备用路径。
+  - 修复 Agent EVE adapter 在 CPU budget 后永久退出的问题。
 - UI 修复：
   - 总览在线 Agent/资产总数改用 assets stats。
   - 全球态势无地理数据时回退到真实 Incident。
@@ -702,5 +703,6 @@
 - 验证：
   - `G5_REAL_AGENT_OK`
   - `G5_INCIDENT_OK`
+  - `G5_VECTOR_OK`
   - UI validation exit 0
-- 仍未完成：Vector、真实 Elkeid/Wazuh/OpenRASP、YARA 二进制、RASP 启用、ESXi 快照。
+- 仍未完成：真实 Elkeid/Wazuh/OpenRASP、YARA 二进制、RASP 启用、ESXi 快照。

@@ -9465,21 +9465,29 @@ func agentComponentAlertHandler(cfg *Config) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		var alert contracts.ComponentAlert
-		if !decodeIngestionJSON(w, r, cfg, principal, surface, &alert) {
+		var raw json.RawMessage
+		if !decodeIngestionJSON(w, r, cfg, principal, surface, &raw) {
 			return
 		}
-		agentID, ok := bindIngestionPrincipal(w, r, cfg, principal, surface, alert.Entities.AgentID)
-		if !ok {
-			return
-		}
-		alert.Entities.AgentID = agentID
-		if alert.Source == "" {
-			alert.Source = string(alert.SourceEngine)
-		}
-		if err := alert.Validate(); err != nil {
+		alerts, err := decodeComponentAlerts(raw)
+		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, "invalid_component_alert", err.Error())
 			return
+		}
+		for index := range alerts {
+			alert := &alerts[index]
+			agentID, ok := bindIngestionPrincipal(w, r, cfg, principal, surface, alert.Entities.AgentID)
+			if !ok {
+				return
+			}
+			alert.Entities.AgentID = agentID
+			if alert.Source == "" {
+				alert.Source = string(alert.SourceEngine)
+			}
+			if err := alert.Validate(); err != nil {
+				writeJSONError(w, http.StatusBadRequest, "invalid_component_alert", err.Error())
+				return
+			}
 		}
 		if cfg == nil || cfg.Redis == nil {
 			writeJSONError(w, http.StatusServiceUnavailable, "redis_unavailable", "redis unavailable")
@@ -9488,13 +9496,61 @@ func agentComponentAlertHandler(cfg *Config) http.HandlerFunc {
 		if !acceptIngestion(w, r, cfg, principal, surface) {
 			return
 		}
-		msgID, err := storeV2ComponentAlert(r.Context(), cfg, alert)
-		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, "component_alert_store_failed", err.Error())
-			return
+		ids := make([]string, 0, len(alerts))
+		messageIDs := make([]string, 0, len(alerts))
+		for index := range alerts {
+			alert := &alerts[index]
+			msgID, err := storeV2ComponentAlert(r.Context(), cfg, *alert)
+			if err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "component_alert_store_failed", err.Error())
+				return
+			}
+			payload, err := json.Marshal(alert)
+			if err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "component_alert_encode_failed", err.Error())
+				return
+			}
+			if err := cfg.Redis.XAdd(r.Context(), &redis.XAddArgs{
+				Stream: "component_alerts:v2",
+				Values: map[string]interface{}{"data": string(payload)},
+			}).Err(); err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "component_alert_stream_failed", err.Error())
+				return
+			}
+			ids = append(ids, alert.ID)
+			messageIDs = append(messageIDs, msgID)
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"id": alert.ID, "message_id": msgID, "stream": "component_alerts:v2"}})
+		data := map[string]interface{}{
+			"ids": ids, "message_ids": messageIDs, "stream": "component_alerts:v2",
+		}
+		if len(ids) == 1 {
+			data["id"] = ids[0]
+			data["message_id"] = messageIDs[0]
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": data})
 	}
+}
+
+func decodeComponentAlerts(raw json.RawMessage) ([]contracts.ComponentAlert, error) {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" {
+		return nil, fmt.Errorf("empty component alert")
+	}
+	if strings.HasPrefix(trimmed, "[") {
+		var alerts []contracts.ComponentAlert
+		if err := json.Unmarshal(raw, &alerts); err != nil {
+			return nil, err
+		}
+		if len(alerts) == 0 {
+			return nil, fmt.Errorf("empty component alert batch")
+		}
+		return alerts, nil
+	}
+	var alert contracts.ComponentAlert
+	if err := json.Unmarshal(raw, &alert); err != nil {
+		return nil, err
+	}
+	return []contracts.ComponentAlert{alert}, nil
 }
 
 func storeV2ComponentAlert(ctx context.Context, cfg *Config, alert contracts.ComponentAlert) (string, error) {
