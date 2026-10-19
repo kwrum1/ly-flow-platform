@@ -41,3 +41,37 @@ func TestActionManagerApproveDispatchRollback(t *testing.T) {
 		t.Fatalf("rollback: %+v %v", rollback, err)
 	}
 }
+
+func TestActionManagerReversibleActionRollbackMapping(t *testing.T) {
+	manager, err := NewActionManager(filepath.Join(t.TempDir(), "actions.json"), Policy{RequireDifferentApprover: true})
+	if err != nil {
+		t.Fatalf("new manager: %v", err)
+	}
+	tests := []struct {
+		action   ActionKind
+		rollback ActionKind
+		target   string
+	}{
+		{ActionBlockIP, ActionUnblockIP, "203.0.113.77"},
+		{ActionFileDelete, ActionFileRestore, "/tmp/lyflow-response/sample.txt"},
+		{ActionAccountDisable, ActionAccountEnable, "lyflow-response-test"},
+		{ActionIsolateHost, ActionHostUnisolate, "host-1"},
+		{ActionNamespaceIsolate, ActionNamespaceRestore, "container-1"},
+	}
+	for _, test := range tests {
+		record, err := manager.Create(ActionRequest{AgentID: "agent-1", Action: test.action, Target: test.target, RequestedBy: "user:1"})
+		if err != nil {
+			t.Fatalf("create %s: %v", test.action, err)
+		}
+		if _, err := manager.Approve(record.ID, "user:2"); err != nil {
+			t.Fatalf("approve %s: %v", test.action, err)
+		}
+		rollback, err := manager.Rollback(record.ID, "user:2")
+		if err != nil || rollback.Action != test.rollback {
+			t.Fatalf("rollback %s = %+v, %v", test.action, rollback, err)
+		}
+	}
+	if _, err := manager.Create(ActionRequest{AgentID: "agent-1", Action: ActionProcessKill, Target: "424242", RequestedBy: "user:1"}); err != nil {
+		t.Fatalf("create process kill: %v", err)
+	}
+}
