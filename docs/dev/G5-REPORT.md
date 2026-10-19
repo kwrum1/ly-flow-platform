@@ -300,5 +300,11 @@ Agent Suricata EVE adapter 仍保留作为无 Vector 环境的备用路径；当
   - `agent/download?os=linux&arch=amd64` 200（约 13 MB）
   - Python/Java RASP probe 200
 - `server-lean.Dockerfile` 已包含 Agent 二进制和 `probe/` 资产。
+- 安装令牌流程：
+  - 安装页调用 `/api/v1/agent/identity` 生成 10 分钟一次性 token；
+  - 命令使用 `/api/v1/agent/install.sh?enrollment_token=...`；
+  - 脚本写入 `/opt/ly-agent/etc/agent.env`，systemd 通过 `EnvironmentFile` 注入；
+  - token 只允许安全字符，服务端拒绝危险字符。
+- 实测安装脚本 200，token 已嵌入且 `EnvironmentFile` 存在。
 - 未在运行中的测试 Agent 上重跑整套 systemd 安装，避免覆盖当前联调实例；
   干净主机安装仍作为发布前动作。
