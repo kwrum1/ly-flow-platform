@@ -298,10 +298,13 @@ Agent Suricata EVE adapter 仍保留作为无 Vector 环境的备用路径；当
 - 安装端点无 JWT 即可访问：
   - `install.sh` 200
   - `uninstall.sh` 200
-  - `agent/download?os=linux&arch=amd64` 200（约 13.7 MB）
+  - `agent/download?os=linux&arch=amd64` 200（约 13.1 MB）
   - `agent/download?os=linux&arch=arm64` 200（约 12.9 MB）
   - `agent/download?os=windows&arch=amd64` 200（约 14.0 MB）
+  - `agent/rasp/policy-root` 200（RASP 策略根证书）
   - Python/Java RASP probe 200
+- 安装脚本自动下载 `/api/v1/agent/rasp/policy-root` 到
+  `/etc/lyflow/trust/policy-root.pem`，干净主机可验证 RASP 签名策略。
 - `scripts/build-agent-binaries.sh` 统一构建三平台二进制，`build-core-images.sh`
   在构建镜像前自动执行。
 - `server-lean.Dockerfile` 已包含 Agent 二进制和 `probe/` 资产。

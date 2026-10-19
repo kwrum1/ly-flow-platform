@@ -711,6 +711,7 @@
     自动调用。
   - 安装页生成 10 分钟一次性 enrollment token，脚本写入 agent.env 并由
     systemd EnvironmentFile 注入；危险 token 字符会被拒绝。
+  - 安装脚本自动下载 RASP policy root 到 /etc/lyflow/trust，供签名策略验证。
   - server image 已包含 Agent 二进制和 probe 资产。
 - 验证：
   - `G5_REAL_AGENT_OK`

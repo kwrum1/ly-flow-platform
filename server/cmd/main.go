@@ -462,6 +462,7 @@ func main() {
 	mux.HandleFunc("/api/v1/agent/install.sh", agentInstallScriptHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/uninstall.sh", agentUninstallScriptHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/download", agentDownloadHandler(cfg))
+	mux.HandleFunc("/api/v1/agent/rasp/policy-root", agentRASPPolicyRootHandler())
 	mux.HandleFunc("/api/v1/agent/rasp/probe/python", agentRASPProbeHandler("python"))
 	mux.HandleFunc("/api/v1/agent/rasp/probe/php", agentRASPProbeHandler("php"))
 	mux.HandleFunc("/api/v1/agent/rasp/probe/java", agentRASPProbeHandler("java"))
@@ -10184,6 +10185,23 @@ printf 'ly-agent uninstalled\n'
 	}
 }
 
+func agentRASPPolicyRootHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		trustDir := strings.TrimSpace(getEnv("POLICY_TRUST_DIR", "/var/lib/lyflow/policy/trust"))
+		path := filepath.Join(trustDir, "policy-root.pem")
+		if st, err := os.Stat(path); err != nil || st.IsDir() {
+			http.Error(w, "policy root unavailable", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/x-pem-file")
+		http.ServeFile(w, r, path)
+	}
+}
+
 func agentRASPProbeHandler(language string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -10318,6 +10336,9 @@ case "$ARCH" in
 esac
 curl -kfsSL "$API_SERVER/api/v1/agent/download?os=linux&arch=$AGENT_ARCH" -o "$AGENT_TMP"
 chmod +x "$AGENT_TMP"
+mkdir -p /etc/lyflow/trust
+curl -kfsSL "$API_SERVER/api/v1/agent/rasp/policy-root" -o /etc/lyflow/trust/policy-root.pem 2>/dev/null || true
+chmod 0644 /etc/lyflow/trust/policy-root.pem 2>/dev/null || true
 if command -v systemctl >/dev/null 2>&1; then
   systemctl stop ly-agent 2>/dev/null || true
 fi
