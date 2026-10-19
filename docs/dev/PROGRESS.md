@@ -416,6 +416,22 @@
 - 状态：`REVIEW`。注册表/许可门就绪；**实际下载/编译/灰度**由 `suricata-update`、`sigma-cli`、`yara` 适配器接入，T4.2 处理。
 - 回滚：删除 `server/content` 即可。
 
+### T4.2 Suricata/ET Open 集成（REVIEW）
+
+- 更新 `deploy/suricata/lyflow-suricata-profile.yaml`：补齐 ET Open 需要的 `HTTP_SERVERS` 等变量。
+- 新增 `deploy/suricata/lyflow-suricata-test.yaml`：测试 VM 的 `ens160` af-packet profile。
+- 新增 `deploy/suricata/README.md`、`rules/suricata/et-open.manifest.json`。
+- 新增 `scripts/dev/suricata-e2e.sh`、`scripts/dev/suricata-replay.sh`。
+- 测试 VM 实测：
+  - Suricata 7.0.3 / suricata-update 1.3.0。
+  - `suricata-update` 加载 ET Open：69,107 条，启用 53,151。
+  - `suricata -T`：53,162 条规则成功，0 失败。
+  - PCAP 回放触发自定义规则 `LYFLOW INERT pinned profile verification`（sid 9000001）。
+  - EVE 输出包含 `alert`/`dns`/`flow`。
+- 状态：`REVIEW`。规则/引擎集成已验证；容器化与自动灰度待 T4.7。
+- 回滚：恢复旧 profile；删除新增测试脚本/manifest 即可。
+
+
 
 
 
