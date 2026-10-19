@@ -47,6 +47,7 @@ import (
 	"github.com/lyflow/ly-flow-platform/server/modules/rasp"
 	"github.com/lyflow/ly-flow-platform/server/modules/trace"
 	"github.com/lyflow/ly-flow-platform/server/queryv2"
+	responsepkg "github.com/lyflow/ly-flow-platform/server/response"
 	"github.com/lyflow/ly-flow-platform/server/rulelifecycle"
 	"github.com/lyflow/ly-flow-platform/server/unified"
 	xdrprocessor "github.com/lyflow/ly-flow-platform/server/xdr"
@@ -94,6 +95,7 @@ type Config struct {
 	RuleVersionStatus           ruleVersionStatusCommitter
 	RuleDownloadRestrictedShown bool
 	XDRResponsePolicyPath       string
+	ResponseActions             *responsepkg.ActionManager
 
 	XDRV2ResponsePolicyEnabled bool
 	XDRV2MaxDepth              int
@@ -139,6 +141,20 @@ func loadConfig() *Config {
 
 		Features: loadFeatureFlags(),
 	}
+	responseActions, err := responsepkg.NewActionManager(
+		getEnv("RESPONSE_ACTIONS_PATH", "/var/lib/lyflow/response/actions.json"),
+		responsepkg.Policy{
+			AllowScheduledAuto:       toBool(getEnv("RESPONSE_AUTO_WINDOW_ENABLED", "false")),
+			WindowStartHour:          toInt(getEnv("RESPONSE_WINDOW_START_HOUR", "0")),
+			WindowEndHour:            toInt(getEnv("RESPONSE_WINDOW_END_HOUR", "6")),
+			RequireDifferentApprover: toBool(getEnv("RESPONSE_REQUIRE_DIFFERENT_APPROVER", "true")),
+			ApprovalTTL:              time.Duration(toInt(getEnv("RESPONSE_APPROVAL_TTL_MINUTES", "15"))) * time.Minute,
+		},
+	)
+	if err != nil {
+		log.Fatalf("无法初始化响应动作: %v", err)
+	}
+	cfg.ResponseActions = responseActions
 	sslMode := getEnv("DB_SSLMODE", "disable")
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName, sslMode)
@@ -373,6 +389,8 @@ func main() {
 	mux.HandleFunc("/api/v1/rule-platform/rollback", rulePlatformRollbackHandler(cfg))
 	mux.HandleFunc("/api/v1/rule-platform/active-bundle", rulePlatformActiveBundleHandler(cfg))
 	mux.HandleFunc("/api/v1/response/candidates", responseCandidatesHandler(cfg))
+	mux.HandleFunc("/api/v1/response/actions", responseActionsHandler(cfg))
+	mux.HandleFunc("/api/v1/response/actions/", responseActionHandler(cfg))
 	mux.HandleFunc("/api/v1/response/policy", responsePolicyHandler(cfg))
 	mux.HandleFunc("/api/v1/response/advisories", advisoryResponseHandler(cfg))
 	mux.HandleFunc("/api/v1/response/advisories/", advisoryResponseHandler(cfg))
@@ -1887,6 +1905,95 @@ func responseCandidatesHandler(cfg *Config) http.HandlerFunc {
 			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": candidates, "total": len(candidates), "candidate_only": true, "enforcement": "disabled", "policy": policy.PublicSummary()}})
 		default:
 			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Response candidates are read-only; enforcement endpoints are not implemented")
+		}
+	}
+}
+
+func responseActionsHandler(cfg *Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if cfg == nil || cfg.ResponseActions == nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "response_actions_unavailable", "response action store unavailable")
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			records, err := cfg.ResponseActions.List()
+			if err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "response_actions_failed", err.Error())
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": records, "total": len(records)}})
+		case http.MethodPost:
+			var request responsepkg.ActionRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				writeJSONError(w, http.StatusBadRequest, "invalid_response_action", "Invalid response action")
+				return
+			}
+			request.RequestedBy = fmt.Sprintf("user:%d", auth.GetUserIDFromContext(r.Context()))
+			record, err := cfg.ResponseActions.Create(request)
+			if err != nil {
+				writeJSONError(w, http.StatusBadRequest, "response_action_rejected", err.Error())
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": record})
+		default:
+			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		}
+	}
+}
+
+func responseActionHandler(cfg *Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if cfg == nil || cfg.ResponseActions == nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "response_actions_unavailable", "response action store unavailable")
+			return
+		}
+		path := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/v1/response/actions/"), "/")
+		parts := strings.Split(path, "/")
+		if len(parts) == 0 || parts[0] == "" {
+			writeJSONError(w, http.StatusNotFound, "response_action_not_found", "Response action not found")
+			return
+		}
+		id := parts[0]
+		if len(parts) == 1 && r.Method == http.MethodGet {
+			records, err := cfg.ResponseActions.List()
+			if err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "response_actions_failed", err.Error())
+				return
+			}
+			for _, record := range records {
+				if record.ID == id {
+					json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": record})
+					return
+				}
+			}
+			writeJSONError(w, http.StatusNotFound, "response_action_not_found", "Response action not found")
+			return
+		}
+		if len(parts) != 2 || r.Method != http.MethodPost {
+			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+			return
+		}
+		switch parts[1] {
+		case "approve":
+			approver := fmt.Sprintf("user:%d", auth.GetUserIDFromContext(r.Context()))
+			record, err := cfg.ResponseActions.Approve(id, approver)
+			if err != nil {
+				writeJSONError(w, http.StatusConflict, "response_approval_rejected", err.Error())
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": record})
+		case "rollback":
+			record, err := cfg.ResponseActions.Rollback(id, fmt.Sprintf("user:%d", auth.GetUserIDFromContext(r.Context())))
+			if err != nil {
+				writeJSONError(w, http.StatusConflict, "response_rollback_rejected", err.Error())
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": record})
+		default:
+			writeJSONError(w, http.StatusNotFound, "response_action_operation_not_found", "Response action operation not found")
 		}
 	}
 }
@@ -9270,6 +9377,14 @@ func agentConfigHandler(cfg *Config) http.HandlerFunc {
 				state["enabled"] = assignment.Envelope.Policy.Mode == agentpolicy.ModeMonitor
 			}
 		}
+		tasks := []responsepkg.ActionTask{}
+		if cfg.ResponseActions != nil {
+			if pending, taskErr := cfg.ResponseActions.PendingTasks(agentID); taskErr == nil {
+				tasks = pending
+			} else {
+				log.Printf("response action task dispatch failed: agent_id=%s err=%v", agentID, taskErr)
+			}
+		}
 
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -9294,7 +9409,7 @@ func agentConfigHandler(cfg *Config) http.HandlerFunc {
 						"streams":   map[string]string{"raw": "flows:raw", "semantic": "flows:semantic", "runtime": "alerts:runtime", "rasp": "alerts:rasp"},
 					},
 				},
-				"tasks": []map[string]interface{}{},
+				"tasks": tasks,
 			},
 		})
 	}
@@ -9472,6 +9587,11 @@ func agentTaskResultHandler(cfg *Config) http.HandlerFunc {
 		}
 		if req.TaskID != "" {
 			log.Printf("agent task result received: agent_id=%s task_id=%s status=%s", agentID, req.TaskID, req.Status)
+			if cfg.ResponseActions != nil {
+				if err := cfg.ResponseActions.Complete(req.TaskID, req.Status, req.Result, req.ErrorMsg); err != nil {
+					log.Printf("response action completion update failed: task_id=%s err=%v", req.TaskID, err)
+				}
+			}
 		}
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"code":    0,

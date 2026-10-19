@@ -180,9 +180,9 @@ docker compose --env-file lean.env -f g5-host.yml restart
 2. **生产 lean 还未走上述例外路径**：`lean.yml` 仍以标准镜像 tag 为目标，正式发布前
    必须补齐可复现镜像源/离线包。
 3. **Wazuh/OpenRASP/Elkeid 边界**：Wazuh manager 4.9.2 已本地安装并进入
-   NDR/XDR；OpenRASP 1.3.7 engine 已下载并成功 attach，但独立 demo 没有
-   支持的 Web 容器请求上下文，alarm 注入尚未完成；Elkeid 集成按当前决策放弃。
-   LyFlow 自身 Agent/HIDS/YARA/多语言 RASP/Vector 链路真实运行。
+   NDR/XDR；OpenRASP 1.3.7 engine 已通过 Jetty 9.4 真实 alarm 并接入
+   component alerts；Elkeid 集成按当前决策放弃。LyFlow 自身 Agent/HIDS/
+   YARA/多语言 RASP/Vector 链路真实运行。
 4. **ESXi 快照/干净 VM 被凭据阻塞**：测试机旧 lab 密码和 `esxi_lab` 公钥均
    无法登录 10.1.18.124，当前没有有效 ESXi root 凭据；已备份当前 Agent
    `/opt/lyflow/backups/g5-agent-pre-wazuh-20261019-2221.tgz`。
@@ -190,11 +190,15 @@ docker compose --env-file lean.env -f g5-host.yml restart
 6. **XDR weak_same_ip 关联**：已阻止包含 `weak_same_ip` 的新路径提升为 Incident；
    测试机历史合成 Incident 仍保留在测试库中，正式验收前需清理测试数据。
 7. **多语言 RASP**：Python/Java/PHP/Node/dotnet 已完成真实运行时 attach 和事件入库；
-   上游 OpenRASP engine 已 attach 但未产生/适配 alarm；Go RASP probe 未做真实应用联调。
+   上游 OpenRASP engine 已 attach，并已通过 Jetty 真实 alarm 接入；Go RASP probe
+   仍未做真实应用联调。
 8. **Installer 完整安装**：安装资产和下载端点已验证；干净 VM 创建被 ESXi 凭据阻塞，
    未重跑 systemd 全套安装。
 9. **Pingora FD 上限**：测试容器曾达到 nofile 上限；已把 `ly-vis` 的 nofile
    提升到 65536 并验证恢复。长期连接压力仍需单独观察。
+10. **响应执行范围**：`block_ip`/`unblock_ip` 已完成真实审批、执行、回滚；
+    process kill/file delete/account disable/namespace isolate 仍未实现，
+    仍为候选/审批范围。测试目标只使用 TEST-NET 地址。
 
 ## 11. 证据
 
@@ -218,6 +222,8 @@ docker compose --env-file lean.env -f g5-host.yml restart
 ├── wazuh-native.txt
 ├── wazuh-manager.txt
 ├── openrasp-engine.txt
+├── openrasp-adapter.txt
+├── response-integration.txt
 ├── clean-vm.txt
 ├── yara-integration.txt
 ├── installer-integration.txt
@@ -349,10 +355,32 @@ Agent Suricata EVE adapter 仍保留作为无 Vector 环境的备用路径；当
   wazuh 13 条、UI 运行威胁 67 组；Incident 从 39 增至 149。
 - OpenRASP：已下载官方 `v1.3.7` `rasp-java.tar.gz`，解压到测试机
   `/opt/openrasp`；Java 17 使用 `--add-opens` + `-javaagent:rasp.jar`
-  可初始化 `[OpenRASP] Engine Initialized`，日志写入 `/opt/openrasp/logs`。
-  独立 demo 不是 OpenRASP 支持的 Web 容器，未产生 alarm，因此尚未把
-  OpenRASP alarm 注入 NDR/XDR；当前多语言 RASP 事件仍由 LyFlow probe 提供。
+  初始化 `[OpenRASP] Engine Initialized`。已用 Jetty 9.4 部署真实请求
+  `/?cmd=cat /etc/passwd`，OpenRASP 产生 `command_userinput` alarm；
+  `scripts/native/openrasp-alarm-bridge.py` + `lyflow-openrasp-bridge.service`
+  将 alarm 归一化并送入 component alerts，UI `/rasp` 显示 42 组。
 - Elkeid：按当前决策**放弃 Elkeid 集成**；私有 HUB/Console/HIDS-RASP 包
   不进入公开构建，现有 provider 代码保留但不作为验收项。
 - 详细边界：`/opt/lyflow/reports/G5/native-integration.txt`、
-  `wazuh-manager.txt`、`openrasp-engine.txt`。
+  `wazuh-manager.txt`、`openrasp-engine.txt`、`openrasp-adapter.txt`。
+
+### 12.7 响应执行 / 审批 / 回滚
+
+- 新增持久化响应动作 API：
+  - `GET/POST /api/v1/response/actions`
+  - `POST /api/v1/response/actions/{id}/approve`
+  - `POST /api/v1/response/actions/{id}/rollback`
+- 响应策略：
+  - L1 观察类自动；
+  - L2 `block_ip` 默认需要不同已认证 approver；
+  - L3 `isolate_host` 仍不执行，保持候选/审批；
+  - 自动时间窗由 `RESPONSE_AUTO_WINDOW_ENABLED` 和窗口环境变量控制。
+- Agent 执行器：
+  - `block_ip` / `unblock_ip` 使用 nftables set `inet lyflow_response blocked`；
+  - 目标必须落在 `RESPONSE_ALLOWED_CIDRS`，默认只允许 TEST-NET-1/2/3；
+  - Agent 回报 `verified` 结果，服务端持久化状态。
+- 实测：
+  - 203.0.113.77：创建 → 审批 → nft 元素存在 → 回滚 → 元素清空；
+  - 198.51.100.88：由第二个认证 admin `user:2` 四眼审批 → 执行 → 回滚；
+  - 证据：`/opt/lyflow/reports/G5/response-integration.txt`。
+- 未实现：process kill、file delete、account disable、namespace isolate。

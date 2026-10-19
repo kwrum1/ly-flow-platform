@@ -44,6 +44,8 @@ func buildRouteRegistry() []RouteSpec {
 		"/api/v1/engine-rules":                        true,
 		"/api/v1/engine-rules/update":                 true,
 		"/api/v1/rasp/rules":                          true,
+		"/api/v1/response/actions":                    true,
+		"/api/v1/response/actions/":                   true,
 	}
 	agentCredential := map[string]bool{
 		"/api/v1/agent/enroll":          true,
@@ -69,6 +71,7 @@ func buildRouteRegistry() []RouteSpec {
 		"/api/v1/rule-platform/compile-preview", "/api/v1/rule-platform/versions", "/api/v1/rule-platform/rollback",
 		"/api/v1/rule-platform/active-bundle", "/api/v1/response/candidates", "/api/v1/response/policy",
 		"/api/v1/response/advisories", "/api/v1/response/advisories/",
+		"/api/v1/response/actions", "/api/v1/response/actions/",
 		"/api/v1/debug/components", "/api/v1/rules/subscription", "/api/v1/rules/categories", "/api/v1/rules/update",
 		"/api/v1/rules/stats", "/api/v1/rules/test", "/api/v1/xdr/stats", "/api/v1/xdr/events", "/api/v1/xdr/sources",
 		"/api/v1/xdr/top-events", "/api/v1/xdr/chains", "/api/v1/xdr/posture", "/api/v1/xdr/log",

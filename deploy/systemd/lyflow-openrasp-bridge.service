@@ -1,0 +1,19 @@
+[Unit]
+Description=LyFlow OpenRASP alarm bridge
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+Environment=OPENRASP_ALARM_LOG=/opt/openrasp/logs/alarm/alarm.log
+Environment=LY_RASP_BRIDGE=http://127.0.0.1:17891/v1/rasp/events
+Environment=LY_RASP_TOKEN=g5-rasp-token
+Environment=LY_RASP_AGENT_ID=g5-real-agent
+Environment=LY_APP_NAME=openrasp-app
+Environment=OPENRASP_START=end
+ExecStart=/usr/bin/python3 /opt/openrasp/openrasp-alarm-bridge.py
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target

@@ -822,10 +822,22 @@ func (a *Agent) pullConfigAndReportTasks() {
 	for _, task := range result.Data.Tasks {
 		taskID, _ := task["task_id"].(string)
 		status := "ignored"
+		taskResult := map[string]interface{}{}
+		errorMessage := ""
 		if taskID == "" {
 			status = "skipped"
+		} else {
+			result, taskStatus, err := a.executeResponseTask(task)
+			status = taskStatus
+			if result != nil {
+				taskResult = result
+			}
+			if err != nil {
+				status = "failed"
+				errorMessage = err.Error()
+			}
 		}
-		if err := a.reportTaskResult(taskID, status, map[string]interface{}{"note": "task execution stub"}, ""); err != nil {
+		if err := a.reportTaskResult(taskID, status, taskResult, errorMessage); err != nil {
 			fmt.Printf("[task] Warning: failed to report task result task_id=%s: %v\n", taskID, err)
 		}
 	}

@@ -78,4 +78,4 @@
 - **G2**：UI shell + 查询性能（7 天 p95 < 2s）通过。
 - **G3**：3 条 ATT&CK 链路验证通过。
 - **G4**：Agent 安装/回滚 + 响应安全护栏通过。
-- **G5**：ESXi 测试机全量验收通过，可发布。当前：`PASS_WITH_EXCEPTIONS`（2026-10-19，11 服务健康、Pingora 前端、Event v2/Incident、真实 Agent/资产/心跳、YARA、Python/Java/PHP/Node/.NET RASP、Wazuh manager 本地告警进入 NDR/XDR、Suricata→Vector→ly-server、自签 UI 验收通过；OpenRASP alarm 注入、Elkeid（已放弃）和 ESXi 快照见例外）。
+- **G5**：ESXi 测试机全量验收通过，可发布。当前：`PASS_WITH_EXCEPTIONS`（2026-10-19，11 服务健康、Pingora 前端、Event v2/Incident、真实 Agent/资产/心跳、YARA、Python/Java/PHP/Node/.NET RASP、OpenRASP alarm→component alerts、Wazuh manager 本地告警进入 NDR/XDR、block_ip 审批/执行/回滚、Suricata→Vector→ly-server、自签 UI 验收通过；其他响应动作、clean VM、ESXi 快照见例外）。

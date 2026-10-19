@@ -50,14 +50,14 @@ func TestArchitectureRouteSnapshot_characterizesCurrentCountAndRoles(t *testing.
 	}
 
 	// Then
-	if len(ArchitectureRouteSnapshot) != 121 {
-		t.Fatalf("route snapshot count=%d, want 121", len(ArchitectureRouteSnapshot))
+	if len(ArchitectureRouteSnapshot) != 123 {
+		t.Fatalf("route snapshot count=%d, want 123", len(ArchitectureRouteSnapshot))
 	}
 	want := map[string]int{
 		"public":           12,
 		"agent_credential": 11,
 		"loopback":         1,
-		"admin_only":       24,
+		"admin_only":       26,
 		"default_roles":    73,
 	}
 	for class, expected := range want {

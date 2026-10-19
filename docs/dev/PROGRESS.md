@@ -701,7 +701,10 @@
   - Wazuh manager 4.9.2 本地安装，关闭高开销模块并加 2 GiB swap；
     native alerts 进入 component alert / XDR / Incident。
   - OpenRASP 1.3.7 官方 Java engine 已下载并 attach 初始化；
-    独立 demo 未产生 alarm，alarm 注入仍待适配。
+    Jetty 9.4 真实请求产生 command alarm；`openrasp-alarm-bridge.py`
+    systemd 服务把 alarm 送入 component alerts / UI。
+  - 响应执行器：block_ip/unblock_ip 使用 nftables set，支持
+    认证审批、agent 下发、执行结果回写和回滚；测试目标为 TEST-NET。
   - YARA 规则包合并可编译规则，避免 external-variable 规则污染。
 - UI 修复：
   - 总览在线 Agent/资产总数改用 assets stats。
@@ -727,6 +730,8 @@
   - `G5_RASP_MULTILANG_OK`
   - `G5_WAZUH_NATIVE_OK`
   - `G5_OPENRASP_ATTACHED`
+  - `G5_OPENRASP_ALARM_OK`
+  - `G5_RESPONSE_OK`
   - UI validation exit 0
-- 仍未完成：OpenRASP alarm→LyFlow 适配、clean VM/systemd 安装（ESXi 凭据
-  阻塞）、ESXi 快照；Elkeid 集成已放弃。
+- 仍未完成：process kill/file delete/account disable/namespace isolate 响应动作、
+  clean VM/systemd 安装（ESXi 凭据阻塞）、ESXi 快照；Elkeid 集成已放弃。

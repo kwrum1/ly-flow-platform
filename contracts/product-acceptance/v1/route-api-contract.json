@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "registry": {
-    "mounted_path_count": 121,
-    "sorted_path_sha256": "aef787e68df28871007b702ad1639381b018588ae83924726ac89123288779b3"
+    "mounted_path_count": 123,
+    "sorted_path_sha256": "5ff383163c37fcb7b90e049584d7772256b6223f4525db76b503100c4930719f"
   },
   "roles": [
     "admin",
@@ -3099,6 +3099,134 @@
           "mutation": false,
           "readback": "stream",
           "persistence": "none"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/response/actions",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/response/actions",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/response/actions",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/response/actions",
+            "body": {
+              "incident_id": "incident-contract",
+              "agent_id": "g5-real-agent",
+              "action": "block_ip",
+              "target": "203.0.113.77",
+              "reason": "contract"
+            },
+            "expected_statuses": [
+              200,
+              400
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/response/actions",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/response/actions/",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/response/actions/",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/response/actions/",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/response/actions/",
+            "body": {
+              "incident_id": "incident-contract",
+              "agent_id": "g5-real-agent",
+              "action": "block_ip",
+              "target": "203.0.113.77",
+              "reason": "contract"
+            },
+            "expected_statuses": [
+              200,
+              400
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/response/actions/",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
         }
       ],
       "disposition": "ui-workflow"
