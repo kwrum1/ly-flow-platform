@@ -11,6 +11,7 @@ export const productNavigation = Object.freeze([
     title: '检测面',
     items: [
       { path: '/traffic-threats', label: '流量威胁', description: '', roles: ['admin'] },
+      { path: '/xdr', label: 'XDR 调查', description: '攻击链与关联证据', roles: ['admin'] },
       { path: '/runtime', label: '运行威胁', description: '', roles: ['admin'] },
       { path: '/rasp', label: '应用威胁', description: '', roles: ['admin'] },
       { path: '/events', label: '事件中心', description: '', roles: ['admin'] },

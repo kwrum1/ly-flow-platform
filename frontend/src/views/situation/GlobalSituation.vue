@@ -69,6 +69,7 @@ import * as echarts from 'echarts'
 import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import api from '../../api'
+import { attackWorkbenchClient } from '../../api/domain'
 import worldMap from '../../assets/maps/world-110m.json'
 import { formatChinaDateTime, platformNow } from '../../shared/time'
 
@@ -97,9 +98,9 @@ const stageDefinitions = [
 
 const metrics = computed(() => ({
   chains: attackChains.value.length,
-  sourceIPs: new Set(geoRoutes.value.map((item) => item.source_ip).filter(Boolean)).size,
+  sourceIPs: new Set([...geoRoutes.value.map((item) => item.source_ip), ...attackChains.value.map((item) => item.sourceIP)].filter(Boolean)).size,
   cities: new Set(geoRoutes.value.map((item) => `${item.source_country}/${item.source_city}`).filter((item) => !item.endsWith('/'))).size,
-  targets: new Set(geoRoutes.value.map((item) => item.target_ip || item.target_city).filter(Boolean)).size,
+  targets: new Set([...geoRoutes.value.map((item) => item.target_ip || item.target_city), ...attackChains.value.map((item) => item.targetIP)].filter(Boolean)).size,
 }))
 
 const targetLabel = computed(() => [target.value.country, target.value.province, target.value.city, target.value.district].filter(Boolean).join(' · '))
@@ -149,9 +150,16 @@ async function refreshData() {
   loading.value = true
   error.value = ''
   try {
-    const response = await api.get('/public/situation/global')
-    const body = response?.data ?? response ?? {}
-    const chains = list(body.attacks)
+    const [situationResult, incidentResult] = await Promise.allSettled([
+      api.get('/public/situation/global'),
+      attackWorkbenchClient.incidents({ limit: 50 }),
+    ])
+    const body = situationResult.status === 'fulfilled' ? (situationResult.value?.data ?? situationResult.value ?? {}) : {}
+    let chains = list(body.attacks)
+    if (!chains.length && incidentResult.status === 'fulfilled') {
+      const incidentBody = incidentResult.value?.data ?? incidentResult.value ?? {}
+      chains = list(incidentBody.items)
+    }
     attackChains.value = chains.map(normalizeChain)
     geoRoutes.value = list(body.geo_routes).length ? list(body.geo_routes) : chains.flatMap((chain) => list(chain.geo_routes))
     target.value = { ...target.value, ...(body.target || {}) }

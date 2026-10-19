@@ -679,3 +679,28 @@
 - 自签证书已接受，不再作为 UI 验收阻塞项。
 - 残余风险：测试机历史合成 Incident 仍保留；新路径已过滤 `weak_same_ip`，
   不再因同源 IP 交叉提升。
+
+### G5 真实 Agent / 告警 / UI 能力对齐（DONE）
+
+- 真实 Agent：
+  - `g5-real-agent` 在测试机注册、心跳 online、资产指标 fresh。
+  - 资产页读取真实 CPU/内存/磁盘/网卡/进程；新增能力列。
+  - runtime sensor 启用（eBPF fallback）；YARA 因缺二进制 degraded；RASP disabled。
+- 告警链路：
+  - Suricata 7.0.11 PCAP 回放 SID `9000001`。
+  - Agent Suricata EVE adapter 解析 3 行并写入 `component_alerts:v2`。
+  - `/api/v1/threats/traffic` 返回 1 组；UI `/traffic-threats` 显示真实告警。
+  - 修复 EVE adapter 在 CPU budget 后永久退出的问题。
+  - 当前链路不是 Vector；Vector 仍是后续打包项。
+- UI 修复：
+  - 总览在线 Agent/资产总数改用 assets stats。
+  - 全球态势无地理数据时回退到真实 Incident。
+  - 运行威胁改查 `/api/v1/component-alerts/runtime`，显示真实 HIDS/Wazuh 事件。
+  - RASP 未启用时显示 Agent capability 原因。
+  - 安装页改为现代 Linux 支持范围。
+  - 自签证书生产 dist 验收 17 页，0 console/page/network error、0 4xx/5xx。
+- 验证：
+  - `G5_REAL_AGENT_OK`
+  - `G5_INCIDENT_OK`
+  - UI validation exit 0
+- 仍未完成：Vector、真实 Elkeid/Wazuh/OpenRASP、YARA 二进制、RASP 启用、ESXi 快照。

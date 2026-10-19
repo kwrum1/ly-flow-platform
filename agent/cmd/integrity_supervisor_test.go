@@ -86,6 +86,20 @@ func TestAgentIntegrityTamper_fails_closed_and_emits_canonical_control_health(t 
 	}
 }
 
+func TestAgentIntegrity_explicitly_disabled_skips_default_signature_paths(t *testing.T) {
+	agent := NewAgent(&Config{
+		RequireAgentIntegrity:    false,
+		RequireConfigIntegrity:   false,
+		AgentBinaryDigestPath:    "/nonexistent/agent-binary.digest.json",
+		AgentConfigSignaturePath: "/nonexistent/agent-config.digest.json",
+		AgentBinaryRootPath:      "/nonexistent/agent-binary-root.pem",
+		AgentConfigRootPath:      "/nonexistent/agent-config-root.pem",
+	})
+	if err := agent.verifyAgentStartupIntegrity(context.Background(), "/nonexistent/agent"); err != nil {
+		t.Fatalf("explicitly disabled integrity checks were not skipped: %v", err)
+	}
+}
+
 func TestSignedConfigIntegrity_rejects_tampered_config(t *testing.T) {
 	// Given
 	configPath, signaturePath, rootPath := signedArtifactFixture(t, []byte("signed-config"))

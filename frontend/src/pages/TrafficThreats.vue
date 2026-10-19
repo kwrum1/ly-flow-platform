@@ -75,12 +75,13 @@ const total = ref(0)
 const selected = ref(null)
 const tableWrap = ref(null)
 const agentNames = ref({})
+const capabilityAgents = ref({ traffic: 0, runtime: 0, rasp: 0 })
 const filters = ref({ query: '', src_ip: '', dst_ip: '', severity: '', start_time: '', end_time: '' })
 let resizeObserver = null
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
 function params() { return { ...filters.value, limit: pageSize.value, offset: (page.value - 1) * pageSize.value } }
-function apiCategory() { return { application: 'rasp', log: 'log_audit', runtime: 'log_audit', system: 'runtime' }[props.category] || props.category }
+function apiCategory() { return { application: 'rasp', log: 'log_audit', system: 'runtime' }[props.category] || props.category }
 function formatTime(value) { return value ? formatChinaDateTime(value) : '-' }
 function occurrenceCount(item) { return Number(item?.occurrence_count || item?.count || 1) || 1 }
 function entity(item, key) { return item?.entities?.[key] || item?.[key] || '' }
@@ -127,7 +128,10 @@ async function loadAll() {
   loading.value = true
   error.value = ''
   try {
-    const data = normalizeItems(await trafficClient.threatCategory(apiCategory(), params()))
+    const category = apiCategory()
+    const data = ['runtime', 'rasp', 'log_audit'].includes(category)
+      ? normalizeItems(await trafficClient.componentAlerts(category, params()))
+      : normalizeItems(await trafficClient.threatCategory(category, params()))
     threats.value = data.items.map(normalizeAlert)
     total.value = data.total
     hasLoaded.value = true
@@ -159,7 +163,16 @@ function normalizeAlert(item) {
 }
 
 function pageCopy() {
-  if (apiCategory() === 'rasp') return { empty: '暂无应用防护日志', loading: '正在读取应用防护日志' }
+  if (apiCategory() === 'rasp') {
+    return capabilityAgents.value.rasp
+      ? { empty: '暂无应用防护日志', loading: '正在读取应用防护日志' }
+      : { empty: '当前接入 Agent 未启用 RASP', loading: '正在读取应用防护日志' }
+  }
+  if (apiCategory() === 'runtime') {
+    return capabilityAgents.value.runtime
+      ? { empty: '暂无运行威胁日志', loading: '正在读取运行威胁日志' }
+      : { empty: '当前接入 Agent 未启用运行传感器', loading: '正在读取运行威胁日志' }
+  }
   if (apiCategory() === 'log_audit') return { empty: '暂无主机审计日志', loading: '正在读取主机审计日志' }
   return { empty: '无流量威胁日志', loading: '正在读取流量威胁日志' }
 }
@@ -176,12 +189,18 @@ function isMirrorTraffic(item, id = '') {
 async function loadAgents() {
   // DB-registered agents have highest priority (rename via ControlCenter syncs here)
   const map = {}
+  let runtimeCapable = 0
+  let raspCapable = 0
   try {
     const data = normalizeItems(await assetAgentClient.agents({ limit: 200 }))
     for (const a of data.items) {
       map[a.agent_id] = a.display_name || a.hostname || a.agent_id
+      const capabilities = a.capabilities || a.metadata?.capabilities || {}
+      if (capabilities.runtime_sensor?.enabled) runtimeCapable++
+      if (capabilities.rasp_probe_manager?.enabled) raspCapable++
     }
   } catch { /* ignore, fall through to names file */ }
+  capabilityAgents.value = { ...capabilityAgents.value, runtime: runtimeCapable, rasp: raspCapable }
   try {
     const namesData = await assetAgentClient.agentNames()
     const names = namesData?.names || {}

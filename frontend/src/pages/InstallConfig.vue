@@ -3,7 +3,7 @@
     <header><h2>安装配置</h2></header>
     <div class="install-grid">
       <article class="install-card linux-card">
-        <div class="card-head"><div><b>Linux Agent</b><span>x86_64 / ARM64 · CentOS 7+</span></div><span class="ready">可用</span></div>
+        <div class="card-head"><div><b>Linux Agent</b><span>x86_64 / ARM64 · Ubuntu 22.04+ / Debian 12+ / 现代 Linux</span></div><span class="ready">可用</span></div>
         <label>一键安装</label>
         <div class="command-box"><code>{{ installCommand }}</code></div>
         <div class="command-row"><div><label>运行状态</label><code>{{ statusCommand }}</code></div><div><label>运行日志</label><code>{{ logCommand }}</code></div></div>

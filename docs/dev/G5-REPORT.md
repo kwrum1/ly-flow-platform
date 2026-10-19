@@ -173,14 +173,16 @@ docker compose --env-file lean.env -f g5-host.yml restart
    原生 ClickHouse，Redis/Pingora/服务镜像均本地构建。
 2. **生产 lean 还未走上述例外路径**：`lean.yml` 仍以标准镜像 tag 为目标，正式发布前
    必须补齐可复现镜像源/离线包。
-3. **未验证真实 Agent/RASP**：只验证了 enrollment + v2 ingest；Elkeid/Wazuh/OpenRASP
-   真实主机链路仍是 M3 残余。
-4. **未验证 Suricata → Vector → ly-server 真实告警链**：T4.2 已验证 PCAP 回放，
-   Vector 尚未加入 lean。
+3. **Elkeid/Wazuh/OpenRASP 原生产品未接入**：当前已验证 `ly-agent` 真实注册、心跳、
+   资产采集、Suricata EVE 适配；YARA 因测试机缺二进制处于 degraded，RASP 未启用。
+4. **Vector 未进入 lean**：当前实际告警链路由 Agent EVE adapter 承担；Vector 打包
+   仍是后续项，不能把现有链路称为 Suricata→Vector→ly-server。
 5. **未做 ESXi 快照**：发布前必须补快照。
 6. **容量**：T4.6 结论保持不变；6 vCPU/8 GiB 不是正式 20k EPS + 1Gbps 保证配置。
 7. **XDR weak_same_ip 关联**：已阻止包含 `weak_same_ip` 的新路径提升为 Incident；
    测试机历史合成 Incident 仍保留在测试库中，正式验收前需清理测试数据。
+8. **YARA/RASP 运行时**：测试机未安装 yara；RASP probe manager 未启用，UI 已按
+   Agent capability 显示未启用原因。
 
 ## 11. 证据
 
@@ -194,6 +196,10 @@ docker compose --env-file lean.env -f g5-host.yml restart
 ├── events-v2.json
 ├── g5-incident-e2e.out
 ├── g5-heartbeat.out
+├── real-agent.out
+├── runtime-integration.out
+├── suricata-alert-chain.out
+├── real-integration.txt
 ├── restart-check.json
 ├── restart-check-final.json
 ├── ui-acceptance.txt
@@ -210,3 +216,49 @@ docker compose --env-file lean.env -f g5-host.yml restart
 ├── images.txt
 └── disk.txt
 ```
+
+## 12. 真实 Agent / 告警 / UI 联调增量
+
+### 12.1 真实 Agent
+
+- 在 `10.1.18.126` 部署 `/opt/ly-agent/ly-agent`，使用自签 HTTPS + 忽略证书校验。
+- 注册 ID `g5-real-agent`，状态 `online`，心跳正常。
+- 资产数据来自真实 Agent：
+  - CPU / 内存 / 磁盘 / 主机名 / 网卡 / 进程数
+  - 资产页面显示 `fresh`
+- 能力上报：
+  - `runtime_sensor=enabled`（eBPF fallback，monitor）
+  - `yara_scanner=degraded`（测试机未安装 yara）
+  - `rasp_probe_manager=disabled`
+  - `traffic_collector=disabled`
+- 结果：`G5_REAL_AGENT_OK`。
+
+### 12.2 告警链路
+
+实际打通：
+
+```text
+Suricata 7.0.11 EVE
+  → ly-agent Suricata profile adapter
+  → Redis component_alerts:v2
+  → ly-server 持久化
+  → /api/v1/threats/traffic
+  → UI /traffic-threats
+```
+
+真实 PCAP 回放命中 SID `9000001`，Agent 适配器 `parsed_lines=3`、
+`status=healthy`；API 返回 1 组威胁，UI 流量页显示 Suricata 告警。
+当前链路由 Agent EVE adapter 承担；Vector 仍未加入 lean，作为后续打包项。
+
+### 12.3 UI 后端能力对齐
+
+- 总览在线 Agent/资产总数改用 `/api/v1/assets/stats`。
+- 全球态势在公网地理数据为空时回退到真实 Incident 列表。
+- 运行威胁页改查 `/api/v1/component-alerts/runtime`，显示真实 HIDS/Wazuh 事件；
+  RASP 页在 Agent 未启用 RASP 时显示明确原因。
+- 资产页增加“能力”列，按 Agent capabilities 显示运行/YARA/日志/RASP。
+- 事件页/流量页/XDR 页均直接从对应后端 API 读取，不使用静态前端数据。
+- 导航补 XDR 调查入口。
+- 安装页 Linux 支持范围改为 Ubuntu 22.04+ / Debian 12+ / 现代 Linux。
+- 自签证书 UI 验收：生产 dist 17 页，0 console/page/network error，
+  0 4xx/5xx，0 水平溢出。
