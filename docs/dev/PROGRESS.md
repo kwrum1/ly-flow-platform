@@ -698,6 +698,7 @@
     `/rasp` 显示 39 组，语言/应用字段可见，heartbeat 已过滤。
   - 修复 Python reporter 注册、Node http 自递归、Java/PHP/Node/.NET 轮换 token 获取。
   - Agent bridge 兼容 legacy probe 并归一化为 RASP 事件。
+  - Wazuh native alerts JSON 适配器用独立 native-wazuh-probe 事件验证。
   - YARA 规则包合并可编译规则，避免 external-variable 规则污染。
 - UI 修复：
   - 总览在线 Agent/资产总数改用 assets stats。

@@ -209,6 +209,7 @@ docker compose --env-file lean.env -f g5-host.yml restart
 ├── rasp-integration.txt
 ├── rasp-multilang.txt
 ├── native-integration.txt
+├── wazuh-native.txt
 ├── yara-integration.txt
 ├── installer-integration.txt
 ├── real-integration.txt
@@ -333,8 +334,9 @@ Agent Suricata EVE adapter 仍保留作为无 Vector 环境的备用路径；当
 
 - Wazuh：`ly-agent` 的 native alerts JSON 适配器已读取
   `/var/ossec/logs/alerts/alerts.json`，把 rule/decoder/location/full_log
-  映射为 `source_engine=wazuh` 的 ComponentAlert；测试机 auth 日志已验证
-  source=wazuh 的事件进入组件告警页。
+  映射为 `source_engine=wazuh` 的 ComponentAlert；已用独立
+  `native-wazuh-probe` 事件验证 rule_id=5710、raw_reference 指向 native
+  alerts 文件。
 - OpenRASP：`agent/supervisor/rasp/openrasp` 可生成 Java/PHP attach 参数；
   当前实际运行的是 LyFlow Java/PHP monitor probe，接口可直接换用上游
   OpenRASP jar/module 路径。
