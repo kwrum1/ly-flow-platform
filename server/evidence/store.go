@@ -49,9 +49,28 @@ type Bundle struct {
 	ObjectKey   string    `json:"object_key"`
 }
 
-type Store struct {
+type objectWriterReader interface {
+	Put(key string, data []byte) error
+	Get(key string) ([]byte, error)
+}
+
+type localObjectStore struct {
 	root string
-	mu   sync.Mutex
+}
+
+func (store localObjectStore) Put(key string, data []byte) error {
+	path := filepath.Join(store.root, "objects", key)
+	return writeAtomic(path, data)
+}
+
+func (store localObjectStore) Get(key string) ([]byte, error) {
+	return os.ReadFile(filepath.Join(store.root, "objects", key))
+}
+
+type Store struct {
+	root    string
+	objects objectWriterReader
+	mu      sync.Mutex
 }
 
 func New(root string) (*Store, error) {
@@ -59,16 +78,26 @@ func New(root string) (*Store, error) {
 	if root == "" {
 		return nil, fmt.Errorf("%w: evidence root is empty", ErrInvalid)
 	}
-	if err := os.MkdirAll(filepath.Join(root, "objects"), 0o700); err != nil {
+	for _, directory := range []string{"objects", "bundles", "artifacts"} {
+		if err := os.MkdirAll(filepath.Join(root, directory), 0o700); err != nil {
+			return nil, err
+		}
+	}
+	return &Store{root: root, objects: localObjectStore{root: root}}, nil
+}
+
+// NewWithObjectStore keeps bundle/artifact metadata local while delegating
+// immutable bytes to a filer/S3-shaped backend (for example SeaweedFS).
+func NewWithObjectStore(root string, objects objectWriterReader) (*Store, error) {
+	store, err := New(root)
+	if err != nil {
 		return nil, err
 	}
-	if err := os.MkdirAll(filepath.Join(root, "bundles"), 0o700); err != nil {
-		return nil, err
+	if objects == nil {
+		return nil, fmt.Errorf("%w: object store is nil", ErrInvalid)
 	}
-	if err := os.MkdirAll(filepath.Join(root, "artifacts"), 0o700); err != nil {
-		return nil, err
-	}
-	return &Store{root: root}, nil
+	store.objects = objects
+	return store, nil
 }
 
 func (store *Store) PutArtifact(name, mediaType string, data []byte) (Artifact, error) {
@@ -122,7 +151,7 @@ func (store *Store) GetArtifact(id string) (Artifact, []byte, error) {
 	if err := json.Unmarshal(data, &artifact); err != nil {
 		return Artifact{}, nil, err
 	}
-	object, err := os.ReadFile(filepath.Join(store.root, "objects", artifact.ObjectKey))
+	object, err := store.objects.Get(artifact.ObjectKey)
 	if err != nil {
 		return Artifact{}, nil, err
 	}
@@ -209,7 +238,7 @@ func (store *Store) GetBundle(id string) (Bundle, []byte, error) {
 	if err := json.Unmarshal(data, &bundle); err != nil {
 		return Bundle{}, nil, err
 	}
-	object, err := os.ReadFile(filepath.Join(store.root, "objects", bundle.ObjectKey))
+	object, err := store.objects.Get(bundle.ObjectKey)
 	if err != nil {
 		return Bundle{}, nil, err
 	}
@@ -217,14 +246,10 @@ func (store *Store) GetBundle(id string) (Bundle, []byte, error) {
 }
 
 func (store *Store) writeObject(key string, data []byte) error {
-	path := filepath.Join(store.root, "objects", key)
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
-		return err
-	}
-	if existing, err := os.ReadFile(path); err == nil && string(existing) == string(data) {
+	if existing, err := store.objects.Get(key); err == nil && string(existing) == string(data) {
 		return nil
 	}
-	return writeAtomic(path, data)
+	return store.objects.Put(key, data)
 }
 
 func writeAtomic(path string, data []byte) error {

@@ -94,6 +94,8 @@ services:
       POLICY_KEY_DIR: /var/lib/lyflow/policy/keys
       RESPONSE_ACTIONS_PATH: /var/lib/lyflow/response/actions.json
       EVIDENCE_ROOT: /var/lib/lyflow/evidence
+      EVIDENCE_OBJECT_STORE: filer
+      EVIDENCE_FILER_URL: http://127.0.0.1:18888
     volumes:
       - g5_server_data:/data
       - ../../rules:/app/rules
@@ -110,6 +112,7 @@ services:
     depends_on:
       postgres: {condition: service_healthy}
       redis: {condition: service_healthy}
+      seaweedfs: {condition: service_healthy}
 
   ly-agent-center:
     <<: *defaults
@@ -236,6 +239,29 @@ services:
       retries: 5
       start_period: 20s
 
+  seaweedfs:
+    <<: *defaults
+    image: ${LYFLOW_SEAWEEDFS_IMAGE:-docker.1ms.run/chrislusf/seaweedfs:3.80}
+    network_mode: host
+    command:
+      - server
+      - -dir=/data
+      - -master.port=19333
+      - -volume.port=18080
+      - -filer
+      - -filer.port=18888
+      - -s3
+      - -s3.port=18333
+      - -ip=127.0.0.1
+    volumes:
+      - g5_seaweed_data:/data
+    healthcheck:
+      test: [CMD-SHELL, "wget -q -O /dev/null http://127.0.0.1:18888/ || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+
   lyflow-vector:
     <<: *defaults
     image: ${LYFLOW_VECTOR_IMAGE:-docker.1ms.run/timberio/vector:0.49.0-alpine}
@@ -323,4 +349,5 @@ volumes:
   g5_vector_data:
   g5_response_data:
   g5_evidence_data:
+  g5_seaweed_data:
 

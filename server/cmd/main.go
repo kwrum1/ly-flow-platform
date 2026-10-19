@@ -157,7 +157,17 @@ func loadConfig() *Config {
 		log.Fatalf("无法初始化响应动作: %v", err)
 	}
 	cfg.ResponseActions = responseActions
-	evidenceStore, err := evidence.New(getEnv("EVIDENCE_ROOT", "/var/lib/lyflow/evidence"))
+	evidenceRoot := getEnv("EVIDENCE_ROOT", "/var/lib/lyflow/evidence")
+	var evidenceStore *evidence.Store
+	if strings.EqualFold(getEnv("EVIDENCE_OBJECT_STORE", "filesystem"), "filer") {
+		objects, objectErr := evidence.NewFilerObjectStore(getEnv("EVIDENCE_FILER_URL", "http://127.0.0.1:18888"))
+		if objectErr != nil {
+			log.Fatalf("无法初始化 SeaweedFS filer: %v", objectErr)
+		}
+		evidenceStore, err = evidence.NewWithObjectStore(evidenceRoot, objects)
+	} else {
+		evidenceStore, err = evidence.New(evidenceRoot)
+	}
 	if err != nil {
 		log.Fatalf("无法初始化证据对象存储: %v", err)
 	}
