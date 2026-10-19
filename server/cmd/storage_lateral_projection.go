@@ -12,14 +12,6 @@ import (
 	"github.com/lyflow/ly-flow-platform/server/correlation/lateral"
 )
 
-func lateralDerivedEvents(events []contracts.EventV2) []contracts.EventV2 {
-	if len(events) == 0 {
-		return nil
-	}
-	tracker := lateral.NewTracker(lateral.Config{Window: 10 * time.Minute, MinTargets: 3})
-	return lateralDerivedEventsFromFindings(events, tracker.Observe(events))
-}
-
 func lateralDerivedEventsFromFindings(events []contracts.EventV2, findings []lateral.Finding) []contracts.EventV2 {
 	if len(findings) == 0 {
 		return nil

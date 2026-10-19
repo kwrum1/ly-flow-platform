@@ -122,6 +122,8 @@ services:
       POLICY_KEY_DIR: /var/lib/lyflow/policy/keys
       RESPONSE_ACTIONS_PATH: /var/lib/lyflow/response/actions.json
       EVIDENCE_ROOT: /var/lib/lyflow/evidence
+      EVIDENCE_OBJECT_STORE: ${EVIDENCE_OBJECT_STORE:-filesystem}
+      EVIDENCE_FILER_URL: ${EVIDENCE_FILER_URL:-http://seaweedfs:18888}
     volumes:
       - server_data:/data
       - ../../rules:/etc/ly/rules:ro
@@ -288,6 +290,28 @@ services:
       start_period: 20s
       test: [CMD-SHELL, "pgrep -x Suricata-Main >/dev/null || exit 1"]
 
+  seaweedfs:
+    <<: *service-defaults
+    profiles: ["evidence"]
+    image: ${LYFLOW_SEAWEEDFS_IMAGE:-docker.1ms.run/chrislusf/seaweedfs:3.80}
+    command:
+      - server
+      - -dir=/data
+      - -master.port=19333
+      - -volume.port=18080
+      - -filer
+      - -filer.port=18888
+      - -s3
+      - -s3.port=18333
+    volumes:
+      - seaweed_data:/data
+    healthcheck:
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+      test: [CMD-SHELL, "wget -q -O /dev/null http://127.0.0.1:18888/ || exit 1"]
+
   lyflow-vector:
     <<: *service-defaults
     profiles: ["capture"]
@@ -382,3 +406,4 @@ volumes:
   vector_data:
   response_data:
   evidence_data:
+  seaweed_data:
