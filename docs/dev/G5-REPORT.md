@@ -176,13 +176,18 @@ docker compose --env-file lean.env -f g5-host.yml restart
 2. **生产 lean 还未走上述例外路径**：`lean.yml` 仍以标准镜像 tag 为目标，正式发布前
    必须补齐可复现镜像源/离线包。
 3. **Elkeid/Wazuh/OpenRASP 原生产品未接入**：当前已验证 `ly-agent` 真实注册、心跳、
-   资产采集、Suricata EVE 适配；YARA 因测试机缺二进制处于 degraded，RASP 未启用。
+   资产采集、HIDS、YARA、Python RASP 和 Suricata Vector 告警链；Elkeid/Wazuh/
+   OpenRASP 原生产品链路仍待接入。
 4. **未做 ESXi 快照**：发布前必须补快照。
 5. **容量**：T4.6 结论保持不变；6 vCPU/8 GiB 不是正式 20k EPS + 1Gbps 保证配置。
 6. **XDR weak_same_ip 关联**：已阻止包含 `weak_same_ip` 的新路径提升为 Incident；
    测试机历史合成 Incident 仍保留在测试库中，正式验收前需清理测试数据。
-7. **YARA/RASP 运行时**：测试机未安装 yara；RASP probe manager 未启用，UI 已按
-   Agent capability 显示未启用原因。
+7. **多语言 RASP**：Python probe 已真实检测；Java/PHP/Node/dotnet probe 资产可下载，
+   但运行时 attach 仍需真实应用联调。
+8. **Installer 完整安装**：安装资产和下载端点已验证；未在运行中的 g5-real-agent
+   上重跑 systemd 全套安装，干净主机安装作为发布前动作。
+9. **Pingora FD 上限**：测试容器曾达到 nofile 上限；已把 `ly-vis` 的 nofile
+   提升到 65536 并验证恢复。长期连接压力仍需单独观察。
 
 ## 11. 证据
 
@@ -200,6 +205,9 @@ docker compose --env-file lean.env -f g5-host.yml restart
 ├── runtime-integration.out
 ├── suricata-alert-chain.out
 ├── vector-integration.txt
+├── rasp-integration.txt
+├── yara-integration.txt
+├── installer-integration.txt
 ├── real-integration.txt
 ├── restart-check.json
 ├── restart-check-final.json
@@ -268,3 +276,29 @@ Agent Suricata EVE adapter 仍保留作为无 Vector 环境的备用路径；当
 - 安装页 Linux 支持范围改为 Ubuntu 22.04+ / Debian 12+ / 现代 Linux。
 - 自签证书 UI 验收：生产 dist 17 页，0 console/page/network error，
   0 4xx/5xx，0 水平溢出。
+
+### 12.4 Python RASP 真实检测
+
+- `ly-agent` RASP manager 已进入 monitor 模式并监听 `127.0.0.1:17891`。
+- 使用真实 Python probe 执行命令注入测试：
+  - `os.system("echo ok; rm -f /tmp/lyflow-rasp-test-marker")`
+  - 命中 `;\s*rm\s`，产生 `rasp.attack` / `python-command_injection` / high。
+- 修复了 Python RASP 的 reporter 注册缺陷：
+  - `ly_rasp.enable` 现在调用 `reporter.set_reporter`；
+  - `disable` 清空 reporter。
+  - 修复前 hook 能检测但 `get_reporter()` 为 None，事件无法上报。
+- 事件经 `alerts:rasp` 进入服务端，`/api/v1/component-alerts/rasp` 返回 5 条，
+  `/rasp` 页面显示 Python 命令注入事件。
+
+### 12.5 YARA 与 Installer 资产
+
+- YARA 4.5.0 已安装；规则包由 `rules/yara` 中可编译规则合并为
+  `/opt/ly-agent/yara/rules.yar`（约 5.8 MB），Agent capability 为 active。
+- 安装端点无 JWT 即可访问：
+  - `install.sh` 200
+  - `uninstall.sh` 200
+  - `agent/download?os=linux&arch=amd64` 200（约 13 MB）
+  - Python/Java RASP probe 200
+- `server-lean.Dockerfile` 已包含 Agent 二进制和 `probe/` 资产。
+- 未在运行中的测试 Agent 上重跑整套 systemd 安装，避免覆盖当前联调实例；
+  干净主机安装仍作为发布前动作。

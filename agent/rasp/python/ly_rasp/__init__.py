@@ -6,7 +6,7 @@ from typing import Optional
 
 from .config import RASPConfig, get_config, load_config, set_config
 from .tracer import rasp_trace
-from .reporter import Reporter
+from .reporter import Reporter, set_reporter
 
 
 _config: Optional[RASPConfig] = None
@@ -42,6 +42,7 @@ def enable(server_addr: Optional[str] = None, agent_id: Optional[str] = None) ->
 
     # 初始化上报器
     _reporter = Reporter(_config)
+    set_reporter(_reporter)
     _reporter.start()
 
     # 注册清理函数
@@ -63,6 +64,7 @@ def disable() -> None:
     if _reporter is not None:
         _reporter.shutdown()
         _reporter = None
+    set_reporter(None)
 
     # 卸载 Hook
     from . import hooks

@@ -785,15 +785,11 @@
     },
     {
       "path": "/api/v1/agent/download",
-      "auth_mode": "jwt",
+      "auth_mode": "public",
       "operations": [
         {
           "method": "GET",
-          "allowed_roles": [
-            "admin",
-            "analyst",
-            "viewer"
-          ],
+          "allowed_roles": [],
           "valid_fixture": {
             "method": "GET",
             "path": "/api/v1/agent/download",
@@ -816,11 +812,7 @@
         },
         {
           "method": "HEAD",
-          "allowed_roles": [
-            "admin",
-            "analyst",
-            "viewer"
-          ],
+          "allowed_roles": [],
           "valid_fixture": {
             "method": "HEAD",
             "path": "/api/v1/agent/download",
@@ -983,15 +975,11 @@
     },
     {
       "path": "/api/v1/agent/install.sh",
-      "auth_mode": "jwt",
+      "auth_mode": "public",
       "operations": [
         {
           "method": "GET",
-          "allowed_roles": [
-            "admin",
-            "analyst",
-            "viewer"
-          ],
+          "allowed_roles": [],
           "valid_fixture": {
             "method": "GET",
             "path": "/api/v1/agent/install.sh",
@@ -1172,15 +1160,11 @@
     },
     {
       "path": "/api/v1/agent/rasp/probe/dotnet",
-      "auth_mode": "jwt",
+      "auth_mode": "public",
       "operations": [
         {
           "method": "GET",
-          "allowed_roles": [
-            "admin",
-            "analyst",
-            "viewer"
-          ],
+          "allowed_roles": [],
           "valid_fixture": {
             "method": "GET",
             "path": "/api/v1/agent/rasp/probe/dotnet",
@@ -1206,15 +1190,11 @@
     },
     {
       "path": "/api/v1/agent/rasp/probe/java",
-      "auth_mode": "jwt",
+      "auth_mode": "public",
       "operations": [
         {
           "method": "GET",
-          "allowed_roles": [
-            "admin",
-            "analyst",
-            "viewer"
-          ],
+          "allowed_roles": [],
           "valid_fixture": {
             "method": "GET",
             "path": "/api/v1/agent/rasp/probe/java",
@@ -1240,15 +1220,11 @@
     },
     {
       "path": "/api/v1/agent/rasp/probe/java/source/",
-      "auth_mode": "jwt",
+      "auth_mode": "public",
       "operations": [
         {
           "method": "GET",
-          "allowed_roles": [
-            "admin",
-            "analyst",
-            "viewer"
-          ],
+          "allowed_roles": [],
           "valid_fixture": {
             "method": "GET",
             "path": "/api/v1/agent/rasp/probe/java/source/Probe.java",
@@ -1274,15 +1250,11 @@
     },
     {
       "path": "/api/v1/agent/rasp/probe/nodejs",
-      "auth_mode": "jwt",
+      "auth_mode": "public",
       "operations": [
         {
           "method": "GET",
-          "allowed_roles": [
-            "admin",
-            "analyst",
-            "viewer"
-          ],
+          "allowed_roles": [],
           "valid_fixture": {
             "method": "GET",
             "path": "/api/v1/agent/rasp/probe/nodejs",
@@ -1308,15 +1280,11 @@
     },
     {
       "path": "/api/v1/agent/rasp/probe/php",
-      "auth_mode": "jwt",
+      "auth_mode": "public",
       "operations": [
         {
           "method": "GET",
-          "allowed_roles": [
-            "admin",
-            "analyst",
-            "viewer"
-          ],
+          "allowed_roles": [],
           "valid_fixture": {
             "method": "GET",
             "path": "/api/v1/agent/rasp/probe/php",
@@ -1342,15 +1310,11 @@
     },
     {
       "path": "/api/v1/agent/rasp/probe/python",
-      "auth_mode": "jwt",
+      "auth_mode": "public",
       "operations": [
         {
           "method": "GET",
-          "allowed_roles": [
-            "admin",
-            "analyst",
-            "viewer"
-          ],
+          "allowed_roles": [],
           "valid_fixture": {
             "method": "GET",
             "path": "/api/v1/agent/rasp/probe/python",
@@ -1554,15 +1518,11 @@
     },
     {
       "path": "/api/v1/agent/uninstall.sh",
-      "auth_mode": "jwt",
+      "auth_mode": "public",
       "operations": [
         {
           "method": "GET",
-          "allowed_roles": [
-            "admin",
-            "analyst",
-            "viewer"
-          ],
+          "allowed_roles": [],
           "valid_fixture": {
             "method": "GET",
             "path": "/api/v1/agent/uninstall.sh",

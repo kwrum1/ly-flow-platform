@@ -684,7 +684,7 @@
 - 真实 Agent：
   - `g5-real-agent` 在测试机注册、心跳 online、资产指标 fresh。
   - 资产页读取真实 CPU/内存/磁盘/网卡/进程；新增能力列。
-  - runtime sensor 启用（eBPF fallback）；YARA 因缺二进制 degraded；RASP disabled。
+  - runtime sensor 启用（eBPF fallback）；YARA 4.5.0 + 规则包 active；RASP monitor active。
 - 告警链路：
   - Suricata 7.0.11 PCAP 回放 SID `9000001`。
   - Vector 0.49.0 读取 EVE，VRL 映射 ComponentAlert，HTTP POST
@@ -693,16 +693,25 @@
   - UI `/traffic-threats` 从 `/api/v1/component-alerts/traffic` 显示 Vector 告警。
   - Agent Suricata EVE adapter 保留为无 Vector 环境备用路径。
   - 修复 Agent EVE adapter 在 CPU budget 后永久退出的问题。
+- RASP / YARA：
+  - Python RASP probe 真实命中 `;\s*rm` 命令注入，`/rasp` 显示 5 条事件。
+  - 修复 `ly_rasp.enable` 未注册 reporter 导致 hook 检测但不外发的问题。
+  - YARA 规则包合并可编译规则，避免 external-variable 规则污染。
 - UI 修复：
   - 总览在线 Agent/资产总数改用 assets stats。
   - 全球态势无地理数据时回退到真实 Incident。
   - 运行威胁改查 `/api/v1/component-alerts/runtime`，显示真实 HIDS/Wazuh 事件。
-  - RASP 未启用时显示 Agent capability 原因。
+  - RASP 页接入 `component-alerts/rasp`，并显示 Python RASP 事件。
   - 安装页改为现代 Linux 支持范围。
   - 自签证书生产 dist 验收 17 页，0 console/page/network error、0 4xx/5xx。
+- Installer：
+  - install.sh/uninstall.sh/download/Python/Java RASP probe 均公开返回 200。
+  - server image 已包含 Agent 二进制和 probe 资产。
 - 验证：
   - `G5_REAL_AGENT_OK`
   - `G5_INCIDENT_OK`
   - `G5_VECTOR_OK`
+  - `G5_RASP_OK`
   - UI validation exit 0
-- 仍未完成：真实 Elkeid/Wazuh/OpenRASP、YARA 二进制、RASP 启用、ESXi 快照。
+- 仍未完成：真实 Elkeid/Wazuh/OpenRASP、Java/PHP/Node/dotnet RASP attach、
+  clean-host systemd install、ESXi 快照。

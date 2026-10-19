@@ -6,8 +6,17 @@ var ArchitectureRouteSnapshot = buildRouteRegistry()
 
 func buildRouteRegistry() []RouteSpec {
 	public := map[string]bool{
-		"/api/v1/health":     true,
-		"/api/v1/auth/login": true,
+		"/api/v1/health":                        true,
+		"/api/v1/auth/login":                    true,
+		"/api/v1/agent/install.sh":              true,
+		"/api/v1/agent/uninstall.sh":            true,
+		"/api/v1/agent/download":                true,
+		"/api/v1/agent/rasp/probe/python":       true,
+		"/api/v1/agent/rasp/probe/php":          true,
+		"/api/v1/agent/rasp/probe/java":         true,
+		"/api/v1/agent/rasp/probe/java/source/": true,
+		"/api/v1/agent/rasp/probe/nodejs":       true,
+		"/api/v1/agent/rasp/probe/dotnet":       true,
 	}
 	adminOnly := map[string]bool{
 		"/api/v1/admin/incident-lifecycle/checkpoint": true,
