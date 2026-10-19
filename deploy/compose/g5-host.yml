@@ -88,6 +88,7 @@ services:
       INCIDENT_LIFECYCLE_LEGACY_MODE: "true"
       XDR_RULES_DIR: /app/rules/xdr
       SECURITY_ENGINE_RELOAD_URL: http://127.0.0.1:8082/reload
+      SECURITY_ENGINE_HEALTH_URL: http://127.0.0.1:8082/health
       SECURITY_ENGINE_CONTROL_TOKEN: ${SECURITY_ENGINE_CONTROL_TOKEN:?SECURITY_ENGINE_CONTROL_TOKEN must be set}
       POLICY_TRUST_DIR: /var/lib/lyflow/policy/trust
       POLICY_KEY_DIR: /var/lib/lyflow/policy/keys

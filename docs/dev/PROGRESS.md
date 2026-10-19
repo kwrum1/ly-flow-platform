@@ -669,8 +669,13 @@
 - 验证：
   - `go test ./cmd -run 'TestCanonicalProjection|TestArchitectureRoute|TestRouteRegistry|TestRouteAPIContract'` → ok。
   - 前端 31 个测试文件 / 115 tests 通过；typecheck 通过。
-  - 真实 UI 验收（Vite HTTP 代理）：登录、总览、事件列表、事件详情抽屉、
-    Incident 列表、阶段时间线、证据矩阵均显示真实 G5 数据。
-- 仍未完成：真实 Agent/RASP、Vector 告警链、可信证书截图、ESXi 快照。
+  - 真实 UI 验收（生产 dist + Vite preview，代理到自签 HTTPS API）：
+    Firefox 1440×900 + 390×844，17 页全部 200/304，0 console/page/network
+    error、0 4xx/5xx、无水平溢出；截图和 `validation.json` 在
+    `/opt/lyflow/reports/G5/ui-production/`。
+  - G5 host-network 补 `SECURITY_ENGINE_HEALTH_URL=http://127.0.0.1:8082/health`，
+    `/api/v1/engine-runtime/status` 恢复 200，XDR/运行态页面不再出现 503。
+- 未完成：真实 Agent/RASP、Vector 告警链、ESXi 快照。
+- 自签证书已接受，不再作为 UI 验收阻塞项。
 - 残余风险：测试机多条合成链共用源 IP，XDR `weak_same_ip` 可能交叉生成额外
   Incident；生产需按资产/会话收紧密集度。

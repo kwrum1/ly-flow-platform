@@ -52,6 +52,8 @@ Pingora 前端替换 nginx：
 - `/api/v2/events`：成功
 - `/api/v2/events/`：成功（详情路由）
 - `/api/v1/agent/install.sh`：返回 `https://...` 安装脚本，Host 注入防护生效
+- `/api/v1/engine-runtime/status`：配置 `SECURITY_ENGINE_HEALTH_URL=http://127.0.0.1:8082/health`
+  后返回 200，XDR/运行态页面不再出现 503
 
 控制台默认启用 ly_vis 排版与 ATT&CK V2 视图：
 
@@ -61,7 +63,22 @@ Pingora 前端替换 nginx：
 - `/events` 使用事件中心 V2，支持筛选、详情抽屉、证据与原始载荷
 - `/incidents` 使用攻击链 V2，支持阶段时间线、证据矩阵和状态更新
 
-## 4. API 冒烟
+## 4. 自签证书 UI 验收
+
+生产 dist 由 Vite preview 提供，`/api`、`/ws` 反向代理到自签 HTTPS 测试机
+（`secure:false` / `ignoreHTTPSErrors:true`）。自签证书不再作为阻塞项。
+
+Playwright Firefox 实测：
+
+- 1440×900 桌面 + 390×844 移动端
+- 17 个页面：登录、总览、全球态势、XDR、Incident、资产、事件、运行态、
+  规则中心、规则更新、控制中心、安装配置、流量、RASP
+- 192 个请求状态正常，0 console error、0 page error、0 失败请求、0 4xx/5xx
+- 所有页面无水平溢出
+- 总览、事件列表、Incident 列表和详情时间线均有真实 G5 数据
+- 截图与 `validation.json` 位于 `/opt/lyflow/reports/G5/ui-production/`
+
+## 5. API 冒烟
 
 使用 admin token 实测以下端点全部 HTTP 200：
 
@@ -84,7 +101,7 @@ Pingora 前端替换 nginx：
 
 `/api/v1/assets` 返回 G5 注册的 Agent；`/api/v2/events` 返回 G5 写入事件。
 
-## 5. 端到端事件闭环
+## 6. 端到端事件闭环
 
 通过真实 API 完成：
 
@@ -107,7 +124,7 @@ event_uid: g5-e2e-1792396452
 G5_E2E_OK
 ```
 
-## 6. Event v2 → Incident 闭环
+## 7. Event v2 → Incident 闭环
 
 本轮修复了 v2 事件与旧 XDR/Incident 管线之间的断点：
 
@@ -128,7 +145,7 @@ G5_INCIDENT_OK
 
 控制台 `/events` 可查询并打开详情抽屉；`/incidents` 显示攻击链、阶段时间线和证据矩阵。
 
-## 7. 重启持久化
+## 8. 重启持久化
 
 执行：
 
@@ -139,7 +156,7 @@ docker compose --env-file lean.env -f g5-host.yml restart
 重启后 10 个服务全部回到 healthy，使用 admin token 再次查询 `/api/v2/events` 仍返回
 `g5-e2e-...`，PostgreSQL/ClickHouse/Redis 数据保留。
 
-## 8. 采集面
+## 9. 采集面
 
 - lyprobe 加载 106 条 pattern，并完成 `Hot-reloaded 106 patterns`。
 - Suricata 7.0.3 在 `ens160` 上启动，加载 11 条规则；出现 af-packet 配置回退提示，
@@ -148,7 +165,7 @@ docker compose --env-file lean.env -f g5-host.yml restart
 - capturedoctor 输出 `process=true`，`status=warn`，问题为 RX ring 1024、GRO on、
   PF_RING 未加载，和 T4.5 基线一致。
 
-## 9. 例外与限制
+## 10. 例外与限制
 
 1. **Docker Hub 镜像不可稳定拉取**：`docker.1ms.run` 可拉取 Rust 镜像，但
    PostgreSQL/ClickHouse 镜像多次超时。G5 使用本地 `safeline-postgres:15.18` 和
@@ -157,18 +174,15 @@ docker compose --env-file lean.env -f g5-host.yml restart
    必须补齐可复现镜像源/离线包。
 3. **未验证真实 Agent/RASP**：只验证了 enrollment + v2 ingest；Elkeid/Wazuh/OpenRASP
    真实主机链路仍是 M3 残余。
-4. **生产 HTTPS 浏览器自动验收**：Playwright Chromium 在构建机受 GPU 限制，生产
-   前端又是自签证书；本轮改用 Vite HTTP 验收代理完成真实登录、总览、事件详情、
-   Incident 时间线验证。正式发布前仍需在可信证书环境补一次截图冒烟。
-5. **未验证 Suricata → Vector → ly-server 真实告警链**：T4.2 已验证 PCAP 回放，
+4. **未验证 Suricata → Vector → ly-server 真实告警链**：T4.2 已验证 PCAP 回放，
    Vector 尚未加入 lean。
-6. **未做 ESXi 快照**：发布前必须补快照。
-7. **容量**：T4.6 结论保持不变；6 vCPU/8 GiB 不是正式 20k EPS + 1Gbps 保证配置。
-8. **XDR weak_same_ip 关联**：测试机多条合成链共用 `10.1.18.126` 源 IP，弱同 IP
+5. **未做 ESXi 快照**：发布前必须补快照。
+6. **容量**：T4.6 结论保持不变；6 vCPU/8 GiB 不是正式 20k EPS + 1Gbps 保证配置。
+7. **XDR weak_same_ip 关联**：测试机多条合成链共用 `10.1.18.126` 源 IP，弱同 IP
    边会把不同测试链交叉成额外 Incident；本轮验证的是 v2→Incident 能力，生产需按
    资产/会话收紧密集度并清理测试数据。
 
-## 10. 证据
+## 11. 证据
 
 ```text
 /opt/lyflow/reports/G5/
@@ -183,6 +197,12 @@ docker compose --env-file lean.env -f g5-host.yml restart
 ├── restart-check.json
 ├── restart-check-final.json
 ├── ui-acceptance.txt
+├── ui-production/
+│   ├── validation.json
+│   ├── dashboard-1440x900.png
+│   ├── events-1440x900.png
+│   ├── incidents-1440x900.png
+│   └── *-390x844.png
 ├── install.sh
 ├── g5-restart.txt
 ├── *.log
