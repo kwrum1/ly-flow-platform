@@ -164,6 +164,9 @@ docker compose --env-file lean.env -f g5-host.yml restart
    Vector 尚未加入 lean。
 6. **未做 ESXi 快照**：发布前必须补快照。
 7. **容量**：T4.6 结论保持不变；6 vCPU/8 GiB 不是正式 20k EPS + 1Gbps 保证配置。
+8. **XDR weak_same_ip 关联**：测试机多条合成链共用 `10.1.18.126` 源 IP，弱同 IP
+   边会把不同测试链交叉成额外 Incident；本轮验证的是 v2→Incident 能力，生产需按
+   资产/会话收紧密集度并清理测试数据。
 
 ## 10. 证据
 

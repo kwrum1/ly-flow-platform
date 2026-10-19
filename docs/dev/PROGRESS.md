@@ -672,3 +672,5 @@
   - 真实 UI 验收（Vite HTTP 代理）：登录、总览、事件列表、事件详情抽屉、
     Incident 列表、阶段时间线、证据矩阵均显示真实 G5 数据。
 - 仍未完成：真实 Agent/RASP、Vector 告警链、可信证书截图、ESXi 快照。
+- 残余风险：测试机多条合成链共用源 IP，XDR `weak_same_ip` 可能交叉生成额外
+  Incident；生产需按资产/会话收紧密集度。
