@@ -456,6 +456,8 @@
   - `lyprobe -P <dir> -D t` 文本 dump 触发 `*** buffer overflow detected ***`。
   - `-D b` 仅写 IPv4 NetFlow v5；IPv6-only 窗口会得到 0 字节 dump。
   - LyFlow 产品路径使用 NetFlow collector，不在生产启用文本 dump。
-- 存储清理：测试 VM 清除 `python3-scapy`/`matplotlib`/`numpy`、apt cache、临时 dump/core；根分区 `3.2G → 2.5G`，清理后重新跑 preflight/NetFlow/Suricata replay 均通过。
+- 存储清理：
+  - 测试 VM 清除 `python3-scapy`/`matplotlib`/`numpy`、apt cache、临时 dump/core；根分区 `3.2G → 2.5G`，清理后重新跑 preflight/NetFlow/Suricata replay 均通过；证据保存在 `/opt/lyflow/reports/T4.3/`。
+  - 编译机删除旧 Ubuntu/VMDK staging 2.3G、临时 `ly_probe` 源码 29M；根分区可用 `93G → 95G`。未执行全局 Docker prune，避免影响其他构建/测试。
 - 状态：`REVIEW`。规则转换、采集诊断、打包分别进入 T4.4/T4.5/T4.7。
 - 回滚：删除 provider、preflight、unit、构建/冒烟脚本及 `/opt/lyflow/bin/lyprobe`、`liblyprobe-1.0.0.so`；不影响现有 Suricata。
