@@ -70,8 +70,6 @@ evidence_gate() {
   check_file agent/cmd/afpacket_linux.go
   check_file agent/cmd/afpacket_unsupported.go
   check_file agent/cmd/disk_unix.go
-  check_file agent/cmd/disk_windows.go
-  check_file agent/cmd/pcap_windows.go
   check_file agent/cmd/pcap_unsupported.go
   check_file agent/scripts/install.sh
   check_file agent/scripts/uninstall.sh

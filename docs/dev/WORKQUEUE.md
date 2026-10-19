@@ -1,7 +1,7 @@
 # LyFlow 工作队列
 
 > 顺序：M0 → M1 → M2 → M3 → M4。  
-> 状态：`TODO` / `IN_PROGRESS` / `BLOCKED` / `REVIEW` / `DONE`。  
+> 状态：`TODO` / `IN_PROGRESS` / `BLOCKED` / `REVIEW` / `DONE` / `CANCELLED`。  
 > 一次只做一个 Task；完成后立即取下一个未阻塞 Task。
 
 ## M0：基础与契约
@@ -48,16 +48,17 @@
 | ID | 任务 | 状态 | 依赖 | Gate |
 |---|---|---|---|---|
 | T3.1 | `ly-agent` supervisor | DONE | T0.2 | — |
-| T3.2 | Linux Elkeid 集成 | REVIEW | T3.1 | — |
-| T3.3 | Windows Wazuh 集成 | REVIEW | T3.1 | — |
+| T3.2 | Linux Elkeid 集成 | CANCELLED | T3.1 | — |
+| T3.3 | Windows Wazuh 集成 | CANCELLED | T3.1 | — |
 | T3.4 | OpenRASP Java/PHP | REVIEW | T3.1 | — |
-| T3.5 | Elkeid RASP Python/Go/Node | REVIEW | T3.1 | — |
+| T3.5 | Elkeid RASP Python/Go/Node | CANCELLED | T3.1 | — |
 | T3.6 | Agent 门面/API/UI | REVIEW | T3.2, T3.3 | — |
 | T3.7 | 安装器/自检/回滚 | REVIEW | T3.1–T3.6 | — |
-| T3.8 | 响应审批/时间窗/回滚 | REVIEW | T3.6 | — |
-| T3.9 | 横向移动检测 | REVIEW | T2.3, T3.2, T3.3 | G4 |
+| T3.8 | 响应审批/时间窗/回滚 | DONE | T3.6 | — |
+| T3.9 | 横向移动检测 | DONE | T2.3, T3.2, T3.3 | G4 |
 
-> Gate G4：`READY_FOR_REVIEW`。Agent supervisor/provider、RASP 配置、安装自检、响应策略、横向移动检测均有代码与测试；真实端上联调待测试 VM/Agent 包。
+> Gate G4：`READY_FOR_REVIEW`。Agent supervisor/provider、RASP 配置、响应策略、
+> 横向移动实时接入已完成；安装自检/干净机回滚仍待 ESXi 凭据。Windows/Elkeid 已取消。
 
 ## M4：内容、抓包、性能、交付
 
@@ -78,4 +79,4 @@
 - **G2**：UI shell + 查询性能（7 天 p95 < 2s）通过。
 - **G3**：3 条 ATT&CK 链路验证通过。
 - **G4**：Agent 安装/回滚 + 响应安全护栏通过。
-- **G5**：ESXi 测试机全量验收通过，可发布。当前：`PASS_WITH_EXCEPTIONS`（2026-10-19，11 服务健康、Pingora 前端、Event v2/Incident、真实 Agent/资产/心跳、YARA、Python/Java/PHP/Node/.NET RASP、OpenRASP alarm→component alerts、Wazuh manager 本地告警进入 NDR/XDR、block_ip 审批/执行/回滚、Suricata→Vector→ly-server、自签 UI 验收通过；其他响应动作、clean VM、ESXi 快照见例外）。
+- **G5**：ESXi 测试机全量验收通过，可发布。当前：`PASS_WITH_EXCEPTIONS`（2026-10-19，12 服务健康、Pingora 前端、Event v2/Incident、真实 Agent/资产/心跳、YARA、Python/Java/PHP/Node/.NET RASP、OpenRASP alarm→component alerts、Wazuh manager 本地告警进入 NDR/XDR、全部响应动作审批/执行/回滚、SeaweedFS 证据对象存储、横向移动实时接入、Suricata→Vector→ly-server、自签 UI 验收通过；clean VM、ESXi 快照、离线 digest 见例外）。

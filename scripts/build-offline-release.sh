@@ -91,13 +91,11 @@ run_in "$ROOT_DIR/server" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENABLED=0 GOW
 mkdir -p "$ROOT_DIR/server/dist/linux/$TARGET_ARCH"
 cp "$ROOT_DIR/server/ly-server" "$ROOT_DIR/server/dist/linux/$TARGET_ARCH/ly-server"
 cp "$ROOT_DIR/server/ly-agent-center" "$ROOT_DIR/server/dist/linux/$TARGET_ARCH/ly-agent-center"
-mkdir -p "$ROOT_DIR/agent/dist/linux/amd64" "$ROOT_DIR/agent/dist/linux/arm64" "$ROOT_DIR/agent/dist/windows/amd64"
+mkdir -p "$ROOT_DIR/agent/dist/linux/amd64" "$ROOT_DIR/agent/dist/linux/arm64"
 run_in "$ROOT_DIR/agent" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENABLED=0 GOWORK=off go build -trimpath -buildvcs=false -o ly-agent ./cmd
 cp "$ROOT_DIR/agent/ly-agent" "$ROOT_DIR/agent/ly-agent-linux-$TARGET_ARCH"
 cp "$ROOT_DIR/agent/ly-agent" "$ROOT_DIR/agent/dist/linux/$TARGET_ARCH/ly-agent"
 run env RELEASE_SIGNING_KEY="$RELEASE_SIGNING_KEY" "$ROOT_DIR/scripts/prepare-agent-release.sh"
-run_in "$ROOT_DIR/agent" env GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOWORK=off go build -trimpath -buildvcs=false -ldflags=-H=windowsgui -o ly-agent-windows-amd64.exe ./cmd
-cp "$ROOT_DIR/agent/ly-agent-windows-amd64.exe" "$ROOT_DIR/agent/dist/windows/amd64/ly-agent.exe"
 run_in "$ROOT_DIR/dpi-engine" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENABLED=0 GOWORK=off go build -trimpath -buildvcs=false -o ly-dpi-engine ./cmd
 run_in "$ROOT_DIR/security-engine" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENABLED=0 GOWORK=off go build -trimpath -buildvcs=false -o ly-security-engine ./cmd
 

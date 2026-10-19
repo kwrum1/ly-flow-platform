@@ -177,12 +177,13 @@ docker compose --env-file lean.env -f g5-host.yml restart
 1. **Docker Hub 镜像不可稳定拉取**：`docker.1ms.run` 可拉取 Rust 镜像，但
    PostgreSQL/ClickHouse 镜像多次超时。G5 使用本地 `safeline-postgres:15.18` 和
    原生 ClickHouse，Redis/Pingora/服务镜像均本地构建。
-2. **生产 lean 还未走上述例外路径**：`lean.yml` 仍以标准镜像 tag 为目标，正式发布前
-   必须补齐可复现镜像源/离线包。
+2. **生产 lean 还未走上述例外路径**：`lean.yml` 已有 SeaweedFS `evidence`
+   profile 和本地构建服务，但标准 PostgreSQL/ClickHouse/Redis 镜像仍需固定
+   digest 或离线包。
 3. **Wazuh/OpenRASP/Elkeid 边界**：Wazuh manager 4.9.2 已本地安装并进入
    NDR/XDR；OpenRASP 1.3.7 engine 已通过 Jetty 9.4 真实 alarm 并接入
-   component alerts；Elkeid 集成按当前决策放弃。LyFlow 自身 Agent/HIDS/
-   YARA/多语言 RASP/Vector 链路真实运行。
+   component alerts；原生安装脚本在 `deploy/native/`；Elkeid 集成按当前决策放弃。
+   LyFlow 自身 Agent/HIDS/YARA/多语言 RASP/Vector 链路真实运行。
 4. **ESXi 快照/干净 VM 被凭据阻塞**：测试机旧 lab 密码和 `esxi_lab` 公钥均
    无法登录 10.1.18.124，当前没有有效 ESXi root 凭据；已备份当前 Agent
    `/opt/lyflow/backups/g5-agent-pre-wazuh-20261019-2221.tgz`。
@@ -196,9 +197,14 @@ docker compose --env-file lean.env -f g5-host.yml restart
    未重跑 systemd 全套安装。
 9. **Pingora FD 上限**：测试容器曾达到 nofile 上限；已把 `ly-vis` 的 nofile
    提升到 65536 并验证恢复。长期连接压力仍需单独观察。
-10. **响应执行范围**：`block_ip`/`unblock_ip` 已完成真实审批、执行、回滚；
-    process kill/file delete/account disable/namespace isolate 仍未实现，
-    仍为候选/审批范围。测试目标只使用 TEST-NET 地址。
+10. **响应执行范围**：`block_ip`、`process_kill`、`file_delete`、
+    `account_disable`、`isolate_host`、`namespace_isolate` 均已实现
+    审批、执行、回滚；破坏性动作由 `RESPONSE_ENABLE_*` 默认关闭，
+    测试时显式开启。`process_kill` 不可回滚。
+11. **Windows 端已砍掉**：不再构建/下载/安装 Windows Agent；只保留
+    Linux amd64/arm64。Elkeid 同样放弃。
+12. **旧兼容路径已关闭**：Event v1 和旧 response candidate/advisory
+    入口返回 403；内部数据迁移代码仍保留用于既有数据，但不再对外暴露。
 
 ## 11. 证据
 
@@ -224,6 +230,10 @@ docker compose --env-file lean.env -f g5-host.yml restart
 ├── openrasp-engine.txt
 ├── openrasp-adapter.txt
 ├── response-integration.txt
+├── response-expanded.txt
+├── evidence-object-store.txt
+├── lateral-integration.txt
+├── legacy-retirement.txt
 ├── clean-vm.txt
 ├── yara-integration.txt
 ├── installer-integration.txt
@@ -373,14 +383,67 @@ Agent Suricata EVE adapter 仍保留作为无 Vector 环境的备用路径；当
 - 响应策略：
   - L1 观察类自动；
   - L2 `block_ip` 默认需要不同已认证 approver；
-  - L3 `isolate_host` 仍不执行，保持候选/审批；
-  - 自动时间窗由 `RESPONSE_AUTO_WINDOW_ENABLED` 和窗口环境变量控制。
+  - L3 `process_kill` / `file_delete` / `account_disable` /
+    `namespace_isolate` / `isolate_host` 始终需要审批；
+  - 自动时间窗由 `RESPONSE_AUTO_WINDOW_ENABLED` 和窗口环境变量控制，
+    有单测覆盖；生产默认关闭。
 - Agent 执行器：
-  - `block_ip` / `unblock_ip` 使用 nftables set `inet lyflow_response blocked`；
-  - 目标必须落在 `RESPONSE_ALLOWED_CIDRS`，默认只允许 TEST-NET-1/2/3；
-  - Agent 回报 `verified` 结果，服务端持久化状态。
+  - `block_ip` / `unblock_ip`：nftables set；
+  - `process_kill`：PID 校验，拒绝 PID 1/Agent/父进程，signal + 进程消失校验；
+  - `file_delete` / `file_restore`：隔离到
+    `/var/lib/lyflow/quarantine/<sha256(path)>`，可恢复原文件；
+  - `account_disable` / `account_enable`：`chage -E` 过期/恢复，不处理 root/Agent 账户；
+  - `isolate_host` / `host_unisolate`：nftables input/output drop，
+    保留 loopback、established 和 `RESPONSE_MANAGEMENT_CIDRS` 管理网；
+  - `namespace_isolate` / `namespace_restore`：Docker 网络断开/恢复，
+    状态文件保存原网络。
+- 安全默认：
+  - 所有破坏性动作由 `RESPONSE_ENABLE_*` feature flag 控制，默认关闭；
+  - 文件动作默认只允许 `/tmp/lyflow-response`、`/var/tmp/lyflow-response`；
+  - `isolate_host` 必须显式提供管理网 CIDR。
 - 实测：
-  - 203.0.113.77：创建 → 审批 → nft 元素存在 → 回滚 → 元素清空；
-  - 198.51.100.88：由第二个认证 admin `user:2` 四眼审批 → 执行 → 回滚；
-  - 证据：`/opt/lyflow/reports/G5/response-integration.txt`。
-- 未实现：process kill、file delete、account disable、namespace isolate。
+  - `203.0.113.77` / `198.51.100.88`：block → nft 元素 → rollback 清空；
+  - 文件：quarantine → restore 内容一致；
+  - 进程：kill 后 PID 消失；
+  - 账号：expire → restore；
+  - 主机隔离：管理网 SSH 保持，rollback 删除 nft 表；
+  - 容器隔离：bridge 网络断开 → rollback 恢复 IP。
+  - 证据：`/opt/lyflow/reports/G5/response-expanded.txt`。
+
+### 12.8 证据对象存储 / SeaweedFS
+
+- G5 增加 SeaweedFS 3.80：master `19333`、volume `18080`、
+  filer `18888`、S3 `18333`，数据卷 `g5_seaweed_data`。
+- `ly-server` 使用 `EVIDENCE_OBJECT_STORE=filer`，对象字节写入
+  SeaweedFS filer；元数据、bundle 索引和接收记录保存在
+  `g5_evidence_data`。
+- 新增 API：
+  - `POST/GET /api/v1/evidence/artifacts`
+  - `GET /api/v1/evidence/artifacts/{id}`
+  - `POST/GET /api/v1/evidence/bundles`
+  - `GET /api/v1/evidence/bundles/{id}`
+  - `GET /api/v1/evidence/bundles/{id}/download`
+- 实测 artifact + bundle 创建、Filer 对象读取、下载 SHA256、列表均通过。
+- 证据：`/opt/lyflow/reports/G5/evidence-object-store.txt`。
+
+### 12.9 横向移动实时接入 / 旧路径清理
+
+- `lateral.Tracker` 已接入 `StorageEventRuntime.WriteEventsV2`：
+  滚动窗口、去重、5000 条上限；发现横向移动时生成
+  `event_type=lateral.movement`、`stage=lateral_movement` 的派生事件，
+  进入 ClickHouse 和 XDR 投影。
+- 实测 3 个 SMB 目标产生 Incident：
+  `inc-hyp-lateral-acceptance-1792428563-2`，
+  stages 为 `["detection","lateral_movement"]`。
+- 旧响应只读入口关闭：
+  `/api/v1/response/candidates`、`/policy`、`/advisories` 返回 403；
+  执行只保留 `/api/v1/response/actions`。
+- Event v1 兼容入口关闭：
+  `/api/v1/events`、`/api/v1/security-events`、`/api/v1/event-migration`
+  返回 403；Dashboard 使用 `/api/v1/unified/events`，事件页使用
+  `/api/v2/events`。
+- Windows Agent 支持已砍掉：构建、下载、安装页、离线包不再包含 Windows；
+  Windows 专用 Agent 文件已删除。
+- 删除未接线的 `server/xdr/mock` 生成器。
+- 证据：`/opt/lyflow/reports/G5/lateral-integration.txt`、
+  `legacy-retirement.txt`。

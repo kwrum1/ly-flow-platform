@@ -116,12 +116,32 @@ docker compose -f lean.yml -f full-private.yml \
   --env-file lean.env config
 ```
 
+## Evidence profile
+
+`seaweedfs` is available under the `evidence` profile. Start it with core:
+
+```bash
+EVIDENCE_OBJECT_STORE=filer \
+EVIDENCE_FILER_URL=http://seaweedfs:18888 \
+docker compose -f lean.yml --profile core --profile evidence up -d
+```
+
+It exposes the master (`19333`), volume (`18080`), filer (`18888`) and S3
+(`18333`) ports on the internal network and stores data in `seaweed_data`.
+
+Wazuh manager and the OpenRASP Java engine are native host services. See
+`deploy/native/README.md`; they are intentionally not linked into the Go
+binary or public image.
+
 ## Current limitations
 
 - Core server/frontend image builds remain in the existing CI/build pipeline;
   this directory packages deployment and the new sensor images.
-- Vector/SeaweedFS are not added until their configs and ingestion paths are
-  validated end to end.
+- Wazuh manager / OpenRASP / offline package digests still need to be pinned
+  for a fully reproducible release. Vector and SeaweedFS are now in the
+  deployment profiles.
 - 6 vCPU / 8 GiB is a lean test baseline; T4.6 measured a combined 20k EPS +
   1Gbps ingest at ~18.5k EPS. Use 8+ vCPU / 16+ GiB for formal capacity
   acceptance.
+- Windows endpoint support is intentionally removed; only Linux amd64/arm64
+  are shipped.

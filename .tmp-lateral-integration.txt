@@ -1,0 +1,36 @@
+G5 LATERAL MOVEMENT REAL-TIME INTEGRATION (2026-10-19)
+
+Pipeline:
+  /api/v2/ingest/events
+    -> StorageEventRuntime.WriteEventsV2
+    -> lateral.Tracker rolling window
+    -> derived EventV2 (source=server.xdr_v2, type=lateral.movement,
+       stage=lateral_movement, tactic=TA0008)
+    -> ClickHouse + canonical XDR projection
+    -> Incident stage
+
+Acceptance events:
+  source asset: g5-real-agent
+  src: 10.99.0.1
+  SMB targets: 10.99.0.2, 10.99.0.3, 10.99.0.4 (port 445)
+  event_uids:
+    lateral-acceptance-1792428563-0
+    lateral-acceptance-1792428563-1
+    lateral-acceptance-1792428563-2
+
+Derived event:
+  event_uid=lateral-0e70ed937a42d4bb617a091f
+  event_type=lateral.movement
+  stage=lateral_movement
+  rule_id=lyflow.lateral.lateral_movement
+  confidence=0.6
+  targets=[10.99.0.2 10.99.0.3 10.99.0.4]
+
+Incident:
+  id=inc-hyp-lateral-acceptance-1792428563-2
+  stages=["detection","lateral_movement"]
+  event_count=2
+
+Notes:
+  tracker deduplicates the same source/target set for the cooldown window;
+  events are bounded (5000) and pruned to 2x window.

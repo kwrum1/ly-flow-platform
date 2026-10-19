@@ -12,8 +12,7 @@ for file in \
   "$ROOT/security-engine/ly-security-engine" \
   "$ROOT/frontend/dist/index.html" \
   "$ROOT/agent/ly-agent" \
-  "$ROOT/agent/ly-agent-linux-arm64" \
-  "$ROOT/agent/ly-agent-windows-amd64"; do
+  "$ROOT/agent/ly-agent-linux-arm64"; do
   [ -e "$file" ] || { echo "missing core build artifact: $file" >&2; exit 1; }
 done
 

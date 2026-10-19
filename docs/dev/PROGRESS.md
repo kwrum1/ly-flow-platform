@@ -703,8 +703,15 @@
   - OpenRASP 1.3.7 官方 Java engine 已下载并 attach 初始化；
     Jetty 9.4 真实请求产生 command alarm；`openrasp-alarm-bridge.py`
     systemd 服务把 alarm 送入 component alerts / UI。
-  - 响应执行器：block_ip/unblock_ip 使用 nftables set，支持
-    认证审批、agent 下发、执行结果回写和回滚；测试目标为 TEST-NET。
+  - 响应执行器：block_ip/unblock_ip、process_kill、file_delete/file_restore、
+    account_disable/account_enable、isolate_host/host_unisolate、
+    namespace_isolate/namespace_restore 均完成审批、执行、回滚；
+    破坏性动作由 RESPONSE_ENABLE_* 默认关闭。
+  - 证据对象存储：SeaweedFS 3.80 + evidence artifacts/bundles API；
+    bundle 可下载并校验 SHA256。
+  - 横向移动 detector 接入 WriteEventsV2，派生 `lateral.movement` 事件并
+    更新 Incident 阶段。
+  - Event v1、旧 response candidate/advisory 入口关闭；Windows Agent 放弃。
   - YARA 规则包合并可编译规则，避免 external-variable 规则污染。
 - UI 修复：
   - 总览在线 Agent/资产总数改用 assets stats。
@@ -715,8 +722,8 @@
   - 自签证书生产 dist 验收 17 页，0 console/page/network error、0 4xx/5xx。
 - Installer：
   - install.sh/uninstall.sh/download/Python/PHP/Java/Node.js/.NET RASP probe 均公开返回 200。
-  - linux/amd64、linux/arm64、windows/amd64 三种 Agent 下载均为 200。
-  - `scripts/build-agent-binaries.sh` 统一构建三平台二进制，核心镜像构建脚本
+  - linux/amd64、linux/arm64 两种 Agent 下载均可用；Windows 已砍掉。
+  - `scripts/build-agent-binaries.sh` 只构建 Linux 双架构，核心镜像构建脚本
     自动调用。
   - 安装页生成 10 分钟一次性 enrollment token，脚本写入 agent.env 并由
     systemd EnvironmentFile 注入；危险 token 字符会被拒绝。
@@ -732,6 +739,10 @@
   - `G5_OPENRASP_ATTACHED`
   - `G5_OPENRASP_ALARM_OK`
   - `G5_RESPONSE_OK`
+  - `G5_RESPONSE_EXPANDED_OK`
+  - `G5_EVIDENCE_OBJECT_STORE_OK`
+  - `G5_LATERAL_REALTIME_OK`
+  - `G5_LEGACY_RETIRED`
   - UI validation exit 0
-- 仍未完成：process kill/file delete/account disable/namespace isolate 响应动作、
-  clean VM/systemd 安装（ESXi 凭据阻塞）、ESXi 快照；Elkeid 集成已放弃。
+- 仍未完成：clean VM/systemd 安装（ESXi 凭据阻塞）、ESXi 快照、
+  Wazuh/OpenRASP/SeaweedFS 离线包固定 digest；Elkeid/Windows 已放弃。

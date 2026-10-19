@@ -87,3 +87,32 @@
 - 替代方案：新开独立 token；被否，增加一套认证与轮换成本。
 - 后果：Vector/Wazuh/Elkeid 接入时需要配置一个 agent/sensor 身份；后续在部署文档中说明。
 
+
+## D-010 响应动作扩张并关闭旧响应入口
+
+- 日期：2026-10-19
+- 决策：保留 /api/v1/response/actions 作为唯一执行入口；关闭旧 candidate/policy/advisory 路由。新增 block_ip、process_kill、file_delete/file_restore、account_disable/account_enable、isolate_host/host_unisolate、namespace_isolate/namespace_restore。
+- 原因：用户明确要求推进响应动作并关闭旧响应；旧 candidate 接口只读，继续保留会造成双入口误解。
+- 安全：破坏性动作由 RESPONSE_ENABLE_* 默认关闭；L3 必须不同认证管理员审批；测试使用 TEST-NET 目标。
+- 回滚：process_kill 不可逆；其余动作都有对应 rollback。
+
+## D-011 证据对象存储使用 SeaweedFS filer
+
+- 日期：2026-10-19
+- 决策：证据字节写入 SeaweedFS filer；bundle/artifact 元数据由 ly-server 本地持久化。默认 filesystem backend，Compose evidence profile 启用了 filer。
+- 原因：SeaweedFS Apache-2.0、单节点低成本、HTTP filer 可直接接入，无需引入 S3 SDK。
+- 后果：离线发布需要固定 SeaweedFS image digest；对象和元数据要一起备份。
+
+## D-012 关闭 Event v1 外部兼容路径
+
+- 日期：2026-10-19
+- 决策：移除 /api/v1/events、/api/v1/security-events、/api/v1/event-migration 外部路由；Dashboard 改用 /api/v1/unified/events，事件页使用 /api/v2/events。
+- 原因：用户明确要求关闭无意义兼容路径；Event v2 已是主链。
+- 后果：内部迁移代码暂时保留用于已有数据一致性，不再对外暴露。
+
+## D-013 放弃 Windows 端
+
+- 日期：2026-10-19
+- 决策：停止构建/下载/安装 Windows Agent，删除 Windows 专用 Agent 文件；仅保留 Linux amd64/arm64。
+- 原因：用户明确要求砍掉 Windows 端；当前测试与采集面全部为 Linux。
+- 后果：安装页、离线包、服务端下载和文档均不再提供 Windows。

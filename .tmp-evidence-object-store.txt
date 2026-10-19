@@ -1,0 +1,37 @@
+G5 EVIDENCE OBJECT STORE / SEAWEEDFS (2026-10-19)
+
+Topology:
+  SeaweedFS 3.80 all-in-one
+  master 19333, volume 18080, filer 18888, S3 18333
+  data volume g5_seaweed_data
+  ly-server: EVIDENCE_OBJECT_STORE=filer
+             EVIDENCE_FILER_URL=http://127.0.0.1:18888
+             EVIDENCE_ROOT=/var/lib/lyflow/evidence
+
+API:
+  POST /api/v1/evidence/artifacts
+  GET  /api/v1/evidence/artifacts/{id}
+  POST /api/v1/evidence/bundles
+  GET  /api/v1/evidence/bundles
+  GET  /api/v1/evidence/bundles/{id}
+  GET  /api/v1/evidence/bundles/{id}/download
+
+Acceptance:
+  artifact:
+    id=art-f3c092b248a686fb0cc15aa434ea842eb785c49ed88c258147fcb7a8c8498d90
+    name=acceptance.pcap
+    media_type=application/vnd.tcpdump.pcap
+    size=25
+  bundle:
+    id=evb-26c4f736eea38f049c5a7f7b
+    sha256=26c4f736eea38f049c5a7f7b05e2292f5de1c8728ea608cb0aae35f1b31bdc2f
+    size=1371
+    event_uid=g5-chain-1792401326-evt-2
+    artifact_id=art-f3c092b248a686fb0cc15aa434ea842eb785c49ed88c258147fcb7a8c8498d90
+  download 200, bytes=1371
+  list total=1
+  SeaweedFS filer object GET 200
+  objects visible under /lyflow/evidence/ on filer
+  metadata is durable under /var/lib/lyflow/evidence in the server volume
+
+The bundle is immutable/content-addressed; duplicate bytes reuse the object.
