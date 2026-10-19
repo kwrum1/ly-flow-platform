@@ -253,7 +253,7 @@ const fetchAssets = async (signal) => {
 }
 
 const fetchEvents = async (signal) => {
-  const payload = await api.get('/events', { params: { limit: 200 }, signal })
+  const payload = await api.get('/unified/events', { params: { limit: 200 }, signal })
   const list = normalizeItems(payload, ['items', 'events', 'list'])
   events.value = list.map((event, index) => ({
     ...event,

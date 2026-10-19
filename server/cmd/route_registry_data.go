@@ -21,7 +21,6 @@ func buildRouteRegistry() []RouteSpec {
 	}
 	adminOnly := map[string]bool{
 		"/api/v1/admin/incident-lifecycle/checkpoint": true,
-		"/api/v1/event-migration":                     true,
 		"/api/v1/auth/register":                       true,
 		"/api/v1/auth/users":                          true,
 		"/api/v1/auth/users/":                         true,
@@ -61,17 +60,18 @@ func buildRouteRegistry() []RouteSpec {
 		"/api/v2/ingest/events":         true,
 	}
 	paths := []string{
-		"/", "/api/v1/health", "/api/v1/public/situation/global", "/api/v1/stats", "/api/v1/events",
-		"/api/v1/security-events", "/api/v1/security-events/", "/api/v1/event-migration", "/api/v1/admin/incident-lifecycle/checkpoint",
+		"/", "/api/v1/health", "/api/v1/public/situation/global", "/api/v1/stats",
+		"/api/v1/admin/incident-lifecycle/checkpoint",
 		"/api/v1/auth/register", "/api/v1/auth/login", "/api/v1/auth/bootstrap-token", "/api/v1/auth/logout",
 		"/api/v1/auth/profile", "/api/v1/auth/change-password", "/api/v1/auth/users", "/api/v1/auth/users/password", "/api/v1/auth/users/",
 		"/api/v1/rules", "/api/v1/rules/inventory", "/api/v1/rules/reports", "/api/v1/rules/quarantine",
 		"/api/v1/rules/score-weights", "/api/v1/rules/items/", "/api/v1/rules/sources/", "/api/v1/rules/sources",
 		"/api/v1/rule-platform/sources", "/api/v1/rule-platform/bundles", "/api/v1/rule-platform/sync",
 		"/api/v1/rule-platform/compile-preview", "/api/v1/rule-platform/versions", "/api/v1/rule-platform/rollback",
-		"/api/v1/rule-platform/active-bundle", "/api/v1/response/candidates", "/api/v1/response/policy",
-		"/api/v1/response/advisories", "/api/v1/response/advisories/",
+		"/api/v1/rule-platform/active-bundle",
 		"/api/v1/response/actions", "/api/v1/response/actions/",
+		"/api/v1/evidence/bundles", "/api/v1/evidence/bundles/",
+		"/api/v1/evidence/artifacts", "/api/v1/evidence/artifacts/",
 		"/api/v1/debug/components", "/api/v1/rules/subscription", "/api/v1/rules/categories", "/api/v1/rules/update",
 		"/api/v1/rules/stats", "/api/v1/rules/test", "/api/v1/xdr/stats", "/api/v1/xdr/events", "/api/v1/xdr/sources",
 		"/api/v1/xdr/top-events", "/api/v1/xdr/chains", "/api/v1/xdr/posture", "/api/v1/xdr/log",

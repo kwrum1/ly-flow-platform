@@ -37,6 +37,7 @@ import (
 	"github.com/lyflow/ly-flow-platform/server/agentpolicy"
 	"github.com/lyflow/ly-flow-platform/server/analytics"
 	wsapi "github.com/lyflow/ly-flow-platform/server/api/websocket"
+	"github.com/lyflow/ly-flow-platform/server/evidence"
 	"github.com/lyflow/ly-flow-platform/server/incidentlifecycle"
 	"github.com/lyflow/ly-flow-platform/server/ingestionauth"
 	"github.com/lyflow/ly-flow-platform/server/ingestv2"
@@ -96,6 +97,7 @@ type Config struct {
 	RuleDownloadRestrictedShown bool
 	XDRResponsePolicyPath       string
 	ResponseActions             *responsepkg.ActionManager
+	Evidence                    *evidence.Store
 
 	XDRV2ResponsePolicyEnabled bool
 	XDRV2MaxDepth              int
@@ -155,6 +157,11 @@ func loadConfig() *Config {
 		log.Fatalf("无法初始化响应动作: %v", err)
 	}
 	cfg.ResponseActions = responseActions
+	evidenceStore, err := evidence.New(getEnv("EVIDENCE_ROOT", "/var/lib/lyflow/evidence"))
+	if err != nil {
+		log.Fatalf("无法初始化证据对象存储: %v", err)
+	}
+	cfg.Evidence = evidenceStore
 	sslMode := getEnv("DB_SSLMODE", "disable")
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName, sslMode)
@@ -244,10 +251,6 @@ func loadConfig() *Config {
 	if err = initializeIncidentLifecycleRuntime(ctx, cfg); err != nil {
 		log.Fatalf("无法初始化持久化 Incident 生命周期: %v", err)
 	}
-	if err = initializeAdvisoryResponseRuntime(cfg); err != nil {
-		log.Fatalf("无法初始化 advisory response 治理: %v", err)
-	}
-
 	return cfg
 }
 
@@ -350,10 +353,6 @@ func main() {
 	mux.HandleFunc("/api/v1/health", healthHandler(cfg))
 	mux.HandleFunc("/api/v1/public/situation/global", publicGlobalSituationHandler(cfg))
 	mux.HandleFunc("/api/v1/stats", statsHandler(cfg))
-	mux.HandleFunc("/api/v1/events", eventsHandler(cfg))
-	mux.Handle("/api/v1/security-events", securityEventsHandler(cfg.EventStorage))
-	mux.Handle("/api/v1/security-events/", securityEventsHandler(cfg.EventStorage))
-	mux.Handle("/api/v1/event-migration", storageMigrationHandler(cfg.EventStorage))
 
 	// Auth API (public and protected)
 	mux.HandleFunc("/api/v1/auth/login", authHandler.Login)
@@ -388,12 +387,12 @@ func main() {
 	mux.HandleFunc("/api/v1/rule-platform/versions", rulePlatformVersionsHandler(cfg))
 	mux.HandleFunc("/api/v1/rule-platform/rollback", rulePlatformRollbackHandler(cfg))
 	mux.HandleFunc("/api/v1/rule-platform/active-bundle", rulePlatformActiveBundleHandler(cfg))
-	mux.HandleFunc("/api/v1/response/candidates", responseCandidatesHandler(cfg))
 	mux.HandleFunc("/api/v1/response/actions", responseActionsHandler(cfg))
 	mux.HandleFunc("/api/v1/response/actions/", responseActionHandler(cfg))
-	mux.HandleFunc("/api/v1/response/policy", responsePolicyHandler(cfg))
-	mux.HandleFunc("/api/v1/response/advisories", advisoryResponseHandler(cfg))
-	mux.HandleFunc("/api/v1/response/advisories/", advisoryResponseHandler(cfg))
+	mux.HandleFunc("/api/v1/evidence/bundles", evidenceHandler(cfg))
+	mux.HandleFunc("/api/v1/evidence/bundles/", evidenceHandler(cfg))
+	mux.HandleFunc("/api/v1/evidence/artifacts", evidenceHandler(cfg))
+	mux.HandleFunc("/api/v1/evidence/artifacts/", evidenceHandler(cfg))
 	mux.HandleFunc("/api/v1/debug/components", debugComponentsHandler(cfg))
 	mux.HandleFunc("/api/v1/rules/subscription", subscriptionHandler(cfg))
 	mux.HandleFunc("/api/v1/rules/categories", categoriesHandler(cfg))
@@ -10230,9 +10229,8 @@ func agentInstallConfigHandler(cfg *Config) http.HandlerFunc {
 					"linux_url":     apiServer + "/api/v1/agent/install.sh",
 					"uninstall_url": apiServer + "/api/v1/agent/uninstall.sh",
 					"downloads": map[string]string{
-						"linux_amd64":   apiServer + "/api/v1/agent/download?os=linux&arch=amd64",
-						"linux_arm64":   apiServer + "/api/v1/agent/download?os=linux&arch=arm64",
-						"windows_amd64": apiServer + "/api/v1/agent/download?os=windows&arch=amd64",
+						"linux_amd64": apiServer + "/api/v1/agent/download?os=linux&arch=amd64",
+						"linux_arm64": apiServer + "/api/v1/agent/download?os=linux&arch=arm64",
 					},
 				},
 				"telemetry_streams": map[string]string{
@@ -10634,23 +10632,16 @@ func agentDownloadHandler(cfg *Config) http.HandlerFunc {
 		case "aarch64":
 			targetArch = "arm64"
 		}
-		if targetOS != "linux" && targetOS != "windows" {
-			http.Error(w, fmt.Sprintf("unsupported agent os: %s", targetOS), http.StatusBadRequest)
+		if targetOS != "linux" {
+			http.Error(w, fmt.Sprintf("unsupported agent os: %s (Linux only)", targetOS), http.StatusBadRequest)
 			return
 		}
 		if targetArch != "amd64" && targetArch != "arm64" {
 			http.Error(w, fmt.Sprintf("unsupported agent arch: %s", targetArch), http.StatusBadRequest)
 			return
 		}
-		if targetOS == "windows" && targetArch != "amd64" {
-			http.Error(w, "windows pcap agent is available for amd64 only", http.StatusBadRequest)
-			return
-		}
 
 		filename := fmt.Sprintf("ly-agent-%s-%s", targetOS, targetArch)
-		if targetOS == "windows" {
-			filename += ".exe"
-		}
 		candidates := agentBinaryCandidates(targetOS, targetArch)
 		for _, path := range candidates {
 			if st, err := os.Stat(path); err == nil && !st.IsDir() {

@@ -16,10 +16,18 @@ import (
 type ActionKind string
 
 const (
-	ActionObserve     ActionKind = "observe"
-	ActionBlockIP     ActionKind = "block_ip"
-	ActionUnblockIP   ActionKind = "unblock_ip"
-	ActionIsolateHost ActionKind = "isolate_host"
+	ActionObserve          ActionKind = "observe"
+	ActionBlockIP          ActionKind = "block_ip"
+	ActionUnblockIP        ActionKind = "unblock_ip"
+	ActionIsolateHost      ActionKind = "isolate_host"
+	ActionHostUnisolate    ActionKind = "host_unisolate"
+	ActionProcessKill      ActionKind = "process_kill"
+	ActionFileDelete       ActionKind = "file_delete"
+	ActionFileRestore      ActionKind = "file_restore"
+	ActionAccountDisable   ActionKind = "account_disable"
+	ActionAccountEnable    ActionKind = "account_enable"
+	ActionNamespaceIsolate ActionKind = "namespace_isolate"
+	ActionNamespaceRestore ActionKind = "namespace_restore"
 )
 
 type ActionRequest struct {
@@ -76,7 +84,15 @@ func NewActionManager(path string, policy Policy) (*ActionManager, error) {
 		{ID: string(ActionObserve), Name: "observe", Risk: RiskL1, Reversible: true},
 		{ID: string(ActionBlockIP), Name: "block source IP", Risk: RiskL2, Reversible: true},
 		{ID: string(ActionUnblockIP), Name: "unblock source IP", Risk: RiskL1, Reversible: true},
-		{ID: string(ActionIsolateHost), Name: "isolate host", Risk: RiskL3, Reversible: false},
+		{ID: string(ActionIsolateHost), Name: "isolate host", Risk: RiskL3, Reversible: true},
+		{ID: string(ActionHostUnisolate), Name: "unisolate host", Risk: RiskL1, Reversible: true},
+		{ID: string(ActionProcessKill), Name: "kill process", Risk: RiskL3, Reversible: false},
+		{ID: string(ActionFileDelete), Name: "quarantine file", Risk: RiskL3, Reversible: true},
+		{ID: string(ActionFileRestore), Name: "restore quarantined file", Risk: RiskL1, Reversible: true},
+		{ID: string(ActionAccountDisable), Name: "expire account", Risk: RiskL3, Reversible: true},
+		{ID: string(ActionAccountEnable), Name: "restore account", Risk: RiskL1, Reversible: true},
+		{ID: string(ActionNamespaceIsolate), Name: "isolate container network", Risk: RiskL3, Reversible: true},
+		{ID: string(ActionNamespaceRestore), Name: "restore container network", Risk: RiskL1, Reversible: true},
 	}
 	engine, err := New(policy, actions...)
 	if err != nil {
@@ -264,13 +280,14 @@ func (manager *ActionManager) Rollback(id, requestedBy string) (ActionRecord, er
 		if record.ID != id {
 			continue
 		}
-		if record.Action != ActionBlockIP {
+		rollbackAction, ok := rollbackActionFor(record.Action)
+		if !ok {
 			return ActionRecord{}, fmt.Errorf("response action %s has no rollback adapter", id)
 		}
 		now := manager.now().UTC()
 		rollback := ActionRecord{
 			ID: newActionID(now), IncidentID: record.IncidentID, AgentID: record.AgentID,
-			Action: ActionUnblockIP, Target: record.Target, Reason: "rollback " + record.ID,
+			Action: rollbackAction, Target: record.Target, Reason: "rollback " + record.ID,
 			RequestedBy: requestedBy, Risk: RiskL1, Status: "approved", AutoApproved: true,
 			CreatedAt: now, ExpiresAt: now.Add(5 * time.Minute), RollbackOf: record.ID,
 		}
@@ -283,6 +300,23 @@ func (manager *ActionManager) Rollback(id, requestedBy string) (ActionRecord, er
 		return rollback, nil
 	}
 	return ActionRecord{}, fmt.Errorf("response action %s not found", id)
+}
+
+func rollbackActionFor(action ActionKind) (ActionKind, bool) {
+	switch action {
+	case ActionBlockIP:
+		return ActionUnblockIP, true
+	case ActionFileDelete:
+		return ActionFileRestore, true
+	case ActionAccountDisable:
+		return ActionAccountEnable, true
+	case ActionIsolateHost:
+		return ActionHostUnisolate, true
+	case ActionNamespaceIsolate:
+		return ActionNamespaceRestore, true
+	default:
+		return "", false
+	}
 }
 
 func (manager *ActionManager) load() ([]ActionRecord, error) {

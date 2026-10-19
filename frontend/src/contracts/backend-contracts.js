@@ -119,7 +119,7 @@ export const backendContractDomains = Object.freeze([
     routes: [
       { method: 'GET', path: '/api/v1/health', feature: '服务健康' },
       { method: 'GET', path: '/api/v1/stats', feature: '平台统计' },
-      { method: 'GET', path: '/api/v1/events', feature: '基础事件' },
+      { method: 'GET', path: '/api/v2/events', feature: '基础事件' },
       { method: 'GET', path: '/api/v1/public/situation/global', feature: '全球态势' },
       { method: 'WS', path: '/api/v1/realtime', feature: '实时状态推送' },
     ],

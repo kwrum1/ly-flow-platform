@@ -50,15 +50,15 @@ func TestArchitectureRouteSnapshot_characterizesCurrentCountAndRoles(t *testing.
 	}
 
 	// Then
-	if len(ArchitectureRouteSnapshot) != 123 {
-		t.Fatalf("route snapshot count=%d, want 123", len(ArchitectureRouteSnapshot))
+	if len(ArchitectureRouteSnapshot) != 119 {
+		t.Fatalf("route snapshot count=%d, want 119", len(ArchitectureRouteSnapshot))
 	}
 	want := map[string]int{
 		"public":           12,
 		"agent_credential": 11,
 		"loopback":         1,
-		"admin_only":       26,
-		"default_roles":    73,
+		"admin_only":       25,
+		"default_roles":    70,
 	}
 	for class, expected := range want {
 		if counts[class] != expected {
@@ -124,7 +124,7 @@ func TestRouteRegistryDenyByDefaultAndEnforcesRoles(t *testing.T) {
 	// When
 	handler.ServeHTTP(response, unknown)
 	register, registerFound := findRouteSpec("/api/v1/auth/register")
-	events, eventsFound := findRouteSpec("/api/v1/events")
+	events, eventsFound := findRouteSpec("/api/v2/events")
 	health, healthFound := findRouteSpec("/api/v1/health")
 	global, globalFound := findRouteSpec("/api/v1/public/situation/global")
 

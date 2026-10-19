@@ -11,11 +11,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lyflow/ly-flow-platform/contracts"
 	"github.com/lyflow/ly-flow-platform/server/analytics"
+	"github.com/lyflow/ly-flow-platform/server/correlation/lateral"
 )
 
 type StorageEventRuntime struct {
 	migration  *analytics.StorageMigration
 	clickhouse *analytics.HTTPClickHouse
+	lateral    *lateral.Tracker
 }
 
 func newProductionStorageEventRuntime(ctx context.Context, postgres *pgxpool.Pool) (*StorageEventRuntime, error) {
@@ -46,7 +48,13 @@ func newProductionStorageEventRuntime(ctx context.Context, postgres *pgxpool.Poo
 	if err := clickhouse.EnsureTrafficSessionTable(ctx); err != nil {
 		return nil, fmt.Errorf("initialize full-session storage: %w", err)
 	}
-	return &StorageEventRuntime{migration: migration, clickhouse: clickhouse}, nil
+	return &StorageEventRuntime{
+		migration: migration, clickhouse: clickhouse,
+		lateral: lateral.NewTracker(lateral.Config{
+			Window:     time.Duration(toInt(getEnv("LATERAL_MOVEMENT_WINDOW_SECONDS", "600"))) * time.Second,
+			MinTargets: toInt(getEnv("LATERAL_MOVEMENT_MIN_TARGETS", "3")),
+		}),
+	}, nil
 }
 
 func (runtime *StorageEventRuntime) WriteCanonical(ctx context.Context, event contracts.CanonicalSecurityEvent) error {
@@ -72,6 +80,10 @@ func (runtime *StorageEventRuntime) WriteCanonical(ctx context.Context, event co
 func (runtime *StorageEventRuntime) WriteEventsV2(ctx context.Context, events []contracts.EventV2) error {
 	if runtime == nil || runtime.clickhouse == nil {
 		return fmt.Errorf("ClickHouse v2 event storage unavailable")
+	}
+	if runtime.lateral != nil {
+		findings := runtime.lateral.Observe(events)
+		events = append(events, lateralDerivedEventsFromFindings(runtime.lateral.Events(), findings)...)
 	}
 	if err := runtime.clickhouse.InsertEventsV2(ctx, events); err != nil {
 		return err

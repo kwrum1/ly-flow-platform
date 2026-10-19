@@ -1,9 +1,6 @@
 package main
 
 var routeMethodOverrides = map[string][]string{
-	"/api/v1/security-events":                     {"GET", "POST"},
-	"/api/v1/security-events/":                    {"DELETE"},
-	"/api/v1/event-migration":                     {"GET", "POST"},
 	"/api/v1/admin/incident-lifecycle/checkpoint": {"POST"},
 	"/api/v1/auth/register":                       {"POST"},
 	"/api/v1/auth/login":                          {"POST"},
@@ -22,10 +19,12 @@ var routeMethodOverrides = map[string][]string{
 	"/api/v1/rule-platform/rollback":              {"POST"},
 	"/api/v1/rule-platform/active-bundle":         {"GET", "POST"},
 	"/api/v1/response/policy":                     {"GET", "POST", "PUT"},
-	"/api/v1/response/advisories":                 {"GET", "POST"},
-	"/api/v1/response/advisories/":                {"POST"},
 	"/api/v1/response/actions":                    {"GET", "POST"},
 	"/api/v1/response/actions/":                   {"GET", "POST"},
+	"/api/v1/evidence/bundles":                    {"GET", "POST"},
+	"/api/v1/evidence/bundles/":                   {"GET"},
+	"/api/v1/evidence/artifacts":                  {"POST"},
+	"/api/v1/evidence/artifacts/":                 {"GET"},
 	"/api/v1/rules/subscription":                  {"GET", "PUT"},
 	"/api/v1/rules/update":                        {"POST"},
 	"/api/v1/rules/test":                          {"POST"},

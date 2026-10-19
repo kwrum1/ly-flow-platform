@@ -16,17 +16,6 @@
         <label>卸载命令</label>
         <div class="command-box compact"><code>{{ uninstallCommand }}</code></div>
       </article>
-
-      <article class="install-card windows-card">
-        <div class="card-head"><div><b>Windows Agent</b><span>x86_64 · 单文件</span></div><span class="ready">可用</span></div>
-        <div class="windows-download"><a :href="windowsAmd64Url" download>下载 Windows Agent</a></div>
-        <div class="dependency-row">
-          <div><b>Npcap 抓包驱动</b><span>独立安装，不集成在 Agent 包内</span></div>
-          <a href="https://npcap.com/#download" target="_blank" rel="noopener noreferrer">官方下载</a>
-        </div>
-        <div class="windows-uninstall">卸载路径：控制面板 → 应用和功能 → LyFlow Agent</div>
-        <ol><li>安装 Npcap</li><li>以管理员身份运行 Agent</li><li>在控制中心确认上线</li></ol>
-      </article>
     </div>
   </section>
 </template>
@@ -41,7 +30,6 @@ const tokenLoading = ref(false)
 const tokenError = ref('')
 const installUrl = computed(() => `${origin}/api/v1/agent/install.sh${enrollmentToken.value ? `?enrollment_token=${encodeURIComponent(enrollmentToken.value)}` : ''}`)
 const uninstallUrl = computed(() => `${origin}/api/v1/agent/uninstall.sh`)
-const windowsAmd64Url = computed(() => `${origin}/api/v1/agent/download?os=windows&arch=amd64`)
 const installCommand = computed(() => `bash -c "if command -v curl; then curl -kfsSL ${installUrl.value} | bash; else wget --no-check-certificate -qO- ${installUrl.value} | bash; fi"`)
 const uninstallCommand = computed(() => `bash -c "if command -v curl; then curl -kfsSL ${uninstallUrl.value} | bash; else wget --no-check-certificate -qO- ${uninstallUrl.value} | bash; fi"`)
 const statusCommand = 'systemctl status ly-agent --no-pager'

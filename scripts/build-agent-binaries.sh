@@ -15,6 +15,5 @@ build() {
 
 build linux amd64 ly-agent
 build linux arm64 ly-agent-linux-arm64
-build windows amd64 ly-agent-windows-amd64
 
-ls -lh ly-agent ly-agent-linux-arm64 ly-agent-windows-amd64
+ls -lh ly-agent ly-agent-linux-arm64

@@ -92,11 +92,15 @@ services:
       SECURITY_ENGINE_CONTROL_TOKEN: ${SECURITY_ENGINE_CONTROL_TOKEN:?SECURITY_ENGINE_CONTROL_TOKEN must be set}
       POLICY_TRUST_DIR: /var/lib/lyflow/policy/trust
       POLICY_KEY_DIR: /var/lib/lyflow/policy/keys
+      RESPONSE_ACTIONS_PATH: /var/lib/lyflow/response/actions.json
+      EVIDENCE_ROOT: /var/lib/lyflow/evidence
     volumes:
       - g5_server_data:/data
       - ../../rules:/app/rules
       - g5_rule_lifecycle:/app/rules/security-engine/lifecycle
       - g5_policy_trust:/var/lib/lyflow/policy
+      - g5_response_data:/var/lib/lyflow/response
+      - g5_evidence_data:/var/lib/lyflow/evidence
     healthcheck:
       test: [CMD-SHELL, "wget -q -O /dev/null http://127.0.0.1:8080/api/v1/health || exit 1"]
       interval: 10s
@@ -317,4 +321,6 @@ volumes:
   g5_security_engine_audit:
   g5_agent_center_data:
   g5_vector_data:
+  g5_response_data:
+  g5_evidence_data:
 

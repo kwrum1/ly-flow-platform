@@ -120,12 +120,16 @@ services:
       SECURITY_ENGINE_CONTROL_TOKEN: ${SECURITY_ENGINE_CONTROL_TOKEN:?SECURITY_ENGINE_CONTROL_TOKEN must be set}
       POLICY_TRUST_DIR: /var/lib/lyflow/policy/trust
       POLICY_KEY_DIR: /var/lib/lyflow/policy/keys
+      RESPONSE_ACTIONS_PATH: /var/lib/lyflow/response/actions.json
+      EVIDENCE_ROOT: /var/lib/lyflow/evidence
     volumes:
       - server_data:/data
       - ../../rules:/etc/ly/rules:ro
       - ../../rules:/app/rules
       - rule_lifecycle:/app/rules/security-engine/lifecycle
       - policy_trust:/var/lib/lyflow/policy
+      - response_data:/var/lib/lyflow/response
+      - evidence_data:/var/lib/lyflow/evidence
       - /sys:/host/sys:ro
       - /proc:/host/proc:ro
     depends_on:
@@ -376,3 +380,5 @@ volumes:
   security_engine_audit:
   agent_center_data:
   vector_data:
+  response_data:
+  evidence_data:
