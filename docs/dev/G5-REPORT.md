@@ -184,8 +184,11 @@ docker compose --env-file lean.env -f g5-host.yml restart
    NDR/XDR；OpenRASP 1.3.7 engine 已通过 Jetty 9.4 真实 alarm 并接入
    component alerts；原生安装脚本在 `deploy/native/`；Elkeid 集成按当前决策放弃。
    LyFlow 自身 Agent/HIDS/YARA/多语言 RASP/Vector 链路真实运行。
-4. **ESXi 快照/干净 VM 被凭据阻塞**：测试机旧 lab 密码和 `esxi_lab` 公钥均
-   无法登录 10.1.18.124，当前没有有效 ESXi root 凭据；已备份当前 Agent
+4. **ESXi 快照/干净 VM**：当前 ESXi root 凭据已验证可用；已创建
+   `lyflow-test` 快照 `pre-clean-vm-20261020`。已上传 Ubuntu 24.04 cloud
+   image 并创建 `lyflow-clean-20261020`（4 vCPU/4 GiB/3.5 GiB 基础盘，
+   静态 10.1.18.127），但 cloud-init/SSH 引导尚未完成，干净机安装/自检/回滚
+   还未验收。当前 Agent 已另有备份
    `/opt/lyflow/backups/g5-agent-pre-wazuh-20261019-2221.tgz`。
 5. **容量**：T4.6 结论保持不变；6 vCPU/8 GiB 不是正式 20k EPS + 1Gbps 保证配置。
 6. **XDR weak_same_ip 关联**：已阻止包含 `weak_same_ip` 的新路径提升为 Incident；

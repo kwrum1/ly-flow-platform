@@ -1,4 +1,4 @@
-﻿# G5 test-only host-network topology. ClickHouse runs natively on the test VM
+# G5 test-only host-network topology. ClickHouse runs natively on the test VM
 # because the Docker Hub mirror is unreliable; Postgres/Redis are local images.
 # Do not use this file as the public production profile.
 name: lyflow-g5
@@ -241,7 +241,7 @@ services:
 
   seaweedfs:
     <<: *defaults
-    image: ${LYFLOW_SEAWEEDFS_IMAGE:-docker.1ms.run/chrislusf/seaweedfs:3.80}
+    image: ${LYFLOW_SEAWEEDFS_IMAGE:-docker.1ms.run/chrislusf/seaweedfs@sha256:1055999e08eed1789b0ae45d235126e4495e23d3fb9d6396293fd42539b1ae6a}
     network_mode: host
     command:
       - server

@@ -293,7 +293,7 @@ services:
   seaweedfs:
     <<: *service-defaults
     profiles: ["evidence"]
-    image: ${LYFLOW_SEAWEEDFS_IMAGE:-docker.1ms.run/chrislusf/seaweedfs:3.80}
+    image: ${LYFLOW_SEAWEEDFS_IMAGE:-docker.1ms.run/chrislusf/seaweedfs@sha256:1055999e08eed1789b0ae45d235126e4495e23d3fb9d6396293fd42539b1ae6a}
     command:
       - server
       - -dir=/data
