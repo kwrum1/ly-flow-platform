@@ -160,7 +160,7 @@ G5_INCIDENT_OK
 docker compose --env-file lean.env -f g5-host.yml restart
 ```
 
-重启后 11 个服务全部回到 healthy，使用 admin token 再次查询 `/api/v2/events` 仍返回
+重启后核心服务全部回到 healthy（当前含 SeaweedFS 共 12 个），使用 admin token 再次查询 `/api/v2/events` 仍返回
 `g5-e2e-...`，PostgreSQL/ClickHouse/Redis 数据保留。
 
 ## 9. 采集面
