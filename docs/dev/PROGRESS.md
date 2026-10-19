@@ -501,4 +501,5 @@
   - DNS 只支持精确域名 label 序列，不支持通配/子域泛化。
   - 未打补丁的 ly_probe 可用 `-reload-command 'systemctl restart lyprobe'` 兜底，但有短暂抓包中断。
 - 状态：`REVIEW`。规则源 freshness、热转换、零停机 reload 已端到端验证。
+- 证据：`/opt/lyflow/reports/T4.4/`（热加载日志、生成规则、二进制校验和）；测试 VM 清理 gdb/临时目录，根分区约 `2.5G/116G`。
 - 回滚：停止 `lyflow-rulecompiler`，恢复旧 `threat.json`；ly_probe 可继续运行，仅失去自动规则刷新。
