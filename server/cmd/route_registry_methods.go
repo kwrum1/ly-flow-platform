@@ -59,6 +59,7 @@ var routeMethodOverrides = map[string][]string{
 	"/api/v1/agent/snapshot":                      {"POST"},
 	"/api/v1/realtime":                            {"WS"},
 	"/api/v2/ingest/events":                       {"POST"},
+	"/api/v2/events/":                             {"GET"},
 }
 
 func routeMethods(path string) []string {

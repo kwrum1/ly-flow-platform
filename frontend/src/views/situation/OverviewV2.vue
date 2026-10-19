@@ -121,10 +121,11 @@ const incidentData = ref({})
 const eventItems = ref([])
 
 const sampleSize = computed(() => eventItems.value.length)
+const sampleHighRisk = computed(() => eventItems.value.filter((item) => ['critical', 'high'].includes(String(item.severity || '').toLowerCase())).length)
 const kpis = computed(() => ({
-  recent24h: stats.value.recent_events_24h ?? stats.value.new_events ?? 0,
-  total: stats.value.total_events ?? 0,
-  highRisk: Number(stats.value.critical_events || 0) + Number(stats.value.high_events || 0),
+  recent24h: Number(stats.value.recent_events_24h ?? stats.value.new_events ?? 0) || eventItems.value.length,
+  total: Number(stats.value.total_events ?? 0) || eventItems.value.length,
+  highRisk: Number(stats.value.critical_events || 0) + Number(stats.value.high_events || 0) || sampleHighRisk.value,
   totalAssets: stats.value.total_assets ?? 0,
   onlineAgents: stats.value.online_agents ?? 0,
   incidents: incidentData.value.total ?? incidentData.value.items?.length ?? 0,
@@ -136,7 +137,7 @@ const attackMatrix = computed(() => buildAttackMatrix(eventItems.value))
 const recentEvents = computed(() => eventItems.value.slice(0, 8))
 
 function unwrap(response) {
-  return response?.data?.data ?? response?.data ?? {}
+  return response?.data?.data ?? response?.data ?? response ?? {}
 }
 
 function buildRows(items, key) {

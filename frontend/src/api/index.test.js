@@ -52,8 +52,8 @@ describe('API client interceptor behavior', () => {
     const module = await import('./index')
     const { API_ERROR_CODES, createRequestController, isRequestCanceled } = module
 
-    expect(mockRequestUse).toHaveBeenCalledTimes(1)
-    expect(mockResponseUse).toHaveBeenCalledTimes(1)
+    expect(mockRequestUse).toHaveBeenCalledTimes(2)
+    expect(mockResponseUse).toHaveBeenCalledTimes(2)
 
     const requestOnFulfilled = mockRequestUse.mock.calls[0][0]
     const responseOnFulfilled = mockResponseUse.mock.calls[0][0]

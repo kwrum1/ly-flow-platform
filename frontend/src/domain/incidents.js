@@ -104,14 +104,15 @@ export function normalizeIncident(raw = {}) {
   const stages = Array.isArray(raw.stages) ? raw.stages : Array.isArray(raw.attack_chain) ? raw.attack_chain : []
   const evidence = Array.isArray(raw.evidence) ? raw.evidence : Array.isArray(raw.events) ? raw.events : []
   const stageGroups = Array.isArray(raw.stage_groups) ? raw.stage_groups : []
+  const firstEvidence = evidence[0] || {}
 
   return {
     id: firstNonEmpty(raw.id, raw.incident_id, raw.chain_id),
     title: firstNonEmpty(raw.title, raw.name, raw.rule_name, raw.attack_type, '关联安全事件'),
     severity: normalizeSeverity(raw.severity || raw.risk_level),
     status: normalizeStatus(raw.status),
-    affectedAsset: firstNonEmpty(raw.affected_asset, raw.affectedAsset, raw.asset, raw.hostname, raw.host, raw.entity_id),
-    entityId: firstNonEmpty(raw.entity_id, raw.entityId, raw.asset_id, raw.agent_id, raw.host_id, raw.chain_id),
+    affectedAsset: firstNonEmpty(raw.affected_asset, raw.affectedAsset, raw.asset, raw.hostname, raw.host, raw.entity_id, raw.asset_id, raw.agent_id, raw.host_id, firstEvidence.entity_id, firstEvidence.asset_id, firstEvidence.agent_id, firstEvidence.host_id),
+    entityId: firstNonEmpty(raw.entity_id, raw.entityId, raw.asset_id, raw.agent_id, raw.host_id, raw.chain_id, raw.source_chain_id, firstEvidence.entity_id, firstEvidence.asset_id),
     recommendedAction: firstNonEmpty(raw.recommended_action, raw.recommendedAction, raw.action, raw.remediation),
     createdAt: firstNonEmpty(raw.created_at, raw.createdAt, raw.timestamp, raw.first_seen),
     updatedAt: firstNonEmpty(raw.updated_at, raw.updatedAt, raw.last_seen),

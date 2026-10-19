@@ -171,7 +171,7 @@ func incidentJSONRow(incident incidentlifecycle.Incident) map[string]interface{}
 		}
 		var rawValue map[string]interface{}
 		if json.Unmarshal(item.Raw, &rawValue) == nil {
-			for _, key := range []string{"id", "event_type", "source_module", "source_engine", "src_ip", "dst_ip", "summary", "raw_event", "raw_reference", "entity_id", "tactic", "technique"} {
+			for _, key := range []string{"id", "event_type", "source_module", "source_engine", "src_ip", "dst_ip", "asset_id", "agent_id", "host_id", "summary", "raw_event", "raw_reference", "entity_id", "tactic", "technique"} {
 				if value, exists := rawValue[key]; exists {
 					row[key] = value
 				}

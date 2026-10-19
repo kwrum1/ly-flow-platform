@@ -2,16 +2,20 @@ import { describe, expect, it } from 'vitest'
 import { parseFlag, resolveFeatures } from './features'
 
 describe('feature flags', () => {
-  it('defaults to false', () => {
+  it('defaults to the ly_vis shell while keeping other flags off', () => {
     expect(parseFlag(undefined)).toBe(false)
     expect(parseFlag('', true)).toBe(true)
     expect(resolveFeatures({})).toEqual({
-      uiShellV2: false,
+      uiShellV2: true,
       queryV2: false,
-      attackV2: false,
+      attackV2: true,
       agentFacade: false,
       responseApproval: false,
     })
+  })
+
+  it('allows the legacy shell to be selected explicitly', () => {
+    expect(resolveFeatures({ VITE_UI_SHELL_V2_ENABLED: 'false' }).uiShellV2).toBe(false)
   })
 
   it('accepts common truthy spellings', () => {

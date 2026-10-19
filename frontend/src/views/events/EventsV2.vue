@@ -197,7 +197,7 @@ function formatConfidence(value) {
 }
 
 function unwrap(response) {
-  return response?.data?.data ?? response?.data ?? {}
+  return response?.data?.data ?? response?.data ?? response ?? {}
 }
 
 async function load(reset) {

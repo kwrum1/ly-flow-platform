@@ -7,9 +7,9 @@ export function parseFlag(value, fallback = false) {
 
 export function resolveFeatures(env = {}) {
   return {
-    uiShellV2: parseFlag(env.VITE_UI_SHELL_V2_ENABLED),
+    uiShellV2: parseFlag(env.VITE_UI_SHELL_V2_ENABLED, true),
     queryV2: parseFlag(env.VITE_QUERY_V2_ENABLED),
-    attackV2: parseFlag(env.VITE_ATTACK_V2_ENABLED),
+    attackV2: parseFlag(env.VITE_ATTACK_V2_ENABLED, true),
     agentFacade: parseFlag(env.VITE_AGENT_FACADE_ENABLED),
     responseApproval: parseFlag(env.VITE_RESPONSE_APPROVAL_ENABLED),
   }

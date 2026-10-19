@@ -649,3 +649,26 @@
     ESXi 快照仍未完成。
 - 报告：`docs/dev/G5-REPORT.md`，证据 `/opt/lyflow/reports/G5/`。
 - 状态：`PASS_WITH_EXCEPTIONS`，不是无条件可发布。
+
+### G5 功能收口：Event v2 → Incident 与 UI 边界（DONE）
+
+- 修复 v2 事件没有进入 XDR/Incident 的问题：
+  - `StorageEventRuntime.WriteEventsV2` 写 ClickHouse 后追加 canonical 投影。
+  - 投影保留资产、ATT&CK、网络五元组和治理字段；失败只记录日志。
+  - XDR graph 从 canonical 投影生成攻击链，`/api/v1/incidents` 持久化并返回。
+  - 实测 2 条同资产 `initial_access` + `execution` v2 事件生成 Incident 和 2 条证据。
+- 修复控制台没有按边界显示：
+  - `VITE_UI_SHELL_V2_ENABLED` 默认开启，ly_vis 顶部导航/二级页签/20px 内容区生效。
+  - `VITE_ATTACK_V2_ENABLED` 默认开启，事件中心和攻击链使用 V2 页面。
+  - `/dashboard` 固定使用 `OverviewV2`，全球态势保留在 `/situation/global`。
+  - 修复 Event v2 客户端错误请求 `/api/v1/v2/events` 的双前缀问题。
+  - 修复总览/事件/Incident 对已解包响应的二次 `unwrap` 导致空数据。
+- 路由契约：
+  - 补 `/api/v2/events/` 路由策略、方法、测试和契约记录。
+  - 路由快照更新为 120 条；`TestRouteAPIContract` 通过。
+- 验证：
+  - `go test ./cmd -run 'TestCanonicalProjection|TestArchitectureRoute|TestRouteRegistry|TestRouteAPIContract'` → ok。
+  - 前端 31 个测试文件 / 115 tests 通过；typecheck 通过。
+  - 真实 UI 验收（Vite HTTP 代理）：登录、总览、事件列表、事件详情抽屉、
+    Incident 列表、阶段时间线、证据矩阵均显示真实 G5 数据。
+- 仍未完成：真实 Agent/RASP、Vector 告警链、可信证书截图、ESXi 快照。

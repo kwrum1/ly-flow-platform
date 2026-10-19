@@ -78,4 +78,4 @@
 - **G2**：UI shell + 查询性能（7 天 p95 < 2s）通过。
 - **G3**：3 条 ATT&CK 链路验证通过。
 - **G4**：Agent 安装/回滚 + 响应安全护栏通过。
-- **G5**：ESXi 测试机全量验收通过，可发布。当前：`PASS_WITH_EXCEPTIONS`（2026-10-19，10 服务健康、Pingora 前端、Event v2 闭环、重启持久化通过；例外见 `docs/dev/G5-REPORT.md`）。
+- **G5**：ESXi 测试机全量验收通过，可发布。当前：`PASS_WITH_EXCEPTIONS`（2026-10-19，10 服务健康、Pingora 前端、Event v2 闭环、Event v2 → Incident、UI ly_vis 边界、重启持久化通过；例外见 `docs/dev/G5-REPORT.md`）。

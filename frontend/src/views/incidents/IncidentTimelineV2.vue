@@ -118,7 +118,7 @@ const groups = computed(() => {
 })
 
 function unwrap(response) {
-  return response?.data?.data ?? response?.data ?? {}
+  return response?.data?.data ?? response?.data ?? response ?? {}
 }
 
 function formatTime(value) {

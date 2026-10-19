@@ -50,15 +50,15 @@ func TestArchitectureRouteSnapshot_characterizesCurrentCountAndRoles(t *testing.
 	}
 
 	// Then
-	if len(ArchitectureRouteSnapshot) != 116 {
-		t.Fatalf("route snapshot count=%d, want 116", len(ArchitectureRouteSnapshot))
+	if len(ArchitectureRouteSnapshot) != 120 {
+		t.Fatalf("route snapshot count=%d, want 120", len(ArchitectureRouteSnapshot))
 	}
 	want := map[string]int{
 		"public":           2,
-		"agent_credential": 10,
+		"agent_credential": 11,
 		"loopback":         1,
 		"admin_only":       24,
-		"default_roles":    79,
+		"default_roles":    82,
 	}
 	for class, expected := range want {
 		if counts[class] != expected {
@@ -156,6 +156,7 @@ func TestArchitectureRouteSnapshotMarksPublicAndProtectedRoutes(t *testing.T) {
 		"/api/v1/agent/realtime":        true,
 		"/api/v1/agent/snapshot":        true,
 		"/api/v1/rasp/event":            true,
+		"/api/v2/ingest/events":         true,
 	}
 	for _, route := range ArchitectureRouteSnapshot {
 		if len(route.Methods) == 0 {

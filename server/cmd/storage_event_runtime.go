@@ -73,7 +73,11 @@ func (runtime *StorageEventRuntime) WriteEventsV2(ctx context.Context, events []
 	if runtime == nil || runtime.clickhouse == nil {
 		return fmt.Errorf("ClickHouse v2 event storage unavailable")
 	}
-	return runtime.clickhouse.InsertEventsV2(ctx, events)
+	if err := runtime.clickhouse.InsertEventsV2(ctx, events); err != nil {
+		return err
+	}
+	runtime.projectEventsV2ForXDR(ctx, events)
+	return nil
 }
 
 func (runtime *StorageEventRuntime) QueryEventsV2(ctx context.Context, query analytics.EventV2Query) (analytics.EventV2Page, error) {
