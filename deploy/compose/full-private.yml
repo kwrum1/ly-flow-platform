@@ -1,0 +1,62 @@
+# Private overlay. It is intentionally not included by lean.yml.
+# Usage:
+#   docker compose -f lean.yml -f full-private.yml \
+#     --profile core --profile capture --profile full-private up -d
+#
+# The images/rules are not part of public builds. Provide ELKEID_* images and
+# an authorized private/elkeid directory on the deployment host.
+services:
+  elkeid-mongo:
+    profiles: ["full-private"]
+    image: ${ELKEID_MONGO_IMAGE:-mongo:7}
+    restart: unless-stopped
+    volumes:
+      - elkeid_mongo_data:/data/db
+    networks: [core]
+
+  elkeid-kafka:
+    profiles: ["full-private"]
+    image: ${ELKEID_KAFKA_IMAGE:-bitnami/kafka:3.7}
+    restart: unless-stopped
+    environment:
+      KAFKA_CFG_NODE_ID: "0"
+      KAFKA_CFG_PROCESS_ROLES: controller,broker
+      KAFKA_CFG_CONTROLLER_QUORUM_VOTERS: 0@elkeid-kafka:9093
+      KAFKA_CFG_LISTENERS: PLAINTEXT://:9092,CONTROLLER://:9093
+      KAFKA_CFG_ADVERTISED_LISTENERS: PLAINTEXT://elkeid-kafka:9092
+      KAFKA_CFG_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_CFG_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      ALLOW_PLAINTEXT_LISTENER: "yes"
+    volumes:
+      - elkeid_kafka_data:/bitnami/kafka
+    networks: [core]
+
+  elkeid-hub:
+    profiles: ["full-private"]
+    image: ${ELKEID_HUB_IMAGE:?ELKEID_HUB_IMAGE must be set for full-private}
+    restart: unless-stopped
+    depends_on:
+      elkeid-mongo: {condition: service_started}
+      elkeid-kafka: {condition: service_started}
+      redis: {condition: service_started}
+    environment:
+      ELKEID_HUB_MONGO_URI: mongodb://elkeid-mongo:27017/elkeid
+      ELKEID_HUB_KAFKA_BROKERS: elkeid-kafka:9092
+      ELKEID_HUB_REDIS_ADDR: redis:6379
+    volumes:
+      - ${ELKEID_PRIVATE_DIR:-../../private/elkeid}:/opt/elkeid:ro
+    networks: [core]
+
+  elkeid-console:
+    profiles: ["full-private"]
+    image: ${ELKEID_CONSOLE_IMAGE:?ELKEID_CONSOLE_IMAGE must be set for full-private}
+    restart: unless-stopped
+    depends_on:
+      elkeid-hub: {condition: service_started}
+    ports:
+      - ${ELKEID_CONSOLE_BIND_PORT:-127.0.0.1:8088}:8080
+    networks: [core]
+
+volumes:
+  elkeid_mongo_data:
+  elkeid_kafka_data:

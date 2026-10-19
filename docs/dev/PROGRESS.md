@@ -561,3 +561,34 @@
 - 证据：`/opt/lyflow/reports/T4.6/`，详细报告 `docs/dev/T4.6-REPORT.md`。
 - 状态：`REVIEW`。容量边界已量化，不作为全量生产容量承诺。
 - 回滚：删除 `server/bench`、`server/cmd/eventbench`，移除新增索引/迁移版本 7；旧查询仍可用。
+
+### T4.7 打包与 Compose profiles（REVIEW）
+
+- 新增 `deploy/compose/lean.yml`：
+  - core：PostgreSQL、Redis、ClickHouse、ly-server、security-engine、agent-center、ly-vis。
+  - capture：lyprobe、Suricata、rulecompiler、capturedoctor。
+  - healthcheck、资源限制、host network/capabilities、共享 `runtime/fp-patterns`。
+- 新增 `deploy/compose/full-private.yml`：
+  - 私有 overlay（Elkeid HUB/Console/MongoDB/Kafka）。
+  - 不在 lean 中默认启用；镜像/规则不进入公开产物。
+- 新增 `deploy/compose/lyflowctl`：
+  - `bootstrap/config/up/down/ps/logs/upgrade/rollback/backup`。
+  - 自动生成 `lean.env` 随机密钥、runtime 目录和样例规则。
+- 新增 sensor Dockerfile：
+  - `lyprobe.Dockerfile`（libpcap/libpcre/PCRE plugin）
+  - `capturedoctor.Dockerfile`（ethtool/procps）
+  - `rulecompiler.Dockerfile`
+- 新增 `build-sensor-images.sh`：从 `/opt/lyflow/artifacts` 构建 sensor 镜像。
+- 测试 VM 实测：
+  - lean config 629 行 / 11 服务；full-private config 711 行 / 15 服务。
+  - sensor 镜像构建成功：lyprobe 127MB、capturedoctor 135MB、rulecompiler 20MB。
+  - capture profile 三容器实际启动并 healthy。
+  - lyprobe 加载 106 条 pattern，rulecompiler 生成 6 条规则，capturedoctor 看到 lyprobe 进程并输出 `status=warn`。
+  - 规则更新触发 lyprobe `Hot-reloaded 106 patterns`。
+- 未验证：
+  - core 的 ly-server/security-engine/frontend 镜像仍由既有流水线提供，编译机没有本地镜像，未在测试 VM 启动完整 core 栈。
+  - suricata 容器镜像依赖上游 `jasonish/suricata`，当前网络无法拉取；宿主态 T4.2 已验证。
+  - Vector/SeaweedFS 未加入，等待采集/证据链路验收。
+- 证据：`/opt/lyflow/reports/T4.7/`，详细报告 `docs/dev/T4.7-REPORT.md`。
+- 状态：`REVIEW`。capture plane 打包和运行已验证；core 全栈启动待镜像流水线。
+- 回滚：停止 capture profile，删除 sensor 镜像/`deploy/build-context`；core 用 `lyflowctl rollback` 恢复 env 备份；不自动删除 named volume。
