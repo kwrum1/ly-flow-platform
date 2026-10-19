@@ -534,3 +534,30 @@
 - 证据：`/opt/lyflow/reports/T4.5/`。
 - 状态：`REVIEW`。抓包运行时监控、告警和受控重启已端到端验证。
 - 回滚：停止 `lyflow-capturedoctor`，删除状态文件；不影响 ly_probe/Suricata。
+
+### T4.6 查询性能与压测（REVIEW）
+
+- 新增 `server/bench`：
+  - 确定性 Event v2 生成器，30 天时间分布、可配置 EPS/载荷。
+  - 最近秩百分位 p50/p95/p99。
+- 新增 `server/cmd/eventbench`：
+  - ClickHouse schema 创建/重建、批量写入（支持 parallel writers）。
+  - 30 天采样数据 + 20k EPS + 1Gbps 载荷三种模式。
+  - 查询工作负载：事件列表、严重度/来源/阶段过滤、30 天关键字、详情、游标翻页、24h count、1m 聚合。
+  - 超时 10 分钟；`-optimize`/`-settle-seconds` 控制 merge 稳定。
+  - 报告 JSON，p95 阈值 2000ms。
+- Schema：
+  - `idx_event_uid` bloom_filter，修复详情查询。
+  - asset/user/src/dst/process/file/rule 的 ngrambf 跳过索引。
+  - 迁移版本 7 增加索引 DDL。
+  - `HTTPClickHouse.Exec` 供压测/诊断使用。
+- 测试 VM（6 vCPU/8GiB，ClickHouse 26.9.21.9）结果：
+  - 30 天 12.96M 事件（5 EPS 采样）：查询 p95 最大 728ms，0 errors。
+  - 20k EPS 正常载荷：21,525 EPS。
+  - 1Gbps 载荷（5.5KB/事件）：22,114 EPS，约 1.06Gbps，单独写入通过。
+  - 30 天索引表 + 1Gbps 同时：18,525 EPS，未稳定达到 20k；查询 p95 492ms。
+  - 冷启动单次全流程受 part/merge/内存影响，不能把单次冷态 p95 当作稳态。
+- 结论：30 天查询、20k 正常载荷、1Gbps 单独写入分别通过；“30 天 + 20k + 1Gbps + 查询”在 6 vCPU/8GiB 单节点未完全达标。
+- 证据：`/opt/lyflow/reports/T4.6/`，详细报告 `docs/dev/T4.6-REPORT.md`。
+- 状态：`REVIEW`。容量边界已量化，不作为全量生产容量承诺。
+- 回滚：删除 `server/bench`、`server/cmd/eventbench`，移除新增索引/迁移版本 7；旧查询仍可用。

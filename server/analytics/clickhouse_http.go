@@ -88,6 +88,11 @@ func isDiskFullResponse(body []byte) bool {
 		strings.Contains(message, "cannot write") && strings.Contains(message, "space")
 }
 
+// Exec runs an administrative/benchmark query and returns the raw body.
+func (client *HTTPClickHouse) Exec(ctx context.Context, query string) ([]byte, error) {
+	return client.execute(ctx, query)
+}
+
 func (client *HTTPClickHouse) Insert(ctx context.Context, event EventRecord) error {
 	row := clickHouseEventRow{
 		EventUID: event.ID, Version: event.Version, Timestamp: event.Timestamp.UTC().Format("2006-01-02 15:04:05.000"),

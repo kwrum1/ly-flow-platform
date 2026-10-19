@@ -68,7 +68,7 @@
 | T4.3 | `ly_probe` 产品化补丁 | REVIEW | T0.0 | — |
 | T4.4 | `ly_probe` 规则转换 | REVIEW | T4.3 | — |
 | T4.5 | Capture doctor | REVIEW | T4.3 | — |
-| T4.6 | 查询性能与压测 | TODO | T1.2, T4.2 | — |
+| T4.6 | 查询性能与压测 | REVIEW | T1.2, T4.2 | — |
 | T4.7 | 打包与 Compose profiles | TODO | T3.7, T4.2 | — |
 | T4.8 | 文档/许可/安全审计 | TODO | 全部 | G5 |
 

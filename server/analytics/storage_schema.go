@@ -60,11 +60,29 @@ const clickHouseEventsV2DDL = `CREATE TABLE IF NOT EXISTS lyflow_events_v2 (
   payload_json String,
   raw_schema String,
   raw_event_id String,
-  raw_sha256 String
+  raw_sha256 String,
+  INDEX idx_event_uid event_uid TYPE bloom_filter(0.01) GRANULARITY 4,
+  INDEX idx_asset_id asset_id TYPE ngrambf_v1(3, 65536, 2, 0) GRANULARITY 4,
+  INDEX idx_user_id user_id TYPE ngrambf_v1(3, 65536, 2, 0) GRANULARITY 4,
+  INDEX idx_src_ip src_ip TYPE ngrambf_v1(3, 65536, 2, 0) GRANULARITY 4,
+  INDEX idx_dst_ip dst_ip TYPE ngrambf_v1(3, 65536, 2, 0) GRANULARITY 4,
+  INDEX idx_process_exe process_exe TYPE ngrambf_v1(3, 65536, 2, 0) GRANULARITY 4,
+  INDEX idx_file_hash file_hash TYPE ngrambf_v1(3, 65536, 2, 0) GRANULARITY 4,
+  INDEX idx_rule_id rule_id TYPE ngrambf_v1(3, 65536, 2, 0) GRANULARITY 4
 ) ENGINE = MergeTree()
 PARTITION BY toDate(event_at)
 ORDER BY (event_at, source, event_type, asset_id)
 TTL event_at + INTERVAL 30 DAY`
+
+const clickHouseEventsV2IndexesDDL = `ALTER TABLE lyflow_events_v2
+  ADD INDEX IF NOT EXISTS idx_event_uid event_uid TYPE bloom_filter(0.01) GRANULARITY 4,
+  ADD INDEX IF NOT EXISTS idx_asset_id asset_id TYPE ngrambf_v1(3, 65536, 2, 0) GRANULARITY 4,
+  ADD INDEX IF NOT EXISTS idx_user_id user_id TYPE ngrambf_v1(3, 65536, 2, 0) GRANULARITY 4,
+  ADD INDEX IF NOT EXISTS idx_src_ip src_ip TYPE ngrambf_v1(3, 65536, 2, 0) GRANULARITY 4,
+  ADD INDEX IF NOT EXISTS idx_dst_ip dst_ip TYPE ngrambf_v1(3, 65536, 2, 0) GRANULARITY 4,
+  ADD INDEX IF NOT EXISTS idx_process_exe process_exe TYPE ngrambf_v1(3, 65536, 2, 0) GRANULARITY 4,
+  ADD INDEX IF NOT EXISTS idx_file_hash file_hash TYPE ngrambf_v1(3, 65536, 2, 0) GRANULARITY 4,
+  ADD INDEX IF NOT EXISTS idx_rule_id rule_id TYPE ngrambf_v1(3, 65536, 2, 0) GRANULARITY 4`
 
 const clickHouseEvents1mDDL = `CREATE MATERIALIZED VIEW IF NOT EXISTS lyflow_events_1m
 ENGINE = SummingMergeTree()
@@ -93,6 +111,13 @@ AS SELECT
   count() AS events
 FROM lyflow_events_v2
 GROUP BY bucket, source, event_type, severity, stage`
+
+// ClickHouseEventsV2SchemaDDL returns the raw event table plus the 1m/1h
+// materialized views used by production. Callers may create only the raw table
+// when benchmarking a reduced schema.
+func ClickHouseEventsV2SchemaDDL() []string {
+	return []string{clickHouseEventsV2DDL, clickHouseEvents1mDDL, clickHouseEvents1hDDL}
+}
 
 const postgresEvidenceDDL = `CREATE TABLE IF NOT EXISTS lyflow_evidence (
 evidence_id TEXT PRIMARY KEY,
@@ -161,6 +186,7 @@ version UInt64, applied_at DateTime64(3, 'UTC')) ENGINE = ReplacingMergeTree(app
 	{4, clickHouseEventsV2DDL},
 	{5, clickHouseEvents1mDDL},
 	{6, clickHouseEvents1hDDL},
+	{7, clickHouseEventsV2IndexesDDL},
 }
 
 func (migration *StorageMigration) Migrate(ctx context.Context) error {
