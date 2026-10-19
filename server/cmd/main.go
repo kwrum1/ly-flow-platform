@@ -3366,6 +3366,8 @@ func normalizeComponentAlertStreamEvent(stream, msgID string, payload map[string
 		"source_module":      sourceEngine,
 		"source_engine":      sourceEngine,
 		"component_category": category,
+		"language":           firstNonEmpty(xdrPickString(flat, "language"), xdrPickString(asMap(flat["fields"]), "language")),
+		"application":        firstNonEmpty(xdrPickString(flat, "application", "service"), xdrPickString(asMap(flat["fields"]), "application")),
 		"component_rule_id":  ruleID,
 		"score_hint":         xdrPickNumber(flat, "score_hint", severityBaseScore(severity)),
 		"stage_hint":         firstNonEmpty(xdrPickString(flat, "stage_hint"), inferXDRStage(flat)),
@@ -5838,10 +5840,17 @@ func loadComponentAlerts(cfg *Config, category string, limit, offset int) ([]map
 	}
 	streams := componentAlertStreams(category)
 	ctx := context.Background()
-	all := make([]map[string]interface{}, 0, limit*len(streams))
+	fetchCount := offset + limit
+	if normalizeComponentCategory(category) == "rasp" {
+		// RASP telemetry includes a high-volume protection heartbeat. Read
+		// enough entries so heartbeats cannot crowd real detections out of the
+		// first page.
+		fetchCount += 512
+	}
+	all := make([]map[string]interface{}, 0, fetchCount*len(streams))
 	agentNames := activeAgentDisplayNames(ctx, cfg)
 	for _, stream := range streams {
-		msgs, err := cfg.Redis.XRevRangeN(ctx, stream, "+", "-", int64(offset+limit)).Result()
+		msgs, err := cfg.Redis.XRevRangeN(ctx, stream, "+", "-", int64(fetchCount)).Result()
 		if err != nil {
 			return nil, 0, err
 		}
@@ -5856,6 +5865,10 @@ func loadComponentAlerts(cfg *Config, category string, limit, offset int) ([]map
 			if shouldHideOperationalAgentEvent(payload) {
 				continue
 			}
+			if strings.HasPrefix(strings.ToLower(xdrPickString(payload, "event_type", "type")), "rasp.protection.") ||
+				strings.Contains(strings.ToLower(xdrPickString(payload, "summary", "message", "excerpt")), "rasp protection heartbeat") {
+				continue
+			}
 			if !xdrEventBelongsToActiveAgent(payload, agentNames) {
 				continue
 			}
@@ -5867,6 +5880,12 @@ func loadComponentAlerts(cfg *Config, category string, limit, offset int) ([]map
 				continue
 			}
 			payload["category"] = categoryName
+			if payload["language"] == nil {
+				payload["language"] = firstNonEmpty(xdrPickString(payload, "language"), xdrPickString(asMap(payload["fields"]), "language"))
+			}
+			if payload["application"] == nil {
+				payload["application"] = firstNonEmpty(xdrPickString(payload, "application", "service"), xdrPickString(asMap(payload["fields"]), "application"))
+			}
 			applyMirrorCaptureLabel(payload)
 			all = append(all, payload)
 		}
@@ -5892,7 +5911,7 @@ func componentAlertStreams(category string) []string {
 	case "runtime":
 		return []string{"component_alerts:v2", "alerts:runtime"}
 	case "rasp":
-		return []string{"component_alerts:v2", "alerts:rasp"}
+		return []string{"component_alerts:v2", "alerts:rasp", "telemetry:rasp"}
 	case "log_audit":
 		return []string{"alerts:log_audit"}
 	default:
@@ -10222,8 +10241,8 @@ func agentRASPProbeHandler(language string) http.HandlerFunc {
 			path = "probe/rasp/nodejs/ly_rasp.js"
 			contentType = "application/javascript"
 		case "dotnet":
-			path = "probe/rasp/dotnet/LyRaspProfiler.cs"
-			contentType = "text/plain; charset=utf-8"
+			path = "probe/rasp/dotnet/LyRaspProfiler.dll"
+			contentType = "application/octet-stream"
 		}
 		if path == "" {
 			http.NotFound(w, r)
@@ -10419,7 +10438,7 @@ rasp:
     php: /opt/ly-agent/rasp/php/ly_rasp_prepend.php
     java: /opt/ly-agent/rasp/java/ly-rasp-agent.jar
     nodejs: /opt/ly-agent/rasp/nodejs/ly_rasp.js
-    dotnet: /opt/ly-agent/rasp/dotnet/LyRaspProfiler.cs
+    dotnet: /opt/ly-agent/rasp/dotnet/LyRaspProfiler.dll
 AGENT_CONFIG_EOF
 sed -i "s|__API_SERVER__|$API_SERVER|g" "$CONFIG_FILE"
 sed -i "s|__REDIS_SERVER__|$REDIS_SERVER|g" "$CONFIG_FILE"
@@ -10437,7 +10456,7 @@ else
 fi
 mkdir -p "$INSTALL_DIR/rasp/nodejs" "$INSTALL_DIR/rasp/dotnet"
 curl -kfsSL "$API_SERVER/api/v1/agent/rasp/probe/nodejs" -o "$INSTALL_DIR/rasp/nodejs/ly_rasp.js" 2>/dev/null || true
-curl -kfsSL "$API_SERVER/api/v1/agent/rasp/probe/dotnet" -o "$INSTALL_DIR/rasp/dotnet/LyRaspProfiler.cs" 2>/dev/null || true
+curl -kfsSL "$API_SERVER/api/v1/agent/rasp/probe/dotnet" -o "$INSTALL_DIR/rasp/dotnet/LyRaspProfiler.dll" 2>/dev/null || true
 curl -kfsSL "$API_SERVER/api/v1/agent/install-config" -o "$INSTALL_DIR/etc/install-control-plane.json" || true
 cat > "$SERVICE_FILE" <<'SYSTEMD_EOF'
 [Unit]

@@ -99,9 +99,9 @@ function threatIP(item) {
 function severityLabel(value) { return { low: '低', medium: '中', high: '高', critical: '严重' }[value] || value || '低' }
 function severityClass(value) { return ['low', 'medium', 'high', 'critical'].includes(value) ? value : 'low' }
 function threatTypeLabel(item) { return item.rule_name || item.rule_id || item.type || eventTypeLabel(item.event_type || item.type) || item.message || '安全告警' }
-function threatMetaText(item) { return [eventTypeLabel(item.event_type), item.stream].filter(Boolean).join(' · ') }
+function threatMetaText(item) { return [eventTypeLabel(item.event_type), item.stream, item.language].filter(Boolean).join(' · ') }
 function eventTypeLabel(value) {
-  return { tcp_flow: 'TCP会话流', http_access: 'HTTP访问', dns_query: 'DNS查询', tls_connection: 'TLS连接', admin_access: '管理访问', login: '登录行为', upload: '上传行为', traffic_flow: '流量会话', 'rasp.sql': 'RASP SQL注入', 'rasp.exec': 'RASP命令执行', 'rasp.file': 'RASP文件访问', 'rasp.deserialization': 'RASP反序列化', 'rasp.ssrf': 'RASP SSRF', 'runtime.auth.privilege': '运行时权限活动', 'runtime.process': '进程行为', 'runtime.file': '文件行为', 'log_audit.auth': '认证日志审计' }[value] || value || '安全告警'
+  return { tcp_flow: 'TCP会话流', http_access: 'HTTP访问', dns_query: 'DNS查询', tls_connection: 'TLS连接', admin_access: '管理访问', login: '登录行为', upload: '上传行为', traffic_flow: '流量会话', 'rasp.sql': 'RASP SQL注入', 'rasp.command': 'RASP命令执行', 'rasp.exec': 'RASP命令执行', 'rasp.file': 'RASP文件访问', 'rasp.deserialization': 'RASP反序列化', 'rasp.http': 'RASP SSRF', 'rasp.ssrf': 'RASP SSRF', 'runtime.auth.privilege': '运行时权限活动', 'runtime.process': '进程行为', 'runtime.file': '文件行为', 'log_audit.auth': '认证日志审计' }[value] || value || '安全告警'
 }
 function categoryLabel(value) { return { traffic: '流量检测', network: '网络检测', host: '主机检测', artifact: '文件检测', log: '日志检测', rasp: '应用防护', log_audit: '日志审计', runtime: '系统安全' }[value] || value || '-' }
 function sourceEngineLabel(value) { return { suricata: 'Suricata', wazuh: 'Wazuh', sigma: 'Sigma', yara: 'YARA', rasp: 'RASP', lyflow: 'LyFlow', agent: 'Agent', runtime: 'Runtime', log_audit: 'LogAudit', dpi_engine: 'DPI' }[value] || value || '-' }
@@ -129,11 +129,21 @@ async function loadAll() {
   error.value = ''
   try {
     const category = apiCategory()
-    const data = ['traffic', 'runtime', 'rasp', 'log_audit'].includes(category)
-      ? normalizeItems(await trafficClient.componentAlerts(category, params()))
-      : normalizeItems(await trafficClient.threatCategory(category, params()))
-    threats.value = data.items.map(normalizeAlert)
-    total.value = data.total
+    let data
+    if (category === 'traffic') {
+      const primary = normalizeItems(await trafficClient.threatCategory(category, params()))
+      const component = normalizeItems(await trafficClient.componentAlerts(category, params()))
+      const seen = new Set(primary.items.map((item) => item.id || item.message_id))
+      const extra = component.items.filter((item) => !isProtectionHeartbeat(item) && !seen.has(item.id || item.message_id))
+      data = { items: [...primary.items, ...extra], total: Number(primary.total) + extra.length }
+    } else {
+      data = ['runtime', 'rasp', 'log_audit'].includes(category)
+        ? normalizeItems(await trafficClient.componentAlerts(category, params()))
+        : normalizeItems(await trafficClient.threatCategory(category, params()))
+    }
+    const visibleItems = data.items.filter((item) => !isProtectionHeartbeat(item))
+    threats.value = visibleItems.map(normalizeAlert)
+    total.value = Math.max(0, Number(data.total) - (data.items.length - visibleItems.length))
     hasLoaded.value = true
   } catch (e) {
     error.value = e?.message || '无法读取威胁告警'
@@ -141,12 +151,17 @@ async function loadAll() {
     loading.value = false
   }
 }
+function isProtectionHeartbeat(item) {
+  const type = String(item?.event_type || item?.type || '')
+  const summary = String(item?.summary || item?.message || item?.excerpt || '')
+  return type.startsWith('rasp.protection.') || /rasp protection heartbeat/i.test(summary)
+}
 function normalizeAlert(item) {
   const id = entity(item, 'agent_id') || ''
   const metadata = item.metadata || {}
   return {
     ...item,
-    timestamp: item.last_seen || item.occurred_at || item.created_at || item.timestamp,
+    timestamp: item.last_seen || item.occurred_at || item.observed_at || item.received_at || item.created_at || item.timestamp,
     event_type: item.event_type || item.type || item.rule_id,
     agent_id: id,
     hostname: entity(item, 'hostname') || item.hostname || '',

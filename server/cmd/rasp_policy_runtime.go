@@ -104,6 +104,14 @@ func raspRuntimeLanguages(capabilities map[string]interface{}) []shared.Language
 			languages = append(languages, shared.LanguagePython)
 		case shared.LanguageJava:
 			languages = append(languages, shared.LanguageJava)
+		case shared.LanguagePHP:
+			languages = append(languages, shared.LanguagePHP)
+		case shared.LanguageNodeJS:
+			languages = append(languages, shared.LanguageNodeJS)
+		case shared.LanguageDotnet:
+			languages = append(languages, shared.LanguageDotnet)
+		case shared.LanguageGo:
+			languages = append(languages, shared.LanguageGo)
 		}
 	}
 	return languages

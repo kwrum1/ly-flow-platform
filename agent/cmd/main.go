@@ -220,8 +220,11 @@ func NewAgent(cfg *Config) *Agent {
 		hostname:       hostname,
 		localIP:        getLocalIP(),
 		clock:          systemTrafficClock{},
-		raspLanguages:  []shared.Language{shared.LanguagePython, shared.LanguageJava},
-		runtimeHealth:  newRuntimeControlHealth("agent-runtime", agentRuntimeLimits(), time.Now),
+		raspLanguages: []shared.Language{
+			shared.LanguagePython, shared.LanguageJava, shared.LanguagePHP,
+			shared.LanguageNodeJS, shared.LanguageDotnet, shared.LanguageGo,
+		},
+		runtimeHealth: newRuntimeControlHealth("agent-runtime", agentRuntimeLimits(), time.Now),
 	}
 	a.trafficQuality = newTrafficQualityMonitor(a.clock, captureQualityConfigFrom(cfg))
 	a.runtimePublisher = NewHTTPRuntimePublisher(a)
@@ -338,7 +341,7 @@ func (a *Agent) capabilityModel() map[string]interface{} {
 			"python":         "sitecustomize_runtime_hooks",
 			"php":            "native_extension_with_prepend_fallback",
 			"java":           "javaagent_security_jdbc_hooks",
-			"languages":      []string{"python", "java"},
+			"languages":      []string{"python", "java", "php", "nodejs", "dotnet", "go"},
 			"generic":        "local_bridge_transport",
 			"active_backend": runtimeLanguageHint(),
 			"stream":         a.cfg.RASPStream,

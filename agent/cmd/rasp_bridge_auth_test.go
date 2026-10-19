@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/lyflow/ly-flow-platform/contracts"
+	shared "github.com/lyflow/ly-flow-platform/rasppolicy"
 )
 
 func TestRASPBridgeTokenRotation_seeds_token_before_bridge_starts(t *testing.T) {
@@ -99,11 +100,32 @@ func TestRASPBridgeConfigPull_requires_token_and_agent_binding(t *testing.T) {
 }
 
 func TestRASPBridgeLanguage_emptySelectorAllowsSupportedRuntimes(t *testing.T) {
-	if !raspBridgeLanguageAllowed("python", nil) || !raspBridgeLanguageAllowed("java", nil) {
-		t.Fatal("empty language selector must allow supported runtimes")
+	for _, language := range []shared.Language{
+		shared.LanguagePython, shared.LanguageJava, shared.LanguagePHP,
+		shared.LanguageNodeJS, shared.LanguageDotnet, shared.LanguageGo,
+	} {
+		if !raspBridgeLanguageAllowed(language, nil) {
+			t.Fatalf("empty language selector rejected supported runtime %s", language)
+		}
 	}
-	if raspBridgeLanguageAllowed("php", nil) {
+	if raspBridgeLanguageAllowed("ruby", nil) {
 		t.Fatal("empty language selector allowed unsupported runtime")
+	}
+}
+
+func TestRASPBridgeDecodesLegacyProbePayload(t *testing.T) {
+	body := []byte(`{"event_type":"rasp.node.command_exec","hook_type":"command_exec","language":"nodejs","application":"nodejs-demo","command":"id","summary":"id","observed_at":"2026-10-19T13:30:00Z"}`)
+	request := httptest.NewRequest(http.MethodPost, raspBridgeEventsPath, bytes.NewReader(body))
+	recorder := httptest.NewRecorder()
+	decoded, _, err := decodeRASPBridgeEvent(recorder, request, 1<<20)
+	if err != nil {
+		t.Fatalf("decode legacy probe event: %v", err)
+	}
+	if decoded.Language != shared.LanguageNodeJS || decoded.EventType != raspBridgeEventCommand || decoded.Evidence != "id" {
+		t.Fatalf("legacy normalization mismatch: %+v", decoded)
+	}
+	if decoded.SchemaVersion != raspBridgeEventSchemaVersion {
+		t.Fatalf("legacy schema version = %q", decoded.SchemaVersion)
 	}
 }
 

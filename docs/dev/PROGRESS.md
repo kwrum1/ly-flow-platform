@@ -694,8 +694,10 @@
   - Agent Suricata EVE adapter 保留为无 Vector 环境备用路径。
   - 修复 Agent EVE adapter 在 CPU budget 后永久退出的问题。
 - RASP / YARA：
-  - Python RASP probe 真实命中 `;\s*rm` 命令注入，`/rasp` 显示 5 条事件。
-  - 修复 `ly_rasp.enable` 未注册 reporter 导致 hook 检测但不外发的问题。
+  - Python/Java/PHP/Node/dotnet 五种运行时均完成真实 attach 并上报事件；
+    `/rasp` 显示 39 组，语言/应用字段可见，heartbeat 已过滤。
+  - 修复 Python reporter 注册、Node http 自递归、Java/PHP/Node/.NET 轮换 token 获取。
+  - Agent bridge 兼容 legacy probe 并归一化为 RASP 事件。
   - YARA 规则包合并可编译规则，避免 external-variable 规则污染。
 - UI 修复：
   - 总览在线 Agent/资产总数改用 assets stats。
@@ -705,7 +707,7 @@
   - 安装页改为现代 Linux 支持范围。
   - 自签证书生产 dist 验收 17 页，0 console/page/network error、0 4xx/5xx。
 - Installer：
-  - install.sh/uninstall.sh/download/Python/Java RASP probe 均公开返回 200。
+  - install.sh/uninstall.sh/download/Python/PHP/Java/Node.js/.NET RASP probe 均公开返回 200。
   - linux/amd64、linux/arm64、windows/amd64 三种 Agent 下载均为 200。
   - `scripts/build-agent-binaries.sh` 统一构建三平台二进制，核心镜像构建脚本
     自动调用。
@@ -718,6 +720,7 @@
   - `G5_INCIDENT_OK`
   - `G5_VECTOR_OK`
   - `G5_RASP_OK`
+  - `G5_RASP_MULTILANG_OK`
   - UI validation exit 0
-- 仍未完成：真实 Elkeid/Wazuh/OpenRASP、Java/PHP/Node/dotnet RASP attach、
+- 仍未完成：上游 Elkeid/OpenRASP 原生包、Wazuh manager/agent 完整部署、
   clean-host systemd install、ESXi 快照。

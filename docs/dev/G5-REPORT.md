@@ -175,15 +175,16 @@ docker compose --env-file lean.env -f g5-host.yml restart
    原生 ClickHouse，Redis/Pingora/服务镜像均本地构建。
 2. **生产 lean 还未走上述例外路径**：`lean.yml` 仍以标准镜像 tag 为目标，正式发布前
    必须补齐可复现镜像源/离线包。
-3. **Elkeid/Wazuh/OpenRASP 原生产品未接入**：当前已验证 `ly-agent` 真实注册、心跳、
-   资产采集、HIDS、YARA、Python RASP 和 Suricata Vector 告警链；Elkeid/Wazuh/
-   OpenRASP 原生产品链路仍待接入。
+3. **Elkeid/Wazuh/OpenRASP 上游原生包**：Wazuh native alerts JSON 适配器已验证，
+   OpenRASP Java/PHP attach 接口已实现；Elkeid 私有 HUB/HIDS-RASP 包和
+   OpenRASP 上游 engine 包未进入公开构建/测试机。LyFlow 自身 Agent/HIDS/YARA/
+   多语言 RASP/Vector 链路已真实运行。
 4. **未做 ESXi 快照**：发布前必须补快照。
 5. **容量**：T4.6 结论保持不变；6 vCPU/8 GiB 不是正式 20k EPS + 1Gbps 保证配置。
 6. **XDR weak_same_ip 关联**：已阻止包含 `weak_same_ip` 的新路径提升为 Incident；
    测试机历史合成 Incident 仍保留在测试库中，正式验收前需清理测试数据。
-7. **多语言 RASP**：Python probe 已真实检测；Java/PHP/Node/dotnet probe 资产可下载，
-   但运行时 attach 仍需真实应用联调。
+7. **多语言 RASP**：Python/Java/PHP/Node/dotnet 已完成真实运行时 attach 和事件入库；
+   仍缺上游 OpenRASP engine 包替换测试，以及 Go RASP probe 的真实应用联调。
 8. **Installer 完整安装**：安装资产和下载端点已验证；未在运行中的 g5-real-agent
    上重跑 systemd 全套安装，干净主机安装作为发布前动作。
 9. **Pingora FD 上限**：测试容器曾达到 nofile 上限；已把 `ly-vis` 的 nofile
@@ -206,6 +207,8 @@ docker compose --env-file lean.env -f g5-host.yml restart
 ├── suricata-alert-chain.out
 ├── vector-integration.txt
 ├── rasp-integration.txt
+├── rasp-multilang.txt
+├── native-integration.txt
 ├── yara-integration.txt
 ├── installer-integration.txt
 ├── real-integration.txt
@@ -278,18 +281,26 @@ Agent Suricata EVE adapter 仍保留作为无 Vector 环境的备用路径；当
 - 自签证书 UI 验收：生产 dist 17 页，0 console/page/network error，
   0 4xx/5xx，0 水平溢出。
 
-### 12.4 Python RASP 真实检测
+### 12.4 多语言 RASP 真实检测
 
 - `ly-agent` RASP manager 已进入 monitor 模式并监听 `127.0.0.1:17891`。
-- 使用真实 Python probe 执行命令注入测试：
-  - `os.system("echo ok; rm -f /tmp/lyflow-rasp-test-marker")`
-  - 命中 `;\s*rm\s`，产生 `rasp.attack` / `python-command_injection` / high。
-- 修复了 Python RASP 的 reporter 注册缺陷：
-  - `ly_rasp.enable` 现在调用 `reporter.set_reporter`；
-  - `disable` 清空 reporter。
-  - 修复前 hook 能检测但 `get_reporter()` 为 None，事件无法上报。
-- 事件经 `alerts:rasp` 进入服务端，`/api/v1/component-alerts/rasp` 返回 5 条，
-  `/rasp` 页面显示 Python 命令注入事件。
+- 测试机安装并实际挂载：
+  - Java 17.0.20.1：`-javaagent:/opt/ly-agent/rasp/java/ly-rasp-agent.jar`
+  - PHP 8.3.6：`auto_prepend_file=/opt/ly-agent/rasp/php/ly_rasp_prepend.php`
+  - Node 18.19.1：`--require /opt/ly-agent/rasp/nodejs/ly_rasp.js`
+  - .NET 8.0.131：`DOTNET_STARTUP_HOOKS=.../LyRaspProfiler.dll`
+  - Python 3.12：`sitecustomize` / `ly_rasp`
+- Python 命令注入命中 `;\s*rm\s`；Java/PHP/Node/.NET 分别产生
+  `rasp.command`、`rasp.sql`、`rasp.file` 事件。
+- 修复内容：
+  - Python `ly_rasp.enable` 现在注册 reporter；
+  - Node probe 修复 `http.request` 自递归；
+  - Java/PHP/Node/.NET probe 自动获取 bridge 轮换 token 和 agent id；
+  - Agent bridge 兼容 legacy probe payload 并归一化为 RASP 事件；
+  - RASP policy 默认语言扩展到 python/java/php/nodejs/dotnet/go。
+- 实测 component alerts：Python 5、Java 6、PHP 6、Node 13、.NET 6；
+  `/rasp` 页面显示 39 组，语言/应用字段可见，过滤 heartbeat 后无噪声。
+- 详细证据：`/opt/lyflow/reports/G5/rasp-multilang.txt`。
 
 ### 12.5 YARA 与 Installer 资产
 
@@ -302,7 +313,8 @@ Agent Suricata EVE adapter 仍保留作为无 Vector 环境的备用路径；当
   - `agent/download?os=linux&arch=arm64` 200（约 12.9 MB）
   - `agent/download?os=windows&arch=amd64` 200（约 14.0 MB）
   - `agent/rasp/policy-root` 200（RASP 策略根证书）
-  - Python/Java RASP probe 200
+  - Python/PHP/Java/Node.js/.NET RASP probe 均 200
+  - .NET probe 为可挂载的 `LyRaspProfiler.dll`
 - 安装脚本自动下载 `/api/v1/agent/rasp/policy-root` 到
   `/etc/lyflow/trust/policy-root.pem`，干净主机可验证 RASP 签名策略。
 - `scripts/build-agent-binaries.sh` 统一构建三平台二进制，`build-core-images.sh`
@@ -316,3 +328,17 @@ Agent Suricata EVE adapter 仍保留作为无 Vector 环境的备用路径；当
 - 实测安装脚本 200，token 已嵌入且 `EnvironmentFile` 存在。
 - 未在运行中的测试 Agent 上重跑整套 systemd 安装，避免覆盖当前联调实例；
   干净主机安装仍作为发布前动作。
+
+### 12.6 原生 Wazuh / OpenRASP / Elkeid 适配
+
+- Wazuh：`ly-agent` 的 native alerts JSON 适配器已读取
+  `/var/ossec/logs/alerts/alerts.json`，把 rule/decoder/location/full_log
+  映射为 `source_engine=wazuh` 的 ComponentAlert；测试机 auth 日志已验证
+  source=wazuh 的事件进入组件告警页。
+- OpenRASP：`agent/supervisor/rasp/openrasp` 可生成 Java/PHP attach 参数；
+  当前实际运行的是 LyFlow Java/PHP monitor probe，接口可直接换用上游
+  OpenRASP jar/module 路径。
+- Elkeid：`agent/supervisor/providers/elkeid` 可监管
+  `/opt/elkeid/agent/elkeid-agent`；Elkeid HUB/Console/HIDS-RASP 私有包按
+  仓库边界不进入公开构建，测试机未安装上游 Elkeid 二进制。
+- 详细边界：`/opt/lyflow/reports/G5/native-integration.txt`。

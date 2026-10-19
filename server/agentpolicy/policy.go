@@ -43,10 +43,17 @@ var (
 	ErrSameVersionReplacement  = errors.New("rasp policy: same-version replacement rejected")
 )
 
+func DefaultLanguages() []Language {
+	return []Language{
+		shared.LanguagePython, shared.LanguageJava, shared.LanguagePHP,
+		shared.LanguageNodeJS, shared.LanguageDotnet, shared.LanguageGo,
+	}
+}
+
 func DefaultPolicy(now time.Time, owner, auditLink string) Policy {
 	return Policy{
 		ID: "rasp-monitor-default", Version: 1, Owner: owner, Mode: ModeMonitor,
-		Selectors: Selectors{Languages: []Language{shared.LanguagePython, shared.LanguageJava}}, ExpiresAt: now.Add(365 * 24 * time.Hour), FailBehavior: FailMonitor,
+		Selectors: Selectors{Languages: DefaultLanguages()}, ExpiresAt: now.Add(365 * 24 * time.Hour), FailBehavior: FailMonitor,
 		Limits: Limits{MaxEventsPerSecond: 100, ReplayMinSamples: 1000, ReplayMaxFalsePositiveRate: 0.01},
 		Canary: CanaryPolicy{RequiredACKs: 1}, AuditLink: auditLink,
 	}

@@ -4,14 +4,27 @@
 // Or:   NODE_OPTIONS="--require /opt/ly-agent/rasp/nodejs/ly_rasp.js" node app.js
 
 const http = require('http')
+const { execFileSync } = require('child_process')
+const originalHttpRequest = http.request
 const BRIDGE = process.env.LY_RASP_BRIDGE || 'http://127.0.0.1:17891/v1/rasp/events'
 const APP = process.env.LY_RASP_APP || 'nodejs-app'
 const TOKEN = process.env.LY_RASP_TOKEN || ''
+const AGENT_ID = process.env.LY_RASP_AGENT_ID || 'g5-real-agent'
+let activeToken = TOKEN
+let activeAgent = AGENT_ID
+try {
+  const configUrl = BRIDGE.replace(/\/events$/, '/config')
+  const raw = execFileSync('curl', ['-fsS', '-H', `X-Ly-RASP-Token: ${TOKEN}`, '-H', `X-Lyflow-Agent-ID: ${AGENT_ID}`, configUrl], { encoding: 'utf8', timeout: 2000 })
+  const config = JSON.parse(raw)
+  if (config.bridge_token) activeToken = config.bridge_token
+  if (config.agent_id) activeAgent = config.agent_id
+} catch (e) {}
 
 function sendEvent(hookType, payload) {
   const body = JSON.stringify({
     event_type: `rasp.node.${hookType}`,
     hook_type: hookType,
+    language: 'nodejs',
     application: APP,
     summary: `${hookType}: ${(payload.cmdline || payload.command || payload.query || payload.path || payload.url || 'signal').slice(0, 120)}`,
     cmdline: payload.cmdline || payload.command || '',
@@ -21,9 +34,13 @@ function sendEvent(hookType, payload) {
     source_ip: '',
     occurred_at: new Date().toISOString(),
   })
-  const req = http.request(BRIDGE, {
+  const req = originalHttpRequest(BRIDGE, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Ly-RASP-Token': TOKEN },
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Ly-RASP-Token': activeToken,
+      'X-Lyflow-Agent-ID': activeAgent,
+    },
     timeout: 3000,
   })
   req.on('error', () => {})
@@ -68,11 +85,10 @@ fs.writeFile = wrapFs(origWriteFile, 'file_write')
 fs.writeFileSync = wrapFs(origWriteFileSync, 'file_write')
 
 // ── http.request hook (SSRF) ──
-const origRequest = http.request
 http.request = function (url, ...args) {
   const target = typeof url === 'string' ? url : (url.hostname || url.host || JSON.stringify(url).slice(0, 80))
   sendEvent('ssrf', { url: target, hook: 'http.request' })
-  return origRequest.call(this, url, ...args)
+  return originalHttpRequest.call(this, url, ...args)
 }
 
 // ── mysql / pg hook ──

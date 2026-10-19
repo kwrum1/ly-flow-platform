@@ -15,10 +15,30 @@ function ly_rasp_normalize_payload($hook_type, $payload) {
     return $payload;
 }
 
+function ly_rasp_config($bridge, $token, $agent) {
+    static $cached = null;
+    if ($cached !== null) return $cached;
+    $config_url = preg_replace('#/events$#', '/config', $bridge);
+    $context = stream_context_create(array('http' => array(
+        'method' => 'GET',
+        'header' => "X-Ly-RASP-Token: " . $token . "\r\nX-Lyflow-Agent-ID: " . $agent . "\r\n",
+        'timeout' => 1,
+        'ignore_errors' => true,
+    )));
+    $raw = @file_get_contents($config_url, false, $context);
+    $config = is_string($raw) ? json_decode($raw, true) : null;
+    $cached = is_array($config) ? $config : array();
+    return $cached;
+}
+
 function ly_rasp_emit($hook_type, $payload) {
     $payload = ly_rasp_normalize_payload($hook_type, $payload);
     $bridge = getenv('LY_RASP_BRIDGE') ?: 'http://127.0.0.1:17891/v1/rasp/events';
     $token = getenv('LY_RASP_TOKEN') ?: '';
+    $agent = getenv('LY_RASP_AGENT_ID') ?: 'g5-real-agent';
+    $config = ly_rasp_config($bridge, $token, $agent);
+    if (!empty($config['bridge_token'])) $token = $config['bridge_token'];
+    if (!empty($config['agent_id'])) $agent = $config['agent_id'];
     $app = getenv('LY_APP_NAME') ?: 'php-app';
     $body = json_encode(array_merge(array(
         'event_type' => 'rasp.' . $hook_type,
@@ -32,6 +52,7 @@ function ly_rasp_emit($hook_type, $payload) {
         'xff' => $_SERVER['HTTP_X_FORWARDED_FOR'] ?? '',
     ), $payload), JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
     $headers = "Content-Type: application/json\r\n";
+    $headers .= "X-Lyflow-Agent-ID: " . $agent . "\r\n";
     if ($token !== '') $headers .= "X-Ly-RASP-Token: " . $token . "\r\n";
     @file_get_contents($bridge, false, stream_context_create(array('http' => array(
         'method' => 'POST',
