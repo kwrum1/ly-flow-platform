@@ -19,6 +19,7 @@
 - `lyprobe-sensor`
 - `suricata-sensor` 7.0.3
 - `lyflow-vector` 0.49.0（Suricata EVE → component alert）
+- Wazuh manager 4.9.2（测试机 systemd，本机 native alerts）
 - `ly-flow-rulecompiler`
 - `ly-flow-capturedoctor`
 
@@ -37,6 +38,9 @@ lyflow-g5-lyflow-vector-1         healthy
 lyflow-g5-lyflow-rulecompiler-1   healthy
 lyflow-g5-lyflow-capturedoctor-1  healthy
 ```
+
+Wazuh manager 4.9.2 由 systemd 管理，状态 `active`，使用
+`/var/ossec/logs/alerts/alerts.json` 作为 ly-agent 输入。
 
 原生 ClickHouse 另由 systemd 管理，`clickhouse-client SELECT version()` = `26.9.21.9`。
 
