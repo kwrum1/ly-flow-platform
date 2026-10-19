@@ -337,7 +337,7 @@ Agent Suricata EVE adapter 仍保留作为无 Vector 环境的备用路径；当
   - `uninstall.sh` 200
   - `agent/download?os=linux&arch=amd64` 200（约 13.1 MB）
   - `agent/download?os=linux&arch=arm64` 200（约 12.9 MB）
-  - `agent/download?os=windows&arch=amd64` 200（约 14.0 MB）
+  - `agent/download?os=windows&arch=amd64` 400（Windows 支持已砍掉）
   - `agent/rasp/policy-root` 200（RASP 策略根证书）
   - Python/PHP/Java/Node.js/.NET RASP probe 均 200
   - .NET probe 为可挂载的 `LyRaspProfiler.dll`

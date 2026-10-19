@@ -1002,7 +1002,9 @@ deploy/compose/observability.yml 可选
 - 验收：进程/网络/文件事件可见。
 - 不要做：不要改 Elkeid 源码。
 
-#### T3.3 Windows Wazuh 集成
+#### T3.3 Windows Wazuh 集成（CANCELLED）
+- 2026-10-19 用户决策：放弃 Windows 端，不再构建/下载/安装 Windows Agent。
+- 以下内容仅保留为历史设计记录，不再作为验收项。
 - 目标：Wazuh + Sysmon。
 - 涉及文件：`agent/supervisor/providers/wazuh/`。
 - 步骤：

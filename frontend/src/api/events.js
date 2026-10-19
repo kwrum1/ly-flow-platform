@@ -1,12 +1,5 @@
-import api, { apiV2 } from './index'
-import { normalizeEventDetail, normalizeEventList, normalizeIncidentDetail, normalizeIncidentList, unwrapAPIEnvelope } from './adapters'
-
-export const eventsAPI = {
-  list: async (params) => normalizeEventList(await apiV2.get('/events', { params })),
-  detail: async (id) => normalizeEventDetail(await apiV2.get(`/events/${encodeURIComponent(id)}`)),
-  search: async (params) => normalizeEventList(await api.post('/unified/events/search', params)),
-  updateStatus: async (id, status) => unwrapAPIEnvelope(await api.put(`/events/${id}/status`, { status }))
-}
+import api from './index'
+import { normalizeEventList, normalizeIncidentDetail, normalizeIncidentList, unwrapAPIEnvelope } from './adapters'
 
 export const incidentsAPI = {
   list: async (params) => normalizeIncidentList(await api.get('/incidents', { params })),
