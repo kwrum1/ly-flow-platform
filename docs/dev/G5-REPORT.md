@@ -175,18 +175,20 @@ docker compose --env-file lean.env -f g5-host.yml restart
    原生 ClickHouse，Redis/Pingora/服务镜像均本地构建。
 2. **生产 lean 还未走上述例外路径**：`lean.yml` 仍以标准镜像 tag 为目标，正式发布前
    必须补齐可复现镜像源/离线包。
-3. **Elkeid/Wazuh/OpenRASP 上游原生包**：Wazuh native alerts JSON 适配器已验证，
-   OpenRASP Java/PHP attach 接口已实现；Elkeid 私有 HUB/HIDS-RASP 包和
-   OpenRASP 上游 engine 包未进入公开构建/测试机。LyFlow 自身 Agent/HIDS/YARA/
-   多语言 RASP/Vector 链路已真实运行。
-4. **未做 ESXi 快照**：发布前必须补快照。
+3. **Wazuh/OpenRASP/Elkeid 边界**：Wazuh manager 4.9.2 已本地安装并进入
+   NDR/XDR；OpenRASP 1.3.7 engine 已下载并成功 attach，但独立 demo 没有
+   支持的 Web 容器请求上下文，alarm 注入尚未完成；Elkeid 集成按当前决策放弃。
+   LyFlow 自身 Agent/HIDS/YARA/多语言 RASP/Vector 链路真实运行。
+4. **ESXi 快照/干净 VM 被凭据阻塞**：测试机旧 lab 密码和 `esxi_lab` 公钥均
+   无法登录 10.1.18.124，当前没有有效 ESXi root 凭据；已备份当前 Agent
+   `/opt/lyflow/backups/g5-agent-pre-wazuh-20261019-2221.tgz`。
 5. **容量**：T4.6 结论保持不变；6 vCPU/8 GiB 不是正式 20k EPS + 1Gbps 保证配置。
 6. **XDR weak_same_ip 关联**：已阻止包含 `weak_same_ip` 的新路径提升为 Incident；
    测试机历史合成 Incident 仍保留在测试库中，正式验收前需清理测试数据。
 7. **多语言 RASP**：Python/Java/PHP/Node/dotnet 已完成真实运行时 attach 和事件入库；
-   仍缺上游 OpenRASP engine 包替换测试，以及 Go RASP probe 的真实应用联调。
-8. **Installer 完整安装**：安装资产和下载端点已验证；未在运行中的 g5-real-agent
-   上重跑 systemd 全套安装，干净主机安装作为发布前动作。
+   上游 OpenRASP engine 已 attach 但未产生/适配 alarm；Go RASP probe 未做真实应用联调。
+8. **Installer 完整安装**：安装资产和下载端点已验证；干净 VM 创建被 ESXi 凭据阻塞，
+   未重跑 systemd 全套安装。
 9. **Pingora FD 上限**：测试容器曾达到 nofile 上限；已把 `ly-vis` 的 nofile
    提升到 65536 并验证恢复。长期连接压力仍需单独观察。
 
@@ -210,6 +212,9 @@ docker compose --env-file lean.env -f g5-host.yml restart
 ├── rasp-multilang.txt
 ├── native-integration.txt
 ├── wazuh-native.txt
+├── wazuh-manager.txt
+├── openrasp-engine.txt
+├── clean-vm.txt
 ├── yara-integration.txt
 ├── installer-integration.txt
 ├── real-integration.txt
@@ -332,15 +337,18 @@ Agent Suricata EVE adapter 仍保留作为无 Vector 环境的备用路径；当
 
 ### 12.6 原生 Wazuh / OpenRASP / Elkeid 适配
 
-- Wazuh：`ly-agent` 的 native alerts JSON 适配器已读取
-  `/var/ossec/logs/alerts/alerts.json`，把 rule/decoder/location/full_log
-  映射为 `source_engine=wazuh` 的 ComponentAlert；已用独立
-  `native-wazuh-probe` 事件验证 rule_id=5710、raw_reference 指向 native
-  alerts 文件。
-- OpenRASP：`agent/supervisor/rasp/openrasp` 可生成 Java/PHP attach 参数；
-  当前实际运行的是 LyFlow Java/PHP monitor probe，接口可直接换用上游
-  OpenRASP jar/module 路径。
-- Elkeid：`agent/supervisor/providers/elkeid` 可监管
-  `/opt/elkeid/agent/elkeid-agent`；Elkeid HUB/Console/HIDS-RASP 私有包按
-  仓库边界不进入公开构建，测试机未安装上游 Elkeid 二进制。
-- 详细边界：`/opt/lyflow/reports/G5/native-integration.txt`。
+- Wazuh：测试机已本地安装 `wazuh-manager 4.9.2-1`，systemd active；
+  已关闭 rootcheck/syscheck/sca/indexer/vulnerability 等高开销模块，并增加
+  2 GiB swap。manager 写入 `/var/ossec/logs/alerts/alerts.json`，
+  `ly-agent` native alerts JSON 适配器将其映射为 `source_engine=wazuh` 的
+  ComponentAlert。实测 component alerts 231 条（wazuh 41）、XDR events 中
+  wazuh 13 条、UI 运行威胁 67 组；Incident 从 39 增至 149。
+- OpenRASP：已下载官方 `v1.3.7` `rasp-java.tar.gz`，解压到测试机
+  `/opt/openrasp`；Java 17 使用 `--add-opens` + `-javaagent:rasp.jar`
+  可初始化 `[OpenRASP] Engine Initialized`，日志写入 `/opt/openrasp/logs`。
+  独立 demo 不是 OpenRASP 支持的 Web 容器，未产生 alarm，因此尚未把
+  OpenRASP alarm 注入 NDR/XDR；当前多语言 RASP 事件仍由 LyFlow probe 提供。
+- Elkeid：按当前决策**放弃 Elkeid 集成**；私有 HUB/Console/HIDS-RASP 包
+  不进入公开构建，现有 provider 代码保留但不作为验收项。
+- 详细边界：`/opt/lyflow/reports/G5/native-integration.txt`、
+  `wazuh-manager.txt`、`openrasp-engine.txt`。
