@@ -47,6 +47,45 @@ services:
       - ${ELKEID_PRIVATE_DIR:-../../private/elkeid}:/opt/elkeid:ro
     networks: [core]
 
+  elkeid-agentcenter:
+    profiles: ["full-private"]
+    image: ${ELKEID_AGENTCENTER_IMAGE:?ELKEID_AGENTCENTER_IMAGE must be set for full-private}
+    restart: unless-stopped
+    depends_on:
+      elkeid-mongo: {condition: service_started}
+      elkeid-kafka: {condition: service_started}
+      redis: {condition: service_started}
+    environment:
+      MONGO_URI: mongodb://elkeid-mongo:27017/elkeid
+      KAFKA_BROKERS: elkeid-kafka:9092
+      REDIS_ADDR: redis:6379
+    volumes:
+      - ${ELKEID_PRIVATE_DIR:-../../private/elkeid}:/opt/elkeid:ro
+    networks: [core]
+
+  elkeid-manager:
+    profiles: ["full-private"]
+    image: ${ELKEID_MANAGER_IMAGE:?ELKEID_MANAGER_IMAGE must be set for full-private}
+    restart: unless-stopped
+    depends_on:
+      elkeid-mongo: {condition: service_started}
+      elkeid-kafka: {condition: service_started}
+    environment:
+      MONGO_URI: mongodb://elkeid-mongo:27017/elkeid
+      KAFKA_BROKERS: elkeid-kafka:9092
+    volumes:
+      - ${ELKEID_PRIVATE_DIR:-../../private/elkeid}:/opt/elkeid:ro
+    networks: [core]
+
+  elkeid-service-discovery:
+    profiles: ["full-private"]
+    image: ${ELKEID_SERVICE_DISCOVERY_IMAGE:?ELKEID_SERVICE_DISCOVERY_IMAGE must be set for full-private}
+    restart: unless-stopped
+    environment:
+      MONGO_URI: mongodb://elkeid-mongo:27017/elkeid
+      KAFKA_BROKERS: elkeid-kafka:9092
+    networks: [core]
+
   elkeid-console:
     profiles: ["full-private"]
     image: ${ELKEID_CONSOLE_IMAGE:?ELKEID_CONSOLE_IMAGE must be set for full-private}

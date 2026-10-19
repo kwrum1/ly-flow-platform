@@ -569,7 +569,7 @@
   - capture：lyprobe、Suricata、rulecompiler、capturedoctor。
   - healthcheck、资源限制、host network/capabilities、共享 `runtime/fp-patterns`。
 - 新增 `deploy/compose/full-private.yml`：
-  - 私有 overlay（Elkeid HUB/Console/MongoDB/Kafka）。
+  - 私有 overlay（Elkeid HUB/Console/AgentCenter/Manager/ServiceDiscovery/MongoDB/Kafka）。
   - 不在 lean 中默认启用；镜像/规则不进入公开产物。
 - 新增 `deploy/compose/lyflowctl`：
   - `bootstrap/config/up/down/ps/logs/upgrade/rollback/backup`。

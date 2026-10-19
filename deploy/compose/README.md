@@ -78,9 +78,10 @@ LYFLOW_PROFILE=full-private ./lyflowctl config
 LYFLOW_PROFILE=full-private ./lyflowctl up
 ```
 
-Set `ELKEID_HUB_IMAGE`, `ELKEID_CONSOLE_IMAGE` and `ELKEID_PRIVATE_DIR` in
-`lean.env`. The private overlay is not included by `lean.yml`; do not copy
-`private/elkeid` into public artifacts.
+Set `ELKEID_HUB_IMAGE`, `ELKEID_CONSOLE_IMAGE`, `ELKEID_AGENTCENTER_IMAGE`,
+`ELKEID_MANAGER_IMAGE`, `ELKEID_SERVICE_DISCOVERY_IMAGE` and
+`ELKEID_PRIVATE_DIR` in `lean.env`. The private overlay is not included by
+`lean.yml`; do not copy `private/elkeid` into public artifacts.
 
 ## Upgrade, rollback and backup
 
