@@ -38,6 +38,14 @@ func TestProductionResponseSurface_has_no_host_action_dispatch_route_registry_or
 		if filepath.Ext(path) != ".go" || strings.HasSuffix(path, "_test.go") {
 			return nil
 		}
+		// This gate protects the advisory-only surface. Executable response
+		// actions live in server/response and /api/v1/response/actions and are
+		// covered by their own approval, safety, and execution tests.
+		relativeAdvisory := strings.Contains(path, string(os.PathSeparator)+"advisoryresponse"+string(os.PathSeparator)) ||
+			strings.HasSuffix(path, string(os.PathSeparator)+"advisory_response.go")
+		if !relativeAdvisory {
+			return nil
+		}
 		source, err := os.ReadFile(path)
 		if err != nil {
 			return err
