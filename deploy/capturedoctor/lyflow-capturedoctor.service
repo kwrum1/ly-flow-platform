@@ -1,0 +1,31 @@
+[Unit]
+Description=LyFlow capture doctor
+Documentation=file:/opt/lyflow/src/deploy/capturedoctor/README.md
+After=network-online.target lyprobe.service
+Wants=network-online.target
+
+[Service]
+Type=simple
+EnvironmentFile=-/etc/lyflow/capturedoctor.env
+StateDirectory=lyflow
+ExecStart=/opt/lyflow/bin/lyflow-capturedoctor \
+  -interface ${LYFLOW_CAPTURE_INTERFACE} \
+  -interval ${LYFLOW_CAPTURE_INTERVAL} \
+  -output ${LYFLOW_CAPTURE_OUTPUT} \
+  -process ${LYFLOW_CAPTURE_PROCESS} \
+  -pid-file "${LYFLOW_CAPTURE_PID_FILE}" \
+  -drop-warn ${LYFLOW_CAPTURE_DROP_WARN} \
+  -drop-crit ${LYFLOW_CAPTURE_DROP_CRIT} \
+  -ring-min ${LYFLOW_CAPTURE_RING_MIN} \
+  -restart-command "${LYFLOW_CAPTURE_RESTART_COMMAND}" \
+  -restart-after ${LYFLOW_CAPTURE_RESTART_AFTER} \
+  -restart-cooldown ${LYFLOW_CAPTURE_RESTART_COOLDOWN} \
+  -alert-command "${LYFLOW_CAPTURE_ALERT_COMMAND}"
+Restart=always
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+
+[Install]
+WantedBy=multi-user.target

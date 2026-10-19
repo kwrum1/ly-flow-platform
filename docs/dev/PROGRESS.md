@@ -503,3 +503,34 @@
 - 状态：`REVIEW`。规则源 freshness、热转换、零停机 reload 已端到端验证。
 - 证据：`/opt/lyflow/reports/T4.4/`（热加载日志、生成规则、二进制校验和）；测试 VM 清理 gdb/临时目录，根分区约 `2.5G/116G`。
 - 回滚：停止 `lyflow-rulecompiler`，恢复旧 `threat.json`；ly_probe 可继续运行，仅失去自动规则刷新。
+
+### T4.5 Capture doctor（REVIEW）
+
+- 新增 `agent/capturedoctor`：
+  - 接口存在/UP/MTU。
+  - `/proc/net/dev` RX 包/丢包/错误，按采样间隔计算 PPS 与 drop%。
+  - `/proc/net/softnet_stat` dropped/squeezed。
+  - `ethtool -g` RX ring、`-k` GRO/GSO、`-S` RX missed/FIFO/over/no-buffer。
+  - PF_RING 可用性。
+  - ly_probe 进程/PID/RSS。
+  - 状态 `ok/warn/critical`，JSON 原子写入。
+- 新增 `agent/cmd/capturedoctor`：
+  - `-once` 退出码：0 ok、1 warn、2 critical。
+  - watch 模式、JSON 状态文件、状态变化告警命令。
+  - `-restart-command` 必须显式配置；连续 critical 达阈值且超过 cooldown 才执行，执行前写日志和 `issues[].code=restart`，不静默重启。
+- 新增 `deploy/capturedoctor/{service,env,README}`。
+- 新增 `scripts/agent/capturedoctor-smoke.sh`。
+- `scripts/dev/test-all.sh fast` 现在纳入 `agent ./...`。
+- 测试 VM 实测：
+  - `go test ./capturedoctor` 与 `go test ./...`（agent）通过。
+  - `ens160`：`exit=1 status=warn`，正确报告 ring 1024、GRO on、PF_RING 未加载。
+  - 不存在接口：`exit=2 status=critical`，`interface_missing`。
+  - lyprobe 进程检查：`"running": true`，PID/RSS 正常。
+  - 告警命令收到 JSON；`-restart-after 1` 仅执行一次并打印 `CRITICAL: executing configured restart`。
+- 限制：
+  - 队列覆盖采用 softnet/ring/no-buffer，不解析 `tc qdisc` 详细队列。
+  - 权限不足由既有 `lyprobe-preflight.sh` 的 root/能力检查负责。
+  - 默认不自动重启；只有运维显式配置才启用。
+- 证据：`/opt/lyflow/reports/T4.5/`。
+- 状态：`REVIEW`。抓包运行时监控、告警和受控重启已端到端验证。
+- 回滚：停止 `lyflow-capturedoctor`，删除状态文件；不影响 ly_probe/Suricata。

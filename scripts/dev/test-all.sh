@@ -25,6 +25,7 @@ case "$MODE" in
     run_go pkg ./...
     run_go server ./analytics ./ingestv2 ./queryv2 ./correlation/... ./response ./content ./agentfacade ./rulecompiler
     run_go server ./cmd -run 'TestV2|TestLoadFeatureFlags|TestRouteAPIContract|TestStageForTactic|TestFromCanonicalV1|TestEventV2|TestHandler|TestClickHouseEventV2RowFrom'
+    run_go agent ./...
     ;;
   full)
     for module in pkg server agent security-engine dpi-engine; do
