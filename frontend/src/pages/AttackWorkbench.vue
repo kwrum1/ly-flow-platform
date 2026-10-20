@@ -40,7 +40,7 @@
           <strong>XDR 攻击链</strong>
           <span>{{ chainTotal }} 条</span>
         </div>
-        <div v-if="loading" class="state-card">正在读取 XDR 攻击链</div>
+        <div v-if="loading && !chains.length" class="state-card">正在读取 XDR 攻击链</div>
         <div v-else-if="chains.length === 0" class="state-card">当前没有满足关联阈值的攻击链。</div>
         <ul v-else class="incident-list">
           <li v-for="chain in chains" :key="chain.id">
@@ -67,7 +67,7 @@
           <strong>攻击时间线</strong>
           <span>{{ timelineTotal }} 个节点</span>
         </div>
-        <div v-if="loading" class="state-card">正在读取后端时间线</div>
+        <div v-if="loading && !timeline.length" class="state-card">正在读取后端时间线</div>
         <div v-else-if="timeline.length === 0" class="state-card">当前攻击链没有可展示的时间线节点。</div>
         <ol v-else class="timeline-list">
           <li v-for="item in timeline" :key="item.id">
@@ -160,22 +160,17 @@ function stageGroups(chain) {
 const loadAll = async () => {
   loading.value = true
   error.value = ''
+  let succeeded = 0
+  const jobs = [
+    attackWorkbenchClient.stats().then((value) => { stats.value = value || {}; succeeded++ }),
+    attackWorkbenchClient.xdrChains({ limit: 20 }).then((value) => { chainsPayload.value = normalizeItems(value); succeeded++ }),
+    attackWorkbenchClient.xdrPosture().then((value) => { posture.value = value || {}; succeeded++ }),
+    attackWorkbenchClient.timeline({ limit: 30 }).then((value) => { timelinePayload.value = normalizeItems(value); succeeded++ }),
+    attackWorkbenchClient.events({ limit: 20 }).then((value) => { eventsPayload.value = normalizeItems(value); succeeded++ }),
+  ]
   try {
-    const [nextStats, nextChains, nextPosture, nextTimeline, nextEvents] = await Promise.allSettled([
-      attackWorkbenchClient.stats(),
-      attackWorkbenchClient.xdrChains({ limit: 20 }),
-      attackWorkbenchClient.xdrPosture(),
-      attackWorkbenchClient.timeline({ limit: 30 }),
-      attackWorkbenchClient.events({ limit: 20 }),
-    ])
-    if (nextStats.status === 'fulfilled') stats.value = nextStats.value || {}
-    if (nextChains.status === 'fulfilled') chainsPayload.value = normalizeItems(nextChains.value)
-    if (nextPosture.status === 'fulfilled') posture.value = nextPosture.value || {}
-    if (nextTimeline.status === 'fulfilled') timelinePayload.value = normalizeItems(nextTimeline.value)
-    if (nextEvents.status === 'fulfilled') eventsPayload.value = normalizeItems(nextEvents.value)
-    if ([nextStats, nextChains, nextPosture, nextEvents].every((result) => result.status === 'rejected')) {
-      error.value = '无法读取攻击链工作台数据'
-    }
+    await Promise.allSettled(jobs)
+    if (succeeded === 0) error.value = '无法读取攻击链工作台数据'
   } catch (requestError) {
     error.value = requestError?.message || '无法读取攻击链工作台数据'
   } finally {
