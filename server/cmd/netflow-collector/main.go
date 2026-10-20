@@ -210,6 +210,8 @@ func flowPayload(record Record) map[string]interface{} {
 		"protocol":   protocol,
 		"bytes":      intValue(record["bytes"]),
 		"bytes_total": intValue(record["bytes"]),
+		"bytes_in":   intValue(record["bytes"]),
+		"bytes_out":  0,
 		"packets":    intValue(record["packets"]),
 		"source":     "lyprobe",
 		"engine":     "lyprobe",

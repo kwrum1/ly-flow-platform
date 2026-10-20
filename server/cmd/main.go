@@ -1235,6 +1235,7 @@ func startConsumer(cfg *Config) {
 	}
 
 	go consumerState.run()
+	go consumerState.runFlowBridge()
 	log.Println("告警消费者已启动")
 }
 
@@ -1257,12 +1258,9 @@ func (c *ConsumerState) processAlerts() {
 		return
 	}
 
-	streams := []string{"flows:raw", "flows:semantic", "sessions:semantic", "alerts:dpi", "alerts:runtime", "alerts:rasp", "component_alerts:v2"}
+	streams := []string{"flows:semantic", "sessions:semantic", "alerts:dpi", "alerts:runtime", "alerts:rasp", "component_alerts:v2"}
 	if c.cfg.SecurityEngineEnabled {
-		// Keep flows:raw in the consumer set even when the security engine is
-		// enabled: the flow bridge is still the path that persists raw probe
-		// flows for the traffic flow table.
-		streams = []string{"flows:raw", "sessions:semantic", "alerts:dpi", "alerts:runtime", "alerts:rasp", "alerts:log_audit", "component_alerts:v2"}
+		streams = []string{"sessions:semantic", "alerts:dpi", "alerts:runtime", "alerts:rasp", "alerts:log_audit", "component_alerts:v2"}
 	}
 	group := "server-workers"
 
