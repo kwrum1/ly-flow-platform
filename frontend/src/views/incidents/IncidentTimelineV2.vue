@@ -1,236 +1,527 @@
 <template>
-  <section class="incident-v2">
-    <header class="page-head">
+  <section class="sx-page incident-page">
+    <header class="sx-page-head">
       <div>
-        <p>ATTACK CHAINS</p>
-        <h2>攻击链处置</h2>
+        <p class="sx-kicker">ATTACK CHAIN RESPONSE</p>
+        <h2 class="sx-title">攻击链处置</h2>
+        <p class="sx-subtitle">按 Incident 聚合跨源证据、阶段时间线与响应动作；审批使用当前登录身份，L3 动作需要第二名管理员。</p>
       </div>
-      <button type="button" :disabled="loading" @click="loadIncidents">刷新</button>
+      <div class="sx-head-actions">
+        <span class="sx-live"><i />LIVE</span>
+        <button class="sx-btn" type="button" :disabled="loading" @click="loadIncidents">刷新</button>
+      </div>
     </header>
 
-    <div v-if="error" class="state-message">{{ error }}</div>
+    <div v-if="error" class="sx-error">{{ error }}</div>
 
-    <div class="incident-layout">
-      <aside class="incident-list">
-        <div class="list-head"><strong>Incident</strong><span>{{ incidents.length }} 条</span></div>
-        <div v-if="loading && incidents.length === 0" class="empty">正在加载</div>
-        <div v-else-if="incidents.length === 0" class="empty">暂无 Incident</div>
-        <button
-          v-for="item in incidents"
-          :key="item.id"
-          type="button"
-          class="incident-row"
-          :class="{ active: selected?.id === item.id }"
-          @click="selectIncident(item)"
-        >
-          <span :class="['severity', item.severity]">{{ severityLabel(item.severity) }}</span>
-          <span class="row-main"><b>{{ item.title }}</b><small>{{ item.affectedAsset || item.entityId || '-' }}</small></span>
-          <span class="status">{{ statusLabel(item.status) }}</span>
-        </button>
+    <section class="incident-layout">
+      <aside class="sx-panel incident-sidebar">
+        <div class="sidebar-head">
+          <div><b>Incident</b><span>{{ formatNumber(incidentTotal) }} 条</span></div>
+          <div class="sidebar-filters">
+            <select v-model="statusFilter" class="sx-select">
+              <option value="">全部状态</option>
+              <option value="open">新发</option>
+              <option value="triaged">已分诊</option>
+              <option value="processing">处理中</option>
+              <option value="resolved">已解决</option>
+              <option value="closed">已关闭</option>
+            </select>
+            <select v-model="severityFilter" class="sx-select">
+              <option value="">全部等级</option>
+              <option value="critical">严重</option>
+              <option value="high">高危</option>
+              <option value="medium">中危</option>
+              <option value="low">低危</option>
+            </select>
+          </div>
+        </div>
+        <div class="incident-list sx-scroll">
+          <button
+            v-for="item in filteredIncidents"
+            :key="item.id"
+            type="button"
+            class="incident-list-row"
+            :class="{ active: selected?.id === item.id }"
+            @click="selectIncident(item)"
+          >
+            <span class="sx-badge" :class="item.severity">{{ severityLabel(item.severity) }}</span>
+            <div>
+              <b>{{ item.title }}</b>
+              <small>{{ item.affectedAsset || item.entityId || '未绑定资产' }} · {{ formatShort(item.updatedAt || item.createdAt) }}</small>
+              <div class="row-stage-line">
+                <span v-for="stage in (item.stages || []).slice(0, 4)" :key="stage.id">{{ stage.name }}</span>
+              </div>
+            </div>
+            <span class="row-status">{{ statusLabel(item.status) }}</span>
+          </button>
+          <div v-if="!filteredIncidents.length" class="sx-empty"><div><strong>暂无匹配 Incident</strong>调整筛选条件或等待关联链生成。</div></div>
+        </div>
       </aside>
 
-      <main class="incident-detail">
-        <div v-if="!selected" class="empty large">选择左侧 Incident 查看攻击链</div>
+      <main class="incident-main">
+        <div v-if="!selected" class="sx-panel no-selection">
+          <div class="sx-empty"><div><strong>选择左侧 Incident</strong>查看阶段时间线、证据和响应动作。</div></div>
+        </div>
         <template v-else>
-          <header class="detail-head">
-            <div>
+          <section class="sx-panel incident-hero">
+            <div class="incident-hero-main">
+              <div class="incident-hero-top">
+                <span class="sx-badge" :class="selected.severity">{{ severityLabel(selected.severity) }}</span>
+                <span class="sx-badge muted">{{ selected.id }}</span>
+              </div>
               <h3>{{ selected.title }}</h3>
-              <p>{{ selected.affectedAsset || selected.entityId || '-' }} · {{ selected.createdAt ? formatTime(selected.createdAt) : '-' }}</p>
+              <p>{{ selected.affectedAsset || selected.entityId || '未绑定资产' }} · 创建于 {{ formatTime(selected.createdAt) }} · 更新于 {{ formatTime(selected.updatedAt) }}</p>
             </div>
-            <div class="detail-actions">
-              <span :class="['severity', selected.severity]">{{ severityLabel(selected.severity) }}</span>
-              <select :value="selected.status" :disabled="updating" @change="updateStatus($event.target.value)">
+            <div class="incident-hero-actions">
+              <select class="sx-select" :value="selected.status" :disabled="updatingStatus" @change="updateStatus($event.target.value)">
                 <option v-for="status in statuses" :key="status" :value="status">{{ statusLabel(status) }}</option>
               </select>
             </div>
-          </header>
+          </section>
 
-          <div class="detail-meta">
-            <div><span>源 IP</span><b>{{ selected.sourceIPs?.join(', ') || '-' }}</b></div>
-            <div><span>受害 IP</span><b>{{ selected.victimIPs?.join(', ') || '-' }}</b></div>
-            <div><span>建议</span><b>{{ selected.recommendedAction || '-' }}</b></div>
-            <div><span>更新时间</span><b>{{ selected.updatedAt ? formatTime(selected.updatedAt) : '-' }}</b></div>
-          </div>
+          <section class="incident-facts">
+            <div><span>源 IP</span><b class="sx-mono">{{ selected.sourceIPs?.join(', ') || '-' }}</b></div>
+            <div><span>受害 IP</span><b class="sx-mono">{{ selected.victimIPs?.join(', ') || '-' }}</b></div>
+            <div><span>实体 / Agent</span><b>{{ selected.entityId || selected.affectedAsset || '-' }}</b></div>
+            <div><span>证据</span><b>{{ selected.evidence?.length || 0 }} 条</b></div>
+            <div><span>建议动作</span><b>{{ selected.recommendedAction || '待研判' }}</b></div>
+          </section>
 
-          <section class="timeline">
-            <h4>阶段时间线</h4>
-            <div v-if="groups.length" class="timeline-list">
-              <div v-for="group in groups" :key="group.id" class="timeline-group">
-                <div class="timeline-marker"><i /> <span>{{ stageLabel(group.stage) }}</span></div>
-                <div class="timeline-body">
-                  <div class="timeline-title"><b>{{ group.name }}</b><small>{{ group.tactic || '' }}</small></div>
-                  <div v-if="group.evidence.length" class="evidence-list">
-                    <div v-for="evidence in group.evidence" :key="evidence.id" class="evidence-row">
-                      <span class="evidence-source">{{ evidence.sourceModule }}</span>
-                      <div><b>{{ evidence.title }}</b><small>{{ evidence.summary }}</small></div>
-                      <span class="evidence-time">{{ evidence.time ? formatTime(evidence.time) : '-' }}</span>
-                    </div>
-                  </div>
-                  <div v-else class="empty small">该阶段暂无证据</div>
+          <section class="sx-panel stage-ribbon-panel">
+            <div class="sx-panel-head">
+              <div class="sx-panel-title">攻击阶段</div>
+              <span class="sx-panel-meta">阶段状态来自 Incident 关联链</span>
+            </div>
+            <div class="sx-panel-body">
+              <div class="sx-stage-ribbon">
+                <div v-for="stage in stageRibbon" :key="stage.key" class="sx-stage" :class="{ active: stage.active }">
+                  <span>{{ stage.label }}</span>
+                  <strong>{{ stage.count }}</strong>
+                  <i :style="{ width: stage.active ? '100%' : '0%' }" />
                 </div>
               </div>
             </div>
-            <div v-else class="empty">暂无阶段证据</div>
           </section>
 
-          <section class="evidence-matrix">
-            <h4>证据矩阵</h4>
-            <div v-if="selected.evidence?.length" class="evidence-grid">
-              <div v-for="evidence in selected.evidence" :key="evidence.id" class="evidence-card">
-                <span>{{ evidence.sourceModule }}</span>
-                <b>{{ evidence.title }}</b>
-                <small>{{ evidence.summary }}</small>
-                <code v-if="evidence.rawReference">{{ evidence.rawReference }}</code>
+          <div class="incident-detail-grid">
+            <article class="sx-panel timeline-panel">
+              <div class="sx-panel-head">
+                <div class="sx-panel-title">阶段时间线</div>
+                <span class="sx-panel-meta">{{ groups.length }} 个阶段 · {{ selected.evidence?.length || 0 }} 条证据</span>
               </div>
-            </div>
-            <div v-else class="empty">暂无证据</div>
-          </section>
+              <div v-if="groups.length" class="timeline sx-scroll">
+                <div v-for="group in groups" :key="group.id" class="timeline-group">
+                  <div class="timeline-marker"><i /><span>{{ group.name || stageLabel(group.stage) }}</span><small>{{ group.tactic || '' }}</small></div>
+                  <div class="timeline-body">
+                    <div v-if="group.evidence.length" class="timeline-evidence">
+                      <button v-for="evidence in group.evidence" :key="evidence.id" type="button" class="timeline-evidence-row" @click="toggleEvidence(group.id)">
+                        <span class="sx-badge info">{{ evidence.sourceModule || 'xdr' }}</span>
+                        <div><b>{{ evidence.title }}</b><small>{{ evidence.summary }}</small></div>
+                        <time>{{ formatTime(evidence.time) }}</time>
+                      </button>
+                      <pre v-if="expandedEvidence === group.id" class="evidence-raw sx-scroll">{{ prettyEvidence(group.evidence[0]) }}</pre>
+                    </div>
+                    <div v-else class="timeline-empty">该阶段暂无可展示证据。</div>
+                  </div>
+                </div>
+              </div>
+              <div v-else class="sx-empty"><div><strong>暂无阶段证据</strong>Incident 尚未产生可展示的关联链。</div></div>
+            </article>
+
+            <aside class="incident-side-stack">
+              <article class="sx-panel response-panel">
+                <div class="sx-panel-head">
+                  <div class="sx-panel-title">响应处置</div>
+                  <span class="sx-panel-meta">{{ actionsForIncident.length }} 条记录</span>
+                </div>
+                <div class="sx-panel-body">
+                  <div class="response-form">
+                    <div class="response-form-row">
+                      <label><span>动作</span>
+                        <select v-model="actionForm.action" class="sx-select">
+                          <option value="observe">观察</option>
+                          <option value="block_ip">封禁 IP</option>
+                          <option value="isolate_host">主机隔离</option>
+                          <option value="process_kill">终止进程</option>
+                          <option value="file_delete">隔离文件</option>
+                          <option value="account_disable">禁用账号</option>
+                          <option value="namespace_isolate">容器网络隔离</option>
+                        </select>
+                      </label>
+                      <label><span>目标</span><input v-model.trim="actionForm.target" class="sx-input" placeholder="IP / PID / 路径 / 用户名" /></label>
+                    </div>
+                    <label><span>Agent ID</span><input v-model.trim="actionForm.agent_id" class="sx-input" placeholder="g5-real-agent" /></label>
+                    <label><span>原因</span><input v-model.trim="actionForm.reason" class="sx-input" placeholder="说明处置依据" /></label>
+                    <div class="response-form-actions">
+                      <span v-if="actionMessage" :class="['response-message', actionMessageType]">{{ actionMessage }}</span>
+                      <button class="sx-btn primary" type="button" :disabled="creatingAction || !canCreateAction" @click="createAction">{{ creatingAction ? '提交中…' : '提交审批' }}</button>
+                    </div>
+                  </div>
+
+                  <div v-if="actionsForIncident.length" class="action-list">
+                    <div v-for="action in actionsForIncident" :key="action.id" class="action-row">
+                      <div>
+                        <b>{{ actionLabel(action.action) }}</b>
+                        <small>{{ action.target || '-' }} · {{ action.risk }} · {{ action.requested_by }}</small>
+                        <em v-if="action.error">{{ action.error }}</em>
+                      </div>
+                      <span class="sx-badge" :class="actionTone(action.status)">{{ actionStatusLabel(action.status) }}</span>
+                      <div class="action-buttons">
+                        <button v-if="action.status === 'pending_approval'" class="sx-btn" type="button" :disabled="updatingAction === action.id" @click="approveAction(action)">审批</button>
+                        <button v-if="canRollback(action)" class="sx-btn ghost" type="button" :disabled="updatingAction === action.id" @click="rollbackAction(action)">回滚</button>
+                      </div>
+                    </div>
+                  </div>
+                  <div v-else class="sx-muted response-empty">该 Incident 还没有响应动作。</div>
+                </div>
+              </article>
+
+              <article class="sx-panel evidence-panel">
+                <div class="sx-panel-head">
+                  <div class="sx-panel-title">证据包</div>
+                  <span class="sx-panel-meta">{{ bundlesForIncident.length }} 个</span>
+                </div>
+                <div class="sx-panel-body">
+                  <div class="evidence-actions">
+                    <button class="sx-btn primary" type="button" :disabled="creatingBundle || !selected.evidence?.length" @click="createBundle">{{ creatingBundle ? '打包中…' : '生成证据包' }}</button>
+                    <span class="sx-muted">使用当前 Incident 的证据事件</span>
+                  </div>
+                  <div v-if="bundleMessage" class="response-message" :class="bundleMessageType">{{ bundleMessage }}</div>
+                  <div v-if="bundlesForIncident.length" class="bundle-list">
+                    <div v-for="bundle in bundlesForIncident" :key="bundle.id" class="bundle-row">
+                      <div><b class="sx-mono">{{ bundle.id }}</b><small>{{ formatSize(bundle.size) }} · {{ formatTime(bundle.created_at) }}</small></div>
+                      <button class="sx-btn" type="button" @click="downloadBundle(bundle)">下载</button>
+                    </div>
+                  </div>
+                  <div v-else class="sx-muted evidence-empty">尚未生成证据包。</div>
+                </div>
+              </article>
+            </aside>
+          </div>
         </template>
       </main>
-    </div>
+    </section>
   </section>
 </template>
 
 <script setup>
-import { computed, onMounted, ref } from 'vue'
-import { attackWorkbenchClient } from '../../api/domain'
+import { computed, onMounted, reactive, ref } from 'vue'
+import { useRoute } from 'vue-router'
+import { attackWorkbenchClient, evidenceClient, responseClient } from '../../api/domain'
 import { incidentsAPI } from '../../api/events'
 import { severityLabel, stageLabel } from '../../domain/attack-labels'
 import { normalizeIncident, normalizeIncidents } from '../../domain/incidents'
 
+const route = useRoute()
 const incidents = ref([])
+const incidentTotal = ref(0)
 const selected = ref(null)
 const loading = ref(false)
-const updating = ref(false)
+const updatingStatus = ref(false)
+const updatingAction = ref('')
+const creatingAction = ref(false)
+const creatingBundle = ref(false)
 const error = ref('')
+const actionMessage = ref('')
+const actionMessageType = ref('success')
+const bundleMessage = ref('')
+const bundleMessageType = ref('success')
+const expandedEvidence = ref('')
+const statusFilter = ref('')
+const severityFilter = ref('')
+const actions = ref([])
+const bundles = ref([])
 const statuses = ['open', 'triaged', 'processing', 'resolved', 'closed']
+const actionForm = reactive({ action: 'observe', target: '', agent_id: '', reason: '' })
 
+const stageDefinitions = [
+  ['detection', '检测命中'], ['recon', '侦察'], ['initial_access', '初始访问'], ['execution', '执行'],
+  ['persistence', '持久化'], ['privilege_escalation', '提权'], ['lateral_movement', '横向移动'],
+  ['command_and_control', '命令控制'], ['exfiltration', '外传'], ['impact', '影响'],
+]
+
+const filteredIncidents = computed(() => incidents.value.filter((item) => {
+  if (statusFilter.value && item.status !== statusFilter.value) return false
+  if (severityFilter.value && item.severity !== severityFilter.value) return false
+  return true
+}))
 const groups = computed(() => {
   if (!selected.value) return []
   if (selected.value.stageGroups?.length) return selected.value.stageGroups
-  return (selected.value.stages || []).map((stage, index) => ({
-    id: stage.id || `stage-${index}`,
-    stage: stage.name,
+  const evidence = selected.value.evidence || []
+  return (selected.value.stages || []).map((stage) => ({
+    ...stage,
+    id: stage.id,
+    stage: stage.stageKey,
     name: stage.name,
     tactic: stage.tactic,
-    evidence: selected.value.evidence?.filter((evidence) => evidence.stage === stage.name) || [],
+    evidence: evidence.filter((item) => item.stage === stage.stageKey),
   }))
 })
+const stageRibbon = computed(() => {
+  const counts = {}
+  for (const stage of selected.value?.stages || []) counts[stage.stageKey] = (counts[stage.stageKey] || 0) + 1
+  return stageDefinitions.map(([key, label]) => ({ key, label, active: Boolean(counts[key]), count: counts[key] || 0 }))
+})
+const actionsForIncident = computed(() => actions.value.filter((item) => item.incident_id === selected.value?.id))
+const bundlesForIncident = computed(() => bundles.value.filter((item) => item.incident_id === selected.value?.id))
+const canCreateAction = computed(() => Boolean(actionForm.agent_id && (actionForm.action === 'observe' || actionForm.target)))
 
-function unwrap(response) {
-  return response?.data?.data ?? response?.data ?? response ?? {}
-}
-
-function formatTime(value) {
-  if (!value) return '-'
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('zh-CN', { hour12: false })
-}
-
-function statusLabel(value) {
-  return ({ open: '新发', triaged: '已分诊', processing: '处理中', resolved: '已解决', closed: '已关闭' })[value] || value || '-'
-}
+function unwrap(response) { return response?.data?.data ?? response?.data ?? response ?? {} }
+function formatNumber(value) { return Number(value || 0).toLocaleString('zh-CN') }
+function formatTime(value) { if (!value) return '-'; const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('zh-CN', { hour12: false }) }
+function formatShort(value) { if (!value) return '-'; const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) }
+function formatSize(value) { const size = Number(value || 0); return size > 1024 ? `${(size / 1024).toFixed(1)} KB` : `${size} B` }
+function statusLabel(value) { return ({ new: '新发', open: '新发', triaged: '已分诊', processing: '处理中', resolved: '已解决', closed: '已关闭' })[value] || value || '-' }
+function actionStatusLabel(value) { return ({ pending_approval: '待审批', approved: '已批准', executed: '已执行', failed: '失败', rolled_back: '已回滚' })[value] || value || '-' }
+function actionTone(value) { return ({ pending_approval: 'medium', approved: 'info', executed: 'low', failed: 'critical', rolled_back: 'muted' })[value] || 'muted' }
+function actionLabel(value) { return ({ observe: '观察', block_ip: '封禁 IP', isolate_host: '主机隔离', process_kill: '终止进程', file_delete: '隔离文件', account_disable: '禁用账号', namespace_isolate: '容器隔离' })[value] || value || '-' }
+function canRollback(action) { return ['executed', 'failed'].includes(action.status) && ['block_ip', 'isolate_host', 'file_delete', 'account_disable', 'namespace_isolate'].includes(action.action) }
+function prettyEvidence(evidence) { try { return JSON.stringify(evidence?.raw || evidence, null, 2) } catch { return String(evidence?.raw || '') } }
+function toggleEvidence(id) { expandedEvidence.value = expandedEvidence.value === id ? '' : id }
 
 async function loadIncidents() {
   loading.value = true
   error.value = ''
   try {
-    const data = unwrap(await attackWorkbenchClient.incidents({ limit: 50 }))
-    const items = Array.isArray(data.items) ? data.items : Array.isArray(data) ? data : []
-    incidents.value = normalizeIncidents(items)
-    if (selected.value) {
-      const current = incidents.value.find((item) => item.id === selected.value.id)
-      if (current) selected.value = current
-    }
+    const data = unwrap(await attackWorkbenchClient.incidents({ limit: 80 }))
+    incidents.value = normalizeIncidents(Array.isArray(data.items) ? data.items : [])
+    incidentTotal.value = Number(data.total ?? incidents.value.length) || incidents.value.length
+    const wanted = String(route.query.id || '')
+    const current = incidents.value.find((item) => item.id === wanted) || incidents.value.find((item) => item.id === selected.value?.id) || incidents.value[0]
+    if (current) await selectIncident(current)
   } catch (cause) {
-    error.value = 'Incident 列表加载失败'
+    error.value = 'Incident 数据加载失败，请检查后端连接。'
   } finally {
     loading.value = false
   }
 }
 
 async function selectIncident(item) {
+  if (!item) return
   selected.value = item
+  actionForm.agent_id = item.entityId || item.affectedAsset || ''
   try {
-    const data = unwrap(await attackWorkbenchClient.incident(item.id))
-    selected.value = normalizeIncident(data)
-  } catch (cause) {
-    // Keep the normalized list row when detail is unavailable.
-  }
+    const detail = unwrap(await attackWorkbenchClient.incident(item.id))
+    selected.value = normalizeIncident(Object.keys(detail).length ? detail : item)
+  } catch { /* keep list row */ }
+  await Promise.all([loadActions(), loadBundles()])
+}
+
+async function loadActions() {
+  try {
+    const data = unwrap(await responseClient.actions({ limit: 100 }))
+    actions.value = Array.isArray(data.items) ? data.items : []
+  } catch { actions.value = [] }
+}
+
+async function loadBundles() {
+  try {
+    const data = unwrap(await evidenceClient.bundles({ limit: 100 }))
+    bundles.value = Array.isArray(data.items) ? data.items : []
+  } catch { bundles.value = [] }
 }
 
 async function updateStatus(status) {
   if (!selected.value || status === selected.value.status) return
-  updating.value = true
-  error.value = ''
+  updatingStatus.value = true
   try {
     await incidentsAPI.updateStatus(selected.value.id, status)
     selected.value = { ...selected.value, status }
     await loadIncidents()
-  } catch (cause) {
-    error.value = '状态更新失败'
+  } catch {
+    error.value = 'Incident 状态更新失败。'
   } finally {
-    updating.value = false
+    updatingStatus.value = false
   }
 }
 
-onMounted(loadIncidents)
+async function createAction() {
+  if (!selected.value || !canCreateAction.value) return
+  creatingAction.value = true
+  actionMessage.value = ''
+  try {
+    await responseClient.create({
+      incident_id: selected.value.id,
+      agent_id: actionForm.agent_id,
+      action: actionForm.action,
+      target: actionForm.action === 'observe' ? actionForm.agent_id : actionForm.target,
+      reason: actionForm.reason || `Incident ${selected.value.id} 人工处置`,
+      ttl_seconds: 300,
+    })
+    actionMessage.value = '已提交审批队列。'
+    actionMessageType.value = 'success'
+    actionForm.target = ''
+    actionForm.reason = ''
+    await loadActions()
+  } catch (cause) {
+    actionMessage.value = cause?.message || '响应动作提交失败。'
+    actionMessageType.value = 'error'
+  } finally {
+    creatingAction.value = false
+  }
+}
+
+async function approveAction(action) {
+  updatingAction.value = action.id
+  try {
+    await responseClient.approve(action.id, {})
+    await loadActions()
+  } catch (cause) {
+    error.value = cause?.message || '审批失败：需要与发起人不同的管理员身份。'
+  } finally {
+    updatingAction.value = ''
+  }
+}
+
+async function rollbackAction(action) {
+  updatingAction.value = action.id
+  try {
+    await responseClient.rollback(action.id)
+    await loadActions()
+  } catch (cause) {
+    error.value = cause?.message || '回滚失败。'
+  } finally {
+    updatingAction.value = ''
+  }
+}
+
+async function createBundle() {
+  if (!selected.value || !selected.value.evidence?.length) return
+  creatingBundle.value = true
+  bundleMessage.value = ''
+  try {
+    const eventUIDs = [...new Set(selected.value.evidence.map((item) => item.id).filter(Boolean))]
+    const result = unwrap(await evidenceClient.createBundle({
+      incident_id: selected.value.id,
+      agent_id: selected.value.entityId || '',
+      event_uids: eventUIDs,
+      note: `Incident ${selected.value.id} evidence bundle`,
+    }))
+    bundleMessage.value = `证据包已生成：${result.id || '已提交'}`
+    bundleMessageType.value = 'success'
+    await loadBundles()
+  } catch (cause) {
+    bundleMessage.value = cause?.message || '证据包生成失败：证据事件可能不在 Event v2 存储中。'
+    bundleMessageType.value = 'error'
+  } finally {
+    creatingBundle.value = false
+  }
+}
+
+async function downloadBundle(bundle) {
+  try {
+    const blob = await evidenceClient.download(bundle.id)
+    const url = URL.createObjectURL(blob instanceof Blob ? blob : new Blob([blob]))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `${bundle.id}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+  } catch {
+    error.value = '证据包下载失败。'
+  }
+}
+
+onMounted(() => {
+  loadActions()
+  loadBundles()
+  loadIncidents()
+})
 </script>
 
 <style scoped>
-.incident-v2 { display: grid; gap: 14px; color: #1f2a37; }
-.page-head { display: flex; align-items: flex-end; justify-content: space-between; }
-.page-head p { margin: 0 0 2px; color: #98a2b3; font-size: 10px; letter-spacing: .08em; }
-.page-head h2 { margin: 0; font-size: 20px; font-weight: 600; }
-.page-head button { height: 32px; padding: 0 14px; border: 1px solid #d8e1ec; border-radius: 6px; background: #fff; color: #475467; cursor: pointer; }
-.state-message { padding: 10px 12px; border: 1px solid #f3c2c2; border-radius: 6px; background: #fff5f5; color: #c43838; font-size: 13px; }
-.incident-layout { display: grid; grid-template-columns: 360px minmax(0, 1fr); gap: 14px; min-height: 560px; }
-.incident-list { overflow: hidden; border: 1px solid #d8e1ec; border-radius: 8px; background: #fff; }
-.list-head { display: flex; align-items: center; justify-content: space-between; padding: 12px 14px; border-bottom: 1px solid #e6ebf1; }
-.list-head span { color: #98a2b3; font-size: 11px; }
-.incident-row { display: grid; width: 100%; grid-template-columns: 56px minmax(0, 1fr) 56px; align-items: center; gap: 8px; padding: 10px 12px; border: 0; border-bottom: 1px solid #eef2f6; background: #fff; color: inherit; text-align: left; cursor: pointer; }
-.incident-row:hover, .incident-row.active { background: #f7fbff; }
-.row-main { min-width: 0; }
-.row-main b { display: block; overflow: hidden; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.row-main small { display: block; overflow: hidden; color: #98a2b3; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.status { color: #667085; font-size: 11px; text-align: right; }
-.severity { display: inline-block; padding: 2px 6px; border-radius: 4px; background: #f1f5f9; color: #475467; font-size: 10px; text-align: center; }
-.severity.critical { background: #fdecec; color: #c43838; }
-.severity.high { background: #fff3e6; color: #ad6800; }
-.severity.medium { background: #fff8db; color: #8a6d00; }
-.severity.low { background: #eef7f1; color: #168a55; }
-.incident-detail { min-width: 0; padding: 14px 16px; border: 1px solid #d8e1ec; border-radius: 8px; background: #fff; }
-.detail-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
-.detail-head h3 { margin: 0; font-size: 16px; }
-.detail-head p { margin: 4px 0 0; color: #98a2b3; font-size: 11px; }
-.detail-actions { display: flex; align-items: center; gap: 8px; }
-.detail-actions select { height: 30px; border: 1px solid #d8e1ec; border-radius: 5px; background: #fff; color: #475467; font-size: 12px; }
-.detail-meta { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin: 14px 0; padding: 12px; border-radius: 6px; background: #f8fafc; }
-.detail-meta span { display: block; color: #98a2b3; font-size: 10px; }
-.detail-meta b { display: block; overflow: hidden; font-size: 12px; font-weight: 500; text-overflow: ellipsis; white-space: nowrap; }
-.timeline h4, .evidence-matrix h4 { margin: 16px 0 10px; font-size: 13px; }
-.timeline-list { display: grid; gap: 10px; }
-.timeline-group { display: grid; grid-template-columns: 120px minmax(0, 1fr); gap: 12px; }
-.timeline-marker { display: flex; align-items: center; gap: 8px; color: #1268bd; font-size: 12px; font-weight: 600; }
-.timeline-marker i { width: 9px; height: 9px; border-radius: 50%; background: #1976d2; box-shadow: 0 0 0 3px #e8f3ff; }
-.timeline-body { padding: 0 0 12px 12px; border-left: 1px solid #d8e1ec; }
-.timeline-title { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
-.timeline-title b { font-size: 12px; }
-.timeline-title small { color: #98a2b3; font-size: 10px; }
-.evidence-list { display: grid; gap: 6px; }
-.evidence-row { display: grid; grid-template-columns: 70px minmax(0, 1fr) 128px; gap: 8px; align-items: center; padding: 6px 8px; border: 1px solid #eef2f6; border-radius: 5px; }
-.evidence-source { color: #1268bd; font-size: 10px; }
-.evidence-row b { display: block; overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.evidence-row small { display: block; overflow: hidden; color: #98a2b3; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.evidence-time { color: #667085; font-size: 10px; text-align: right; }
-.evidence-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
-.evidence-card { display: grid; gap: 4px; padding: 10px; border: 1px solid #eef2f6; border-radius: 6px; }
-.evidence-card span { color: #1268bd; font-size: 10px; }
-.evidence-card b { font-size: 12px; }
-.evidence-card small { color: #667085; font-size: 11px; }
-.evidence-card code { overflow: hidden; color: #98a2b3; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-.empty { padding: 24px 0; color: #98a2b3; font-size: 12px; text-align: center; }
-.empty.large { padding-top: 120px; }
-.empty.small { padding: 8px 0; text-align: left; }
-@media (max-width: 960px) { .incident-layout { grid-template-columns: 1fr; } .detail-meta { grid-template-columns: repeat(2, minmax(0, 1fr)); } .evidence-grid { grid-template-columns: 1fr; } }
+.incident-page { gap: 14px; }
+.incident-layout { display: grid; grid-template-columns: 306px minmax(0, 1fr); gap: 14px; min-height: 620px; }
+.incident-sidebar { display: flex; min-height: 620px; flex-direction: column; }
+.sidebar-head { display: grid; gap: 8px; padding: 11px 12px; border-bottom: 1px solid var(--sx-line-soft); }
+.sidebar-head > div:first-child { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sidebar-head b { color: var(--sx-text); font-size: 12px; }
+.sidebar-head span { color: var(--sx-text-3); font-size: 10px; }
+.sidebar-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.incident-list { flex: 1; }
+.incident-list-row { display: grid; width: 100%; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: start; gap: 8px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--sx-line-soft); background: transparent; color: inherit; text-align: left; cursor: pointer; transition: background var(--transition-fast); }
+.incident-list-row:hover, .incident-list-row.active { background: var(--sx-accent-soft); }
+.incident-list-row.active { box-shadow: inset 3px 0 var(--sx-accent); }
+.incident-list-row > div { min-width: 0; }
+.incident-list-row b { display: block; overflow: hidden; color: var(--sx-text); font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
+.incident-list-row small { display: block; overflow: hidden; margin-top: 2px; color: var(--sx-text-3); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.row-stage-line { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 4px; }
+.row-stage-line span { padding: 1px 4px; border-radius: 3px; background: var(--sx-surface-3); color: var(--sx-text-2); font-size: 8px; }
+.row-status { color: var(--sx-text-3); font-size: 9px; white-space: nowrap; }
+.incident-main { display: grid; min-width: 0; align-content: start; gap: 12px; }
+.no-selection { min-height: 320px; }
+.incident-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; padding: 15px 17px; }
+.incident-hero-top { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.incident-hero h3 { margin: 7px 0 0; color: var(--sx-text); font-size: 19px; font-weight: 720; letter-spacing: -0.03em; }
+.incident-hero p { margin: 4px 0 0; color: var(--sx-text-3); font-size: 10px; }
+.incident-hero-actions { flex: 0 0 auto; }
+.incident-facts { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 8px; }
+.incident-facts > div { min-width: 0; padding: 9px 11px; border: 1px solid var(--sx-line); border-radius: var(--sx-radius-sm); background: var(--sx-surface); }
+.incident-facts span { display: block; color: var(--sx-text-3); font-size: 9px; }
+.incident-facts b { display: block; overflow: hidden; margin-top: 2px; color: var(--sx-text); font-size: 11px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.incident-detail-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(300px, 0.9fr); gap: 12px; align-items: start; }
+.timeline { max-height: 620px; padding: 12px 14px 16px; }
+.timeline-group { display: grid; grid-template-columns: 116px minmax(0, 1fr); gap: 10px; }
+.timeline-marker { position: relative; display: flex; flex-direction: column; gap: 2px; padding: 2px 0 18px 16px; color: var(--sx-accent); font-size: 10px; font-weight: 650; }
+.timeline-marker::before { content: ""; position: absolute; top: 1px; left: 0; width: 7px; height: 7px; border-radius: 50%; background: var(--sx-accent); box-shadow: 0 0 0 3px var(--sx-accent-soft); }
+.timeline-marker::after { content: ""; position: absolute; top: 12px; bottom: 0; left: 3px; width: 1px; background: var(--sx-line); }
+.timeline-group:last-child .timeline-marker::after { display: none; }
+.timeline-marker small { color: var(--sx-text-3); font-size: 8px; font-weight: 500; }
+.timeline-body { min-width: 0; padding-bottom: 12px; }
+.timeline-evidence { display: grid; gap: 5px; }
+.timeline-evidence-row { display: grid; grid-template-columns: 58px minmax(0, 1fr) 90px; align-items: center; gap: 8px; width: 100%; padding: 7px 8px; border: 1px solid var(--sx-line-soft); border-radius: 5px; background: var(--sx-surface-2); color: inherit; text-align: left; cursor: pointer; }
+.timeline-evidence-row:hover { border-color: var(--sx-accent-line); }
+.timeline-evidence-row > div { min-width: 0; }
+.timeline-evidence-row b { display: block; overflow: hidden; color: var(--sx-text); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+.timeline-evidence-row small { display: block; overflow: hidden; margin-top: 1px; color: var(--sx-text-3); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.timeline-evidence-row time { color: var(--sx-text-3); font-size: 8px; text-align: right; }
+.evidence-raw { max-height: 220px; margin: 4px 0 0; padding: 9px; overflow: auto; border-radius: 5px; background: #071a2d; color: #c7e7ff; font-family: var(--sx-font-mono); font-size: 9px; line-height: 1.5; }
+.timeline-empty { padding: 8px 0; color: var(--sx-text-3); font-size: 10px; }
+.incident-side-stack { display: grid; gap: 12px; }
+.response-form { display: grid; gap: 7px; }
+.response-form-row { display: grid; grid-template-columns: 1fr 1.1fr; gap: 7px; }
+.response-form label { display: grid; gap: 3px; }
+.response-form label > span { color: var(--sx-text-3); font-size: 9px; }
+.response-form-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.response-message { margin-top: 6px; font-size: 10px; }
+.response-message.success { color: var(--sx-success); }
+.response-message.error { color: var(--sx-danger); }
+.response-empty { margin-top: 10px; font-size: 10px; }
+.action-list { display: grid; gap: 5px; margin-top: 10px; }
+.action-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 6px; padding: 7px 8px; border: 1px solid var(--sx-line-soft); border-radius: 5px; background: var(--sx-surface-2); }
+.action-row > div:first-child { min-width: 0; }
+.action-row b { display: block; color: var(--sx-text); font-size: 10px; }
+.action-row small { display: block; overflow: hidden; color: var(--sx-text-3); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.action-row em { display: block; color: var(--sx-danger); font-size: 8px; font-style: normal; }
+.action-buttons { display: flex; gap: 4px; }
+.action-buttons .sx-btn { height: 25px; padding: 0 7px; font-size: 9px; }
+.evidence-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.evidence-actions .sx-muted { font-size: 9px; }
+.evidence-empty { margin-top: 9px; font-size: 10px; }
+.bundle-list { display: grid; gap: 5px; margin-top: 8px; }
+.bundle-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 6px 8px; border: 1px solid var(--sx-line-soft); border-radius: 5px; background: var(--sx-surface-2); }
+.bundle-row b { display: block; color: var(--sx-text); font-size: 9px; }
+.bundle-row small { display: block; color: var(--sx-text-3); font-size: 8px; }
+.bundle-row .sx-btn { height: 25px; padding: 0 7px; font-size: 9px; }
+
+@media (max-width: 1180px) {
+  .incident-layout { grid-template-columns: 260px minmax(0, 1fr); }
+  .incident-detail-grid { grid-template-columns: 1fr; }
+  .incident-facts { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  .incident-layout { grid-template-columns: 1fr; }
+  .incident-sidebar { min-height: 260px; max-height: 360px; }
+  .incident-list { max-height: 240px; }
+  .incident-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .incident-hero { flex-direction: column; }
+  .incident-facts { grid-template-columns: 1fr; }
+  .timeline-group { grid-template-columns: 1fr; }
+  .timeline-marker::after { display: none; }
+  .response-form-row { grid-template-columns: 1fr; }
+}
 </style>

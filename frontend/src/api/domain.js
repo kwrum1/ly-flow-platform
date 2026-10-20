@@ -84,6 +84,21 @@ export const ruleClient = Object.freeze({
   test: (payload) => api.post('/rules/test', payload),
 })
 
+export const responseClient = Object.freeze({
+  actions: (params = {}) => api.get('/response/actions', { params }),
+  create: (payload) => api.post('/response/actions', payload),
+  approve: (id, payload = {}) => api.post(`/response/actions/${encodeURIComponent(id)}/approve`, payload),
+  rollback: (id) => api.post(`/response/actions/${encodeURIComponent(id)}/rollback`, {}),
+})
+
+export const evidenceClient = Object.freeze({
+  bundles: (params = {}) => api.get('/evidence/bundles', { params }),
+  bundle: (id) => api.get(`/evidence/bundles/${encodeURIComponent(id)}`),
+  download: (id) => api.get(`/evidence/bundles/${encodeURIComponent(id)}/download`, { responseType: 'blob' }),
+  createBundle: (payload) => api.post('/evidence/bundles', payload),
+  uploadArtifact: (payload, headers = {}) => api.post('/evidence/artifacts', payload, { headers }),
+})
+
 export const signalClient = Object.freeze({
   xdrStats: () => api.get('/xdr/stats'),
   xdrEvents: (params = {}) => api.get('/xdr/events', { params }),

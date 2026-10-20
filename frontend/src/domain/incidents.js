@@ -58,6 +58,7 @@ function normalizeStage(stage = {}, index = 0) {
   const resolvedKey = STAGE_LABELS[key] ? key : fallbackKey
   return {
     id: firstNonEmpty(stage.id, stage.stage_id, stage.stage, stage.name, `stage-${index + 1}`),
+    stageKey: resolvedKey,
     name: firstNonEmpty(stage.stage_label, stage.label, STAGE_LABELS[resolvedKey], stage.summary, `攻击阶段 ${index + 1}`),
     tactic: firstNonEmpty(stage.tactic, stage.mitre_tactic, STAGE_TACTICS[resolvedKey]),
     shortCode: firstNonEmpty(stage.short_code, stage.code, STAGE_TACTICS[resolvedKey]?.split(' ')[0], 'XDR'),
@@ -71,8 +72,8 @@ function normalizeEvidence(item = {}, index = 0) {
   return {
     id: firstNonEmpty(item.id, item.event_id, item.raw_reference, `evidence-${index + 1}`),
     sourceModule: firstNonEmpty(item.source_module, item.sourceModule, item.module, item.source, 'xdr'),
-    title: firstNonEmpty(item.title, item.rule_name, item.event_type, item.type, item.message, `Evidence ${index + 1}`),
-    summary: firstNonEmpty(item.summary, item.message, item.title, item.rule_name, item.event_type, item.type),
+    title: firstNonEmpty(item.title, item.rule_name, item.raw_event?.rule_name, item.event_type, item.type, item.message, `Evidence ${index + 1}`),
+    summary: firstNonEmpty(item.summary, item.message, item.raw_event?.summary, item.raw_event?.message, item.title, item.rule_name, item.event_type, item.type),
     time: firstNonEmpty(item.time, item.date, item.timestamp, item.created_at, item.occurred_at),
     stage: stageKey(firstNonEmpty(item.stage, item.stage_hint, item.phase, item.tactic)),
     rawReference: firstNonEmpty(item.raw_reference, item.rawReference, item.raw_ref, item.evidence_ref),
@@ -101,8 +102,9 @@ function normalizeStageGroup(group = {}, index = 0) {
 }
 
 export function normalizeIncident(raw = {}) {
-  const stages = Array.isArray(raw.stages) ? raw.stages : Array.isArray(raw.attack_chain) ? raw.attack_chain : []
-  const evidence = Array.isArray(raw.evidence) ? raw.evidence : Array.isArray(raw.events) ? raw.events : []
+  const attackChain = Array.isArray(raw.attack_chain) ? raw.attack_chain : []
+  const stages = Array.isArray(raw.stages) ? raw.stages : attackChain
+  const evidence = Array.isArray(raw.evidence) ? raw.evidence : Array.isArray(raw.events) ? raw.events : attackChain
   const stageGroups = Array.isArray(raw.stage_groups) ? raw.stage_groups : []
   const firstEvidence = evidence[0] || {}
 

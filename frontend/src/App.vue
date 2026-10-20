@@ -6,6 +6,7 @@
 import { onMounted, onUnmounted, ref } from 'vue'
 import './assets/styles/global.css'
 import './assets/styles/ikuai-theme.css'
+import './assets/styles/command.css'
 import { PLATFORM_TIME_UPDATED_EVENT, getPlatformTimeVersion } from './shared/time'
 
 const platformTimeVersion = ref(getPlatformTimeVersion())
