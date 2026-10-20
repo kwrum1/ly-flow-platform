@@ -621,7 +621,7 @@ onMounted(loadAll)
 .upstream-heading div{display:flex;align-items:baseline;gap:8px;min-width:0}
 .upstream-heading strong{color:#263247;font-size:12px}
 .upstream-heading span{color:#758195;font-size:10px}
-.upstream-table-wrap{max-height:238px;overflow:auto}
+.upstream-table-wrap{max-height:280px;overflow:auto;scrollbar-width:thin}
 .upstream-table{width:100%;min-width:1120px;border-collapse:collapse;table-layout:fixed}
 .upstream-table th{height:28px;padding:0 9px;border-bottom:1px solid #e3e9f1;background:#fbfcfe;color:#65748a;font-size:10px;font-weight:800;text-align:left;position:sticky;top:0;z-index:1}
 .upstream-table td{padding:7px 9px;border-bottom:1px solid #edf1f6;color:#334155;font-size:10px;vertical-align:middle}
