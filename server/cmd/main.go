@@ -1236,6 +1236,7 @@ func startConsumer(cfg *Config) {
 
 	go consumerState.run()
 	go consumerState.runFlowBridge()
+	go func() { _ = loadNativeEngineRules(cfg) }()
 	log.Println("告警消费者已启动")
 }
 

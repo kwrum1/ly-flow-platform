@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -150,7 +151,25 @@ func nativeEngineStatusHandler(cfg *Config) http.HandlerFunc {
 	}
 }
 
+var nativeRulesCache struct {
+	sync.Mutex
+	at    time.Time
+	items []map[string]interface{}
+}
+
 func loadNativeEngineRules(cfg *Config) []map[string]interface{} {
+	nativeRulesCache.Lock()
+	defer nativeRulesCache.Unlock()
+	if len(nativeRulesCache.items) > 0 && time.Since(nativeRulesCache.at) < 2*time.Minute {
+		return append([]map[string]interface{}(nil), nativeRulesCache.items...)
+	}
+	items := scanNativeEngineRules(cfg)
+	nativeRulesCache.items = items
+	nativeRulesCache.at = time.Now()
+	return append([]map[string]interface{}(nil), items...)
+}
+
+func scanNativeEngineRules(cfg *Config) []map[string]interface{} {
 	root := firstNonEmpty(os.Getenv("ENGINE_RULE_ROOT"), "rules")
 	items := []map[string]interface{}{}
 	items = append(items, scanRuleFiles("suricata", filepath.Join(root, "suricata"), []string{".rules"}, parseSuricataRule)...)
@@ -160,7 +179,7 @@ func loadNativeEngineRules(cfg *Config) []map[string]interface{} {
 	items = append(items, scanRuleFiles("rasp", filepath.Join(root, "rasp"), []string{".json", ".yaml", ".yml", ".js"}, parseRASPRule)...)
 	items = append(items, loadLyprobeRules(filepath.Join(root, "lyprobe", "threat.json"))...)
 	if len(items) == 0 && root != "rules" {
-		items = append(items, loadNativeEngineRules(&Config{})...)
+		items = append(items, scanNativeEngineRules(&Config{})...)
 	}
 	sort.SliceStable(items, func(i, j int) bool {
 		left := asString(items[i]["engine"]) + asString(items[i]["path"]) + asString(items[i]["id"])

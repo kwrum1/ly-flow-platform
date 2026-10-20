@@ -230,6 +230,7 @@ const installedEngineKeys = computed(() => {
     if (item?.installed !== false && item?.engine) keys.add(item.engine)
   }
   if (runtimeStatus.value?.engines?.['security-engine']) keys.add('security-engine')
+  if (runtimeStatus.value?.engines?.lyprobe) keys.add('lyprobe')
   for (const [key, count] of Object.entries(counts.value || {})) {
     if (Number(count || 0) > 0) keys.add(key)
   }
