@@ -97,7 +97,7 @@ const form = reactive({ incident_id: '', event_uids: '', artifact_ids: '', note:
 
 const totalSize = computed(() => bundles.value.reduce((sum, item) => sum + Number(item.size || 0), 0))
 const latestTime = computed(() => bundles.value.length ? formatShort(bundles.value[0].created_at) : '-')
-const canCreateBundle = computed(() => form.event_uids.trim() || form.artifact_ids.trim())
+const canCreateBundle = computed(() => Boolean(form.incident_id.trim() || form.event_uids.trim() || form.artifact_ids.trim()))
 
 function unwrap(response) { return response?.data?.data ?? response?.data ?? response ?? {} }
 function formatNumber(value) { return Number(value || 0).toLocaleString('zh-CN') }

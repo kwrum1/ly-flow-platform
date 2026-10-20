@@ -15,7 +15,7 @@
       <article class="surface-card metric-card">
         <span>组件告警</span>
         <strong>{{ stats.total_alerts ?? stats.total_events ?? 0 }}</strong>
-        <em>今日 {{ stats.alerts_today ?? stats.today_events ?? 0 }} 条</em>
+        <em>今日 {{ stats.today_alerts ?? stats.alerts_today ?? stats.today_events ?? 0 }} 条</em>
       </article>
       <article class="surface-card metric-card">
         <span>活跃攻击链</span>
@@ -164,7 +164,7 @@ const loadAll = async () => {
   loading.value = true
   error.value = ''
   try {
-    const [nextStats, nextIncidents, nextChains, nextPosture, nextTimeline, nextEvents] = await Promise.all([
+    const [nextStats, nextIncidents, nextChains, nextPosture, nextTimeline, nextEvents] = await Promise.allSettled([
       attackWorkbenchClient.stats(),
       attackWorkbenchClient.incidents({ limit: 20 }),
       attackWorkbenchClient.xdrChains({ limit: 20 }),
@@ -172,12 +172,15 @@ const loadAll = async () => {
       attackWorkbenchClient.timeline({ limit: 30 }),
       attackWorkbenchClient.events({ limit: 20 }),
     ])
-    stats.value = nextStats || {}
-    incidentsPayload.value = normalizeItems(nextIncidents)
-    chainsPayload.value = normalizeItems(nextChains)
-    posture.value = nextPosture || {}
-    timelinePayload.value = normalizeItems(nextTimeline)
-    eventsPayload.value = normalizeItems(nextEvents)
+    if (nextStats.status === 'fulfilled') stats.value = nextStats.value || {}
+    if (nextIncidents.status === 'fulfilled') incidentsPayload.value = normalizeItems(nextIncidents.value)
+    if (nextChains.status === 'fulfilled') chainsPayload.value = normalizeItems(nextChains.value)
+    if (nextPosture.status === 'fulfilled') posture.value = nextPosture.value || {}
+    if (nextTimeline.status === 'fulfilled') timelinePayload.value = normalizeItems(nextTimeline.value)
+    if (nextEvents.status === 'fulfilled') eventsPayload.value = normalizeItems(nextEvents.value)
+    if ([nextStats, nextIncidents, nextChains, nextPosture, nextEvents].every((result) => result.status === 'rejected')) {
+      error.value = '无法读取攻击链工作台数据'
+    }
   } catch (requestError) {
     error.value = requestError?.message || '无法读取攻击链工作台数据'
   } finally {

@@ -102,8 +102,8 @@ func createEvidenceBundle(w http.ResponseWriter, r *http.Request, cfg *Config) {
 		writeJSONError(w, http.StatusBadRequest, "invalid_evidence_bundle", "Invalid evidence bundle request")
 		return
 	}
-	if len(request.EventUIDs) == 0 && len(request.ArtifactIDs) == 0 {
-		writeJSONError(w, http.StatusBadRequest, "evidence_bundle_empty", "At least one event_uid or artifact_id is required")
+	if len(request.EventUIDs) == 0 && len(request.ArtifactIDs) == 0 && strings.TrimSpace(request.IncidentID) == "" {
+		writeJSONError(w, http.StatusBadRequest, "evidence_bundle_empty", "At least one incident_id, event_uid or artifact_id is required")
 		return
 	}
 	payload := map[string]interface{}{
@@ -112,11 +112,31 @@ func createEvidenceBundle(w http.ResponseWriter, r *http.Request, cfg *Config) {
 		"created_at": time.Now().UTC().Format(time.RFC3339Nano),
 		"created_by": fmt.Sprintf("user:%d", auth.GetUserIDFromContext(r.Context())),
 	}
+	incidentEvidence := map[string]interface{}{}
+	if incidentID := strings.TrimSpace(request.IncidentID); incidentID != "" {
+		if cfg.Incidents == nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "evidence_incident_unavailable", "incident store unavailable")
+			return
+		}
+		incident, err := cfg.Incidents.Get(r.Context(), incidentID)
+		if err != nil {
+			writeJSONError(w, http.StatusNotFound, "evidence_incident_not_found", "incident not found: "+incidentID)
+			return
+		}
+		payload["incident"] = incident
+		if request.AgentID == "" {
+			request.AgentID = incident.CorrelationKey
+		}
+		for _, item := range incident.Evidence {
+			incidentEvidence[item.EventUID] = item
+		}
+	}
 	events := make([]interface{}, 0, len(request.EventUIDs))
-	if cfg.EventStorage == nil {
+	if len(request.EventUIDs) > 0 && cfg.EventStorage == nil {
 		writeJSONError(w, http.StatusServiceUnavailable, "evidence_events_unavailable", "event storage unavailable")
 		return
 	}
+	unresolved := make([]string, 0)
 	for _, eventUID := range request.EventUIDs {
 		eventUID = strings.TrimSpace(eventUID)
 		if eventUID == "" {
@@ -124,6 +144,14 @@ func createEvidenceBundle(w http.ResponseWriter, r *http.Request, cfg *Config) {
 		}
 		event, err := cfg.EventStorage.GetEventV2(r.Context(), eventUID)
 		if err != nil {
+			if evidenceItem, ok := incidentEvidence[eventUID]; ok {
+				events = append(events, evidenceItem)
+				continue
+			}
+			if strings.TrimSpace(request.IncidentID) != "" {
+				unresolved = append(unresolved, eventUID)
+				continue
+			}
 			writeJSONError(w, http.StatusBadRequest, "evidence_event_not_found", "event not found: "+eventUID)
 			return
 		}
@@ -148,6 +176,9 @@ func createEvidenceBundle(w http.ResponseWriter, r *http.Request, cfg *Config) {
 	}
 	payload["events"] = events
 	payload["artifacts"] = artifacts
+	if len(unresolved) > 0 {
+		payload["unresolved_event_uids"] = unresolved
+	}
 	encoded, err := json.Marshal(payload)
 	if err != nil {
 		writeJSONError(w, http.StatusInternalServerError, "evidence_bundle_encode_failed", err.Error())

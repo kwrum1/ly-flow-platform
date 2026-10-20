@@ -64,7 +64,7 @@
         <article class="sx-metric">
           <span class="sx-metric-label"><i />处置队列</span>
           <strong class="sx-metric-value warning">{{ formatNumber(openIncidentCount) }}</strong>
-          <span class="sx-metric-note">待分诊 / 处理中的 Incident</span>
+          <span class="sx-metric-note">最近 {{ normalizedIncidents.length }} 条样本中的待处置</span>
         </article>
         <article class="sx-metric">
           <span class="sx-metric-label"><i />资产覆盖</span>
@@ -452,8 +452,15 @@ function buildTrendRows(items) {
 }
 
 function renderTrend() {
-  if (!trendElement.value || !trendRows.value.length) return
-  if (!trendChart) trendChart = echarts.init(trendElement.value)
+  if (!trendElement.value || !trendRows.value.length) {
+    trendChart?.dispose()
+    trendChart = null
+    return
+  }
+  if (!trendChart || trendChart.getDom() !== trendElement.value) {
+    trendChart?.dispose()
+    trendChart = echarts.init(trendElement.value)
+  }
   const styles = getComputedStyle(document.documentElement)
   const text = styles.getPropertyValue('--sx-text-3').trim() || '#8493a6'
   const line = styles.getPropertyValue('--sx-line-soft').trim() || '#e8eef6'
@@ -478,8 +485,15 @@ function renderTrend() {
 }
 
 function renderSeverity() {
-  if (!severityElement.value || !severityRows.value.length) return
-  if (!severityChart) severityChart = echarts.init(severityElement.value)
+  if (!severityElement.value || !severityRows.value.length) {
+    severityChart?.dispose()
+    severityChart = null
+    return
+  }
+  if (!severityChart || severityChart.getDom() !== severityElement.value) {
+    severityChart?.dispose()
+    severityChart = echarts.init(severityElement.value)
+  }
   const styles = getComputedStyle(document.documentElement)
   const text = styles.getPropertyValue('--sx-text-3').trim() || '#8493a6'
   severityChart.setOption({
