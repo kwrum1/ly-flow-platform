@@ -32,7 +32,7 @@ func nativeEngineRulesHandler(cfg *Config) http.HandlerFunc {
 		items := loadNativeEngineRules(cfg)
 		items = mergeDetectionRules(r.Context(), cfg, items)
 		overrides := loadRuleOverrides()
-		counts := map[string]int{"suricata": 0, "wazuh": 0, "yara": 0, "rasp": 0}
+		counts := map[string]int{"suricata": 0, "wazuh": 0, "yara": 0, "rasp": 0, "lyprobe": 0}
 		filtered := make([]map[string]interface{}, 0, len(items))
 		for _, item := range items {
 			applyNativeRuleOverride(item, overrides)
@@ -77,7 +77,7 @@ func nativeEngineRulesUpdateHandler(cfg *Config) http.HandlerFunc {
 			return
 		}
 		items := loadNativeEngineRules(cfg)
-		counts := map[string]int{"suricata": 0, "wazuh": 0, "yara": 0, "rasp": 0}
+		counts := map[string]int{"suricata": 0, "wazuh": 0, "yara": 0, "rasp": 0, "lyprobe": 0}
 		for _, item := range items {
 			counts[asString(item["engine"])]++
 		}
@@ -133,6 +133,19 @@ func nativeEngineStatusHandler(cfg *Config) http.HandlerFunc {
 		trafficRuntime["rule_file_count"] = trafficCount.RuleFileCount
 		trafficRuntime["count_source"] = trafficCount.Source
 		trafficRuntime["ledger_digest"] = trafficCount.LedgerDigest
+		ruleRoot := firstNonEmpty(os.Getenv("ENGINE_RULE_ROOT"), "rules")
+		lyprobeRules := loadLyprobeRules(filepath.Join(ruleRoot, "lyprobe", "threat.json"))
+		engines["lyprobe"] = map[string]interface{}{
+			"installed":        len(lyprobeRules) > 0,
+			"running":          false,
+			"status":           "rules_loaded",
+			"probe":            "lyprobe",
+			"transport":        "netflow-v9",
+			"rule_count":       len(lyprobeRules),
+			"rule_pack_version": lyprobeManifestVersion(filepath.Join(ruleRoot, "lyprobe", "manifest.json")),
+			"count_source":     filepath.Join(ruleRoot, "lyprobe", "threat.json"),
+			"note":             "ET Open 子集由 rulecompiler 生成；NetFlow v9 证据链",
+		}
 		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": status})
 	}
 }
@@ -145,6 +158,7 @@ func loadNativeEngineRules(cfg *Config) []map[string]interface{} {
 	items = append(items, scanRuleFiles("wazuh", filepath.Join("third_party", "security-engines", "wazuh", "ruleset"), []string{".xml", ".yml", ".yaml"}, parseWazuhRule)...)
 	items = append(items, scanRuleFiles("yara", filepath.Join(root, "yara"), []string{".yar", ".yara"}, parseYARARule)...)
 	items = append(items, scanRuleFiles("rasp", filepath.Join(root, "rasp"), []string{".json", ".yaml", ".yml", ".js"}, parseRASPRule)...)
+	items = append(items, loadLyprobeRules(filepath.Join(root, "lyprobe", "threat.json"))...)
 	if len(items) == 0 && root != "rules" {
 		items = append(items, loadNativeEngineRules(&Config{})...)
 	}
@@ -300,4 +314,63 @@ func between(s, start, end string) string {
 		}
 	}
 	return strings.TrimSpace(s)
+}
+
+// loadLyprobeRules exposes the generated ly_probe threat bundle to the rule
+// inventory. The bundle is produced by server/cmd/rulecompiler from the
+// conservative Suricata subset in rules/lyprobe/source, so this is a real
+// installed rule set rather than a placeholder.
+func loadLyprobeRules(path string) []map[string]interface{} {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	var bundle struct {
+		Threat struct {
+			Rules map[string]map[string]interface{} `json:"rules"`
+		} `json:"threat"`
+	}
+	if err := json.Unmarshal(data, &bundle); err != nil {
+		return nil
+	}
+	items := make([]map[string]interface{}, 0, len(bundle.Threat.Rules))
+	for id, rule := range bundle.Threat.Rules {
+		ruleType := strings.ToUpper(asString(rule["type"]))
+		severity := "medium"
+		switch ruleType {
+		case "MALWARE", "TROJAN", "C2", "EXPLOIT":
+			severity = "high"
+		case "WEB", "SCAN":
+			severity = "medium"
+		}
+		items = append(items, map[string]interface{}{
+			"id":          id,
+			"name":        firstNonEmpty(asString(rule["name"]), asString(rule["desc"]), id),
+			"enabled":     true,
+			"severity":    severity,
+			"engine":      "lyprobe",
+			"path":        path,
+			"line":        0,
+			"native_type": "lyprobe_threat",
+			"source_id":   "et-open-lyprobe",
+			"rule_type":   ruleType,
+			"protocol":    asString(rule["protocol"]),
+			"regex":       asString(rule["regex"]),
+		})
+	}
+	return items
+}
+
+func lyprobeManifestVersion(path string) string {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "lyprobe-local"
+	}
+	var manifest struct {
+		GeneratedAt string `json:"generated_at"`
+	}
+	if err := json.Unmarshal(data, &manifest); err != nil || strings.TrimSpace(manifest.GeneratedAt) == "" {
+		return "lyprobe-local"
+	}
+	return manifest.GeneratedAt
 }

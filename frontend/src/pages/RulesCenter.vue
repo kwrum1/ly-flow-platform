@@ -215,7 +215,8 @@ const engineDefinitions = {
   wazuh: { label: 'Wazuh', short: 'WA', order: 2 },
   yara: { label: 'YARA', short: 'YA', order: 3 },
   rasp: { label: 'OpenRASP', short: 'RA', order: 4 },
-  dpi: { label: 'DPI Engine', short: 'DP', order: 5 },
+  lyprobe: { label: 'LyFlow 探针规则', short: 'LP', order: 5 },
+  dpi: { label: 'DPI Engine', short: 'DP', order: 6 },
 }
 const sourceAliases = {
   'suricata-et-open': 'et-open-connector',
@@ -310,17 +311,20 @@ const engineRows = computed(() => {
     const ruleCount = Number(counts.value?.[key] ?? runtimeInfo.rule_count ?? runtimeInfo.signature_count ?? 0)
     const rulePack = firstText(healthRows[0]?.rule_pack_version, runtimeInfo.rule_pack_version, runtimeInfo.bundle_version, '未上报')
     const sourceCount = allUpstreamSources.value.filter((source) => source.engine === key).length
+    const isProbe = key === 'lyprobe'
     rows.push(makeEngineRow({
       key,
       running,
       ruleCount,
       rulePack,
       instances: healthRows.length,
-      note: healthRows.length
-        ? `${healthRows[0]?.hostname || healthRows[0]?.agent_id || '本机'} · ${firstText(healthRows[0]?.version, '版本未上报')}`
-        : '规则已加载 · 未收到引擎心跳',
-      sourceCount,
-      updatableCount: sourceCount,
+      note: isProbe
+        ? 'ET Open 子集 · rulecompiler 生成 · NetFlow v9 证据链'
+        : healthRows.length
+          ? `${healthRows[0]?.hostname || healthRows[0]?.agent_id || '本机'} · ${firstText(healthRows[0]?.version, '版本未上报')}`
+          : '规则已加载 · 未收到引擎心跳',
+      sourceCount: isProbe ? 1 : sourceCount,
+      updatableCount: isProbe ? 0 : sourceCount,
     }))
   }
   return rows.sort((a, b) => a.order - b.order)
@@ -374,6 +378,7 @@ function engineForSource(source) {
   const category = String(source?.category || '').toLowerCase()
   const text = `${source?.source_id || ''} ${source?.name || ''} ${source?.vendor || ''}`.toLowerCase()
   if (text.includes('yara')) return 'yara'
+  if (text.includes('lyprobe') || text.includes('ly_probe')) return 'lyprobe'
   if (text.includes('openrasp') || text.includes('rasp') || text.includes('coreruleset') || text.includes('owasp')) return 'rasp'
   if (category === 'traffic' || category === 'dpi') return 'suricata'
   if (category === 'rasp') return 'rasp'
