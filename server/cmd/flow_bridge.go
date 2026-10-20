@@ -21,7 +21,10 @@ func (c *ConsumerState) runFlowBridge() {
 	const group = "flow-bridge"
 	const consumer = "flow-bridge"
 	for {
-		err := c.cfg.Redis.XGroupCreateMkStream(ctx, "flows:raw", group, "0").Err()
+		// Start at the tail: raw flows are high-volume, and replaying a large
+		// historical backlog would delay live sessions. New probe flows are
+		// bridged immediately.
+		err := c.cfg.Redis.XGroupCreateMkStream(ctx, "flows:raw", group, "$").Err()
 		if err == nil || strings.Contains(strings.ToUpper(err.Error()), "BUSYGROUP") {
 			break
 		}
