@@ -19,7 +19,7 @@
         <div class="sidebar-head">
           <div><b>Incident</b><span>{{ formatNumber(incidentTotal) }} 条</span></div>
           <div class="sidebar-filters">
-            <select v-model="statusFilter" class="sx-select">
+            <select v-model="statusFilter" class="sx-select" @change="applyIncidentFilters">
               <option value="">全部状态</option>
               <option value="open">新发</option>
               <option value="triaged">已分诊</option>
@@ -27,7 +27,7 @@
               <option value="resolved">已解决</option>
               <option value="closed">已关闭</option>
             </select>
-            <select v-model="severityFilter" class="sx-select">
+            <select v-model="severityFilter" class="sx-select" @change="applyIncidentFilters">
               <option value="">全部等级</option>
               <option value="critical">严重</option>
               <option value="high">高危</option>
@@ -310,7 +310,10 @@ async function loadIncidents(options = {}) {
   error.value = ''
   try {
     const offset = (incidentPage.value - 1) * PAGE_SIZE
-    const data = unwrap(await attackWorkbenchClient.incidents({ limit: PAGE_SIZE, offset, live: options.live ? 1 : 0 }))
+    const params = { limit: PAGE_SIZE, offset, live: options.live ? 1 : 0 }
+    if (statusFilter.value) params.status = statusFilter.value
+    if (severityFilter.value) params.severity = severityFilter.value
+    const data = unwrap(await attackWorkbenchClient.incidents(params))
     incidents.value = normalizeIncidents(Array.isArray(data.items) ? data.items : [])
     incidentTotal.value = Number(data.total ?? incidents.value.length) || incidents.value.length
     const wanted = String(route.query.id || '')
@@ -327,6 +330,11 @@ function changeIncidentPage(delta) {
   const next = incidentPage.value + delta
   if (next < 1 || next > incidentPages.value) return
   incidentPage.value = next
+  loadIncidents()
+}
+
+function applyIncidentFilters() {
+  incidentPage.value = 1
   loadIncidents()
 }
 

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -34,17 +35,34 @@ func (store *PostgresStore) Get(ctx context.Context, id string) (Incident, error
 }
 
 func (store *PostgresStore) List(ctx context.Context, limit, offset int) ([]Incident, int, error) {
+	return store.ListFiltered(ctx, limit, offset, "", "")
+}
+
+func (store *PostgresStore) ListFiltered(ctx context.Context, limit, offset int, status, severity string) ([]Incident, int, error) {
 	if limit <= 0 {
 		limit = 50
 	}
 	if offset < 0 {
 		offset = 0
 	}
+	conditions := []string{"1=1"}
+	args := make([]interface{}, 0, 4)
+	if Status(strings.TrimSpace(status)).Valid() {
+		args = append(args, strings.TrimSpace(status))
+		conditions = append(conditions, fmt.Sprintf("status=$%d", len(args)))
+	}
+	if severity = strings.ToLower(strings.TrimSpace(severity)); severity == "critical" || severity == "high" || severity == "medium" || severity == "low" {
+		args = append(args, severity)
+		conditions = append(conditions, fmt.Sprintf("severity=$%d", len(args)))
+	}
+	where := " WHERE " + strings.Join(conditions, " AND ")
 	var total int
-	if err := store.pool.QueryRow(ctx, `SELECT COUNT(*) FROM incidents`).Scan(&total); err != nil {
+	if err := store.pool.QueryRow(ctx, `SELECT COUNT(*) FROM incidents`+where, args...).Scan(&total); err != nil {
 		return nil, 0, fmt.Errorf("count incidents: %w", err)
 	}
-	rows, err := store.pool.Query(ctx, `SELECT `+incidentColumns+` FROM incidents ORDER BY last_seen DESC,id LIMIT $1 OFFSET $2`, limit, offset)
+	args = append(args, limit, offset)
+	rows, err := store.pool.Query(ctx, `SELECT `+incidentColumns+` FROM incidents`+where+
+		fmt.Sprintf(" ORDER BY last_seen DESC,id LIMIT $%d OFFSET $%d", len(args)-1, len(args)), args...)
 	if err != nil {
 		return nil, 0, fmt.Errorf("list incidents: %w", err)
 	}

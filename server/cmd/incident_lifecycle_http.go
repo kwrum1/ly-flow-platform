@@ -58,7 +58,8 @@ func incidentsHandler(cfg *Config) http.HandlerFunc {
 				return
 			}
 		}
-		persisted, total, err := cfg.Incidents.List(r.Context(), limit, offset)
+		persisted, total, err := cfg.Incidents.ListFiltered(r.Context(), limit, offset,
+			r.URL.Query().Get("status"), r.URL.Query().Get("severity"))
 		if err != nil {
 			writeJSONError(w, http.StatusServiceUnavailable, "incident_load_failed", err.Error())
 			return
