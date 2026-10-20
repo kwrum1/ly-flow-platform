@@ -154,7 +154,11 @@ func uintValue(value []byte) int64 {
 func ipValue(value []byte) string {
 	switch len(value) {
 	case 4, 16:
-		return net.IP(value).String()
+		ip := net.IP(value)
+		if ip.IsUnspecified() {
+			return ""
+		}
+		return ip.String()
 	default:
 		return ""
 	}

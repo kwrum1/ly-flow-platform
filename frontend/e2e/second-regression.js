@@ -45,7 +45,7 @@ async function main() {
     page.on('console', (message) => { if (message.type() === 'error') errors.push(`console: ${message.text()}`) })
     page.on('pageerror', (error) => errors.push(`pageerror: ${String(error)}`))
     page.on('response', (response) => {
-      if (response.status() >= 400 && !response.url().includes('/api/v1/events/does-not-exist')) {
+      if (response.status() >= 400 && !response.url().includes('/api/v1/events/does-not-exist') && !response.url().includes('/api/v2/events/does-not-exist')) {
         errors.push(`http ${response.status()} ${response.url()}`)
       }
     })
@@ -105,11 +105,14 @@ async function main() {
       await incidentLink.click()
       await page.waitForTimeout(2500)
     }
+    const incidentFullText = await page.locator('body').innerText()
     result.checks.incidentDetail = {
       url: page.url(),
       elapsedMs: Date.now() - started,
       detailRequests: detailRequests.slice(),
-      bodyText: (await page.locator('body').innerText()).slice(0, 1500),
+      hasTimeline: incidentFullText.includes('阶段时间线'),
+      hasEvidence: incidentFullText.includes('证据包'),
+      bodyText: incidentFullText.slice(0, 1500),
     }
     page.off('request', onDetail)
     await page.screenshot({ path: path.join(evidenceDir, 'incident-detail.png'), fullPage: true })
@@ -143,6 +146,7 @@ async function main() {
       if (name === 'missingEvent') return !value.hasNotFound
       if (name === 'rules') return !value.hasProbeEngine || value.stillLoadingSources
       if (name === 'response') return value.hasCreateResponse
+      if (name === 'incidentDetail') return !value.hasTimeline || value.detailRequests.length > 1
       return false
     })
     if (failed) process.exitCode = 2

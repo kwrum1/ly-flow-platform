@@ -16,8 +16,8 @@
         </div>
         <div class="source-head-meta">
           <span v-if="runtimeStatusWarning" class="source-warning">引擎运行时状态暂不可用，规则与来源仍按本地清单展示</span>
-          <span v-if="sourceLoading">正在读取实装引擎与上游…</span>
-          <span v-else>{{ engineRows.length }} 个实装引擎 · {{ upstreamRows.length }} 个可更新上游 · {{ formatCount(totalNativeCount) }} 条原生规则</span>
+          <span v-if="sourceLoading">正在读取实装引擎…</span>
+          <span v-else>{{ engineRows.length }} 个实装引擎 · {{ upstreamLoading ? '读取上游…' : `${upstreamRows.length} 个可更新上游` }} · {{ formatCount(totalNativeCount) }} 条原生规则</span>
         </div>
       </div>
 
@@ -43,8 +43,8 @@
           </div>
           <div class="engine-source-facts">
             <div><span>规则</span><b>{{ formatCount(engine.ruleCount) }}</b></div>
-            <div><span>上游</span><b>{{ engine.sourceCount }}</b></div>
-            <div><span>可更新</span><b>{{ engine.updatableCount }}</b></div>
+            <div><span>上游</span><b>{{ upstreamLoading ? '读取中' : engine.sourceCount }}</b></div>
+            <div><span>可更新</span><b>{{ upstreamLoading ? '读取中' : engine.updatableCount }}</b></div>
             <div><span>规则包</span><b :title="engine.rulePack">{{ engine.rulePack }}</b></div>
           </div>
           <p class="engine-source-note">{{ engine.note }}</p>

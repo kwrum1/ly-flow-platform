@@ -95,7 +95,28 @@ func TestDecodeV9LyprobeThreatFields(t *testing.T) {
 	}
 }
 
-func TestDecodeV9RejectsNonV9(t *testing.T) {
+func TestDecodeV9RejectsUnspecifiedAddresses(t *testing.T) {
+	templates := map[string]Template{}
+	packet := append(netflowHeader(), lyprobeTemplateSet()...)
+	if _, err := DecodeV9(packet, templates, "127.0.0.1"); err != nil {
+		t.Fatalf("template decode: %v", err)
+	}
+	record := lyprobeDataRecord()
+	copy(record[1:5], []byte{0, 0, 0, 0})
+	copy(record[5:9], []byte{0, 0, 0, 0})
+	data := appendU16(nil, 0x0101)
+	data = appendU16(data, uint16(len(record)+4))
+	data = append(data, record...)
+	packet = append(netflowHeader(), data...)
+	records, err := DecodeV9(packet, templates, "127.0.0.1")
+	if err != nil {
+		t.Fatalf("data decode: %v", err)
+	}
+	if len(records) != 0 {
+		t.Fatalf("records = %d, want 0 for unspecified addresses", len(records))
+	}
+}
+
 	if _, err := DecodeV9(make([]byte, 20), nil, "127.0.0.1"); err == nil {
 		t.Fatal("expected non-v9 payload to be rejected")
 	}
