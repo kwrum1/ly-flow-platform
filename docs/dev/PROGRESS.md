@@ -780,3 +780,9 @@
   L3 仍保持人工审批。
 - 前端 typecheck、115 测试、生产构建通过；响应页和 Incident 页浏览器功能检查
   无 console/page error。
+- 总览各数据块增加独立 ready 状态，XDR 态势/事件/引擎/资产未返回时显示加载态，
+  不再把未加载显示为 0 或低风险；趋势和严重度图在对应数据到达后重绘。
+- 响应动作历史区分自动策略批准与人工审批；L3 file_delete 实测仍进入 pending_approval，
+  由 approver 审批后执行，auto_approved=false。
+- 最终 G5 功能校验：总览 9s 内全部数据就绪；响应页表单只剩 Agent/动作/说明；
+  Incident 状态 open→triaged→open 无错误；无 console/page error。
