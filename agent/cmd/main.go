@@ -426,10 +426,9 @@ func trafficRuntimeDependencyStatus(lastError string) map[string]interface{} {
 		"pcap_runtime": "ready",
 		"message":      "",
 	}
-	errorText := strings.ToLower(strings.TrimSpace(lastError))
-	if strings.Contains(errorText, "wpcap.dll") || strings.Contains(errorText, "packet.dll") || strings.Contains(errorText, "npcap") || strings.Contains(errorText, "winpcap") {
-		status["pcap_runtime"] = "missing"
-		status["message"] = "Npcap/WinPcap runtime is missing; install Npcap with WinPcap-compatible API to enable Windows packet capture"
+	if strings.TrimSpace(lastError) != "" {
+		status["pcap_runtime"] = "unavailable"
+		status["message"] = "packet capture runtime is unavailable"
 	}
 	return status
 }
@@ -1074,11 +1073,8 @@ func (a *Agent) trafficCaptureEnabledOnCurrentInterface(interfaceName string) bo
 func selectCaptureEngine(configured string) string {
 	switch strings.ToLower(strings.TrimSpace(configured)) {
 	case "", "auto", "af_packet", "afpacket":
-		if runtime.GOOS == "windows" {
-			return "pcap"
-		}
 		return "af_packet"
-	case "pcap", "npcap", "winpcap":
+	case "pcap":
 		return "pcap"
 	case "ebpf", "socket_filter", "bpf":
 		return "ebpf"
@@ -1120,11 +1116,9 @@ func resolveCaptureCapability(requested string) captureCapability {
 		capability.Status = "fallback"
 		capability.FallbackReason = "packet_capture_disabled_or_unavailable"
 	case "pcap":
-		if runtime.GOOS != "windows" {
-			capability.ActiveEngine = "af_packet"
-			capability.Status = "fallback"
-			capability.FallbackReason = "pcap_reserved_for_windows_agent"
-		}
+		capability.ActiveEngine = "af_packet"
+		capability.Status = "fallback"
+		capability.FallbackReason = "pcap_capture_unsupported"
 	}
 	return capability
 }
@@ -3550,10 +3544,6 @@ func resolveTrafficInterface(cfg *Config) string {
 	if strings.EqualFold(strings.TrimSpace(cfg.Mode), "local-mirror") || strings.EqualFold(strings.TrimSpace(cfg.Mode), "local_mirror") || strings.EqualFold(strings.TrimSpace(cfg.Mode), "mirror") {
 		return ""
 	}
-	if runtime.GOOS == "windows" {
-		return "auto"
-	}
-
 	if resolved, err := defaultRouteInterface(); err == nil && resolved != "" {
 		return resolved
 	}

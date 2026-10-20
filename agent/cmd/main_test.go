@@ -10,7 +10,6 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -221,7 +220,6 @@ func TestSelectCaptureEngine(t *testing.T) {
 		{"auto", defaultCaptureEngineForTest()},
 		{"afpacket", "af_packet"},
 		{"pcap", "pcap"},
-		{"npcap", "pcap"},
 		{"ebpf", "ebpf"},
 		{"pf_ring", "pfring"},
 		{"procfs", "procfs"},
@@ -267,9 +265,6 @@ func TestObservationFromEthernetPacketKeepsICMP(t *testing.T) {
 }
 
 func defaultCaptureEngineForTest() string {
-	if runtime.GOOS == "windows" {
-		return "pcap"
-	}
 	return "af_packet"
 }
 
@@ -293,6 +288,7 @@ func TestResolveCaptureCapabilityIsHonestAboutFallbacks(t *testing.T) {
 		{"ebpf falls back", "ebpf", "af_packet", "fallback", false},
 		{"pfring capability follows appliance build and kernel module", "pfring", pfringActiveEngine, pfringStatus, pfringReasonEmpty},
 		{"procfs fallback", "procfs", "procfs", "fallback", false},
+		{"pcap unsupported", "pcap", "af_packet", "fallback", false},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

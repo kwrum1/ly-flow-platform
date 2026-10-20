@@ -153,7 +153,6 @@ LyFlow 是一个**单机、容器化、主动防御型 NDR/XDR 态势感知平�
 | 热数据 | 30 天（ClickHouse） |
 | 冷数据 | 180 天（对象存储/外部盘） |
 | OS | 现代 Linux（容器化），不要求 CentOS 7 / 3.10 |
-| Windows | Windows 10 / Server 2016+（Wazuh + Sysmon） |
 | 高可用 | 本版本不做 |
 | 多租户 | 本版本不做 |
 
@@ -192,7 +191,6 @@ LyFlow 是一个**单机、容器化、主动防御型 NDR/XDR 态势感知平�
 | 流量协处理 | Suricata 7 | GPLv2 | 签名 IDS、Web/Exploit 规则 | 是 |
 | 采集/缓冲 | Vector | MPL-2.0 | EVE/NetFlow/JSON 采集与路由 | 是 |
 | Linux Agent | Elkeid Agent + Driver | Apache-2.0 / GPLv2 | eBPF/LKM、日志、YARA、RASP 底座 | 是 |
-| Windows Agent | Wazuh Agent + Sysmon | GPLv2 | 日志、FIM、ETW、主动响应 | 是 |
 | 日志/响应 | Wazuh Manager | GPLv2 | 解码、规则、Agent 管理、主动响应 | 是 |
 | RASP Java/PHP | OpenRASP | Apache-2.0 | 运行时防护 | 是 |
 | RASP Python/Go/Node | Elkeid RASP | Apache-2.0 | 运行时防护 | 是 |
@@ -477,7 +475,7 @@ Impact
 | ly_probe 原生指纹 | 资产/协议/威胁 | ly_probe | 随版本 | 核心 |
 | ET Open | Web/Exploit/Malware/C2 | Suricata | 每日 | 核心 |
 | OISF Traffic ID | 应用识别 | Suricata | 每日 | 可选 |
-| Wazuh Ruleset | 日志/Windows/认证 | Wazuh | 随版本 | 核心 |
+| Wazuh Ruleset | 日志/认证 | Wazuh | 随版本 | 核心 |
 | OpenRASP 官方插件 | Java/PHP RASP | OpenRASP | 自动同步 | 核心 |
 | OWASP CRS | HTTP 攻击/虚拟补丁 | Suricata/ly_probe/RASP | 每周 | 核心 |
 | Nuclei templates | CVE PoC/虚拟补丁 | 转换 | 每日 | 核心（选择性） |
@@ -533,8 +531,7 @@ ly-agent (Go supervisor)
 ├─ transport: mTLS + 本地加密 spool + 背压
 ├─ host-core
 │   ├─ Linux: Elkeid Agent + Driver
-│   └─ Windows: Wazuh Agent + Sysmon
-├─ collect: journald/auditd/syslog/Event Log/ETW
+├─ collect: journald/auditd/syslog
 ├─ scan: YARA / ClamAV（可选）
 ├─ rasp
 │   ├─ Java/PHP: OpenRASP
@@ -548,7 +545,6 @@ ly-agent (Go supervisor)
 | 平台 | Host 核心 | 日志 | RASP | 响应 |
 |---|---|---|---|---|
 | Linux | Elkeid Agent + Driver | journald/auditd | OpenRASP（Java/PHP）+ Elkeid（Python/Go/Node） | Elkeid task + 脚本 |
-| Windows | Wazuh Agent + Sysmon | Event Log/ETW | OpenRASP（Java，如适用） | Wazuh active response |
 
 ### 8.3 RASP 规则
 
@@ -559,7 +555,7 @@ ly-agent (Go supervisor)
 
 ### 8.4 安装与自检
 
-- 安装前：权限、端口、磁盘、时间同步、SELinux/防火墙、Npcap、内核/BTF。
+- 安装前：权限、端口、磁盘、时间同步、SELinux/防火墙、内核/BTF。
 - 安装中：幂等、失败回滚、日志落盘。
 - 安装后：心跳、采集、规则加载、上报连通性自检。
 - 诊断包：配置、日志、抓包统计、连通性。
@@ -1004,16 +1000,7 @@ deploy/compose/observability.yml 可选
 
 #### T3.3 Windows Wazuh 集成（CANCELLED）
 - 2026-10-19 用户决策：放弃 Windows 端，不再构建/下载/安装 Windows Agent。
-- 以下内容仅保留为历史设计记录，不再作为验收项。
-- 目标：Wazuh + Sysmon。
-- 涉及文件：`agent/supervisor/providers/wazuh/`。
-- 步骤：
-  1. 安装包/注册/组策略。
-  2. 事件转 v2。
-  3. 主动响应脚本。
-- 测试：Windows 10/Server 2016+。
-- 验收：登录/进程/网络事件可见。
-- 不要做：不要依赖未签名驱动。
+- 本节仅保留历史记录，不再包含设计、测试或验收项。
 
 #### T3.4 OpenRASP Java/PHP
 - 目标：Java/PHP RASP 接入。
@@ -1052,7 +1039,7 @@ deploy/compose/observability.yml 可选
 - 目标：安装前检查、幂等、自检、诊断包。
 - 涉及文件：`agent/installer/`、`scripts/`。
 - 步骤：
-  1. 预检（权限/端口/磁盘/时间/内核/Npcap）。
+  1. 预检（权限/端口/磁盘/时间/内核）。
   2. 失败回滚。
   3. 自检报告。
 - 测试：干净机/断网/权限不足。

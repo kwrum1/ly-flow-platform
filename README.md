@@ -31,7 +31,7 @@
 ## 当前能力
 
 - 本机镜像流量：AMD64 使用 PF_RING，Suricata 与统一安全引擎完成流量审计；lyprobe 通过 NetFlow v9 输出可追踪的流量证据。
-- 主机 Agent：Linux AMD64/ARM64、Windows AMD64；Linux 使用 AF_PACKET，可独立开关流量采集。
+- 主机 Agent：Linux AMD64/ARM64；使用 AF_PACKET，可独立开关流量采集。
 - 主机审计：日志、Runtime、YARA 文件扫描、Python RASP；进程采集优先 eBPF，回退 auditd，最后回退 procfs；Java RASP 仍为实验能力。
 - 数据存储：PostgreSQL 保存账号、资产、规则、告警和处置状态；ClickHouse 保存长期会话与分析事件；Redis 只承担实时事件总线和短期缓冲。
 - XDR：多源事件按实体、时间和 ATT&CK 阶段关联，只有关联链生成 Incident。
@@ -141,7 +141,7 @@ ARM64 服务器只需将第一行改为对应的 `lyflow-server-arm64.tar.gz`。
 
 使用直接安装到宿主机的 Agent，不要求 Docker。Linux Agent 以静态二进制构建，面向现代 Linux（Ubuntu 22.04+/Debian 12+/RHEL 9+）；抓包使用 AF_PACKET/PF_RING，运行监控在旧内核回退到 auditd。容器 Agent 只用于自动化测试。
 
-Agent 安装、卸载和 Windows/Npcap 下载入口由控制台“安装配置”页面提供。Npcap 单独分发，不集成到 Windows Agent 包中。
+Agent 安装、卸载和一键安装命令由控制台“安装配置”页面提供，当前仅支持 Linux AMD64/ARM64。
 
 ## 正式发布
 

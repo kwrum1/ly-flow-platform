@@ -21,7 +21,6 @@ docker compose ps
 - 本机镜像口由控制中心选择，管理口不会出现在可选镜像口列表中。
 - 本机高流量镜像使用 PF_RING。
 - Linux Agent 面向 CentOS 7 / Linux 3.10，使用 AF_PACKET，并承担 RASP、runtime、日志、YARA 和小流量采集。
-- Windows Agent 使用单文件包；Npcap 作为独立依赖下载安装。
 
 ## 规则更新
 
