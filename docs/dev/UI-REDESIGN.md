@@ -77,5 +77,9 @@
 - `npm test`（115 tests）
 - `npm run build`
 - Playwright 17 页生产验收：0 console / page / network / 4xx / 5xx
+- 全导航 16 页验收（含响应/证据/引擎健康）：0 console / page / network / 4xx / 5xx，
+  0 横向溢出；结果见 `/opt/lyflow/reports/G5/ui-redesign/validation-all.json`
+- Incident 首屏使用 `live=0` 读取持久状态，避免列表被活动图同步阻塞；刷新动作显式
+  触发 live 同步。
 - 截图证据：`/opt/lyflow/reports/G5/ui-redesign/`
 - 深色主题截图：`13-dashboard-dark.png`
