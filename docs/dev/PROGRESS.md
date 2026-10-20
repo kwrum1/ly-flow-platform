@@ -825,6 +825,6 @@
 - 验证：netflow 解码单测通过；`/traffic/flows` 可查到 lyprobe 流（含真实 bytes/packets），
   `/traffic/sessions` 可查到 lyprobe 会话；`/engine-rules?engine=lyprobe` 0.36s 返回 6 条；
   eBPF 事件在 `/component-alerts/runtime` 可见；前端 typecheck 与 115 项测试通过。
-- 已知限制：测试机 Docker 守护进程曾因容器重启循环卡住，已重启恢复；单击流会话的 PostgreSQL 持久化
-  仍受测试机历史会话积压影响，UI 会话查询当前以 Redis 语义流为准。
+- 已知限制：测试机 Docker 守护进程曾因容器重启循环卡住，已重启恢复。会话持久化在消费者追上积压后已验证：
+  `traffic_sessions` 中 lyprobe 记录 273 条，最新 observed_at 为 12:26；积压期间 Redis 语义流仍可查询。
 
