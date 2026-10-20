@@ -178,7 +178,7 @@ const engineHealthItems = ref([])
 const platformSourceItems = ref([])
 const platformVersionItems = ref([])
 const legacySourceItems = ref([])
-const activeBundle = ref({})
+const activeBundle = ref<Record<string, any>>({})
 const counts = ref({})
 const runtimeStatusWarning = ref(false)
 const total = ref(0)
@@ -365,11 +365,11 @@ function makeUpstreamSource({ platform, legacy, version, canonicalID }) {
 function engineForSource(source) {
   const category = String(source?.category || '').toLowerCase()
   const text = `${source?.source_id || ''} ${source?.name || ''} ${source?.vendor || ''}`.toLowerCase()
+  if (text.includes('yara')) return 'yara'
+  if (text.includes('openrasp') || text.includes('rasp') || text.includes('coreruleset') || text.includes('owasp')) return 'rasp'
   if (category === 'traffic' || category === 'dpi') return 'suricata'
   if (category === 'rasp') return 'rasp'
   if (category === 'runtime' || category === 'log_audit' || category === 'hids') return 'wazuh'
-  if (text.includes('yara')) return 'yara'
-  if (text.includes('openrasp') || text.includes('rasp') || text.includes('coreruleset') || text.includes('owasp')) return 'rasp'
   if (text.includes('wazuh') || text.includes('auditd') || text.includes('falco') || text.includes('sigma') || text.includes('elastic')) return 'wazuh'
   return 'suricata'
 }
