@@ -7,7 +7,7 @@ describe('流影运营导航', () => {
     expect(productNavigation[0].items.map((item) => item.label)).toEqual(['运营总览', '攻击链处置', '事件中心'])
     expect(productNavigation[1].items.map((item) => item.label)).toEqual(['流量威胁', 'XDR 调查', '运行威胁', '应用威胁', '全球态势'])
     expect(productNavigation[2].items.map((item) => item.label)).toEqual(['资产运维', '响应处置', '证据库'])
-    expect(productNavigation[3].items.map((item) => item.label)).toEqual(['规则中心', '引擎健康', '控制中心', '安装配置', '账户管理'])
+    expect(productNavigation[3].items.map((item) => item.label)).toEqual(['规则中心', '引擎健康', '平台设置', '安装配置', '账户管理'])
   })
 
   it('所有导航文案都是中文自然语言且不暴露内部占位文案', () => {
