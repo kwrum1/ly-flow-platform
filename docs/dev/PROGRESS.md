@@ -828,3 +828,12 @@
 - 已知限制：测试机 Docker 守护进程曾因容器重启循环卡住，已重启恢复。会话持久化在消费者追上积压后已验证：
   `traffic_sessions` 中 lyprobe 记录 273 条，最新 observed_at 为 12:26；积压期间 Redis 语义流仍可查询。
 
+
+## 2026-10-20 二次功能回归与联调修复
+
+- 二次回归覆盖 17 个页面/视口：全部 HTTP 200、横向溢出 0、console/page error 0、异常请求 0。
+- 修复规则中心慢源接口阻塞引擎卡、规则总数与清单口径不一致、6 卡布局、探针/运行时来源展示。
+- 流量观测新增 lyprobe 探针筛选，支持检索真实 NetFlow 证据；NetFlow 丢弃 unspecified 地址。
+- 运行威胁页显示 eBPF/auditd/日志审计来源；lyprobe 引擎状态改为基于最近 5 分钟 flows:raw 心跳。
+- 规则源目录增加 30s 进程内缓存；冷请求仍较慢，作为后续性能项。
+- 回归报告：`docs/dev/REGRESSION-2026-10-20.md`；证据：`/opt/lyflow/reports/G5/regression-2026-10-20/`。

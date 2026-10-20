@@ -83,3 +83,6 @@
 
 > 2026-10-20：lyprobe NetFlow v9 collector、flows/sessions 证据链、规则中心 lyprobe 引擎与 eBPF→auditd→procfs
 > 进程采集已实现并验证；T4.3/T4.4 继续保留 REVIEW，待 clean VM 安装/回滚验收。
+
+> 2026-10-20 二次回归：17 页面 UI 巡检与定向回归通过；规则中心/流量观测/eBPF 来源/NetFlow 地址过滤已修复。
+> 剩余 R1 规则源冷启动、R2 Incident 冷启动为性能优化项。
