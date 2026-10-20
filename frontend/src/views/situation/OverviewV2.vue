@@ -116,7 +116,7 @@
         <article class="sx-panel severity-panel">
           <div class="sx-panel-head">
             <div class="sx-panel-title">告警等级构成</div>
-            <span class="sx-panel-meta">全部告警</span>
+            <span class="sx-panel-meta">有等级告警</span>
           </div>
           <div class="sx-panel-body severity-body">
             <div v-if="severityTotal" ref="severityElement" class="chart-box severity-chart" />
@@ -306,7 +306,8 @@ const postureNote = computed(() => {
 const highRiskNote = computed(() => {
   const total = Number(unified.value.total_alerts || unified.value.total_events || 0)
   if (!total) return '等待统一告警聚合'
-  return `占全部告警 ${Math.round((highRiskCount.value / total) * 100)}% · 建议优先研判`
+  const ratio = (highRiskCount.value / total) * 100
+  return `占全部告警 ${ratio > 0 && ratio < 0.1 ? '<0.1' : ratio.toFixed(1)}% · 建议优先研判`
 })
 const openIncidentCount = computed(() => normalizedIncidents.value.filter((item) => ['new', 'open', 'triaged', 'processing'].includes(item.status)).length || incidentTotal.value)
 const incidentSampleLabel = computed(() => `${normalizedIncidents.value.length} 条样本`)
@@ -495,7 +496,7 @@ function renderSeverity() {
     }],
     graphic: [
       { type: 'text', left: 'center', top: '42%', style: { text: severityTotal.value.toLocaleString('zh-CN'), fill: styles.getPropertyValue('--sx-text').trim() || '#17283d', fontSize: 18, fontWeight: 750, textAlign: 'center' } },
-      { type: 'text', left: 'center', top: '56%', style: { text: '告警', fill: text, fontSize: 10, textAlign: 'center' } },
+      { type: 'text', left: 'center', top: '56%', style: { text: '有等级告警', fill: text, fontSize: 10, textAlign: 'center' } },
     ],
   }, true)
 }

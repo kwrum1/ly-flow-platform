@@ -200,7 +200,8 @@ function percent(value) {
 }
 
 function percentText(value) {
-  return Number.isFinite(Number(value)) ? `${percent(value).toFixed(1)}%` : '-'
+  const next = Number(value)
+  return Number.isFinite(next) ? `${next.toFixed(1)}%` : '-'
 }
 
 function formatNumber(value) {
