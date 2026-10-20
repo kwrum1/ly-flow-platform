@@ -18,6 +18,11 @@ describe('流影运营导航', () => {
     expect(text).not.toMatch(/TODO|mock|demo|placeholder|test/i)
   })
 
+  it('每个导航入口使用唯一路径', () => {
+    const paths = flattenNavigation().map((item) => item.path)
+    expect(new Set(paths).size).toBe(paths.length)
+  })
+
   it('管理员入口受角色控制', () => {
     for (const item of flattenNavigation()) {
       expect(canAccessNavigationItem(item, 'viewer')).toBe(false)
