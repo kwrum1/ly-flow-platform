@@ -72,7 +72,7 @@ const clickHouseEventsV2DDL = `CREATE TABLE IF NOT EXISTS lyflow_events_v2 (
 ) ENGINE = MergeTree()
 PARTITION BY toDate(event_at)
 ORDER BY (event_at, source, event_type, asset_id)
-TTL event_at + INTERVAL 30 DAY`
+TTL toDateTime(event_at) + INTERVAL 30 DAY`
 
 const clickHouseEventsV2IndexesDDL = `ALTER TABLE lyflow_events_v2
   ADD INDEX IF NOT EXISTS idx_event_uid event_uid TYPE bloom_filter(0.01) GRANULARITY 4,

@@ -12,7 +12,7 @@ func TestV2ClickHouseSchema(t *testing.T) {
 	if !strings.Contains(clickHouseEventsV2DDL, "PARTITION BY toDate(event_at)") {
 		t.Fatal("events v2 partition key missing")
 	}
-	if !strings.Contains(clickHouseEventsV2DDL, "TTL event_at + INTERVAL 30 DAY") {
+	if !strings.Contains(clickHouseEventsV2DDL, "TTL toDateTime(event_at) + INTERVAL 30 DAY") {
 		t.Fatal("events v2 TTL missing")
 	}
 	if !strings.Contains(clickHouseEvents1mDDL, "lyflow_events_1m") {
