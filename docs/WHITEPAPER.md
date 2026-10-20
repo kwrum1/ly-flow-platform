@@ -27,7 +27,7 @@ PostgreSQL 负责账号、资产、规则、告警、Incident 和审计等事务
 
 ### 采集分层
 
-服务端 AMD64 高流量镜像采集使用 PF_RING。Linux Agent 小流量采集使用 AF_PACKET，可由控制中心关闭；旧内核运行监控回退到 auditd。Windows 抓包依赖用户单独安装 Npcap。
+服务端 AMD64 高流量镜像采集使用 PF_RING。Linux Agent 小流量采集使用 AF_PACKET，可由控制中心关闭；旧内核运行监控回退到 auditd。
 
 ### 规则可运营
 
@@ -71,7 +71,7 @@ PostgreSQL 负责账号、资产、规则、告警、Incident 和审计等事务
 - `lyflow-server-amd64.tar.gz`
 - `lyflow-server-arm64.tar.gz`
 
-服务端包包含正式 Compose、应用镜像、数据库镜像、规则、双架构 Linux Agent、Windows Agent 和一键安装脚本。目标机需预装 Docker Engine 与 Compose Plugin。
+服务端包包含正式 Compose、应用镜像、数据库镜像、规则、双架构 Linux Agent 和一键安装脚本。目标机需预装 Docker Engine 与 Compose Plugin。
 
 ```bash
 tar -xzf lyflow-server-amd64.tar.gz

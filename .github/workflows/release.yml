@@ -79,14 +79,13 @@ jobs:
           set -euo pipefail
           export GOTOOLCHAIN=auto GOSUMDB=sum.golang.org GOPROXY=direct
           arch="${LYFLOW_TARGET_ARCH}"
-          mkdir -p "server/dist/linux/$arch" "security-engine/dist/linux/$arch" agent/dist/linux/{amd64,arm64} agent/dist/windows/amd64
+          mkdir -p "server/dist/linux/$arch" "security-engine/dist/linux/$arch" agent/dist/linux/{amd64,arm64}
           (cd server && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -buildvcs=false -o "dist/linux/$arch/ly-server" ./cmd)
           (cd server && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -buildvcs=false -o "dist/linux/$arch/ly-agent-center" ./agentcenter)
           (cd security-engine && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -buildvcs=false -o "dist/linux/$arch/ly-security-engine" ./cmd)
           for agent_arch in amd64 arm64; do
             (cd agent && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$agent_arch" go build -trimpath -buildvcs=false -o "dist/linux/$agent_arch/ly-agent" ./cmd)
           done
-          (cd agent && GOWORK=off CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -trimpath -buildvcs=false -ldflags=-H=windowsgui -o dist/windows/amd64/ly-agent.exe ./cmd)
           (cd frontend && npm ci --no-audit --no-fund --prefer-online && npm run build)
       - name: 获取当前架构基础镜像
         run: |

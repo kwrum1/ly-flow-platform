@@ -346,7 +346,7 @@ Agent Suricata EVE adapter 仍保留作为无 Vector 环境的备用路径；当
   - .NET probe 为可挂载的 `LyRaspProfiler.dll`
 - 安装脚本自动下载 `/api/v1/agent/rasp/policy-root` 到
   `/etc/lyflow/trust/policy-root.pem`，干净主机可验证 RASP 签名策略。
-- `scripts/build-agent-binaries.sh` 统一构建三平台二进制，`build-core-images.sh`
+- `scripts/build-agent-binaries.sh` 统一构建 Linux 双架构二进制，`build-core-images.sh`
   在构建镜像前自动执行。
 - `server-lean.Dockerfile` 已包含 Agent 二进制和 `probe/` 资产。
 - 安装令牌流程：

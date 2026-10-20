@@ -10,7 +10,6 @@ legacy-dpi|active|dpi-engine/config/config.go|ly-dpi-engine|REDIS_ADDR|REDIS_ACL
 agent-main-publishers|active|agent/cmd/main.go|ly-agent|REDIS_SERVER|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
 agent-local-mirror|active|agent/cmd/main.go|ly-local-mirror|REDIS_SERVER|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
 agent-afpacket-linux|active|agent/cmd/afpacket_linux.go|ly-agent|REDIS_SERVER|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
-agent-pcap-windows|active|agent/cmd/pcap_windows.go|ly-agent|REDIS_SERVER|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
 python-rasp|active|agent/rasp/python/ly_rasp/reporter.py|-|RASP_SERVER|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
 java-rasp|inactive|agent/rasp/java/src/main/java/com/lyflow/rasp/java/exporter/RedisExporter.java|-|RASPConfig.serverAddr|-|-|-
 server-websocket-helper|helper|server/api/websocket/websocket.go|-|constructor argument|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD

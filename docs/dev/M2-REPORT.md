@@ -56,7 +56,7 @@
 
 - T3.1 `ly-agent` supervisor
 - T3.2 Linux Elkeid 集成
-- T3.3 Windows Wazuh 集成
+- T3.3 Windows Wazuh 集成（CANCELLED）
 - T3.4 OpenRASP Java/PHP
 - T3.5 Elkeid RASP Python/Go/Node
 - T3.6 Agent 门面/API/UI

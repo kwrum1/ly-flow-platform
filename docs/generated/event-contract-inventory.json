@@ -7907,37 +7907,6 @@
       ]
     },
     {
-      "id": "stream:agent/cmd/pcap_windows.go",
-      "kind": "stream",
-      "path": "agent/cmd/pcap_windows.go",
-      "symbols": [
-        "defaultWindowsPCAPInterface",
-        "localIPv4Set",
-        "outboundIPv4ForHost",
-        "preferredWindowsCaptureIPs",
-        "recordPCAPStats",
-        "runPCAPPacketCapture",
-        "validateWindowsPCAPInterface"
-      ],
-      "roles": [
-        "stream"
-      ],
-      "streams": [
-        "alerts:dpi"
-      ],
-      "schemas": [
-        "lyflow.security_event.v1"
-      ],
-      "owner": "agent",
-      "phases": [
-        "reader_first",
-        "dual_write",
-        "reconcile",
-        "read_switch",
-        "observe"
-      ]
-    },
-    {
       "id": "stream:agent/cmd/pfring_linux.go",
       "kind": "stream",
       "path": "agent/cmd/pfring_linux.go",

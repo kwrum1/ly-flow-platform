@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the cross-platform ly-agent binaries served by /api/v1/agent/download.
+# Build the Linux ly-agent binaries served by /api/v1/agent/download.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"

@@ -119,7 +119,6 @@ Python RASP 已具备 monitor/protect 策略、签名配置、健康状态和事
 ## 7. Agent 兼容架构
 
 - Linux AMD64/ARM64：静态 Go 二进制，目标 Linux 3.10/CentOS 7 及以上。
-- Windows AMD64：单文件 Agent；Npcap 单独下载和安装。
 - Linux 抓包：AF_PACKET/TPACKET，适合 Agent 小流量采集，可在控制中心关闭。
 - 本机镜像：AMD64 生产路径使用 PF_RING，承担高流量旁路镜像。
 - 容器 Agent：仅用于 QA，不是现场安装方式。

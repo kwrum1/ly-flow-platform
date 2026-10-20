@@ -13,7 +13,7 @@
 
 每次运行都使用新的 GitHub 托管 runner，不使用 Go、npm、Docker 或规则的跨运行缓存。规则阶段从公网重新获取 ET Open、OISF Traffic ID、Snort Community、Stamus Lateral 和 Positive Technologies AttackDetection，记录上游版本与摘要，转换并编译为本次构建规则快照。
 
-AMD64 与 ARM64 使用各自原生 runner。每个服务端包包含正式 Compose、前端、核心服务、安全引擎、本机镜像采集、Suricata、PostgreSQL、Redis、ClickHouse、双架构 Linux Agent、Windows Agent、规则和一键安装脚本。
+AMD64 与 ARM64 使用各自原生 runner。每个服务端包包含正式 Compose、前端、核心服务、安全引擎、本机镜像采集、Suricata、PostgreSQL、Redis、ClickHouse、双架构 Linux Agent、规则和一键安装脚本。
 
 ## 发布文件
 
