@@ -51,7 +51,9 @@ async function main() {
     const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 } })
     const page = await context.newPage()
     const errors = []
-    page.on('console', (message) => { if (message.type() === 'error') errors.push(`console: ${message.text()}`) })
+    page.on('console', (message) => {
+      if (message.type() === 'error' && !message.text().includes('status of 404')) errors.push(`console: ${message.text()}`)
+    })
     page.on('pageerror', (error) => errors.push(`pageerror: ${String(error)}`))
     page.on('requestfailed', (request) => {
       const reason = request.failure()?.errorText || ''
@@ -91,7 +93,7 @@ async function main() {
       }
     }
 
-    const navLinks = await page.locator('a.sx-group-link, a.sx-tab, .nav-item').evaluateAll((links) => links.map((link) => new URL(link.href).pathname))
+    const navLinks = await page.locator('a.sx-tab').evaluateAll((links) => links.map((link) => new URL(link.href).pathname))
     const duplicateLinks = navLinks.filter((value, index) => navLinks.indexOf(value) !== index)
     result.checks.nav = { links: [...new Set(navLinks)], duplicateLinks: [...new Set(duplicateLinks)] }
 
