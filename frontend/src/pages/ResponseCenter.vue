@@ -45,7 +45,7 @@
     <section class="response-create sx-panel">
       <div class="sx-panel-head">
         <div class="sx-panel-title">发起响应动作</div>
-        <span class="sx-panel-meta">提交后进入审批队列</span>
+        <span class="sx-panel-meta">L2 窗口内直接执行；L3 进入审批</span>
       </div>
       <div class="sx-panel-body create-grid">
         <label class="agent-field"><span>Agent</span>
@@ -111,7 +111,7 @@
                 <span v-if="action.auto_approved" class="sx-badge info auto-badge">自动</span>
               </td>
               <td>{{ action.incident_id || '-' }}</td>
-              <td><b>{{ action.requested_by || '-' }}</b><small>{{ action.approved_by ? `审批 ${action.approved_by}` : '等待审批' }}</small></td>
+              <td><b>{{ action.requested_by || '-' }}</b><small>{{ action.auto_approved ? '自动策略批准' : action.approved_by ? `审批 ${action.approved_by}` : action.status === 'pending_approval' ? '等待审批' : '—' }}</small></td>
               <td><b>{{ formatTime(action.created_at) }}</b><small>{{ action.completed_at ? formatTime(action.completed_at) : '' }}</small></td>
               <td>
                 <div class="action-buttons">

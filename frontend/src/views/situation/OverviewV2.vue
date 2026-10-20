@@ -22,44 +22,44 @@
         <div class="posture-card-top">
           <div>
             <span class="posture-eyebrow"><i />XDR POSTURE</span>
-            <h3>{{ riskLabel }}</h3>
-            <p>{{ postureNote }}</p>
+            <h3>{{ ready.posture ? riskLabel : '态势计算中' }}</h3>
+            <p>{{ ready.posture ? postureNote : '正在读取 XDR 态势、攻击链与处置队列…' }}</p>
           </div>
-          <span class="sx-badge" :class="riskTone">{{ riskToneLabel }}</span>
+          <span class="sx-badge" :class="ready.posture ? riskTone : 'muted'">{{ ready.posture ? riskToneLabel : '加载中' }}</span>
         </div>
 
         <div class="posture-score-row">
           <div class="score-ring" :style="scoreRingStyle">
             <div>
-              <strong>{{ riskScore }}</strong>
+              <strong>{{ ready.posture ? riskScore : '—' }}</strong>
               <span>态势评分</span>
             </div>
           </div>
           <div class="posture-facts">
-            <div><span>活跃攻击链</span><b>{{ postureActiveChains }}</b></div>
+            <div><span>活跃攻击链</span><b>{{ ready.chains ? postureActiveChains : '…' }}</b></div>
             <div><span>Incident 总量</span><b>{{ incidentsReady ? formatNumber(incidentTotal) : '…' }}</b></div>
-            <div><span>在线 Agent</span><b>{{ formatNumber(onlineAgents) }}<em>/{{ formatNumber(totalAssets) }}</em></b></div>
-            <div><span>待审批处置</span><b class="warning">{{ formatNumber(pendingApprovalCount) }}</b></div>
+            <div><span>在线 Agent</span><b>{{ ready.assetStats ? formatNumber(onlineAgents) : '…' }}<em v-if="ready.assetStats">/{{ formatNumber(totalAssets) }}</em></b></div>
+            <div><span>待审批处置</span><b class="warning">{{ ready.actions ? formatNumber(pendingApprovalCount) : '…' }}</b></div>
           </div>
         </div>
 
         <div class="posture-card-foot">
-          <span><i class="dot ok" />检测引擎 {{ engineOnline }}/{{ engineTotal }}</span>
+          <span><i class="dot ok" />检测引擎 {{ ready.engines ? `${engineOnline}/${engineTotal}` : '…' }}</span>
           <span><i class="dot" :class="platformOnline ? 'ok' : 'bad'" />平台{{ platformOnline ? '在线' : '异常' }}</span>
-          <span>规则 {{ formatNumber(ruleTotal) }} 条</span>
+          <span>规则 {{ ready.rules ? formatNumber(ruleTotal) : '…' }} 条</span>
         </div>
       </article>
 
       <div class="hero-metrics">
         <article class="sx-metric metric-live">
           <span class="sx-metric-label"><i />24h 检测事件</span>
-          <strong class="sx-metric-value">{{ formatNumber(todayEvents) }}</strong>
-          <span class="sx-metric-note">累计 {{ formatNumber(totalEvents) }} 条 · 样本 {{ eventItems.length }} 条</span>
+          <strong class="sx-metric-value">{{ ready.unified || ready.stats ? formatNumber(todayEvents) : '—' }}</strong>
+          <span class="sx-metric-note">{{ ready.unified || ready.stats ? `累计 ${formatNumber(totalEvents)} 条 · 样本 ${ready.events ? eventItems.length : '…'} 条` : '正在汇总 24h 事件' }}</span>
         </article>
         <article class="sx-metric">
           <span class="sx-metric-label"><i />高危 / 严重</span>
-          <strong class="sx-metric-value danger">{{ formatNumber(highRiskCount) }}</strong>
-          <span class="sx-metric-note">{{ highRiskNote }}</span>
+          <strong class="sx-metric-value danger">{{ ready.unified ? formatNumber(highRiskCount) : '—' }}</strong>
+          <span class="sx-metric-note">{{ ready.unified ? highRiskNote : '正在汇总告警等级' }}</span>
         </article>
         <article class="sx-metric">
           <span class="sx-metric-label"><i />处置队列</span>
@@ -68,8 +68,8 @@
         </article>
         <article class="sx-metric">
           <span class="sx-metric-label"><i />资产覆盖</span>
-          <strong class="sx-metric-value success">{{ formatNumber(totalAssets) }}</strong>
-          <span class="sx-metric-note">在线 {{ formatNumber(onlineAgents) }} · 离线 {{ formatNumber(offlineAgents) }}</span>
+          <strong class="sx-metric-value success">{{ ready.assetStats ? formatNumber(totalAssets) : '—' }}</strong>
+          <span class="sx-metric-note">{{ ready.assetStats ? `在线 ${formatNumber(onlineAgents)} · 离线 ${formatNumber(offlineAgents)}` : '正在读取资产心跳' }}</span>
         </article>
       </div>
     </section>
@@ -77,7 +77,7 @@
     <section class="sx-panel stage-panel">
       <div class="sx-panel-head">
         <div class="sx-panel-title">ATT&CK 攻击阶段</div>
-        <div class="sx-panel-meta">{{ incidentsReady ? `来自 ${incidentSampleLabel} Incident` : 'Incident 加载中' }} + {{ chains.items.length }} 条活跃链 · 点击阶段筛选事件</div>
+        <div class="sx-panel-meta">{{ incidentsReady ? `来自 ${incidentSampleLabel} Incident` : 'Incident 加载中' }} + {{ ready.chains ? `${chains.items.length} 条活跃链` : '活跃链加载中' }} · 点击阶段筛选事件</div>
       </div>
       <div class="sx-panel-body">
         <div class="sx-stage-ribbon">
@@ -101,12 +101,12 @@
       <article class="sx-panel trend-panel">
         <div class="sx-panel-head">
           <div class="sx-panel-title">检测活动趋势</div>
-          <div class="sx-panel-meta">按严重度堆叠 · 最近 {{ eventItems.length }} 条事件</div>
+          <div class="sx-panel-meta">{{ ready.events ? `按严重度堆叠 · 最近 ${eventItems.length} 条事件` : '正在读取检测样本' }}</div>
         </div>
         <div class="sx-panel-body trend-body">
-          <div v-if="trendRows.length" ref="trendElement" class="chart-box trend-chart" />
-          <div v-else class="sx-empty"><div><strong>暂无可绘制的检测样本</strong>当前时间窗内没有事件返回。</div></div>
-          <div class="trend-legend">
+          <div v-if="ready.events && trendRows.length" ref="trendElement" class="chart-box trend-chart" />
+          <div v-else class="sx-empty"><div><strong>{{ ready.events ? '暂无可绘制的检测样本' : '正在读取检测样本' }}</strong>{{ ready.events ? '当前时间窗内没有事件返回。' : '事件接口返回后立即绘制趋势。' }}</div></div>
+          <div v-if="ready.events" class="trend-legend">
             <span v-for="item in severityRows" :key="item.key"><i :style="{ background: item.color }" />{{ item.label }} <b>{{ item.count }}</b></span>
           </div>
         </div>
@@ -116,12 +116,12 @@
         <article class="sx-panel severity-panel">
           <div class="sx-panel-head">
             <div class="sx-panel-title">告警等级构成</div>
-            <span class="sx-panel-meta">有等级告警</span>
+            <span class="sx-panel-meta">{{ ready.unified ? '有等级告警' : '加载中' }}</span>
           </div>
           <div class="sx-panel-body severity-body">
-            <div v-if="severityTotal" ref="severityElement" class="chart-box severity-chart" />
-            <div v-else class="sx-empty"><div><strong>暂无告警等级数据</strong>等待检测引擎上报。</div></div>
-            <div class="severity-list">
+            <div v-if="ready.unified && severityTotal" ref="severityElement" class="chart-box severity-chart" />
+            <div v-else class="sx-empty"><div><strong>{{ ready.unified ? '暂无告警等级数据' : '正在读取告警构成' }}</strong>{{ ready.unified ? '等待检测引擎上报。' : '统一告警聚合返回后展示。' }}</div></div>
+            <div v-if="ready.unified" class="severity-list">
               <div v-for="item in severityRows" :key="item.key">
                 <span><i :style="{ background: item.color }" />{{ item.label }}</span>
                 <b>{{ formatNumber(item.count) }}</b>
@@ -133,17 +133,17 @@
         <article class="sx-panel source-panel">
           <div class="sx-panel-head">
             <div class="sx-panel-title">数据来源覆盖</div>
-            <span class="sx-panel-meta">{{ sourceRows.length }} 个来源</span>
+            <span class="sx-panel-meta">{{ ready.unified ? `${sourceRows.length} 个来源` : '加载中' }}</span>
           </div>
           <div class="sx-panel-body source-body">
-            <div v-if="sourceRows.length" class="source-list">
+            <div v-if="ready.unified && sourceRows.length" class="source-list">
               <div v-for="item in sourceRows" :key="item.key" class="source-row">
                 <span>{{ item.label }}</span>
                 <div><i :style="{ width: `${item.percent}%` }" /></div>
                 <b>{{ formatNumber(item.count) }}</b>
               </div>
             </div>
-            <div v-else class="sx-empty"><div><strong>暂无来源数据</strong></div></div>
+            <div v-else class="sx-empty"><div><strong>{{ ready.unified ? '暂无来源数据' : '正在读取来源覆盖' }}</strong>{{ ready.unified ? '' : '统一告警聚合返回后展示。' }}</div></div>
           </div>
         </article>
       </div>
@@ -182,7 +182,7 @@
           <div class="sx-panel-title">实时事件流</div>
           <RouterLink class="sx-panel-meta" to="/events">事件中心 →</RouterLink>
         </div>
-        <div v-if="recentEvents.length" class="event-stream">
+        <div v-if="ready.events && recentEvents.length" class="event-stream">
           <RouterLink
             v-for="event in recentEvents"
             :key="event.id || event.event_uid"
@@ -198,7 +198,7 @@
             <span class="sx-badge" :class="event.severity">{{ severityLabel(event.severity) }}</span>
           </RouterLink>
         </div>
-        <div v-else class="sx-empty"><div><strong>暂无实时事件</strong>等待采集面上报。</div></div>
+        <div v-else class="sx-empty"><div><strong>{{ ready.events ? '暂无实时事件' : '正在读取实时事件' }}</strong>{{ ready.events ? '等待采集面上报。' : '事件接口返回后立即展示。' }}</div></div>
       </article>
 
       <article class="sx-panel engine-panel">
@@ -206,7 +206,7 @@
           <div class="sx-panel-title">检测引擎</div>
           <RouterLink class="sx-panel-meta" to="/engines">引擎健康 →</RouterLink>
         </div>
-        <div v-if="engineRows.length" class="engine-list">
+        <div v-if="ready.engines && engineRows.length" class="engine-list">
           <div v-for="engine in engineRows" :key="engine.key" class="engine-row">
             <span class="engine-icon" :class="engine.tone">{{ engine.short }}</span>
             <div>
@@ -216,7 +216,7 @@
             <span class="sx-badge" :class="engine.tone">{{ engine.status }}</span>
           </div>
         </div>
-        <div v-else class="sx-empty"><div><strong>暂无引擎心跳</strong></div></div>
+        <div v-else class="sx-empty"><div><strong>{{ ready.engines ? '暂无引擎心跳' : '正在读取引擎健康' }}</strong>{{ ready.engines ? '' : '引擎心跳返回后展示。' }}</div></div>
         <div class="asset-mini">
           <div class="asset-mini-head"><span>资产风险</span><RouterLink to="/assets">资产中心 →</RouterLink></div>
           <div v-for="asset in topAssets" :key="asset.id || asset.agent_id || asset.hostname" class="asset-mini-row">
@@ -224,7 +224,8 @@
             <i :class="asset.status === 'online' ? 'ok' : 'bad'" />
             <b>{{ asset.ip || '未上报 IP' }}</b>
           </div>
-          <div v-if="!topAssets.length" class="sx-muted">暂无资产心跳</div>
+          <div v-if="!ready.assets" class="sx-muted">正在读取资产心跳…</div>
+          <div v-else-if="!topAssets.length" class="sx-muted">暂无资产心跳</div>
         </div>
       </article>
     </section>
@@ -232,7 +233,7 @@
 </template>
 
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, ref } from 'vue'
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import { attackWorkbenchClient, assetAgentClient, overviewClient, ruleClient } from '../../api/domain'
@@ -257,6 +258,18 @@ const responseActions = ref({ items: [], total: 0 })
 const ruleStats = ref({})
 const platformOnline = ref(true)
 const incidentsReady = ref(false)
+const ready = reactive({
+  stats: false,
+  unified: false,
+  posture: false,
+  chains: false,
+  assetStats: false,
+  assets: false,
+  engines: false,
+  events: false,
+  actions: false,
+  rules: false,
+})
 
 const trendElement = ref(null)
 const severityElement = ref(null)
@@ -380,6 +393,7 @@ const stageRows = computed(() => {
 })
 const trendRows = computed(() => buildTrendRows(eventItems.value))
 const scoreRingStyle = computed(() => {
+  if (!ready.posture) return { background: 'conic-gradient(var(--sx-surface-3) 0deg, var(--sx-surface-3) 360deg)' }
   const tone = severityDefinitions.find((item) => item.key === riskTone.value)?.color || '#0f9f6e'
   const degrees = Math.max(6, Math.round((riskScore.value / 100) * 360))
   return { background: `conic-gradient(${tone} ${degrees}deg, var(--sx-surface-3) ${degrees}deg)` }
@@ -529,17 +543,17 @@ async function load() {
   const refreshCharts = () => nextTick(renderCharts)
   const jobs = [
     overviewClient.health().then(() => { platformOnline.value = true; succeeded++ }).catch(() => { platformOnline.value = false }),
-    overviewClient.stats().then((value) => { stats.value = unwrap(value); succeeded++ }),
-    attackWorkbenchClient.stats().then((value) => { unified.value = unwrap(value); succeeded++ }),
-    attackWorkbenchClient.xdrPosture().then((value) => { posture.value = unwrap(value); succeeded++ }),
-    attackWorkbenchClient.xdrChains({ limit: 30 }).then((value) => { chains.value = normalizePage(value); succeeded++ }),
+    overviewClient.stats().then((value) => { stats.value = unwrap(value); ready.stats = true; succeeded++ }),
+    attackWorkbenchClient.stats().then((value) => { unified.value = unwrap(value); ready.unified = true; succeeded++; refreshCharts() }),
+    attackWorkbenchClient.xdrPosture().then((value) => { posture.value = unwrap(value); ready.posture = true; succeeded++ }),
+    attackWorkbenchClient.xdrChains({ limit: 30 }).then((value) => { chains.value = normalizePage(value); ready.chains = true; succeeded++ }),
     attackWorkbenchClient.incidents({ limit: 10, live: 0 }).then((value) => { incidents.value = normalizePage(value); incidentsReady.value = true; succeeded++ }),
-    assetAgentClient.assetStats().then((value) => { assetStats.value = unwrap(value); succeeded++ }),
-    assetAgentClient.assets({ limit: 8 }).then((value) => { assets.value = normalizePage(value); succeeded++ }),
-    assetAgentClient.engineHealth().then((value) => { engines.value = normalizePage(value); succeeded++ }),
-    attackWorkbenchClient.events({ limit: 160 }).then((value) => { events.value = normalizePage(value); succeeded++; refreshCharts() }),
-    ruleClient.responseActions({ limit: 100 }).then((value) => { responseActions.value = normalizePage(value); succeeded++ }),
-    ruleClient.stats().then((value) => { ruleStats.value = unwrap(value); succeeded++ }),
+    assetAgentClient.assetStats().then((value) => { assetStats.value = unwrap(value); ready.assetStats = true; succeeded++ }),
+    assetAgentClient.assets({ limit: 8 }).then((value) => { assets.value = normalizePage(value); ready.assets = true; succeeded++ }),
+    assetAgentClient.engineHealth().then((value) => { engines.value = normalizePage(value); ready.engines = true; succeeded++ }),
+    attackWorkbenchClient.events({ limit: 160 }).then((value) => { events.value = normalizePage(value); ready.events = true; succeeded++; refreshCharts() }),
+    ruleClient.responseActions({ limit: 100 }).then((value) => { responseActions.value = normalizePage(value); ready.actions = true; succeeded++ }),
+    ruleClient.stats().then((value) => { ruleStats.value = unwrap(value); ready.rules = true; succeeded++ }),
   ]
   try {
     await Promise.allSettled(jobs)
