@@ -118,7 +118,7 @@ function eventTypeLabel(value) {
   return { tcp_flow: 'TCP会话流', http_access: 'HTTP访问', dns_query: 'DNS查询', tls_connection: 'TLS连接', admin_access: '管理访问', login: '登录行为', upload: '上传行为', traffic_flow: '流量会话', 'rasp.sql': 'RASP SQL注入', 'rasp.command': 'RASP命令执行', 'rasp.exec': 'RASP命令执行', 'rasp.file': 'RASP文件访问', 'rasp.deserialization': 'RASP反序列化', 'rasp.http': 'RASP SSRF', 'rasp.ssrf': 'RASP SSRF', 'runtime.auth.privilege': '运行时权限活动', 'runtime.process': '进程行为', 'runtime.file': '文件行为', 'log_audit.auth': '认证日志审计' }[value] || value || '安全告警'
 }
 function categoryLabel(value) { return { traffic: '流量检测', network: '网络检测', host: '主机检测', artifact: '文件检测', log: '日志检测', rasp: '应用防护', log_audit: '日志审计', runtime: '系统安全' }[value] || value || '-' }
-function sourceEngineLabel(value) { return { suricata: 'Suricata', wazuh: 'Wazuh', sigma: 'Sigma', yara: 'YARA', rasp: 'RASP', lyflow: 'LyFlow', 'ly-security-engine': '安全引擎', agent: 'Agent', runtime: 'Runtime', log_audit: 'LogAudit', dpi_engine: 'DPI' }[value] || value || '-' }
+function sourceEngineLabel(value) { return { suricata: 'Suricata', wazuh: 'Wazuh', sigma: 'Sigma', yara: 'YARA', rasp: 'RASP', lyflow: 'LyFlow', 'ly-security-engine': '安全引擎', agent: 'Agent', runtime: 'Runtime', log_audit: 'LogAudit', dpi_engine: 'DPI', ebpf: 'eBPF', auditd: 'auditd', procfs: 'procfs', 'auth-log-signal': '日志审计' }[value] || value || '-' }
 function stageLabel(value) { return { recon: '侦察探测', initial_access: '初始入侵', execution: '执行载荷', persistence: '持久化', privilege_escalation: '权限提升', lateral_movement: '横向移动', c2_exfiltration: '外联/泄露', detection: '检测命中' }[value] || value || '-' }
 function contentSummary(item) { return item.summary || item.message || threatTypeLabel(item) || item.http_host || item.dns_query || item.tls_sni || [item.http_method, item.http_path].filter(Boolean).join(' ') || eventTypeLabel(item.event_type || item.type) }
 function detailRows(item) {
@@ -184,7 +184,7 @@ function normalizeAlert(item) {
     protocol: item.protocol || metadata.protocol,
     app_protocol: item.app_protocol || metadata.app_protocol,
     direction: item.direction || metadata.direction,
-    source_engine: item.source_engine || item.native_rule?.engine || metadata.source_engine || (item.category === 'rasp' ? 'rasp' : item.source),
+    source_engine: item.source_engine || item.native_rule?.engine || metadata.source_engine || (item.category === 'runtime' ? (item.backend || 'runtime') : null) || (item.category === 'rasp' ? 'rasp' : item.source),
     rule_name: item.rule_name || metadata.rule_name,
     summary: contentSummary(item),
     occurrence_count: occurrenceCount(item),

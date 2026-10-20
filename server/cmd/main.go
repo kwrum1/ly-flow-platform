@@ -7278,6 +7278,9 @@ func loadTrafficStream(cfg *Config, stream string, limit, offset int, query, age
 	if readCount < 100 {
 		readCount = 100
 	}
+	if query != "" || agentID != "" || srcIP != "" || dstIP != "" {
+		readCount = 5000
+	}
 	if readCount > 5000 {
 		readCount = 5000
 	}

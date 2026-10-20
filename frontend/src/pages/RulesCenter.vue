@@ -60,7 +60,7 @@
           <span>按引擎与上游版本同步</span>
         </div>
 
-        <div v-if="sourceLoading" class="source-empty">
+        <div v-if="upstreamLoading" class="source-empty">
           <div><strong>正在读取可更新上游</strong>规则平台来源和版本返回后展示。</div>
         </div>
         <div v-else-if="!upstreamRows.length" class="source-empty">
@@ -178,6 +178,7 @@ import { normalizeItems, pickText } from '../shared/api-normalize'
 
 const loading = ref(false)
 const sourceLoading = ref(true)
+const upstreamLoading = ref(true)
 const updatingSource = ref('')
 const error = ref('')
 const nativeRules = ref([])
@@ -460,15 +461,12 @@ async function loadAll() {
 
 async function loadSourceData() {
   sourceLoading.value = true
+  upstreamLoading.value = true
   runtimeStatusWarning.value = false
   try {
-    const [statusResult, healthResult, legacyResult, platformResult, versionResult, bundleResult] = await Promise.allSettled([
-      ruleClient.engineRuntimeStatus(),
-      assetAgentClient.engineHealth(),
-      ruleClient.sources(),
-      ruleClient.platformSources(),
-      ruleClient.platformVersions(),
-      ruleClient.platformActiveBundle(),
+    const [statusResult, healthResult] = await Promise.allSettled([
+      withTimeout(ruleClient.engineRuntimeStatus(), 8000),
+      withTimeout(assetAgentClient.engineHealth(), 8000),
     ])
     if (statusResult.status === 'fulfilled') {
       runtimeStatus.value = unwrap(statusResult.value) || { engines: {} }
@@ -477,13 +475,31 @@ async function loadSourceData() {
       runtimeStatusWarning.value = true
     }
     if (healthResult.status === 'fulfilled') engineHealthItems.value = normalizeItems(healthResult.value).items
+    // Engine cards only need runtime status and health. Do not keep them in a
+    // loading state while the slower rule-source catalog is fetched.
+    sourceLoading.value = false
+
+    const [legacyResult, platformResult, versionResult, bundleResult] = await Promise.allSettled([
+      withTimeout(ruleClient.sources(), 12000),
+      withTimeout(ruleClient.platformSources(), 12000),
+      withTimeout(ruleClient.platformVersions(), 12000),
+      withTimeout(ruleClient.platformActiveBundle(), 12000),
+    ])
     if (legacyResult.status === 'fulfilled') legacySourceItems.value = normalizeItems(legacyResult.value).items
     if (platformResult.status === 'fulfilled') platformSourceItems.value = normalizeItems(platformResult.value).items
     if (versionResult.status === 'fulfilled') platformVersionItems.value = normalizeItems(versionResult.value).items
     activeBundle.value = bundleResult.status === 'fulfilled' ? unwrap(bundleResult.value) : {}
   } finally {
     sourceLoading.value = false
+    upstreamLoading.value = false
   }
+}
+
+function withTimeout(promise, ms) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error('source request timeout')), ms)),
+  ])
 }
 
 function seedDrafts() {

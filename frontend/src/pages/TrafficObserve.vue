@@ -23,7 +23,7 @@
             <tr v-else-if="!flows.length"><td colspan="6" class="empty-cell">暂无流量记录</td></tr>
             <tr v-for="item in flows" :key="item.message_id">
               <td>{{ formatTime(item.timestamp) }}</td>
-              <td>{{ item.agent_id || '-' }}<small>{{ item.hostname || '' }}</small></td>
+              <td>{{ probeLabel(item) }}<small>{{ probeMeta(item) }}</small></td>
               <td><b>{{ tupleText(item) }}</b><small>{{ actionLabel(item.business_action) }}</small></td>
               <td>{{ contentSummary(item) }}</td>
               <td>{{ trafficText(item) }}</td>
@@ -73,6 +73,8 @@ let resizeObserver = null
 function params() { return { ...filters.value, limit: pageSize.value, offset: (page.value - 1) * pageSize.value } }
 function formatTime(value) { return value ? formatChinaDateTime(value) : '-' }
 function tupleText(item) { return `${item.src_ip || '-'}:${item.src_port || 0} → ${item.dst_ip || '-'}:${item.dst_port || 0} / ${item.protocol || '-'}` }
+function probeLabel(item) { return item.capture_source === 'lyprobe' || item.engine === 'lyprobe' ? 'lyprobe' : (item.agent_id || item.probe_name || '-') }
+function probeMeta(item) { return item.capture_source === 'lyprobe' ? (item.hostname || item.agent_id || '') : (item.hostname || '') }
 function actionLabel(value) {
   return { tcp_flow: 'TCP会话流', http_access: 'HTTP访问', dns_query: 'DNS查询', tls_connection: 'TLS连接', admin_access: '管理访问', login: '登录行为', upload: '上传行为' }[value] || value || '-'
 }
@@ -83,7 +85,7 @@ function trafficText(item) { return `↑ ${item.bytes_out || 0} B ↓ ${item.byt
 
 function detailRows(item) {
   return [
-    ['探针ID', item.agent_id], ['主机名', item.hostname], ['源IP', item.src_ip], ['源端口', item.src_port], ['目的IP', item.dst_ip], ['目的端口', item.dst_port],
+    ['探针', probeLabel(item)], ['采集来源', item.capture_source], ['探针ID', item.agent_id], ['主机名', item.hostname], ['源IP', item.src_ip], ['源端口', item.src_port], ['目的IP', item.dst_ip], ['目的端口', item.dst_port],
     ['传输协议', item.protocol], ['应用协议', item.app_protocol], ['业务行为', actionLabel(item.business_action)], ['流量方向', directionLabel(item.direction)],
     ['入站字节数', item.bytes_in], ['出站字节数', item.bytes_out], ['包数量', item.packets], ['持续时间(毫秒)', item.duration_ms],
     ['HTTP主机', item.http_host], ['HTTP方法', item.http_method], ['HTTP路径', item.http_path], ['DNS查询', item.dns_query], ['TLS SNI', item.tls_sni],
