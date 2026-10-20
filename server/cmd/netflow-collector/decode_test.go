@@ -117,6 +117,7 @@ func TestDecodeV9RejectsUnspecifiedAddresses(t *testing.T) {
 	}
 }
 
+func TestDecodeV9RejectsNonV9(t *testing.T) {
 	if _, err := DecodeV9(make([]byte, 20), nil, "127.0.0.1"); err == nil {
 		t.Fatal("expected non-v9 payload to be rejected")
 	}
