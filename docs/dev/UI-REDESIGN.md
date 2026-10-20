@@ -85,3 +85,5 @@
   触发 live 同步。
 - 截图证据：`/opt/lyflow/reports/G5/ui-redesign/`
 - 深色主题截图：`13-dashboard-dark.png`
+- 规则中心：规则源同步按 5 个引擎模块并排展示（流量/运行/文件/应用防护/IP 地理归属），
+  引擎健康接口异常时规则源仍可读，GeoIP 未配置显示真实空态。
