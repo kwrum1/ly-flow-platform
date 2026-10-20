@@ -855,3 +855,4 @@
 - 云构建改用 `GOPROXY=direct`，不注入 HTTP/HTTPS 代理；移除构建机/测试机 Docker 代理覆盖和 RASP 验收脚本的代理环境。
 - GitHub Release run `39448186932` 成功，`latest-server` 已发布 AMD64/ARM64 一键安装包。
 - 重新生成事件清单，修复 CI 的 192/191 路径不一致。
+- 修复 supervisor 在进程退出时提前关闭 stdout/stderr 管道导致的日志丢失竞态，改为行缓冲 writer + `WaitDelay`，100 次重复测试通过。

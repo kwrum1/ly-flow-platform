@@ -1,15 +1,16 @@
 package supervisor
 
 import (
-	"bufio"
+	"bytes"
 	"context"
+	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 )
 
 // ProcessConfig describes an external, long-running component such as the
@@ -50,31 +51,20 @@ func (process *Process) Start(ctx context.Context) error {
 	if len(process.config.Env) > 0 {
 		command.Env = append(os.Environ(), process.config.Env...)
 	}
-	stdout, err := command.StdoutPipe()
-	if err != nil {
-		return fmt.Errorf("%s stdout pipe: %w", process.config.Name, err)
-	}
-	stderr, err := command.StderrPipe()
-	if err != nil {
-		return fmt.Errorf("%s stderr pipe: %w", process.config.Name, err)
-	}
+	writer := &processLogWriter{name: process.config.Name, logger: process.config.Logger}
+	command.Stdout = writer
+	command.Stderr = writer
+	command.WaitDelay = time.Second
 	if err := command.Start(); err != nil {
 		return fmt.Errorf("%s start: %w", process.config.Name, err)
 	}
-	var readers sync.WaitGroup
-	readers.Add(2)
-	go func() {
-		defer readers.Done()
-		process.scan(stdout)
-	}()
-	go func() {
-		defer readers.Done()
-		process.scan(stderr)
-	}()
-	err = command.Wait()
-	readers.Wait()
+	err := command.Wait()
+	writer.flush()
 	if ctx.Err() != nil {
 		return nil
+	}
+	if errors.Is(err, exec.ErrWaitDelay) {
+		err = nil
 	}
 	if err != nil {
 		return fmt.Errorf("%s exited: %w", process.config.Name, err)
@@ -96,13 +86,39 @@ func (process *Process) Probe() error {
 	return nil
 }
 
-func (process *Process) scan(reader io.Reader) {
-	scanner := bufio.NewScanner(reader)
-	buffer := make([]byte, 64*1024)
-	scanner.Buffer(buffer, 1<<20)
-	for scanner.Scan() {
-		if process.config.Logger != nil {
-			process.config.Logger(fmt.Sprintf("[%s] %s", process.config.Name, scanner.Text()))
+type processLogWriter struct {
+	name   string
+	logger func(string)
+	mu     sync.Mutex
+	buffer []byte
+}
+
+func (writer *processLogWriter) Write(p []byte) (int, error) {
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+	writer.buffer = append(writer.buffer, p...)
+	for {
+		index := bytes.IndexByte(writer.buffer, '\n')
+		if index < 0 {
+			return len(p), nil
 		}
+		writer.emit(strings.TrimSuffix(string(writer.buffer[:index]), "\r"))
+		writer.buffer = writer.buffer[index+1:]
+	}
+}
+
+func (writer *processLogWriter) flush() {
+	writer.mu.Lock()
+	defer writer.mu.Unlock()
+	if len(writer.buffer) == 0 {
+		return
+	}
+	writer.emit(strings.TrimSuffix(string(writer.buffer), "\r"))
+	writer.buffer = nil
+}
+
+func (writer *processLogWriter) emit(line string) {
+	if writer.logger != nil {
+		writer.logger(fmt.Sprintf("[%s] %s", writer.name, line))
 	}
 }

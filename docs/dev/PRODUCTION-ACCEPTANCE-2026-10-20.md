@@ -150,3 +150,4 @@
   - 移除构建机/测试机 Docker systemd 的 `99-no-proxy.conf` 代理覆盖；仓库脚本不再读取 `TASK13_AUTHORIZED_PROXY`。
   - 本地构建/安装脚本不注入代理变量。
 - 发布门禁结论：功能/UI/API/Agent/lyprobe/eBPF/规则/响应/证据通过；clean VM 安装/回滚与 20k EPS 容量复测仍为本报告保留例外。
+- CI run `39449614495`（提交 `8d63164`）进一步暴露 supervisor stdout/stderr 管道关闭竞态；已将输出改为行缓冲 writer + `WaitDelay`，`agent` 全量测试与 100 次重复运行通过。

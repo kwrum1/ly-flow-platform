@@ -65,7 +65,7 @@ func TestProcessStopsOnCancel(t *testing.T) {
 		if err != nil {
 			t.Fatalf("start returned %v", err)
 		}
-	case <-time.After(2 * time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("process did not stop")
 	}
 }
