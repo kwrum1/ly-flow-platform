@@ -1,14 +1,14 @@
-﻿<template>
+<template>
   <section class="sx-page incident-page">
     <header class="sx-page-head">
       <div>
         <p class="sx-kicker">ATTACK CHAIN RESPONSE</p>
-        <h2 class="sx-title">鏀诲嚮閾惧缃?/h2>
-        <p class="sx-subtitle">鎸?Incident 鑱氬悎璺ㄦ簮璇佹嵁銆侀樁娈垫椂闂寸嚎涓庡搷搴斿姩浣滐紱瀹℃壒浣跨敤褰撳墠鐧诲綍韬唤锛孡3 鍔ㄤ綔闇€瑕佺浜屽悕绠＄悊鍛樸€?/p>
+        <h2 class="sx-title">攻击链处置</h2>
+        <p class="sx-subtitle">按 Incident 聚合跨源证据、阶段时间线与响应动作；审批使用当前登录身份，L3 动作需要第二名管理员。</p>
       </div>
       <div class="sx-head-actions">
         <span class="sx-live"><i />LIVE</span>
-        <button class="sx-btn" type="button" :disabled="loading" @click="loadIncidents">鍒锋柊</button>
+        <button class="sx-btn" type="button" :disabled="loading" @click="loadIncidents">刷新</button>
       </div>
     </header>
 
@@ -17,22 +17,22 @@
     <section class="incident-layout">
       <aside class="sx-panel incident-sidebar">
         <div class="sidebar-head">
-          <div><b>Incident</b><span>{{ formatNumber(incidentTotal) }} 鏉?/span></div>
+          <div><b>Incident</b><span>{{ formatNumber(incidentTotal) }} 条</span></div>
           <div class="sidebar-filters">
             <select v-model="statusFilter" class="sx-select">
-              <option value="">鍏ㄩ儴鐘舵€?/option>
-              <option value="open">鏂板彂</option>
-              <option value="triaged">宸插垎璇?/option>
-              <option value="processing">澶勭悊涓?/option>
-              <option value="resolved">宸茶В鍐?/option>
-              <option value="closed">宸插叧闂?/option>
+              <option value="">全部状态</option>
+              <option value="open">新发</option>
+              <option value="triaged">已分诊</option>
+              <option value="processing">处理中</option>
+              <option value="resolved">已解决</option>
+              <option value="closed">已关闭</option>
             </select>
             <select v-model="severityFilter" class="sx-select">
-              <option value="">鍏ㄩ儴绛夌骇</option>
-              <option value="critical">涓ラ噸</option>
-              <option value="high">楂樺嵄</option>
-              <option value="medium">涓嵄</option>
-              <option value="low">浣庡嵄</option>
+              <option value="">全部等级</option>
+              <option value="critical">严重</option>
+              <option value="high">高危</option>
+              <option value="medium">中危</option>
+              <option value="low">低危</option>
             </select>
           </div>
         </div>
@@ -48,20 +48,20 @@
             <span class="sx-badge" :class="item.severity">{{ severityLabel(item.severity) }}</span>
             <div>
               <b>{{ item.title }}</b>
-              <small>{{ item.affectedAsset || item.entityId || '鏈粦瀹氳祫浜? }} 路 {{ formatShort(item.updatedAt || item.createdAt) }}</small>
+              <small>{{ item.affectedAsset || item.entityId || '未绑定资产' }} · {{ formatShort(item.updatedAt || item.createdAt) }}</small>
               <div class="row-stage-line">
                 <span v-for="stage in (item.stages || []).slice(0, 4)" :key="stage.id">{{ stage.name }}</span>
               </div>
             </div>
             <span class="row-status">{{ statusLabel(item.status) }}</span>
           </button>
-          <div v-if="!filteredIncidents.length" class="sx-empty"><div><strong>鏆傛棤鍖归厤 Incident</strong>璋冩暣绛涢€夋潯浠舵垨绛夊緟鍏宠仈閾剧敓鎴愩€?/div></div>
+          <div v-if="!filteredIncidents.length" class="sx-empty"><div><strong>暂无匹配 Incident</strong>调整筛选条件或等待关联链生成。</div></div>
         </div>
       </aside>
 
       <main class="incident-main">
         <div v-if="!selected" class="sx-panel no-selection">
-          <div class="sx-empty"><div><strong>閫夋嫨宸︿晶 Incident</strong>鏌ョ湅闃舵鏃堕棿绾裤€佽瘉鎹拰鍝嶅簲鍔ㄤ綔銆?/div></div>
+          <div class="sx-empty"><div><strong>选择左侧 Incident</strong>查看阶段时间线、证据和响应动作。</div></div>
         </div>
         <template v-else>
           <section class="sx-panel incident-hero">
@@ -71,7 +71,7 @@
                 <span class="sx-badge muted">{{ selected.id }}</span>
               </div>
               <h3>{{ selected.title }}</h3>
-              <p>{{ selected.affectedAsset || selected.entityId || '鏈粦瀹氳祫浜? }} 路 鍒涘缓浜?{{ formatTime(selected.createdAt) }} 路 鏇存柊浜?{{ formatTime(selected.updatedAt) }}</p>
+              <p>{{ selected.affectedAsset || selected.entityId || '未绑定资产' }} · 创建于 {{ formatTime(selected.createdAt) }} · 更新于 {{ formatTime(selected.updatedAt) }}</p>
             </div>
             <div class="incident-hero-actions">
               <select class="sx-select" :value="selected.status" :disabled="updatingStatus" @change="updateStatus($event.target.value)">
@@ -81,17 +81,17 @@
           </section>
 
           <section class="incident-facts">
-            <div><span>婧?IP</span><b class="sx-mono">{{ selected.sourceIPs?.join(', ') || '-' }}</b></div>
-            <div><span>鍙楀 IP</span><b class="sx-mono">{{ selected.victimIPs?.join(', ') || '-' }}</b></div>
-            <div><span>瀹炰綋 / Agent</span><b>{{ selected.entityId || selected.affectedAsset || '-' }}</b></div>
-            <div><span>璇佹嵁</span><b>{{ selected.evidence?.length || 0 }} 鏉?/b></div>
-            <div><span>寤鸿鍔ㄤ綔</span><b>{{ selected.recommendedAction || '寰呯爺鍒? }}</b></div>
+            <div><span>源 IP</span><b class="sx-mono">{{ selected.sourceIPs?.join(', ') || '-' }}</b></div>
+            <div><span>受害 IP</span><b class="sx-mono">{{ selected.victimIPs?.join(', ') || '-' }}</b></div>
+            <div><span>实体 / Agent</span><b>{{ selected.entityId || selected.affectedAsset || '-' }}</b></div>
+            <div><span>证据</span><b>{{ selected.evidence?.length || 0 }} 条</b></div>
+            <div><span>建议动作</span><b>{{ selected.recommendedAction || '待研判' }}</b></div>
           </section>
 
           <section class="sx-panel stage-ribbon-panel">
             <div class="sx-panel-head">
-              <div class="sx-panel-title">鏀诲嚮闃舵</div>
-              <span class="sx-panel-meta">闃舵鐘舵€佹潵鑷?Incident 鍏宠仈閾?/span>
+              <div class="sx-panel-title">攻击阶段</div>
+              <span class="sx-panel-meta">阶段状态来自 Incident 关联链</span>
             </div>
             <div class="sx-panel-body">
               <div class="sx-stage-ribbon">
@@ -107,8 +107,8 @@
           <div class="incident-detail-grid">
             <article class="sx-panel timeline-panel">
               <div class="sx-panel-head">
-                <div class="sx-panel-title">闃舵鏃堕棿绾?/div>
-                <span class="sx-panel-meta">{{ groups.length }} 涓樁娈?路 {{ selected.evidence?.length || 0 }} 鏉¤瘉鎹?/span>
+                <div class="sx-panel-title">阶段时间线</div>
+                <span class="sx-panel-meta">{{ groups.length }} 个阶段 · {{ selected.evidence?.length || 0 }} 条证据</span>
               </div>
               <div v-if="groups.length" class="timeline sx-scroll">
                 <div v-for="group in groups" :key="group.id" class="timeline-group">
@@ -122,40 +122,40 @@
                       </button>
                       <pre v-if="expandedEvidence === group.id" class="evidence-raw sx-scroll">{{ prettyEvidence(group.evidence[0]) }}</pre>
                     </div>
-                    <div v-else class="timeline-empty">璇ラ樁娈垫殏鏃犲彲灞曠ず璇佹嵁銆?/div>
+                    <div v-else class="timeline-empty">该阶段暂无可展示证据。</div>
                   </div>
                 </div>
               </div>
-              <div v-else class="sx-empty"><div><strong>鏆傛棤闃舵璇佹嵁</strong>Incident 灏氭湭浜х敓鍙睍绀虹殑鍏宠仈閾俱€?/div></div>
+              <div v-else class="sx-empty"><div><strong>暂无阶段证据</strong>Incident 尚未产生可展示的关联链。</div></div>
             </article>
 
             <aside class="incident-side-stack">
               <article class="sx-panel response-panel">
                 <div class="sx-panel-head">
-                  <div class="sx-panel-title">鍝嶅簲澶勭疆</div>
-                  <span class="sx-panel-meta">{{ actionsForIncident.length }} 鏉¤褰?/span>
+                  <div class="sx-panel-title">响应处置</div>
+                  <span class="sx-panel-meta">{{ actionsForIncident.length }} 条记录</span>
                 </div>
                 <div class="sx-panel-body">
                   <div class="response-form">
                     <div class="response-form-row">
-                      <label><span>鍔ㄤ綔</span>
+                      <label><span>动作</span>
                         <select v-model="actionForm.action" class="sx-select">
-                          <option value="observe">瑙傚療</option>
-                          <option value="block_ip">灏佺 IP</option>
-                          <option value="isolate_host">涓绘満闅旂</option>
-                          <option value="process_kill">缁堟杩涚▼</option>
-                          <option value="file_delete">闅旂鏂囦欢</option>
-                          <option value="account_disable">绂佺敤璐﹀彿</option>
-                          <option value="namespace_isolate">瀹瑰櫒缃戠粶闅旂</option>
+                          <option value="observe">观察</option>
+                          <option value="block_ip">封禁 IP</option>
+                          <option value="isolate_host">主机隔离</option>
+                          <option value="process_kill">终止进程</option>
+                          <option value="file_delete">隔离文件</option>
+                          <option value="account_disable">禁用账号</option>
+                          <option value="namespace_isolate">容器网络隔离</option>
                         </select>
                       </label>
-                      <label><span>鐩爣</span><input v-model.trim="actionForm.target" class="sx-input" placeholder="IP / PID / 璺緞 / 鐢ㄦ埛鍚? /></label>
+                      <label><span>目标</span><input v-model.trim="actionForm.target" class="sx-input" placeholder="IP / PID / 路径 / 用户名" /></label>
                     </div>
                     <label><span>Agent ID</span><input v-model.trim="actionForm.agent_id" class="sx-input" placeholder="g5-real-agent" /></label>
-                    <label><span>鍘熷洜</span><input v-model.trim="actionForm.reason" class="sx-input" placeholder="璇存槑澶勭疆渚濇嵁" /></label>
+                    <label><span>原因</span><input v-model.trim="actionForm.reason" class="sx-input" placeholder="说明处置依据" /></label>
                     <div class="response-form-actions">
                       <span v-if="actionMessage" :class="['response-message', actionMessageType]">{{ actionMessage }}</span>
-                      <button class="sx-btn primary" type="button" :disabled="creatingAction || !canCreateAction" @click="createAction">{{ creatingAction ? '鎻愪氦涓€? : '鎻愪氦瀹℃壒' }}</button>
+                      <button class="sx-btn primary" type="button" :disabled="creatingAction || !canCreateAction" @click="createAction">{{ creatingAction ? '提交中…' : '提交审批' }}</button>
                     </div>
                   </div>
 
@@ -163,38 +163,38 @@
                     <div v-for="action in actionsForIncident" :key="action.id" class="action-row">
                       <div>
                         <b>{{ actionLabel(action.action) }}</b>
-                        <small>{{ action.target || '-' }} 路 {{ action.risk }} 路 {{ action.requested_by }}</small>
+                        <small>{{ action.target || '-' }} · {{ action.risk }} · {{ action.requested_by }}</small>
                         <em v-if="action.error">{{ action.error }}</em>
                       </div>
                       <span class="sx-badge" :class="actionTone(action.status)">{{ actionStatusLabel(action.status) }}</span>
                       <div class="action-buttons">
-                        <button v-if="action.status === 'pending_approval'" class="sx-btn" type="button" :disabled="updatingAction === action.id" @click="approveAction(action)">瀹℃壒</button>
-                        <button v-if="canRollback(action)" class="sx-btn ghost" type="button" :disabled="updatingAction === action.id" @click="rollbackAction(action)">鍥炴粴</button>
+                        <button v-if="action.status === 'pending_approval'" class="sx-btn" type="button" :disabled="updatingAction === action.id" @click="approveAction(action)">审批</button>
+                        <button v-if="canRollback(action)" class="sx-btn ghost" type="button" :disabled="updatingAction === action.id" @click="rollbackAction(action)">回滚</button>
                       </div>
                     </div>
                   </div>
-                  <div v-else class="sx-muted response-empty">璇?Incident 杩樻病鏈夊搷搴斿姩浣溿€?/div>
+                  <div v-else class="sx-muted response-empty">该 Incident 还没有响应动作。</div>
                 </div>
               </article>
 
               <article class="sx-panel evidence-panel">
                 <div class="sx-panel-head">
-                  <div class="sx-panel-title">璇佹嵁鍖?/div>
-                  <span class="sx-panel-meta">{{ bundlesForIncident.length }} 涓?/span>
+                  <div class="sx-panel-title">证据包</div>
+                  <span class="sx-panel-meta">{{ bundlesForIncident.length }} 个</span>
                 </div>
                 <div class="sx-panel-body">
                   <div class="evidence-actions">
-                    <button class="sx-btn primary" type="button" :disabled="creatingBundle || !selected.evidence?.length" @click="createBundle">{{ creatingBundle ? '鎵撳寘涓€? : '鐢熸垚璇佹嵁鍖? }}</button>
-                    <span class="sx-muted">浣跨敤褰撳墠 Incident 鐨勮瘉鎹簨浠?/span>
+                    <button class="sx-btn primary" type="button" :disabled="creatingBundle || !selected.evidence?.length" @click="createBundle">{{ creatingBundle ? '打包中…' : '生成证据包' }}</button>
+                    <span class="sx-muted">使用当前 Incident 的证据事件</span>
                   </div>
                   <div v-if="bundleMessage" class="response-message" :class="bundleMessageType">{{ bundleMessage }}</div>
                   <div v-if="bundlesForIncident.length" class="bundle-list">
                     <div v-for="bundle in bundlesForIncident" :key="bundle.id" class="bundle-row">
-                      <div><b class="sx-mono">{{ bundle.id }}</b><small>{{ formatSize(bundle.size) }} 路 {{ formatTime(bundle.created_at) }}</small></div>
-                      <button class="sx-btn" type="button" @click="downloadBundle(bundle)">涓嬭浇</button>
+                      <div><b class="sx-mono">{{ bundle.id }}</b><small>{{ formatSize(bundle.size) }} · {{ formatTime(bundle.created_at) }}</small></div>
+                      <button class="sx-btn" type="button" @click="downloadBundle(bundle)">下载</button>
                     </div>
                   </div>
-                  <div v-else class="sx-muted evidence-empty">灏氭湭鐢熸垚璇佹嵁鍖呫€?/div>
+                  <div v-else class="sx-muted evidence-empty">尚未生成证据包。</div>
                 </div>
               </article>
             </aside>
@@ -236,9 +236,9 @@ const statuses = ['open', 'triaged', 'processing', 'resolved', 'closed']
 const actionForm = reactive({ action: 'observe', target: '', agent_id: '', reason: '' })
 
 const stageDefinitions = [
-  ['detection', '妫€娴嬪懡涓?], ['recon', '渚﹀療'], ['initial_access', '鍒濆璁块棶'], ['execution', '鎵ц'],
-  ['persistence', '鎸佷箙鍖?], ['privilege_escalation', '鎻愭潈'], ['lateral_movement', '妯悜绉诲姩'],
-  ['command_and_control', '鍛戒护鎺у埗'], ['exfiltration', '澶栦紶'], ['impact', '褰卞搷'],
+  ['detection', '检测命中'], ['recon', '侦察'], ['initial_access', '初始访问'], ['execution', '执行'],
+  ['persistence', '持久化'], ['privilege_escalation', '提权'], ['lateral_movement', '横向移动'],
+  ['command_and_control', '命令控制'], ['exfiltration', '外传'], ['impact', '影响'],
 ]
 
 const filteredIncidents = computed(() => incidents.value.filter((item) => {
@@ -273,10 +273,10 @@ function formatNumber(value) { return Number(value || 0).toLocaleString('zh-CN')
 function formatTime(value) { if (!value) return '-'; const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('zh-CN', { hour12: false }) }
 function formatShort(value) { if (!value) return '-'; const date = new Date(value); return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('zh-CN', { month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false }) }
 function formatSize(value) { const size = Number(value || 0); return size > 1024 ? `${(size / 1024).toFixed(1)} KB` : `${size} B` }
-function statusLabel(value) { return ({ new: '鏂板彂', open: '鏂板彂', triaged: '宸插垎璇?, processing: '澶勭悊涓?, resolved: '宸茶В鍐?, closed: '宸插叧闂? })[value] || value || '-' }
-function actionStatusLabel(value) { return ({ pending_approval: '寰呭鎵?, approved: '宸叉壒鍑?, executed: '宸叉墽琛?, failed: '澶辫触', rolled_back: '宸插洖婊? })[value] || value || '-' }
+function statusLabel(value) { return ({ new: '新发', open: '新发', triaged: '已分诊', processing: '处理中', resolved: '已解决', closed: '已关闭' })[value] || value || '-' }
+function actionStatusLabel(value) { return ({ pending_approval: '待审批', approved: '已批准', executed: '已执行', failed: '失败', rolled_back: '已回滚' })[value] || value || '-' }
 function actionTone(value) { return ({ pending_approval: 'medium', approved: 'info', executed: 'low', failed: 'critical', rolled_back: 'muted' })[value] || 'muted' }
-function actionLabel(value) { return ({ observe: '瑙傚療', block_ip: '灏佺 IP', isolate_host: '涓绘満闅旂', process_kill: '缁堟杩涚▼', file_delete: '闅旂鏂囦欢', account_disable: '绂佺敤璐﹀彿', namespace_isolate: '瀹瑰櫒闅旂' })[value] || value || '-' }
+function actionLabel(value) { return ({ observe: '观察', block_ip: '封禁 IP', isolate_host: '主机隔离', process_kill: '终止进程', file_delete: '隔离文件', account_disable: '禁用账号', namespace_isolate: '容器隔离' })[value] || value || '-' }
 function canRollback(action) { return ['executed', 'failed'].includes(action.status) && ['block_ip', 'isolate_host', 'file_delete', 'account_disable', 'namespace_isolate'].includes(action.action) }
 function prettyEvidence(evidence) { try { return JSON.stringify(evidence?.raw || evidence, null, 2) } catch { return String(evidence?.raw || '') } }
 function toggleEvidence(id) { expandedEvidence.value = expandedEvidence.value === id ? '' : id }
@@ -292,7 +292,7 @@ async function loadIncidents() {
     const current = incidents.value.find((item) => item.id === wanted) || incidents.value.find((item) => item.id === selected.value?.id) || incidents.value[0]
     if (current) await selectIncident(current)
   } catch (cause) {
-    error.value = 'Incident 鏁版嵁鍔犺浇澶辫触锛岃妫€鏌ュ悗绔繛鎺ャ€?
+    error.value = 'Incident 数据加载失败，请检查后端连接。'
   } finally {
     loading.value = false
   }
@@ -332,7 +332,7 @@ async function updateStatus(status) {
     selected.value = { ...selected.value, status }
     await loadIncidents()
   } catch {
-    error.value = 'Incident 鐘舵€佹洿鏂板け璐ャ€?
+    error.value = 'Incident 状态更新失败。'
   } finally {
     updatingStatus.value = false
   }
@@ -348,16 +348,16 @@ async function createAction() {
       agent_id: actionForm.agent_id,
       action: actionForm.action,
       target: actionForm.action === 'observe' ? actionForm.agent_id : actionForm.target,
-      reason: actionForm.reason || `Incident ${selected.value.id} 浜哄伐澶勭疆`,
+      reason: actionForm.reason || `Incident ${selected.value.id} 人工处置`,
       ttl_seconds: 300,
     })
-    actionMessage.value = '宸叉彁浜ゅ鎵归槦鍒椼€?
+    actionMessage.value = '已提交审批队列。'
     actionMessageType.value = 'success'
     actionForm.target = ''
     actionForm.reason = ''
     await loadActions()
   } catch (cause) {
-    actionMessage.value = cause?.message || '鍝嶅簲鍔ㄤ綔鎻愪氦澶辫触銆?
+    actionMessage.value = cause?.message || '响应动作提交失败。'
     actionMessageType.value = 'error'
   } finally {
     creatingAction.value = false
@@ -370,7 +370,7 @@ async function approveAction(action) {
     await responseClient.approve(action.id, {})
     await loadActions()
   } catch (cause) {
-    error.value = cause?.message || '瀹℃壒澶辫触锛氶渶瑕佷笌鍙戣捣浜轰笉鍚岀殑绠＄悊鍛樿韩浠姐€?
+    error.value = cause?.message || '审批失败：需要与发起人不同的管理员身份。'
   } finally {
     updatingAction.value = ''
   }
@@ -382,7 +382,7 @@ async function rollbackAction(action) {
     await responseClient.rollback(action.id)
     await loadActions()
   } catch (cause) {
-    error.value = cause?.message || '鍥炴粴澶辫触銆?
+    error.value = cause?.message || '回滚失败。'
   } finally {
     updatingAction.value = ''
   }
@@ -400,11 +400,11 @@ async function createBundle() {
       event_uids: eventUIDs,
       note: `Incident ${selected.value.id} evidence bundle`,
     }))
-    bundleMessage.value = `璇佹嵁鍖呭凡鐢熸垚锛?{result.id || '宸叉彁浜?}`
+    bundleMessage.value = `证据包已生成：${result.id || '已提交'}`
     bundleMessageType.value = 'success'
     await loadBundles()
   } catch (cause) {
-    bundleMessage.value = cause?.message || '璇佹嵁鍖呯敓鎴愬け璐ワ細璇佹嵁浜嬩欢鍙兘涓嶅湪 Event v2 瀛樺偍涓€?
+    bundleMessage.value = cause?.message || '证据包生成失败：证据事件可能不在 Event v2 存储中。'
     bundleMessageType.value = 'error'
   } finally {
     creatingBundle.value = false
@@ -421,7 +421,7 @@ async function downloadBundle(bundle) {
     link.click()
     URL.revokeObjectURL(url)
   } catch {
-    error.value = '璇佹嵁鍖呬笅杞藉け璐ャ€?
+    error.value = '证据包下载失败。'
   }
 }
 
@@ -526,4 +526,3 @@ onMounted(() => {
   .response-form-row { grid-template-columns: 1fr; }
 }
 </style>
-
