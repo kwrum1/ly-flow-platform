@@ -529,7 +529,7 @@ async function load() {
     attackWorkbenchClient.stats(),
     attackWorkbenchClient.xdrPosture(),
     attackWorkbenchClient.xdrChains({ limit: 30 }),
-    attackWorkbenchClient.incidents({ limit: 80 }),
+    attackWorkbenchClient.incidents({ limit: 40 }),
     assetAgentClient.assetStats(),
     assetAgentClient.assets({ limit: 8 }),
     assetAgentClient.engineHealth(),

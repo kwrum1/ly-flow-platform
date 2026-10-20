@@ -285,7 +285,7 @@ async function loadIncidents() {
   loading.value = true
   error.value = ''
   try {
-    const data = unwrap(await attackWorkbenchClient.incidents({ limit: 80 }))
+    const data = unwrap(await attackWorkbenchClient.incidents({ limit: 40 }))
     incidents.value = normalizeIncidents(Array.isArray(data.items) ? data.items : [])
     incidentTotal.value = Number(data.total ?? incidents.value.length) || incidents.value.length
     const wanted = String(route.query.id || '')

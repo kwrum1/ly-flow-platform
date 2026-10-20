@@ -116,17 +116,14 @@ import { formatChinaDateTime } from '../shared/time'
 const loading = ref(false)
 const error = ref('')
 const stats = ref({})
-const incidentsPayload = ref({ items: [], total: 0 })
 const chainsPayload = ref({ items: [], total: 0 })
 const timelinePayload = ref({ items: [], total: 0 })
 const eventsPayload = ref({ items: [], total: 0 })
 const posture = ref({})
 
-const incidents = computed(() => incidentsPayload.value.items)
 const chains = computed(() => chainsPayload.value.items)
 const timeline = computed(() => timelinePayload.value.items)
 const events = computed(() => eventsPayload.value.items)
-const incidentTotal = computed(() => incidentsPayload.value.total)
 const chainTotal = computed(() => chainsPayload.value.total)
 const timelineTotal = computed(() => timelinePayload.value.total)
 const eventTotal = computed(() => eventsPayload.value.total)
@@ -164,21 +161,19 @@ const loadAll = async () => {
   loading.value = true
   error.value = ''
   try {
-    const [nextStats, nextIncidents, nextChains, nextPosture, nextTimeline, nextEvents] = await Promise.allSettled([
+    const [nextStats, nextChains, nextPosture, nextTimeline, nextEvents] = await Promise.allSettled([
       attackWorkbenchClient.stats(),
-      attackWorkbenchClient.incidents({ limit: 20 }),
       attackWorkbenchClient.xdrChains({ limit: 20 }),
       attackWorkbenchClient.xdrPosture(),
       attackWorkbenchClient.timeline({ limit: 30 }),
       attackWorkbenchClient.events({ limit: 20 }),
     ])
     if (nextStats.status === 'fulfilled') stats.value = nextStats.value || {}
-    if (nextIncidents.status === 'fulfilled') incidentsPayload.value = normalizeItems(nextIncidents.value)
     if (nextChains.status === 'fulfilled') chainsPayload.value = normalizeItems(nextChains.value)
     if (nextPosture.status === 'fulfilled') posture.value = nextPosture.value || {}
     if (nextTimeline.status === 'fulfilled') timelinePayload.value = normalizeItems(nextTimeline.value)
     if (nextEvents.status === 'fulfilled') eventsPayload.value = normalizeItems(nextEvents.value)
-    if ([nextStats, nextIncidents, nextChains, nextPosture, nextEvents].every((result) => result.status === 'rejected')) {
+    if ([nextStats, nextChains, nextPosture, nextEvents].every((result) => result.status === 'rejected')) {
       error.value = '无法读取攻击链工作台数据'
     }
   } catch (requestError) {
