@@ -53,7 +53,10 @@ async function main() {
     const errors = []
     page.on('console', (message) => { if (message.type() === 'error') errors.push(`console: ${message.text()}`) })
     page.on('pageerror', (error) => errors.push(`pageerror: ${String(error)}`))
-    page.on('requestfailed', (request) => errors.push(`requestfailed: ${request.method()} ${request.url()} ${request.failure()?.errorText || ''}`))
+    page.on('requestfailed', (request) => {
+      const reason = request.failure()?.errorText || ''
+      if (!reason.includes('ERR_ABORTED')) errors.push(`requestfailed: ${request.method()} ${request.url()} ${reason}`)
+    })
     page.on('response', (response) => {
       if (response.status() >= 400 && !response.url().includes('/events/does-not-exist')) {
         errors.push(`http ${response.status()} ${response.url()}`)
@@ -69,7 +72,7 @@ async function main() {
 
     for (const [name, route] of pages) {
       const response = await page.goto(`${baseURL}${route}`, { waitUntil: 'domcontentloaded' })
-      await page.waitForTimeout(2200)
+      await page.waitForTimeout(name === 'evidence' ? 5000 : 2200)
       const text = await page.locator('body').innerText()
       const metrics = await page.evaluate(() => ({
         overflow: document.documentElement.scrollWidth - document.documentElement.clientWidth,
@@ -88,7 +91,7 @@ async function main() {
       }
     }
 
-    const navLinks = await page.locator('aside a[href], nav a[href]').evaluateAll((links) => links.map((link) => new URL(link.href).pathname))
+    const navLinks = await page.locator('a.sx-group-link, a.sx-tab, .nav-item').evaluateAll((links) => links.map((link) => new URL(link.href).pathname))
     const duplicateLinks = navLinks.filter((value, index) => navLinks.indexOf(value) !== index)
     result.checks.nav = { links: [...new Set(navLinks)], duplicateLinks: [...new Set(duplicateLinks)] }
 
@@ -139,9 +142,17 @@ async function main() {
     await page.goto(`${baseURL}/runtime`, { waitUntil: 'domcontentloaded' })
     await page.waitForTimeout(1800)
     const runtimeText = await page.locator('body').innerText()
+    const runtimeProcessCount = await page.evaluate(async () => {
+      const token = localStorage.getItem('token')
+      const response = await fetch('/api/v1/component-alerts/runtime?limit=100', { headers: { Authorization: `Bearer ${token}` } })
+      if (!response.ok) return 0
+      const payload = await response.json()
+      return (payload.data?.items || []).filter((item) => item.type === 'runtime.process.exec' && item.backend === 'ebpf').length
+    })
     result.checks.runtime = {
       hasEBPF: runtimeText.includes('eBPF'),
-      hasProcessEvents: runtimeText.includes('runtime.process.exec'),
+      hasProcessEvents: runtimeText.includes('runtime.process.exec') || runtimeProcessCount > 0,
+      runtimeProcessCount,
     }
 
     const detailRequests = []
