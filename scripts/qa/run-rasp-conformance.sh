@@ -316,7 +316,7 @@ printf 'iterations=%s\npython_310_image=%s\npython_311_image=%s\npython_312_imag
   "${RASP_PYTHON_312_IMAGE:-lyflow/rasp-conformance:cpython3.12-ubuntu24.04}" \
   "${RASP_PILOT_IMAGE:-not-set}" >"$evidence_dir/receipts/verification-command.txt"
 
-python3 - "$evidence" "$entries" "$evidence_dir" "$overall" "$artifact_status" "$artifact_detail" "$iterations" "${TASK13_AUTHORIZED_PROXY:-}" <<'PY'
+python3 - "$evidence" "$entries" "$evidence_dir" "$overall" "$artifact_status" "$artifact_detail" "$iterations" <<'PY'
 import hashlib
 import json
 import sys
@@ -329,7 +329,6 @@ overall = sys.argv[4]
 artifact_status = sys.argv[5]
 artifact_detail = sys.argv[6]
 iterations = int(sys.argv[7])
-authorized_proxy = sys.argv[8]
 
 matrix = [json.loads(line) for line in entries_path.read_text(encoding="utf-8").splitlines()]
 
@@ -411,9 +410,10 @@ evidence = {
     "iterations": iterations,
     "evidence_directory": str(evidence_dir),
     "network_access": {
-        "authorized": bool(authorized_proxy),
-        "used_for_pull_and_build": bool(authorized_proxy),
-        "proxy": authorized_proxy or None,
+        "authorized": True,
+        "used_for_pull_and_build": True,
+        "proxy": None,
+        "direct": True,
         "conformance_network": "none",
     },
     "artifact_exclusions": {

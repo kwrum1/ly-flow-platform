@@ -77,7 +77,7 @@ jobs:
       - name: 编译服务端与 Agent 程序
         run: |
           set -euo pipefail
-          export GOTOOLCHAIN=auto GOSUMDB=sum.golang.org GOPROXY=https://proxy.golang.org,direct
+          export GOTOOLCHAIN=auto GOSUMDB=sum.golang.org GOPROXY=direct
           arch="${LYFLOW_TARGET_ARCH}"
           mkdir -p "server/dist/linux/$arch" "security-engine/dist/linux/$arch" agent/dist/linux/{amd64,arm64} agent/dist/windows/amd64
           (cd server && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH="$arch" go build -trimpath -buildvcs=false -o "dist/linux/$arch/ly-server" ./cmd)

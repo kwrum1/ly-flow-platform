@@ -147,6 +147,8 @@ Agent 安装、卸载和 Windows/Npcap 下载入口由控制台“安装配置�
 
 GitHub Actions 工作流为 `.github/workflows/release.yml`，名称为“正式服务端发布”。工作流在每月 1 日和 16 日自动运行，也可手动触发；每次从公网重新获取规则和基础环境，无跨构建缓存，同时原生构建 AMD64 与 ARM64 服务端包。
 
+云构建不依赖 HTTP/HTTPS 代理环境：规则直接来自 GitHub/上游规则站，Go 依赖使用 `GOPROXY=direct`，Docker 基础镜像直接从上游仓库拉取。本地构建/安装脚本同样不注入代理变量。
+
 新版本构建成功后，工作流删除旧 Actions 运行记录、旧 Release 和旧发布标签，只保留 `latest-server` 正式发布及本次两个服务端包。Gitea 继续作为内部源码和恢复仓库，不承担默认自动发布。
 
 ## 文档
