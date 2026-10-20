@@ -65,7 +65,7 @@ async function inspectPage(page, name, pathname, viewport) {
 
 async function main() {
   await fs.mkdir(evidenceDir, { recursive: true })
-  const browser = await chromium.launch({ headless: true })
+  const browser = await chromium.launch({ headless: true, args: ['--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage'] })
   const result = { generatedAt: new Date().toISOString(), consoleErrors: [], pageErrors: [], requestFailures: [], badResponses: [], pages: [] }
   try {
     const context = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 } })
