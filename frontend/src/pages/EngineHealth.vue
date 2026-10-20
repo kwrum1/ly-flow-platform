@@ -78,35 +78,41 @@ const showUninstalled = ref(false)
 const engineDefinitions = [
   { key: 'security-engine', label: 'LyFlow DPI 引擎', short: 'LY' },
   { key: 'suricata', label: 'Suricata', short: 'SU' },
+  { key: 'lyprobe', label: 'LyFlow 探针', short: 'LP' },
   { key: 'wazuh', label: 'Wazuh', short: 'WA' },
   { key: 'yara', label: 'YARA', short: 'YA' },
   { key: 'rasp', label: 'OpenRASP', short: 'RA' },
   { key: 'dpi', label: 'DPI Engine', short: 'DP' },
 ]
 
-const runtimeItem = computed(() => {
-  const runtime = runtimeStatus.value?.engines?.['security-engine']
-  if (!runtime) return null
-  const health = runtime.control_health || {}
-  const running = health.status === 'healthy' || runtime.status === 'running'
-  return {
-    agent_id: runtime.service || 'ly-security-engine',
-    agent_status: 'online',
-    engine: 'security-engine',
-    hostname: runtime.service || 'ly-security-engine',
-    installed: true,
-    running,
-    version: '',
-    rule_pack_version: runtime.bundle_version || '',
-    last_event_at: '',
-    last_heartbeat: health.watchdog_at || '',
-    last_error: health.reason || '',
-    output_path: runtime.bundle_path || '',
-  }
+const runtimeItems = computed(() => {
+  const engines = runtimeStatus.value?.engines || {}
+  return Object.entries(engines).map(([key, runtime = {}]) => {
+    const health = runtime.control_health || {}
+    const status = String(runtime.status || '').toLowerCase()
+    const hasRulePack = Number(runtime.signature_count || runtime.rule_count || 0) > 0
+    const running = health.status === 'healthy' || runtime.running === true || status === 'running' || (key === 'suricata' && hasRulePack)
+    return {
+      agent_id: runtime.service || `platform-${key}`,
+      agent_status: 'online',
+      engine: key,
+      hostname: runtime.service || engineLabel(key),
+      installed: runtime.installed !== false,
+      running,
+      version: runtime.version || '',
+      rule_pack_version: runtime.bundle_version || runtime.rule_pack_version || '',
+      last_event_at: runtime.last_export || '',
+      last_heartbeat: health.watchdog_at || runtime.last_export || '',
+      last_error: health.reason || '',
+      output_path: runtime.bundle_path || runtime.count_source || '',
+    }
+  })
 })
 const allItems = computed(() => {
   const rows = [...items.value]
-  if (runtimeItem.value && !rows.some((item) => item.engine === 'security-engine')) rows.unshift(runtimeItem.value)
+  for (const runtimeItem of runtimeItems.value) {
+    if (!rows.some((item) => item.engine === runtimeItem.engine)) rows.unshift(runtimeItem)
+  }
   return rows
 })
 const installedItems = computed(() => allItems.value.filter((item) => item.installed !== false))
@@ -124,16 +130,15 @@ const engineCards = computed(() => {
     }
   }
   for (const definition of definitions) {
-    const itemsForEngine = installedItems.value.filter((item) => item.engine === definition.key)
-    if (!itemsForEngine.length) continue
+    const itemsForEngine = allItems.value.filter((item) => item.engine === definition.key && item.installed !== false)
     const running = itemsForEngine.filter(isRunning).length
     const last = itemsForEngine.map((item) => item.last_event_at).filter(Boolean).sort().at(-1)
     rows.push({
       ...definition,
       count: itemsForEngine.length,
       running,
-      status: running === itemsForEngine.length ? '正常' : running > 0 ? '部分异常' : '异常',
-      tone: running === itemsForEngine.length ? 'low' : running > 0 ? 'medium' : 'critical',
+      status: !itemsForEngine.length ? '未安装' : running === itemsForEngine.length ? '正常' : running > 0 ? '部分异常' : '异常',
+      tone: !itemsForEngine.length ? 'muted' : running === itemsForEngine.length ? 'low' : running > 0 ? 'medium' : 'critical',
       lastEvent: last ? formatTime(last) : '-',
       rulePack: itemsForEngine[0]?.rule_pack_version || '',
     })
@@ -144,7 +149,7 @@ const engineCards = computed(() => {
 function unwrap(response) { return response?.data?.data ?? response?.data ?? response ?? {} }
 function formatNumber(value) { return Number(value || 0).toLocaleString('zh-CN') }
 function formatTime(value) { if (!value) return '-'; const date = new Date(value); return Number.isNaN(date.getTime()) || date.getFullYear() < 2000 ? '-' : date.toLocaleString('zh-CN', { hour12: false }) }
-function engineLabel(value) { return ({ 'security-engine': 'LyFlow DPI 引擎', suricata: 'Suricata', wazuh: 'Wazuh', yara: 'YARA', rasp: 'OpenRASP', dpi: 'DPI Engine' })[value] || value || '-' }
+function engineLabel(value) { return ({ 'security-engine': 'LyFlow DPI 引擎', suricata: 'Suricata', lyprobe: 'LyFlow 探针', wazuh: 'Wazuh', yara: 'YARA', rasp: 'OpenRASP', dpi: 'DPI Engine' })[value] || value || '-' }
 function isRunning(item) { return Boolean(item.running) && String(item.agent_status || '').toLowerCase() !== 'offline' }
 function statusLabel(item) {
   if (!item.installed) return '未安装'
@@ -191,7 +196,7 @@ onMounted(load)
 <style scoped>
 .engines-page { gap: 14px; }
 .engine-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-.engine-card-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; }
+.engine-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; }
 .engine-card { padding: 12px; }
 .engine-card-head { display: flex; align-items: center; gap: 8px; }
 .engine-monogram { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 7px; background: var(--sx-accent-soft); color: var(--sx-accent); font-size: 9px; font-weight: 800; }
