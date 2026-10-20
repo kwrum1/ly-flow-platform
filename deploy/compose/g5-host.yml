@@ -234,6 +234,7 @@ services:
       LYFLOW_INGEST_URL: "http://127.0.0.1:8080"
       VECTOR_AGENT_ID: ${VECTOR_AGENT_ID:?VECTOR_AGENT_ID must be set}
       VECTOR_AGENT_KEY: ${VECTOR_AGENT_KEY:?VECTOR_AGENT_KEY must be set}
+      NETFLOW_ATTRIBUTION_AGENT_ID: "${NETFLOW_ATTRIBUTION_AGENT_ID:-}"
     depends_on:
       ly-server: {condition: service_healthy}
     healthcheck:

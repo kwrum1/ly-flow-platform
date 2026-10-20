@@ -23,6 +23,7 @@ func main() {
 	serverURL := flag.String("server", env("LYFLOW_INGEST_URL", "http://127.0.0.1:8080"), "ly-server base URL")
 	agentID := flag.String("agent-id", env("VECTOR_AGENT_ID", env("NETFLOW_AGENT_ID", "")), "ingestion agent id")
 	agentKey := flag.String("agent-key", env("VECTOR_AGENT_KEY", env("NETFLOW_AGENT_KEY", "")), "ingestion agent key")
+	attributionAgentID := flag.String("attribution-agent-id", env("NETFLOW_ATTRIBUTION_AGENT_ID", ""), "agent id to attribute observed flows to (defaults to ingestion id)")
 	flag.Parse()
 	if strings.TrimSpace(*agentID) == "" || strings.TrimSpace(*agentKey) == "" {
 		log.Fatal("netflow collector: VECTOR_AGENT_ID and VECTOR_AGENT_KEY are required")
@@ -39,12 +40,13 @@ func main() {
 		}
 	}
 	collector := &Collector{
-		client:    &http.Client{Timeout: 30 * time.Second},
-		server:    strings.TrimRight(*serverURL, "/"),
-		agentID:   *agentID,
-		agentKey:  *agentKey,
-		templates: map[string]Template{},
-		queue:     make(chan Record, 4096),
+		client:             &http.Client{Timeout: 30 * time.Second},
+		server:             strings.TrimRight(*serverURL, "/"),
+		agentID:            *agentID,
+		agentKey:           *agentKey,
+		attributionAgentID: strings.TrimSpace(*attributionAgentID),
+		templates:          map[string]Template{},
+		queue:              make(chan Record, 4096),
 	}
 	collector.startWorkers(context.Background(), 8)
 	log.Printf("netflow collector listening on UDP/%d, forwarding to %s as %s", port, *serverURL, *agentID)
@@ -73,12 +75,13 @@ type Field struct {
 type Record map[string]interface{}
 
 type Collector struct {
-	client    *http.Client
-	server    string
-	agentID   string
-	agentKey  string
-	templates map[string]Template
-	queue     chan Record
+	client             *http.Client
+	server             string
+	agentID            string
+	agentKey           string
+	attributionAgentID string
+	templates          map[string]Template
+	queue              chan Record
 }
 
 func (c *Collector) startWorkers(ctx context.Context, count int) {
@@ -118,7 +121,14 @@ func (c *Collector) publish(ctx context.Context, record Record) {
 	// real NetFlow evidence. Matched threat records additionally become
 	// component alerts, which feed XDR/Incident.
 	if flow := flowPayload(record); flow != nil {
-		flow["agent_id"] = c.agentID
+		attributionID := c.agentID
+		if strings.TrimSpace(c.attributionAgentID) != "" {
+			attributionID = c.attributionAgentID
+		}
+		flow["agent_id"] = attributionID
+		flow["probe_name"] = "lyprobe"
+		flow["probe_kind"] = "netflow"
+		flow["capture_source"] = "lyprobe"
 		// Publish into flows:raw, the canonical raw flow stream. The server
 		// bridges it into flows:semantic and sessions:semantic, so both the
 		// flow table and the session view receive the same probe evidence.
