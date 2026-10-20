@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"go/ast"
@@ -50,14 +50,14 @@ func TestArchitectureRouteSnapshot_characterizesCurrentCountAndRoles(t *testing.
 	}
 
 	// Then
-	if len(ArchitectureRouteSnapshot) != 119 {
-		t.Fatalf("route snapshot count=%d, want 119", len(ArchitectureRouteSnapshot))
+	if len(ArchitectureRouteSnapshot) != 120 {
+		t.Fatalf("route snapshot count=%d, want 120", len(ArchitectureRouteSnapshot))
 	}
 	want := map[string]int{
 		"public":           12,
 		"agent_credential": 11,
 		"loopback":         1,
-		"admin_only":       25,
+		"admin_only":       26,
 		"default_roles":    70,
 	}
 	for class, expected := range want {
@@ -243,3 +243,4 @@ func rolesEqual(left, right []auth.UserRole) bool {
 	}
 	return true
 }
+

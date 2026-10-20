@@ -75,7 +75,7 @@
             </div>
             <div class="incident-hero-actions">
               <select class="sx-select" :value="selected.status" :disabled="updatingStatus" @change="updateStatus($event.target.value)">
-                <option v-for="status in statuses" :key="status" :value="status">{{ statusLabel(status) }}</option>
+                <option v-for="status in availableStatuses" :key="status" :value="status">{{ statusLabel(status) }}</option>
               </select>
             </div>
           </section>
@@ -233,6 +233,13 @@ const severityFilter = ref('')
 const actions = ref([])
 const bundles = ref([])
 const statuses = ['open', 'triaged', 'processing', 'resolved', 'closed']
+const statusTransitions = {
+  open: ['open', 'triaged', 'processing'],
+  triaged: ['triaged', 'open', 'processing'],
+  processing: ['processing', 'open', 'triaged', 'resolved'],
+  resolved: ['resolved', 'processing', 'open', 'closed'],
+  closed: ['closed', 'open'],
+}
 const actionForm = reactive({ action: 'observe', target: '', agent_id: '', reason: '' })
 
 const stageDefinitions = [
@@ -246,6 +253,7 @@ const filteredIncidents = computed(() => incidents.value.filter((item) => {
   if (severityFilter.value && item.severity !== severityFilter.value) return false
   return true
 }))
+const availableStatuses = computed(() => statusTransitions[selected.value?.status] || statuses)
 const groups = computed(() => {
   if (!selected.value) return []
   if (selected.value.stageGroups?.length) return selected.value.stageGroups
@@ -336,8 +344,8 @@ async function updateStatus(status) {
     await incidentsAPI.updateStatus(selected.value.id, status)
     selected.value = { ...selected.value, status }
     await loadIncidents()
-  } catch {
-    error.value = 'Incident 状态更新失败。'
+  } catch (cause) {
+    error.value = cause?.message || 'Incident 状态更新失败。'
   } finally {
     updatingStatus.value = false
   }

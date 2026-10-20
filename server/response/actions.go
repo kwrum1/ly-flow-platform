@@ -73,14 +73,41 @@ type ActionTask struct {
 }
 
 type ActionManager struct {
-	mu     sync.Mutex
-	engine *Engine
-	path   string
-	now    func() time.Time
+	mu         sync.Mutex
+	engine     *Engine
+	path       string
+	policyPath string
+	policy     Policy
+	now        func() time.Time
 }
 
-func NewActionManager(path string, policy Policy) (*ActionManager, error) {
-	actions := []Action{
+// AutomationPolicy is the persisted, operator-editable response policy.
+// Only L2 actions can auto-execute inside the window; L3 actions always
+// require a second authenticated approver.
+type AutomationPolicy struct {
+	Enabled                  bool `json:"enabled"`
+	WindowStartHour          int  `json:"window_start_hour"`
+	WindowEndHour            int  `json:"window_end_hour"`
+	RequireDifferentApprover bool `json:"require_different_approver"`
+	ApprovalTTLMinutes       int  `json:"approval_ttl_minutes"`
+}
+
+func (value AutomationPolicy) toPolicy() Policy {
+	ttl := value.ApprovalTTLMinutes
+	if ttl <= 0 {
+		ttl = 15
+	}
+	return Policy{
+		AllowScheduledAuto:       value.Enabled,
+		WindowStartHour:          value.WindowStartHour,
+		WindowEndHour:            value.WindowEndHour,
+		RequireDifferentApprover: value.RequireDifferentApprover,
+		ApprovalTTL:              time.Duration(ttl) * time.Minute,
+	}
+}
+
+func defaultActions() []Action {
+	return []Action{
 		{ID: string(ActionObserve), Name: "observe", Risk: RiskL1, Reversible: true},
 		{ID: string(ActionBlockIP), Name: "block source IP", Risk: RiskL2, Reversible: true},
 		{ID: string(ActionUnblockIP), Name: "unblock source IP", Risk: RiskL1, Reversible: true},
@@ -94,6 +121,13 @@ func NewActionManager(path string, policy Policy) (*ActionManager, error) {
 		{ID: string(ActionNamespaceIsolate), Name: "isolate container network", Risk: RiskL3, Reversible: true},
 		{ID: string(ActionNamespaceRestore), Name: "restore container network", Risk: RiskL1, Reversible: true},
 	}
+}
+
+func NewActionManager(path string, policy Policy) (*ActionManager, error) {
+	if policy.ApprovalTTL <= 0 {
+		policy.ApprovalTTL = 15 * time.Minute
+	}
+	actions := defaultActions()
 	engine, err := New(policy, actions...)
 	if err != nil {
 		return nil, err
@@ -101,7 +135,70 @@ func NewActionManager(path string, policy Policy) (*ActionManager, error) {
 	if strings.TrimSpace(path) == "" {
 		path = "/var/lib/lyflow/response/actions.json"
 	}
-	return &ActionManager{engine: engine, path: path, now: time.Now}, nil
+	manager := &ActionManager{engine: engine, path: path, policy: policy, policyPath: filepath.Join(filepath.Dir(path), "policy.json"), now: time.Now}
+	if data, readErr := os.ReadFile(manager.policyPath); readErr == nil {
+		var persisted AutomationPolicy
+		if err := json.Unmarshal(data, &persisted); err != nil {
+			return nil, fmt.Errorf("response policy: %w", err)
+		}
+		if persisted.ApprovalTTLMinutes == 0 {
+			persisted.ApprovalTTLMinutes = 15
+		}
+		engine, err = New(persisted.toPolicy(), actions...)
+		if err != nil {
+			return nil, fmt.Errorf("response policy: %w", err)
+		}
+		manager.engine = engine
+		manager.policy = persisted.toPolicy()
+	}
+	return manager, nil
+}
+
+func (manager *ActionManager) Automation() AutomationPolicy {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	return AutomationPolicy{
+		Enabled:                  manager.policy.AllowScheduledAuto,
+		WindowStartHour:          manager.policy.WindowStartHour,
+		WindowEndHour:            manager.policy.WindowEndHour,
+		RequireDifferentApprover: manager.policy.RequireDifferentApprover,
+		ApprovalTTLMinutes:       int(manager.policy.ApprovalTTL / time.Minute),
+	}
+}
+
+func (manager *ActionManager) AutomationActive(now time.Time) bool {
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	return manager.policy.AllowScheduledAuto && manager.engine.inWindow(now)
+}
+
+func (manager *ActionManager) UpdateAutomation(next AutomationPolicy) (AutomationPolicy, error) {
+	policy := next.toPolicy()
+	engine, err := New(policy, defaultActions()...)
+	if err != nil {
+		return AutomationPolicy{}, err
+	}
+	manager.mu.Lock()
+	defer manager.mu.Unlock()
+	if err := os.MkdirAll(filepath.Dir(manager.policyPath), 0o755); err != nil {
+		return AutomationPolicy{}, err
+	}
+	encoded, err := json.MarshalIndent(next, "", "  ")
+	if err != nil {
+		return AutomationPolicy{}, err
+	}
+	if err := os.WriteFile(manager.policyPath, append(encoded, '\n'), 0o600); err != nil {
+		return AutomationPolicy{}, err
+	}
+	manager.engine = engine
+	manager.policy = policy
+	return AutomationPolicy{
+		Enabled:                  policy.AllowScheduledAuto,
+		WindowStartHour:          policy.WindowStartHour,
+		WindowEndHour:            policy.WindowEndHour,
+		RequireDifferentApprover: policy.RequireDifferentApprover,
+		ApprovalTTLMinutes:       int(policy.ApprovalTTL / time.Minute),
+	}, nil
 }
 
 func (manager *ActionManager) List() ([]ActionRecord, error) {
@@ -130,7 +227,9 @@ func (manager *ActionManager) Create(request ActionRequest) (ActionRecord, error
 		Reason:      request.Reason,
 		CreatedAt:   now,
 	}
+	manager.mu.Lock()
 	decision, err := manager.engine.Evaluate(policyRequest, now)
+	manager.mu.Unlock()
 	if err != nil {
 		return ActionRecord{}, err
 	}

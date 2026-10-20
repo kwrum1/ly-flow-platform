@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "registry": {
-    "mounted_path_count": 119,
-    "sorted_path_sha256": "b5a27eb354214366ce6c86db0e19d9366f7255c5ce1b38abef7494c06d3e172c"
+    "mounted_path_count": 120,
+    "sorted_path_sha256": "f04d8169a9cb4a1d5dfbbcd6ebbe9de3b45d0f8faa15a3825006cc4e22872d5a"
   },
   "roles": [
     "admin",
@@ -3296,6 +3296,73 @@
             "method": "POST",
             "path": "/api/v1/response/actions/",
             "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/response/automation",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/response/automation",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/response/automation",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/response/automation",
+            "body": {
+              "enabled": true,
+              "window_start_hour": 0,
+              "window_end_hour": 23,
+              "require_different_approver": true,
+              "approval_ttl_minutes": 15
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/response/automation",
+            "body": {
+              "enabled": true,
+              "window_start_hour": 99,
+              "window_end_hour": 23
+            },
             "expected_statuses": [
               400
             ]

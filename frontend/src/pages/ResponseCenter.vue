@@ -19,6 +19,27 @@
       <article class="sx-metric"><span class="sx-metric-label"><i />失败 / 回滚</span><strong class="sx-metric-value danger">{{ formatNumber(failedCount) }}</strong><span class="sx-metric-note">需要人工核查</span></article>
     </section>
 
+    <section class="sx-panel automation-panel">
+      <div class="sx-panel-head">
+        <div class="sx-panel-title">定时自动化处置</div>
+        <span class="sx-badge" :class="automation.active ? 'low' : 'muted'">{{ automation.active ? '当前窗口生效中' : '当前未自动执行' }}</span>
+      </div>
+      <div class="sx-panel-body automation-body">
+        <label class="automation-toggle">
+          <input v-model="automationForm.enabled" type="checkbox" />
+          <span><b>启用自动处置窗口</b><small>窗口内仅 L2 动作自动执行；L3 始终需要第二名管理员审批</small></span>
+        </label>
+        <label><span>开始小时</span><select v-model.number="automationForm.window_start_hour" class="sx-select"><option v-for="hour in hourOptions" :key="`s-${hour}`" :value="hour">{{ String(hour).padStart(2, '0') }}:00</option></select></label>
+        <label><span>结束小时</span><select v-model.number="automationForm.window_end_hour" class="sx-select"><option v-for="hour in hourOptions" :key="`e-${hour}`" :value="hour">{{ String(hour).padStart(2, '0') }}:00</option></select></label>
+        <label><span>审批 TTL（分钟）</span><input v-model.number="automationForm.approval_ttl_minutes" class="sx-input" type="number" min="1" max="1440" /></label>
+        <div class="automation-actions">
+          <span class="sx-muted">时区：Asia/Shanghai · {{ automation.scope || 'L2 actions only' }}</span>
+          <button class="sx-btn primary" type="button" :disabled="automationSaving" @click="saveAutomation">{{ automationSaving ? '保存中…' : '保存自动化策略' }}</button>
+        </div>
+        <div v-if="automationMessage" class="response-message" :class="automationMessageType">{{ automationMessage }}</div>
+      </div>
+    </section>
+
     <div v-if="error" class="sx-error">{{ error }}</div>
 
     <section class="response-create sx-panel">
@@ -27,18 +48,25 @@
         <span class="sx-panel-meta">提交后进入审批队列</span>
       </div>
       <div class="sx-panel-body create-grid">
-        <label><span>Incident ID</span><input v-model.trim="form.incident_id" class="sx-input" placeholder="可选，例如 inc-..." /></label>
-        <label><span>Agent ID</span><input v-model.trim="form.agent_id" class="sx-input" placeholder="g5-real-agent" /></label>
+        <label class="agent-field"><span>Agent</span>
+          <select v-model="form.agent_id" class="sx-select">
+            <option value="" disabled>{{ agents.length ? '选择 Agent' : '暂无已注册 Agent' }}</option>
+            <option v-for="agent in agents" :key="agent.agent_id" :value="agent.agent_id">
+              {{ agent.display_name || agent.hostname || agent.agent_id }} · {{ agent.ip || '无 IP' }} · {{ agent.status === 'online' ? '在线' : '离线' }}
+            </option>
+          </select>
+        </label>
         <label><span>动作</span>
           <select v-model="form.action" class="sx-select">
             <option v-for="item in actionOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
           </select>
         </label>
-        <label><span>目标</span><input v-model.trim="form.target" class="sx-input" :placeholder="targetPlaceholder" /></label>
-        <label class="wide"><span>原因</span><input v-model.trim="form.reason" class="sx-input" placeholder="处置依据 / 变更单号" /></label>
+        <label v-if="requiresTarget" class="wide"><span>目标</span><input v-model.trim="form.target" class="sx-input" :placeholder="targetPlaceholder" /></label>
+        <label class="wide description-field"><span>说明</span><textarea v-model.trim="form.reason" class="sx-input reason-input" rows="2" placeholder="处置依据 / 变更单号（可选）" /></label>
         <div class="create-actions">
+          <span class="sx-muted">L2 在自动化窗口内可直接执行；L3 始终进入审批。</span>
           <span v-if="message" :class="['response-message', messageType]">{{ message }}</span>
-          <button class="sx-btn primary" type="button" :disabled="creating || !canCreate" @click="createAction">{{ creating ? '提交中…' : '提交审批' }}</button>
+          <button class="sx-btn primary" type="button" :disabled="creating || !canCreate" @click="createAction">{{ creating ? '提交中…' : '提交处置' }}</button>
         </div>
       </div>
     </section>
@@ -99,7 +127,7 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { responseClient } from '../api/domain'
+import { assetAgentClient, responseClient } from '../api/domain'
 
 const loading = ref(false)
 const creating = ref(false)
@@ -108,21 +136,29 @@ const error = ref('')
 const message = ref('')
 const messageType = ref('success')
 const actions = ref([])
+const agents = ref([])
+const automation = ref({})
+const automationSaving = ref(false)
+const automationMessage = ref('')
+const automationMessageType = ref('success')
 const statusFilter = ref('')
 const riskFilter = ref('')
 const query = ref('')
-const form = reactive({ incident_id: '', agent_id: '', action: 'block_ip', target: '', reason: '' })
+const form = reactive({ agent_id: '', action: 'isolate_host', target: '', reason: '' })
+const automationForm = reactive({ enabled: false, window_start_hour: 0, window_end_hour: 23, approval_ttl_minutes: 15 })
+const hourOptions = Array.from({ length: 24 }, (_, index) => index)
 
 const actionOptions = [
   { value: 'observe', label: '观察' }, { value: 'block_ip', label: '封禁 IP' }, { value: 'isolate_host', label: '主机隔离' },
   { value: 'process_kill', label: '终止进程' }, { value: 'file_delete', label: '隔离文件' }, { value: 'account_disable', label: '禁用账号' },
   { value: 'namespace_isolate', label: '容器网络隔离' },
 ]
-const targetPlaceholder = computed(() => ({ block_ip: 'IP 地址（必须在 RESPONSE_ALLOWED_CIDRS 内）', isolate_host: '主机名 / 资产', process_kill: 'PID', file_delete: '绝对文件路径', account_disable: '用户名', namespace_isolate: '容器 ID', observe: '可为空' })[form.action] || '目标')
+const targetPlaceholder = computed(() => ({ block_ip: 'IP 地址（必须在 RESPONSE_ALLOWED_CIDRS 内）', process_kill: 'PID', file_delete: '绝对文件路径', account_disable: '用户名', namespace_isolate: '容器 ID' })[form.action] || '目标')
+const requiresTarget = computed(() => ['block_ip', 'process_kill', 'file_delete', 'account_disable', 'namespace_isolate'].includes(form.action))
 const pendingCount = computed(() => actions.value.filter((item) => item.status === 'pending_approval').length)
 const executedCount = computed(() => actions.value.filter((item) => item.status === 'executed').length)
 const failedCount = computed(() => actions.value.filter((item) => ['failed', 'rolled_back'].includes(item.status)).length)
-const canCreate = computed(() => form.agent_id && (form.action === 'observe' || form.target))
+const canCreate = computed(() => Boolean(form.agent_id && (form.action === 'observe' || form.action === 'isolate_host' || form.target)))
 const filteredActions = computed(() => actions.value.filter((item) => {
   if (statusFilter.value && item.status !== statusFilter.value) return false
   if (riskFilter.value && item.risk !== riskFilter.value) return false
@@ -146,12 +182,56 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const data = unwrap(await responseClient.actions({ limit: 100 }))
-    actions.value = Array.isArray(data.items) ? data.items : []
-  } catch (cause) {
-    error.value = cause?.message || '响应动作加载失败。'
+    const [actionResult, agentResult, automationResult] = await Promise.allSettled([
+      responseClient.actions({ limit: 100 }),
+      assetAgentClient.agents({ limit: 200 }),
+      responseClient.automation(),
+    ])
+    if (actionResult.status === 'fulfilled') {
+      const data = unwrap(actionResult.value)
+      actions.value = Array.isArray(data.items) ? data.items : []
+    }
+    if (agentResult.status === 'fulfilled') {
+      const data = unwrap(agentResult.value)
+      agents.value = Array.isArray(data.items) ? data.items : []
+      if (!form.agent_id && agents.value.length) form.agent_id = agents.value[0].agent_id
+    }
+    if (automationResult.status === 'fulfilled') {
+      automation.value = unwrap(automationResult.value)
+      Object.assign(automationForm, {
+        enabled: Boolean(automation.value.enabled),
+        window_start_hour: Number(automation.value.window_start_hour ?? 0),
+        window_end_hour: Number(automation.value.window_end_hour ?? 23),
+        approval_ttl_minutes: Number(automation.value.approval_ttl_minutes ?? 15),
+      })
+    }
+    if ([actionResult, agentResult].every((result) => result.status === 'rejected')) {
+      error.value = '响应处置数据加载失败。'
+    }
   } finally {
     loading.value = false
+  }
+}
+
+async function saveAutomation() {
+  automationSaving.value = true
+  automationMessage.value = ''
+  try {
+    const data = unwrap(await responseClient.updateAutomation({
+      enabled: Boolean(automationForm.enabled),
+      window_start_hour: Number(automationForm.window_start_hour),
+      window_end_hour: Number(automationForm.window_end_hour),
+      require_different_approver: Boolean(automation.value.require_different_approver ?? true),
+      approval_ttl_minutes: Number(automationForm.approval_ttl_minutes || 15),
+    }))
+    automation.value = data
+    automationMessage.value = data.enabled ? '自动化策略已保存并生效。' : '自动化策略已保存，窗口内暂不自动执行。'
+    automationMessageType.value = 'success'
+  } catch (cause) {
+    automationMessage.value = cause?.message || '自动化策略保存失败。'
+    automationMessageType.value = 'error'
+  } finally {
+    automationSaving.value = false
   }
 }
 
@@ -161,14 +241,13 @@ async function createAction() {
   message.value = ''
   try {
     await responseClient.create({
-      incident_id: form.incident_id || undefined,
       agent_id: form.agent_id,
       action: form.action,
-      target: form.action === 'observe' ? form.agent_id : form.target,
+      target: requiresTarget.value ? form.target : form.agent_id,
       reason: form.reason || '响应中心人工处置',
       ttl_seconds: 300,
     })
-    message.value = '已提交审批队列。'
+    message.value = '处置已提交；L2 在自动化窗口内会直接执行，L3 进入审批队列。'
     messageType.value = 'success'
     form.target = ''
     form.reason = ''
@@ -211,11 +290,24 @@ onMounted(load)
 <style scoped>
 .response-page { gap: 14px; }
 .response-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.automation-panel { border-color: var(--sx-accent-line); }
+.automation-body { display: grid; grid-template-columns: minmax(220px, 1.4fr) 120px 120px 150px; gap: 10px; align-items: end; }
+.automation-toggle { display: flex; min-height: 34px; align-items: center; gap: 8px; cursor: pointer; }
+.automation-toggle input { width: 15px; height: 15px; accent-color: var(--sx-accent); }
+.automation-toggle span { display: grid; gap: 2px; }
+.automation-toggle b { color: var(--sx-text); font-size: 11px; }
+.automation-toggle small { color: var(--sx-text-3); font-size: 9px; }
+.automation-body label { display: grid; gap: 4px; }
+.automation-body label > span { color: var(--sx-text-3); font-size: 9px; }
+.automation-actions { display: flex; grid-column: 1 / -1; align-items: center; justify-content: space-between; gap: 10px; }
 .create-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 9px; align-items: end; }
 .create-grid label { display: grid; gap: 4px; min-width: 0; }
 .create-grid label > span { color: var(--sx-text-3); font-size: 9px; }
+.create-grid .agent-field { grid-column: span 2; }
 .create-grid .wide { grid-column: span 2; }
-.create-actions { display: flex; grid-column: span 2; align-items: center; justify-content: flex-end; gap: 10px; }
+.create-grid .description-field { grid-column: 1 / -1; }
+.reason-input { height: auto; min-height: 58px; padding: 8px 9px; resize: vertical; }
+.create-actions { display: flex; grid-column: 1 / -1; align-items: center; justify-content: flex-end; gap: 12px; }
 .response-message { font-size: 10px; }
 .response-message.success { color: var(--sx-success); }
 .response-message.error { color: var(--sx-danger); }

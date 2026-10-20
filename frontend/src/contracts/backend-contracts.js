@@ -43,6 +43,8 @@ export const backendContractDomains = Object.freeze([
       { method: 'GET', path: '/api/v1/xdr/posture', feature: 'XDR 态势评分' },
       { method: 'GET', path: '/api/v1/response/actions', feature: '响应动作历史' },
       { method: 'POST', path: '/api/v1/response/actions', feature: '创建响应动作' },
+      { method: 'GET', path: '/api/v1/response/automation', feature: '自动处置策略' },
+      { method: 'PUT', path: '/api/v1/response/automation', feature: '保存自动处置策略' },
       { method: 'GET', path: '/api/v1/evidence/bundles', feature: '证据包列表' },
       { method: 'POST', path: '/api/v1/evidence/bundles', feature: '生成证据包' },
     ],

@@ -119,12 +119,15 @@ func applyCommand(incident Incident, command Command, now time.Time) (Incident, 
 			return incident, map[string]string{"result": "already_applied"}, nil
 		}
 		incident.Status = command.To
-		if incident.AcknowledgedAt == nil && (command.To == StatusTriaged || command.To == StatusProcessing) {
+		if command.To == StatusOpen {
+			incident.AcknowledgedAt = nil
+			incident.ResolvedAt = nil
+		} else if incident.AcknowledgedAt == nil && (command.To == StatusTriaged || command.To == StatusProcessing) {
 			incident.AcknowledgedAt = timePointer(now)
 		}
 		if incident.ResolvedAt == nil && (command.To == StatusResolved || command.To == StatusClosed) {
 			incident.ResolvedAt = timePointer(now)
-		} else if command.To == StatusProcessing {
+		} else if command.To == StatusProcessing || command.To == StatusTriaged {
 			incident.ResolvedAt = nil
 		}
 	case ActionAssign:

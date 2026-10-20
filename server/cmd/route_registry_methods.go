@@ -21,6 +21,7 @@ var routeMethodOverrides = map[string][]string{
 	"/api/v1/response/policy":                     {"GET", "POST", "PUT"},
 	"/api/v1/response/actions":                    {"GET", "POST"},
 	"/api/v1/response/actions/":                   {"GET", "POST"},
+	"/api/v1/response/automation":                 {"GET", "PUT"},
 	"/api/v1/evidence/bundles":                    {"GET", "POST"},
 	"/api/v1/evidence/bundles/":                   {"GET"},
 	"/api/v1/evidence/artifacts":                  {"POST"},

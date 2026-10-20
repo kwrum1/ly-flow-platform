@@ -399,6 +399,7 @@ func main() {
 	mux.HandleFunc("/api/v1/rule-platform/active-bundle", rulePlatformActiveBundleHandler(cfg))
 	mux.HandleFunc("/api/v1/response/actions", responseActionsHandler(cfg))
 	mux.HandleFunc("/api/v1/response/actions/", responseActionHandler(cfg))
+	mux.HandleFunc("/api/v1/response/automation", responseAutomationHandler(cfg))
 	mux.HandleFunc("/api/v1/evidence/bundles", evidenceHandler(cfg))
 	mux.HandleFunc("/api/v1/evidence/bundles/", evidenceHandler(cfg))
 	mux.HandleFunc("/api/v1/evidence/artifacts", evidenceHandler(cfg))

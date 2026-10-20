@@ -89,6 +89,8 @@ export const responseClient = Object.freeze({
   create: (payload) => api.post('/response/actions', payload),
   approve: (id, payload = {}) => api.post(`/response/actions/${encodeURIComponent(id)}/approve`, payload),
   rollback: (id) => api.post(`/response/actions/${encodeURIComponent(id)}/rollback`, {}),
+  automation: () => api.get('/response/automation'),
+  updateAutomation: (payload) => api.put('/response/automation', payload),
 })
 
 export const evidenceClient = Object.freeze({

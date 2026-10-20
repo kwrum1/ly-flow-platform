@@ -40,7 +40,7 @@ func TestL2RequiresApprovalOutsideWindow(t *testing.T) {
 }
 
 func TestL2AutoInsideWindow(t *testing.T) {
-	now := time.Date(2026, 10, 19, 2, 0, 0, 0, time.UTC)
+	now := time.Date(2026, 10, 19, 2, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))
 	engine, _ := New(Policy{AllowScheduledAuto: true, WindowStartHour: 1, WindowEndHour: 5}, actions()...)
 	decision, err := engine.Evaluate(Request{ID: "r3", ActionID: "isolate", Target: "host-1", RequestedBy: "alice"}, now)
 	if err != nil {

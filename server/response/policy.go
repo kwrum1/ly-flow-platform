@@ -125,8 +125,10 @@ func (engine *Engine) Approve(request Request, approver string) error {
 	return nil
 }
 
+var chinaTime = time.FixedZone("Asia/Shanghai", 8*60*60)
+
 func (engine *Engine) inWindow(now time.Time) bool {
-	hour := now.UTC().Hour()
+	hour := now.In(chinaTime).Hour()
 	if engine.policy.WindowStartHour <= engine.policy.WindowEndHour {
 		return hour >= engine.policy.WindowStartHour && hour < engine.policy.WindowEndHour
 	}

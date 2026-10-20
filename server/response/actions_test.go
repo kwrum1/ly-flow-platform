@@ -95,3 +95,25 @@ func TestActionManagerReversibleActionRollbackMapping(t *testing.T) {
 		t.Fatalf("create process kill: %v", err)
 	}
 }
+
+func TestActionManagerPersistsAutomationPolicy(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "actions.json")
+	manager, err := NewActionManager(path, Policy{})
+	if err != nil {
+		t.Fatalf("new manager: %v", err)
+	}
+	updated, err := manager.UpdateAutomation(AutomationPolicy{
+		Enabled: true, WindowStartHour: 0, WindowEndHour: 23,
+		RequireDifferentApprover: true, ApprovalTTLMinutes: 15,
+	})
+	if err != nil || !updated.Enabled {
+		t.Fatalf("update automation = %+v, %v", updated, err)
+	}
+	reloaded, err := NewActionManager(path, Policy{})
+	if err != nil {
+		t.Fatalf("reload manager: %v", err)
+	}
+	if !reloaded.Automation().Enabled || !reloaded.AutomationActive(time.Date(2026, 10, 20, 12, 0, 0, 0, time.FixedZone("Asia/Shanghai", 8*60*60))) {
+		t.Fatalf("persisted automation not active: %+v", reloaded.Automation())
+	}
+}

@@ -93,6 +93,9 @@ services:
       POLICY_TRUST_DIR: /var/lib/lyflow/policy/trust
       POLICY_KEY_DIR: /var/lib/lyflow/policy/keys
       RESPONSE_ACTIONS_PATH: /var/lib/lyflow/response/actions.json
+      RESPONSE_AUTO_WINDOW_ENABLED: "true"
+      RESPONSE_WINDOW_START_HOUR: "0"
+      RESPONSE_WINDOW_END_HOUR: "23"
       EVIDENCE_ROOT: /var/lib/lyflow/evidence
       EVIDENCE_OBJECT_STORE: filer
       EVIDENCE_FILER_URL: http://127.0.0.1:18888

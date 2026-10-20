@@ -16,13 +16,17 @@ func TestStatusTransitionMatrix_allows_only_legal_lifecycle_edges(t *testing.T) 
 		{StatusOpen, StatusTriaged, true},
 		{StatusOpen, StatusProcessing, true},
 		{StatusTriaged, StatusProcessing, true},
+		{StatusTriaged, StatusOpen, true},
 		{StatusProcessing, StatusResolved, true},
+		{StatusProcessing, StatusOpen, true},
+		{StatusProcessing, StatusTriaged, true},
 		{StatusResolved, StatusProcessing, true},
 		{StatusResolved, StatusClosed, true},
+		{StatusResolved, StatusOpen, true},
+		{StatusClosed, StatusOpen, true},
 		{StatusOpen, StatusResolved, false},
 		{StatusTriaged, StatusResolved, false},
 		{StatusProcessing, StatusClosed, false},
-		{StatusClosed, StatusOpen, false},
 	}
 
 	for _, testCase := range tests {
