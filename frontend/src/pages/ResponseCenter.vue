@@ -72,7 +72,7 @@
           <thead><tr><th>动作</th><th>目标</th><th>风险</th><th>状态</th><th>Incident</th><th>发起 / 审批</th><th>时间</th><th>操作</th></tr></thead>
           <tbody>
             <tr v-if="loading && !actions.length"><td colspan="8" class="sx-empty">正在读取响应动作…</td></tr>
-            <tr v-else-if="!filteredActions.length"><td colspan="8" class="sx-empty"><div><strong>没有匹配的响应动作</strong>调整筛选条件或发起新动作。</div></td></tr>
+            <tr v-else-if="!filteredActions.length"><td colspan="8" class="sx-empty"><div><strong>没有匹配的响应动作</strong>调整筛选条件；如需发起动作，请到攻击链 Incident 中操作。</div></td></tr>
             <tr v-for="action in filteredActions" :key="action.id">
               <td><b>{{ actionLabel(action.action) }}</b><small class="sx-mono">{{ action.id }}</small></td>
               <td class="sx-mono">{{ action.target || '-' }}</td>

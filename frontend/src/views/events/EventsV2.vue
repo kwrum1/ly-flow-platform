@@ -280,7 +280,7 @@ onMounted(async () => {
     const match = items.value.find((item) => item.event_uid === uid)
     if (match) openDetail(match)
     else {
-      try { selected.value = unwrap(await eventsV2Client.detail(uid)) } catch { /* leave list state */ }
+      try { selected.value = unwrap(await eventsV2Client.detail(uid)) } catch { error.value = `未找到事件 ${uid}，链接可能已归档或失效。` }
     }
   }
 })

@@ -16,11 +16,15 @@
         </div>
         <div class="source-head-meta">
           <span v-if="runtimeStatusWarning" class="source-warning">引擎运行时状态暂不可用，规则与来源仍按本地清单展示</span>
-          <span>{{ engineRows.length }} 个实装引擎 · {{ upstreamRows.length }} 个可更新上游 · {{ formatCount(totalNativeCount) }} 条规则</span>
+          <span v-if="sourceLoading">正在读取实装引擎与上游…</span>
+          <span v-else>{{ engineRows.length }} 个实装引擎 · {{ upstreamRows.length }} 个可更新上游 · {{ formatCount(totalNativeCount) }} 条原生规则</span>
         </div>
       </div>
 
-      <div v-if="!engineRows.length" class="source-empty">
+      <div v-if="sourceLoading" class="source-empty">
+        <div><strong>正在读取实装引擎</strong>等待后端引擎健康与规则平台来源返回。</div>
+      </div>
+      <div v-else-if="!engineRows.length" class="source-empty">
         <div><strong>没有读取到实装引擎</strong>等待引擎心跳或运行时状态上报。</div>
       </div>
       <div v-else class="engine-source-grid">
@@ -56,7 +60,10 @@
           <span>按引擎与上游版本同步</span>
         </div>
 
-        <div v-if="!upstreamRows.length" class="source-empty">
+        <div v-if="sourceLoading" class="source-empty">
+          <div><strong>正在读取可更新上游</strong>规则平台来源和版本返回后展示。</div>
+        </div>
+        <div v-else-if="!upstreamRows.length" class="source-empty">
           <div><strong>没有可更新的上游规则源</strong>当前实装引擎没有配置可自动同步的上游。</div>
         </div>
         <div v-else class="upstream-table-wrap">
@@ -170,6 +177,7 @@ import { assetAgentClient, ruleClient } from '../api/domain'
 import { normalizeItems, pickText } from '../shared/api-normalize'
 
 const loading = ref(false)
+const sourceLoading = ref(true)
 const updatingSource = ref('')
 const error = ref('')
 const nativeRules = ref([])
@@ -427,10 +435,28 @@ function shortPath(path) {
 async function loadAll() {
   loading.value = true
   error.value = ''
+  try {
+    const native = await ruleClient.engineRules({ limit: pageSize.value, offset: (page.value - 1) * pageSize.value, engine: engine.value || undefined, query: query.value || undefined })
+    const normalized = normalizeItems(native)
+    nativeRules.value = normalized.items
+    total.value = normalized.total
+    counts.value = native?.counts || native?.data?.counts || {}
+    seedDrafts()
+  } catch (err) {
+    nativeRules.value = []
+    total.value = 0
+    counts.value = {}
+    error.value = err?.message || '无法读取原生引擎规则'
+  } finally {
+    loading.value = false
+  }
+}
+
+async function loadSourceData() {
+  sourceLoading.value = true
   runtimeStatusWarning.value = false
   try {
-    const [nativeResult, statusResult, healthResult, legacyResult, platformResult, versionResult, bundleResult] = await Promise.allSettled([
-      ruleClient.engineRules({ limit: pageSize.value, offset: (page.value - 1) * pageSize.value, engine: engine.value || undefined, query: query.value || undefined }),
+    const [statusResult, healthResult, legacyResult, platformResult, versionResult, bundleResult] = await Promise.allSettled([
       ruleClient.engineRuntimeStatus(),
       assetAgentClient.engineHealth(),
       ruleClient.sources(),
@@ -438,36 +464,19 @@ async function loadAll() {
       ruleClient.platformVersions(),
       ruleClient.platformActiveBundle(),
     ])
-    if (nativeResult.status === 'fulfilled') {
-      const native = nativeResult.value
-      const normalized = normalizeItems(native)
-      nativeRules.value = normalized.items
-      total.value = normalized.total
-      counts.value = native?.counts || native?.data?.counts || {}
-    } else {
-      nativeRules.value = []
-      total.value = 0
-      counts.value = {}
-    }
     if (statusResult.status === 'fulfilled') {
       runtimeStatus.value = unwrap(statusResult.value) || { engines: {} }
     } else {
       runtimeStatus.value = { engines: {} }
       runtimeStatusWarning.value = true
     }
-    engineHealthItems.value = healthResult.status === 'fulfilled' ? normalizeItems(healthResult.value).items : []
-    legacySourceItems.value = legacyResult.status === 'fulfilled' ? normalizeItems(legacyResult.value).items : []
-    platformSourceItems.value = platformResult.status === 'fulfilled' ? normalizeItems(platformResult.value).items : []
-    platformVersionItems.value = versionResult.status === 'fulfilled' ? normalizeItems(versionResult.value).items : []
+    if (healthResult.status === 'fulfilled') engineHealthItems.value = normalizeItems(healthResult.value).items
+    if (legacyResult.status === 'fulfilled') legacySourceItems.value = normalizeItems(legacyResult.value).items
+    if (platformResult.status === 'fulfilled') platformSourceItems.value = normalizeItems(platformResult.value).items
+    if (versionResult.status === 'fulfilled') platformVersionItems.value = normalizeItems(versionResult.value).items
     activeBundle.value = bundleResult.status === 'fulfilled' ? unwrap(bundleResult.value) : {}
-    seedDrafts()
-    if (nativeResult.status === 'rejected') {
-      error.value = nativeResult.reason?.message || '无法读取原生引擎规则'
-    }
-  } catch (err) {
-    error.value = err?.message || '无法读取规则中心数据'
   } finally {
-    loading.value = false
+    sourceLoading.value = false
   }
 }
 
@@ -551,7 +560,7 @@ async function updateUpstream(source) {
       const result = unwrap(await ruleClient.updateSource(source.sourceId))
       sourceMessages[source.key] = result?.hot_reloaded ? '已更新并热加载' : '已同步，等待引擎加载'
     }
-    await loadAll()
+    await Promise.all([loadAll(), loadSourceData()])
   } catch (err) {
     sourceMessages[source.key] = err?.message || '上游规则更新失败'
   } finally {
@@ -578,7 +587,10 @@ function nextPage() {
   }
 }
 
-onMounted(loadAll)
+onMounted(() => {
+  loadAll()
+  loadSourceData()
+})
 </script>
 
 <style scoped>

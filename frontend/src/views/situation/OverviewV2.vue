@@ -46,7 +46,7 @@
         <div class="posture-card-foot">
           <span><i class="dot ok" />检测引擎 {{ ready.engines ? `${engineOnline}/${engineTotal}` : '…' }}</span>
           <span><i class="dot" :class="platformOnline ? 'ok' : 'bad'" />平台{{ platformOnline ? '在线' : '异常' }}</span>
-          <span>规则 {{ ready.rules ? formatNumber(ruleTotal) : '…' }} 条</span>
+          <span>生效规则 {{ ready.rules ? formatNumber(ruleTotal) : '…' }} 条</span>
         </div>
       </article>
 

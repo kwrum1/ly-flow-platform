@@ -60,7 +60,7 @@
       <section class="modal-card">
         <div class="modal-title"><strong>修改 {{ resetUser.username }} 的密码</strong><button @click="closeReset">×</button></div>
         <div v-if="modalError" class="modal-notice error">{{ modalError }}</div>
-        <label><span>旧密码</span><input v-model="resetOldPassword" type="password" autocomplete="current-password"></label>
+        <label v-if="isSelf(resetUser)"><span>旧密码</span><input v-model="resetOldPassword" type="password" autocomplete="current-password"></label>
         <label><span>新密码</span><input v-model="resetPassword" type="password" autocomplete="new-password"></label>
         <label><span>确认新密码</span><input v-model="resetConfirmPassword" type="password" autocomplete="new-password"></label>
         <div class="modal-actions"><button @click="closeReset" :disabled="busy">取消</button><button class="primary" @click="submitReset" :disabled="busy">确认</button></div>
@@ -164,13 +164,14 @@ function openReset(user) { resetUser.value = user; resetOldPassword.value = ''; 
 function closeReset() { resetUser.value = null; modalError.value = ''; resetOldPassword.value = ''; resetPassword.value = ''; resetConfirmPassword.value = '' }
 
 async function submitReset() {
-  if (!resetOldPassword.value) return failModal('请输入旧密码')
+  if (!resetUser.value) return
+  if (isSelf(resetUser.value) && !resetOldPassword.value) return failModal('请输入旧密码')
   const validation = validatePassword(resetPassword.value, resetConfirmPassword.value)
   if (validation) return failModal(validation)
   busy.value = true
   try {
     if (isSelf(resetUser.value)) await authClient.changePassword({ old_password: resetOldPassword.value, new_password: resetPassword.value })
-    else await authClient.resetPassword({ user_id: resetUser.value.id, old_password: resetOldPassword.value, new_password: resetPassword.value })
+    else await authClient.resetPassword({ user_id: resetUser.value.id, new_password: resetPassword.value })
     closeReset(); notify('密码已修改')
   } catch (e) { failModal(e?.message || '修改密码失败') } finally { busy.value = false }
 }

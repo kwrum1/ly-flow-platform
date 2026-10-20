@@ -435,7 +435,7 @@ async function createBundle() {
     const eventUIDs = [...new Set(selected.value.evidence.map((item) => item.id).filter(Boolean))]
     const result = unwrap(await evidenceClient.createBundle({
       incident_id: selected.value.id,
-      agent_id: selected.value.entityId || '',
+      agent_id: (() => { const agent = incidentAgent(selected.value); return agent === '-' ? '' : agent })(),
       event_uids: eventUIDs,
       note: `Incident ${selected.value.id} evidence bundle`,
     }))

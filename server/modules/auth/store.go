@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -91,10 +92,17 @@ func (s *PostgresStore) CreateUser(ctx context.Context, user *User) error {
 		RETURNING id
 	`
 	now := time.Now()
-	return s.db.QueryRow(
+	err := s.db.QueryRow(
 		ctx, query,
 		user.Username, user.PasswordHash, user.Role, user.IsActive, user.MustChangePassword, user.FailedLoginCount, user.LockedUntil, now, now,
 	).Scan(&user.ID)
+	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			return ErrUserExists
+		}
+	}
+	return err
 }
 
 // GetUserByUsername 通过用户名获取用户

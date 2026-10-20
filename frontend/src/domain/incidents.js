@@ -53,6 +53,7 @@ function stageKey(value = '') {
 }
 
 function normalizeStage(stage = {}, index = 0) {
+  if (typeof stage === 'string') stage = { stage }
   const key = stageKey(firstNonEmpty(stage.stage, stage.stage_id, stage.name, stage.phase, stage.tactic))
   const fallbackKey = index === 0 ? 'recon' : index === 1 ? 'initial_access' : 'detection'
   const resolvedKey = STAGE_LABELS[key] ? key : fallbackKey

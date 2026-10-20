@@ -96,11 +96,16 @@ const stageDefinitions = [
   ['lateral_movement', '横向移动', 'TA0008'], ['c2_exfiltration', '控制与外传', 'TA0011'],
 ]
 
+function validIP(value) {
+  const text = String(value || '').trim()
+  return text !== '' && text !== '-' && text !== 'unknown' && text !== '未知'
+}
+
 const metrics = computed(() => ({
   chains: attackChains.value.length,
-  sourceIPs: new Set([...geoRoutes.value.map((item) => item.source_ip), ...attackChains.value.map((item) => item.sourceIP)].filter(Boolean)).size,
-  cities: new Set(geoRoutes.value.map((item) => `${item.source_country}/${item.source_city}`).filter((item) => !item.endsWith('/'))).size,
-  targets: new Set([...geoRoutes.value.map((item) => item.target_ip || item.target_city), ...attackChains.value.map((item) => item.targetIP)].filter(Boolean)).size,
+  sourceIPs: new Set([...geoRoutes.value.map((item) => item.source_ip), ...attackChains.value.map((item) => item.sourceIP)].filter(validIP)).size,
+  cities: new Set(geoRoutes.value.map((item) => `${item.source_country}/${item.source_city}`).filter((item) => !item.endsWith('/') && !item.startsWith('/'))).size,
+  targets: new Set([...geoRoutes.value.map((item) => item.target_ip || item.target_city), ...attackChains.value.map((item) => item.targetIP)].filter(validIP)).size,
 }))
 
 const targetLabel = computed(() => [target.value.country, target.value.province, target.value.city, target.value.district].filter(Boolean).join(' · '))

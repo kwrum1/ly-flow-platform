@@ -106,7 +106,7 @@ func incidentDetailHandler(cfg *Config) http.HandlerFunc {
 			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
 			return
 		}
-		if cfg.XDRGraph != nil && cfg.XDRInput != nil {
+		if r.URL.Query().Get("live") == "1" && cfg.XDRGraph != nil && cfg.XDRInput != nil {
 			activeResult, err := xdrActiveChainsResponse(r.Context(), cfg, 100)
 			if err == nil {
 				if err := syncActiveIncidentLifecycle(r.Context(), cfg, activeResult); err != nil {

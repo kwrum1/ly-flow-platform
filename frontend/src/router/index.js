@@ -11,6 +11,7 @@ const routes = [
     component: () => import('../app/AppShell.vue'),
     meta: { requiresAuth: true },
     children: [
+      { path: 'forbidden', name: 'Forbidden', component: () => import('../views/Forbidden.vue'), meta: {} },
       { path: 'dashboard', name: 'Overview', component: () => import('../views/situation/OverviewV2.vue'), meta: { roles: ['admin'] } },
       { path: 'situation/global', name: 'GlobalSituation', component: () => import('../views/situation/GlobalSituation.vue'), meta: { roles: ['admin'] } },
       { path: 'events', name: 'EventsWorkbench', component: () => import('../views/events/EventsRoute.vue'), meta: { roles: ['admin'] } },

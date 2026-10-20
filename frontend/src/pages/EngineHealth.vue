@@ -16,7 +16,7 @@
       <article class="sx-metric"><span class="sx-metric-label"><i />已安装实例</span><strong class="sx-metric-value">{{ formatNumber(installedItems.length) }}</strong><span class="sx-metric-note">未安装实例默认折叠</span></article>
       <article class="sx-metric"><span class="sx-metric-label"><i />运行中</span><strong class="sx-metric-value success">{{ formatNumber(runningCount) }}</strong><span class="sx-metric-note">running = true 且 Agent 在线</span></article>
       <article class="sx-metric"><span class="sx-metric-label"><i />离线 / 异常</span><strong class="sx-metric-value danger">{{ formatNumber(abnormalCount) }}</strong><span class="sx-metric-note">仅统计已安装但未运行</span></article>
-      <article class="sx-metric"><span class="sx-metric-label"><i />规则总数</span><strong class="sx-metric-value">{{ formatNumber(ruleTotal) }}</strong><span class="sx-metric-note">规则中心统计</span></article>
+      <article class="sx-metric"><span class="sx-metric-label"><i />已生效规则</span><strong class="sx-metric-value">{{ formatNumber(ruleTotal) }}</strong><span class="sx-metric-note">规则中心编译/生效统计</span></article>
     </section>
 
     <div v-if="error" class="sx-error">{{ error }}</div>

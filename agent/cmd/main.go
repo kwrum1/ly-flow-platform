@@ -245,7 +245,7 @@ func (a *Agent) capabilityModel() map[string]interface{} {
 	runtimeBackend := "disabled"
 	if a.cfg.HIDSEnabled {
 		runtimeStatus = "fallback"
-		runtimeBackend = fallbackBackendLabel(runtimeStrategy)
+		runtimeBackend = selectRuntimeBackend(runtimeStrategy)
 	}
 	yaraStatus := "disabled"
 	yaraBackend := "disabled"
@@ -2319,7 +2319,7 @@ func parseProcNetAddr(value string) (string, uint16) {
 
 func (a *Agent) runHIDS() {
 	strategy := detectStrategy()
-	backend := NewRuntimeMonitorBackend(strategy)
+	backend := NewRuntimeMonitorBackend(strategy, a)
 	mode := "monitor"
 	fmt.Printf("[hids] Monitoring (strategy: %s, mode: %s)\n", strategy, mode)
 	a.publishLogAuditHeartbeat()
@@ -2889,15 +2889,25 @@ type fileSignalCollector struct {
 	maxEvents int
 }
 
-func NewRuntimeMonitorBackend(strategy string) RuntimeMonitorBackend {
+func NewRuntimeMonitorBackend(strategy string, agents ...*Agent) RuntimeMonitorBackend {
+	var agent *Agent
+	if len(agents) > 0 {
+		agent = agents[0]
+	}
+	collectors := make([]runtimeCollector, 0, 4)
+	if ebpf := newEBPFProcessCollector(agent); ebpf != nil {
+		collectors = append(collectors, ebpf)
+	} else {
+		collectors = append(collectors, newProcessDeltaCollector(256, 4))
+	}
+	collectors = append(collectors,
+		newAuthLogCollector([]string{"/var/log/auth.log", "/var/log/secure", "/var/log/messages"}, 4),
+		newFileSignalCollector([]string{"/etc/passwd", "/etc/shadow", "/etc/sudoers", "/etc/ssh/sshd_config", "/root/.ssh/authorized_keys", "/etc/crontab", "/etc/cron.d", "/etc/ld.so.preload", "/etc/systemd/system"}, 4),
+	)
 	return &runtimeCompositeBackend{
-		strategy: strategy,
-		collectors: []runtimeCollector{
-			newProcessDeltaCollector(256, 4),
-			newAuthLogCollector([]string{"/var/log/auth.log", "/var/log/secure", "/var/log/messages"}, 4),
-			newFileSignalCollector([]string{"/etc/passwd", "/etc/shadow", "/etc/sudoers", "/etc/ssh/sshd_config", "/root/.ssh/authorized_keys", "/etc/crontab", "/etc/cron.d", "/etc/ld.so.preload", "/etc/systemd/system"}, 4),
-		},
-		fallback: &runtimeFallbackBackend{backend: fallbackBackendLabel(strategy)},
+		strategy:   strategy,
+		collectors: collectors,
+		fallback:   &runtimeFallbackBackend{backend: fallbackBackendLabel(strategy)},
 	}
 }
 

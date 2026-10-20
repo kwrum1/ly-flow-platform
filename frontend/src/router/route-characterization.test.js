@@ -22,9 +22,11 @@ describe('current route characterization', () => {
     const protectedRoutes = shell?.children ?? []
     const routeCount = routerCapture.routes.length + protectedRoutes.length
 
-    expect(routeCount).toBe(31)
-    expect(protectedRoutes).toHaveLength(26)
-    expect(protectedRoutes.every((route) => route.meta?.roles?.join(',') === 'admin')).toBe(true)
+    expect(routeCount).toBe(32)
+    expect(protectedRoutes).toHaveLength(27)
+    const adminRoutes = protectedRoutes.filter((route) => route.meta?.roles?.length)
+    expect(adminRoutes.every((route) => route.meta.roles.join(',') === 'admin')).toBe(true)
+    expect(protectedRoutes.find((route) => route.path === 'forbidden')?.meta?.roles).toBeUndefined()
   })
 
   it('records the current unknown-path dashboard fallback', () => {

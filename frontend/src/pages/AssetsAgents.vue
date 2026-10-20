@@ -66,7 +66,7 @@
           </thead>
           <tbody>
             <tr v-if="loading && !hasLoaded"><td colspan="9" class="sx-empty">正在读取资产数据…</td></tr>
-            <tr v-else-if="assets.length === 0"><td colspan="9" class="sx-empty"><div><strong>当前没有资产上报</strong>确认 Agent 已注册并持续发送心跳。</div></td></tr>
+            <tr v-else-if="assets.length === 0"><td colspan="9" class="sx-empty"><div><strong>{{ query ? '没有匹配的资产' : '当前没有资产上报' }}</strong>{{ query ? '调整关键字或清空搜索条件。' : '确认 Agent 已注册并持续发送心跳。' }}</div></td></tr>
             <tr v-for="asset in assets" :key="asset.id || asset.agent_id || asset.hostname" class="asset-row" @click="selectedAsset = asset">
               <td>
                 <b>{{ assetDisplayName(asset) }}</b>
