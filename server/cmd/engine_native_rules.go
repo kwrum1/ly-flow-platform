@@ -8,9 +8,12 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 func nativeEngineRulesHandler(cfg *Config) http.HandlerFunc {
@@ -136,19 +139,72 @@ func nativeEngineStatusHandler(cfg *Config) http.HandlerFunc {
 		trafficRuntime["ledger_digest"] = trafficCount.LedgerDigest
 		ruleRoot := firstNonEmpty(os.Getenv("ENGINE_RULE_ROOT"), "rules")
 		lyprobeRules := loadLyprobeRules(filepath.Join(ruleRoot, "lyprobe", "threat.json"))
-		engines["lyprobe"] = map[string]interface{}{
-			"installed":        len(lyprobeRules) > 0,
-			"running":          false,
-			"status":           "rules_loaded",
-			"probe":            "lyprobe",
-			"transport":        "netflow-v9",
-			"rule_count":       len(lyprobeRules),
+		lyprobeRuntime := map[string]interface{}{
+			"installed":         len(lyprobeRules) > 0,
+			"running":           false,
+			"status":            "rules_loaded",
+			"probe":             "lyprobe",
+			"transport":         "netflow-v9",
+			"rule_count":        len(lyprobeRules),
 			"rule_pack_version": lyprobeManifestVersion(filepath.Join(ruleRoot, "lyprobe", "manifest.json")),
-			"count_source":     filepath.Join(ruleRoot, "lyprobe", "threat.json"),
-			"note":             "ET Open 子集由 rulecompiler 生成；NetFlow v9 证据链",
+			"count_source":      filepath.Join(ruleRoot, "lyprobe", "threat.json"),
+			"note":              "ET Open 子集由 rulecompiler 生成；NetFlow v9 证据链",
 		}
+		if lastExport, ok := lyprobeRecentFlowAt(r.Context(), cfg, time.Now()); ok {
+			lyprobeRuntime["running"] = true
+			lyprobeRuntime["status"] = "running"
+			lyprobeRuntime["last_export"] = lastExport.UTC().Format(time.RFC3339)
+		}
+		engines["lyprobe"] = lyprobeRuntime
 		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": status})
 	}
+}
+
+const lyprobeHeartbeatWindow = 5 * time.Minute
+
+// lyprobeRecentFlowAt reports whether the raw flow stream has carried a
+// lyprobe-sourced record recently. NetFlow v9 records arrive with
+// source=lyprobe, so a fresh record is a real liveness signal even when the
+// probe has no control-plane heartbeat channel.
+func lyprobeRecentFlowAt(ctx context.Context, cfg *Config, now time.Time) (time.Time, bool) {
+	if cfg == nil || cfg.Redis == nil {
+		return time.Time{}, false
+	}
+	readCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
+	defer cancel()
+	msgs, err := cfg.Redis.XRevRangeN(readCtx, "flows:raw", "+", "-", 500).Result()
+	if err != nil {
+		return time.Time{}, false
+	}
+	return lyprobeRecentFlowFromMessages(msgs, now, lyprobeHeartbeatWindow)
+}
+
+func lyprobeRecentFlowFromMessages(msgs []redis.XMessage, now time.Time, window time.Duration) (time.Time, bool) {
+	for _, msg := range msgs {
+		payload := map[string]interface{}{}
+		if raw := streamDataString(msg.Values); raw != "" {
+			_ = json.Unmarshal([]byte(raw), &payload)
+		}
+		if len(payload) == 0 {
+			for key, value := range msg.Values {
+				payload[key] = value
+			}
+		}
+		if !strings.EqualFold(xdrPickString(payload, "source"), "lyprobe") {
+			continue
+		}
+		at := parseEventTime(payload)
+		if at.IsZero() {
+			if millis, err := strconv.ParseInt(strings.Split(msg.ID, "-")[0], 10, 64); err == nil {
+				at = time.UnixMilli(millis)
+			}
+		}
+		if at.IsZero() || at.Before(now.Add(-window)) {
+			continue
+		}
+		return at, true
+	}
+	return time.Time{}, false
 }
 
 var nativeRulesCache struct {

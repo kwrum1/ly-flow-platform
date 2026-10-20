@@ -2066,6 +2066,10 @@ func ruleSourcesHandler(cfg *Config) http.HandlerFunc {
 			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
 			return
 		}
+		if body, ok := ruleSourcesResponseCache.get("rules-sources"); ok {
+			_, _ = w.Write(body)
+			return
+		}
 		paths := []string{}
 		_ = filepath.WalkDir("rules", func(path string, d os.DirEntry, err error) error {
 			if err == nil && !d.IsDir() && filepath.Base(path) == "manifest.json" {
@@ -2133,7 +2137,13 @@ func ruleSourcesHandler(cfg *Config) http.HandlerFunc {
 		sort.Slice(items, func(i, j int) bool {
 			return fmt.Sprint(items[i]["vendor"]) < fmt.Sprint(items[j]["vendor"])
 		})
-		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": items, "total": len(items)}})
+		body, err := json.Marshal(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": items, "total": len(items)}})
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, "rule_sources_encode_failed", err.Error())
+			return
+		}
+		ruleSourcesResponseCache.set("rules-sources", body)
+		_, _ = w.Write(body)
 	}
 }
 
@@ -2252,6 +2262,7 @@ func ruleSourceUpdateHandler(cfg *Config) http.HandlerFunc {
 			writeJSONError(w, http.StatusInternalServerError, "rule_source_update_failed", err.Error())
 			return
 		}
+		ruleSourcesResponseCache.clear()
 		liveCount, err := syncLiveRules()
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, "rule_live_sync_failed", err.Error())
@@ -2324,6 +2335,7 @@ func updateRuleSourceConfig(w http.ResponseWriter, r *http.Request, sourceID str
 		writeJSONError(w, http.StatusInternalServerError, "rule_source_save_failed", err.Error())
 		return
 	}
+	ruleSourcesResponseCache.clear()
 	json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"source_id": sourceID, "source_url": sourceURL, "saved": true}})
 }
 
