@@ -533,7 +533,7 @@ async function load() {
     attackWorkbenchClient.stats().then((value) => { unified.value = unwrap(value); succeeded++ }),
     attackWorkbenchClient.xdrPosture().then((value) => { posture.value = unwrap(value); succeeded++ }),
     attackWorkbenchClient.xdrChains({ limit: 30 }).then((value) => { chains.value = normalizePage(value); succeeded++ }),
-    attackWorkbenchClient.incidents({ limit: 5 }).then((value) => { incidents.value = normalizePage(value); incidentsReady.value = true; succeeded++ }),
+    attackWorkbenchClient.incidents({ limit: 10, live: 0 }).then((value) => { incidents.value = normalizePage(value); incidentsReady.value = true; succeeded++ }),
     assetAgentClient.assetStats().then((value) => { assetStats.value = unwrap(value); succeeded++ }),
     assetAgentClient.assets({ limit: 8 }).then((value) => { assets.value = normalizePage(value); succeeded++ }),
     assetAgentClient.engineHealth().then((value) => { engines.value = normalizePage(value); succeeded++ }),

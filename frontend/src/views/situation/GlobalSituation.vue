@@ -152,7 +152,7 @@ async function refreshData() {
   try {
     const [situationResult, incidentResult] = await Promise.allSettled([
       api.get('/public/situation/global'),
-      attackWorkbenchClient.incidents({ limit: 20 }),
+      attackWorkbenchClient.incidents({ limit: 20, live: 0 }),
     ])
     const body = situationResult.status === 'fulfilled' ? (situationResult.value?.data ?? situationResult.value ?? {}) : {}
     let chains = list(body.attacks)

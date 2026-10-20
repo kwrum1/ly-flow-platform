@@ -8,7 +8,7 @@
       </div>
       <div class="sx-head-actions">
         <span class="sx-live"><i />LIVE</span>
-        <button class="sx-btn" type="button" :disabled="loading" @click="loadIncidents">刷新</button>
+        <button class="sx-btn" type="button" :disabled="loading" @click="loadIncidents({ live: true })">刷新</button>
       </div>
     </header>
 
@@ -281,11 +281,11 @@ function canRollback(action) { return ['executed', 'failed'].includes(action.sta
 function prettyEvidence(evidence) { try { return JSON.stringify(evidence?.raw || evidence, null, 2) } catch { return String(evidence?.raw || '') } }
 function toggleEvidence(id) { expandedEvidence.value = expandedEvidence.value === id ? '' : id }
 
-async function loadIncidents() {
+async function loadIncidents(options = {}) {
   loading.value = true
   error.value = ''
   try {
-    const data = unwrap(await attackWorkbenchClient.incidents({ limit: 10 }))
+    const data = unwrap(await attackWorkbenchClient.incidents({ limit: 20, live: options.live ? 1 : 0 }))
     incidents.value = normalizeIncidents(Array.isArray(data.items) ? data.items : [])
     incidentTotal.value = Number(data.total ?? incidents.value.length) || incidents.value.length
     const wanted = String(route.query.id || '')
