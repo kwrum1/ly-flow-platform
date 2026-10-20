@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"fmt"
+	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -114,6 +115,9 @@ func selectRuntimeBackend(strategy string) string {
 	}
 	if _, err := exec.LookPath("bpftrace"); err == nil {
 		return "ebpf"
+	}
+	if info, err := os.Stat("/var/log/audit/audit.log"); err == nil && !info.IsDir() {
+		return "auditd-fallback"
 	}
 	return "procfs-fallback"
 }

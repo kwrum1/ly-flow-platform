@@ -2897,6 +2897,8 @@ func NewRuntimeMonitorBackend(strategy string, agents ...*Agent) RuntimeMonitorB
 	collectors := make([]runtimeCollector, 0, 4)
 	if ebpf := newEBPFProcessCollector(agent); ebpf != nil {
 		collectors = append(collectors, ebpf)
+	} else if auditd := newAuditdProcessCollector(agent); auditd != nil {
+		collectors = append(collectors, auditd)
 	} else {
 		collectors = append(collectors, newProcessDeltaCollector(256, 4))
 	}
