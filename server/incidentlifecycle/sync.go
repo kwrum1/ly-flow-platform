@@ -36,14 +36,31 @@ func (store *PostgresStore) syncCandidate(ctx context.Context, candidate Candida
 	defer func() { _ = tx.Rollback(ctx) }()
 	dedupKey := DedupKey("default", candidate)
 	ackDue, resolveDue := slaDeadlines(candidate.FirstSeen, candidate.Severity)
+	// The graph can legitimately re-key an active chain while an older row
+	// still owns the same deterministic incident id. Resolve the existing row
+	// by dedup_key first, then fall back to id, and update that row instead of
+	// attempting a second primary-key insert.
+	var existingID string
+	if err := tx.QueryRow(ctx, `SELECT COALESCE((
+			SELECT id FROM incidents
+			WHERE tenant_id='default' AND (id=$1 OR dedup_key=$2)
+			ORDER BY (dedup_key=$2) DESC, (id=$1) DESC
+			LIMIT 1
+		), '')`, candidate.IncidentID, dedupKey).Scan(&existingID); err != nil {
+		return false, 0, fmt.Errorf("resolve active incident %s: %w", candidate.IncidentID, err)
+	}
+	if existingID != "" {
+		candidate.IncidentID = existingID
+	}
 	var incidentID string
 	var created bool
 	err = tx.QueryRow(ctx, `INSERT INTO incidents
 		(id,tenant_id,source_chain_id,algorithm_version,dedup_key,correlation_key,title,summary,severity,status,
 		 first_seen,last_seen,acknowledge_due_at,resolve_due_at,version,created_at,updated_at)
 		VALUES ($1,'default',$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,1,$14,$14)
-		ON CONFLICT (tenant_id,dedup_key) DO UPDATE SET
-		 source_chain_id=EXCLUDED.source_chain_id,correlation_key=EXCLUDED.correlation_key,title=EXCLUDED.title,
+		ON CONFLICT (id) DO UPDATE SET
+		 dedup_key=EXCLUDED.dedup_key,source_chain_id=EXCLUDED.source_chain_id,
+		 correlation_key=EXCLUDED.correlation_key,title=EXCLUDED.title,
 		 summary=EXCLUDED.summary,severity=EXCLUDED.severity,first_seen=LEAST(incidents.first_seen,EXCLUDED.first_seen),
 		 last_seen=GREATEST(incidents.last_seen,EXCLUDED.last_seen),
 		 acknowledge_due_at=LEAST(incidents.acknowledge_due_at,EXCLUDED.acknowledge_due_at),

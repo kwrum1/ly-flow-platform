@@ -77,7 +77,7 @@
     <section class="sx-panel stage-panel">
       <div class="sx-panel-head">
         <div class="sx-panel-title">ATT&CK 攻击阶段</div>
-        <div class="sx-panel-meta">来自 {{ incidentSampleLabel }} 的 Incident 阶段 · 点击阶段筛选事件</div>
+        <div class="sx-panel-meta">来自 {{ incidentSampleLabel }} Incident + {{ chains.items.length }} 条活跃链 · 点击阶段筛选事件</div>
       </div>
       <div class="sx-panel-body">
         <div class="sx-stage-ribbon">
@@ -489,7 +489,7 @@ function renderSeverity() {
       radius: ['62%', '80%'],
       center: ['50%', '50%'],
       avoidLabelOverlap: true,
-      itemStyle: { borderColor: 'var(--sx-surface)', borderWidth: 2 },
+      itemStyle: { borderColor: styles.getPropertyValue('--sx-surface').trim() || '#fff', borderWidth: 2 },
       label: { show: false },
       data: severityRows.value.map((item) => ({ name: item.label, value: item.count, itemStyle: { color: item.color } })),
     }],

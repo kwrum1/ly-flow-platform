@@ -301,7 +301,8 @@ async function loadIncidents() {
 async function selectIncident(item) {
   if (!item) return
   selected.value = item
-  actionForm.agent_id = item.entityId || item.affectedAsset || ''
+  const evidenceAgent = (item.evidence || []).map((evidence) => evidence.entityId).find((value) => value && !/^(inc-|hyp-)/.test(value))
+  actionForm.agent_id = evidenceAgent || item.affectedAsset || item.entityId || ''
   try {
     const detail = unwrap(await attackWorkbenchClient.incident(item.id))
     selected.value = normalizeIncident(Object.keys(detail).length ? detail : item)

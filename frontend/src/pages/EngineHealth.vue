@@ -13,9 +13,9 @@
     </header>
 
     <section class="engine-stats">
-      <article class="sx-metric"><span class="sx-metric-label"><i />引擎实例</span><strong class="sx-metric-value">{{ formatNumber(items.length) }}</strong><span class="sx-metric-note">最近心跳记录</span></article>
+      <article class="sx-metric"><span class="sx-metric-label"><i />已安装实例</span><strong class="sx-metric-value">{{ formatNumber(installedItems.length) }}</strong><span class="sx-metric-note">未安装实例默认折叠</span></article>
       <article class="sx-metric"><span class="sx-metric-label"><i />运行中</span><strong class="sx-metric-value success">{{ formatNumber(runningCount) }}</strong><span class="sx-metric-note">running = true 且 Agent 在线</span></article>
-      <article class="sx-metric"><span class="sx-metric-label"><i />离线 / 异常</span><strong class="sx-metric-value danger">{{ formatNumber(abnormalCount) }}</strong><span class="sx-metric-note">需要检查 Agent 或引擎</span></article>
+      <article class="sx-metric"><span class="sx-metric-label"><i />离线 / 异常</span><strong class="sx-metric-value danger">{{ formatNumber(abnormalCount) }}</strong><span class="sx-metric-note">仅统计已安装但未运行</span></article>
       <article class="sx-metric"><span class="sx-metric-label"><i />规则总数</span><strong class="sx-metric-value">{{ formatNumber(ruleTotal) }}</strong><span class="sx-metric-note">规则中心统计</span></article>
     </section>
 
@@ -37,14 +37,17 @@
     </section>
 
     <section class="sx-panel">
-      <div class="sx-panel-head"><div class="sx-panel-title">引擎实例</div><span class="sx-panel-meta">{{ items.length }} 条</span></div>
+      <div class="sx-panel-head">
+        <div class="sx-panel-title">引擎实例</div>
+        <label class="show-all"><input v-model="showUninstalled" type="checkbox" />显示未安装实例</label>
+      </div>
       <div class="sx-table-wrap sx-scroll">
         <table class="sx-table engine-table">
           <thead><tr><th>引擎</th><th>Agent / 主机</th><th>状态</th><th>版本</th><th>规则包</th><th>最后事件</th><th>最后心跳</th><th>错误</th></tr></thead>
           <tbody>
             <tr v-if="loading && !items.length"><td colspan="8" class="sx-empty">正在读取引擎健康…</td></tr>
-            <tr v-else-if="!items.length"><td colspan="8" class="sx-empty"><div><strong>没有引擎心跳</strong>等待 Agent 上报 capability。</div></td></tr>
-            <tr v-for="item in items" :key="`${item.agent_id}-${item.engine}`">
+            <tr v-else-if="!visibleItems.length"><td colspan="8" class="sx-empty"><div><strong>没有已安装引擎心跳</strong>等待 Agent 上报 capability。</div></td></tr>
+            <tr v-for="item in visibleItems" :key="`${item.agent_id}-${item.engine}`">
               <td><b>{{ engineLabel(item.engine) }}</b><small>{{ item.output_path || '-' }}</small></td>
               <td><b>{{ item.hostname || '-' }}</b><small>{{ item.agent_id }} · {{ item.ip || '-' }}</small></td>
               <td><span class="sx-badge" :class="statusTone(item)">{{ statusLabel(item) }}</span></td>
@@ -69,6 +72,7 @@ const loading = ref(false)
 const error = ref('')
 const items = ref([])
 const ruleTotal = ref(0)
+const showUninstalled = ref(false)
 
 const engineDefinitions = [
   { key: 'suricata', label: 'Suricata', short: 'SU' },
@@ -78,10 +82,12 @@ const engineDefinitions = [
   { key: 'dpi', label: 'DPI Engine', short: 'DP' },
 ]
 
-const runningCount = computed(() => items.value.filter((item) => isRunning(item)).length)
-const abnormalCount = computed(() => items.value.filter((item) => !isRunning(item)).length)
+const installedItems = computed(() => items.value.filter((item) => item.installed !== false))
+const visibleItems = computed(() => showUninstalled.value ? items.value : installedItems.value)
+const runningCount = computed(() => installedItems.value.filter((item) => isRunning(item)).length)
+const abnormalCount = computed(() => installedItems.value.filter((item) => !isRunning(item)).length)
 const engineCards = computed(() => engineDefinitions.map((definition) => {
-  const rows = items.value.filter((item) => item.engine === definition.key)
+  const rows = installedItems.value.filter((item) => item.engine === definition.key)
   const running = rows.filter(isRunning).length
   const last = rows.map((item) => item.last_event_at).filter(Boolean).sort().at(-1)
   return {
@@ -148,6 +154,7 @@ onMounted(load)
 .engine-card-body div { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 9px; }
 .engine-card-body span { color: var(--sx-text-3); }
 .engine-card-body b { overflow: hidden; color: var(--sx-text-2); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.show-all { display: inline-flex; align-items: center; gap: 6px; color: var(--sx-text-3); font-size: 10px; cursor: pointer; }
 .engine-table { min-width: 1080px; }
 .error-cell { max-width: 180px; overflow: hidden; color: var(--sx-danger); font-size: 9px; text-overflow: ellipsis; }
 @media (max-width: 1200px) {

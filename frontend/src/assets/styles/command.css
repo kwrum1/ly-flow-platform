@@ -402,6 +402,7 @@ body {
 }
 
 .sx-metric-value {
+  display: block;
   margin-top: 7px;
   color: var(--sx-text);
   font-size: 27px;
@@ -415,6 +416,7 @@ body {
 .sx-metric-value.success { color: var(--sx-success); }
 
 .sx-metric-note {
+  display: block;
   margin-top: 7px;
   color: var(--sx-text-3);
   font-size: 11px;
