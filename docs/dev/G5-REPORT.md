@@ -385,11 +385,14 @@ Agent Suricata EVE adapter 仍保留作为无 Vector 环境的备用路径；当
   - `POST /api/v1/response/actions/{id}/rollback`
 - 响应策略：
   - L1 观察类自动；
-  - L2 `block_ip` 默认需要不同已认证 approver；
+  - L2 `block_ip` 在已启用的自动处置窗口内自动执行，窗口外需要不同已认证 approver；
   - L3 `process_kill` / `file_delete` / `account_disable` /
     `namespace_isolate` / `isolate_host` 始终需要审批；
-  - 自动时间窗由 `RESPONSE_AUTO_WINDOW_ENABLED` 和窗口环境变量控制，
-    有单测覆盖；生产默认关闭。
+  - 窗口按 `Asia/Shanghai` 计算，通过
+    `GET/PUT /api/v1/response/automation` 配置并持久化到
+    `/var/lib/lyflow/response/policy.json`；
+  - G5 测试机已启用 00:00–23:00 自动窗口，L2 实测自动执行并在窗口内完成
+    `block_ip`；L3 仍保持人工审批。
 - Agent 执行器：
   - `block_ip` / `unblock_ip`：nftables set；
   - `process_kill`：PID 校验，拒绝 PID 1/Agent/父进程，signal + 进程消失校验；

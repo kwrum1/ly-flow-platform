@@ -765,3 +765,18 @@
   验收 0 console/page/network/4xx/5xx；截图见
   /opt/lyflow/reports/G5/ui-redesign/。
 - 设计说明：docs/dev/UI-REDESIGN.md。
+
+## 2026-10-20 响应与 Incident 功能打磨
+
+- Incident 状态机支持显式重开：已分诊/处理中/已解决/已关闭可回到新发，回到新发时
+  清空确认与解决时间，所有变更继续写审计；前端只展示合法状态迁移。
+- Incident 列表改为服务端 status/severity 筛选与分页，默认使用 live=0 快速首屏，
+  刷新时再触发活动图同步。
+- 响应处置表单简化为 Agent + 动作 + 说明；目标仅在封禁/进程/文件/账号/容器动作
+  需要时显示，主机隔离和观察直接使用 Agent。
+- 新增持久化自动处置策略 API：GET/PUT /api/v1/response/automation；支持启用、
+  起止小时、审批 TTL，按 Asia/Shanghai 计算；策略写入 response/policy.json。
+- G5 测试机自动处置窗口已开启，实测 L2 block_ip 自动执行，rollback 清空 nft set；
+  L3 仍保持人工审批。
+- 前端 typecheck、115 测试、生产构建通过；响应页和 Incident 页浏览器功能检查
+  无 console/page error。
