@@ -1,12 +1,20 @@
 <template>
   <section class="control-page">
     <header class="control-header">
-      <h2>平台设置</h2>
+      <div class="control-heading">
+        <span class="control-kicker">SYSTEM SETTINGS</span>
+        <h2>平台设置</h2>
+        <p>管理采集接口、设备地点和时间基准，保存后即时应用到平台。</p>
+      </div>
+      <span class="control-live"><i />设置实时生效</span>
     </header>
 
     <section class="settings-grid">
       <article class="panel mirror-panel">
-        <div class="panel-title"><strong>抓包接口</strong></div>
+        <div class="panel-title">
+          <span class="panel-icon">IF</span>
+          <div class="panel-heading"><strong>抓包接口</strong><small>选择旁路镜像网卡，保存后立即生效</small></div>
+        </div>
         <form class="mirror-form" @submit.prevent="saveMirrorConfig">
           <label>
             <span>镜像接口</span>
@@ -21,7 +29,10 @@
       </article>
 
       <article class="panel mirror-panel location-panel">
-        <div class="panel-title location-title"><strong>设备地点</strong></div>
+        <div class="panel-title location-title">
+          <span class="panel-icon">LOC</span>
+          <div class="panel-heading"><strong>设备地点</strong><small>用于态势地图与区域归属</small></div>
+        </div>
         <form class="location-form" @submit.prevent="saveTargetLocation">
           <label><span>省份</span><select v-model="targetProvince" @change="selectProvince"><option v-for="province in provinceOptions" :key="province" :value="province">{{ province }}</option></select></label>
           <label><span>城市</span><select v-model="targetCity" @change="selectCity"><option v-for="city in cityOptions" :key="city" :value="city">{{ city }}</option></select></label>
@@ -32,14 +43,19 @@
       </article>
 
       <article class="panel mirror-panel time-panel">
-        <div class="panel-title"><strong>时间设置</strong></div>
+        <div class="panel-title">
+          <span class="panel-icon">TIME</span>
+          <div class="panel-heading"><strong>时间设置</strong><small>统一平台时间与 NTP 基准</small></div>
+        </div>
         <form class="time-form" @submit.prevent="saveSystemTime">
-          <label><span>服务器当前时间</span><input :value="serverTimeText" disabled></label>
-          <label><span>平台基准时间</span><input :value="platformTimeText" disabled></label>
+          <label class="time-readonly"><span>服务器当前时间</span><input :value="serverTimeText" disabled></label>
+          <label class="time-readonly"><span>平台基准时间</span><input :value="platformTimeText" disabled></label>
           <label><span>修改时间</span><input v-model="systemTimeInput" type="datetime-local"></label>
           <label><span>NTP 服务器</span><input v-model.trim="ntpServer" placeholder="ntp.aliyun.com"></label>
-          <button type="button" @click="syncBrowserTime" :disabled="savingSystemTime">同步本机最新时间</button>
-          <button type="submit" class="primary" :disabled="savingSystemTime || !systemTimeInput">{{ savingSystemTime ? '同步中' : '保存时间' }}</button>
+          <div class="time-actions">
+            <button type="button" @click="syncBrowserTime" :disabled="savingSystemTime">同步本机最新时间</button>
+            <button type="submit" class="primary" :disabled="savingSystemTime || !systemTimeInput">{{ savingSystemTime ? '同步中' : '保存时间' }}</button>
+          </div>
         </form>
         <div v-if="systemTimeMessage" class="notice success">{{ systemTimeMessage }}</div>
       </article>
@@ -1088,5 +1104,143 @@ th, td { border-color: #e6ebf2; }
   .mirror-form,
   .time-form { grid-template-columns: 1fr; }
   .location-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* Final settings surface: readable cards, aligned controls and a calm hierarchy. */
+.control-page {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 18px;
+  min-height: 100%;
+  height: auto;
+  background:
+    radial-gradient(circle at 92% 4%, rgba(23, 105, 210, 0.08), transparent 28%),
+    #f3f6fa;
+}
+.control-header {
+  height: auto;
+  min-height: 82px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  padding: 16px 20px;
+  border: 1px solid #dfe7f0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 5px 18px rgba(36, 58, 88, 0.06);
+}
+.control-heading { min-width: 0; }
+.control-kicker {
+  display: block;
+  margin-bottom: 5px;
+  color: #1769d2;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+.control-heading h2 { margin: 0; color: #1f2d3d; font-size: 20px; line-height: 1.25; }
+.control-heading p { margin: 5px 0 0; color: #718096; font-size: 12px; line-height: 1.5; }
+.control-live {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 11px;
+  border: 1px solid #b8dfca;
+  border-radius: 999px;
+  background: #edf9f2;
+  color: #19794b;
+  font-size: 11px;
+  font-weight: 700;
+}
+.control-live i { width: 7px; height: 7px; border-radius: 50%; background: #20a66a; box-shadow: 0 0 0 3px #d9f2e5; }
+.settings-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.panel {
+  min-width: 0;
+  overflow: visible;
+  border: 1px solid #dfe7f0;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 5px 18px rgba(36, 58, 88, 0.055);
+}
+.mirror-panel { display: flex; flex-direction: column; min-width: 0; }
+.panel-title {
+  height: auto;
+  min-height: 62px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 12px 16px;
+  border-bottom: 1px solid #e7edf4;
+  border-radius: 10px 10px 0 0;
+  background: #f8fafc;
+}
+.panel-icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  place-items: center;
+  border: 1px solid #cfe1f8;
+  border-radius: 8px;
+  background: #eaf4ff;
+  color: #1769d2;
+  font-size: 9px;
+  font-weight: 900;
+  letter-spacing: .04em;
+}
+.panel-heading { min-width: 0; }
+.panel-heading strong { display: block; color: #243149; font-size: 14px; line-height: 1.35; }
+.panel-heading small { display: block; margin-top: 3px; color: #7b8798; font-size: 11px; line-height: 1.4; }
+.mirror-form,
+.location-form,
+.time-form { padding: 16px; gap: 12px; }
+.mirror-form { grid-template-columns: minmax(0, 1fr) auto; align-items: end; }
+.location-form { grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; }
+.location-form .primary { grid-column: 1 / -1; justify-self: end; }
+.time-form { grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: end; }
+.time-form .time-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
+.mirror-form label,
+.location-form label,
+.time-form label { display: grid; gap: 6px; min-width: 0; color: #5f6e84; font-size: 11px; font-weight: 600; }
+.mirror-form select,
+.location-form select,
+.time-form input { width: 100%; min-width: 0; height: 36px; border: 1px solid #d6e0eb; border-radius: 6px; background: #fff; color: #243149; padding: 0 10px; font-size: 12px; }
+.time-readonly input { background: #f4f7fa; color: #5d6b80; }
+.mirror-form input:focus,
+.mirror-form select:focus,
+.location-form select:focus,
+.time-form input:focus { border-color: #6aa8ea; box-shadow: 0 0 0 3px rgba(23, 105, 210, .08); }
+.mirror-form button,
+.location-form button,
+.time-form button { height: 36px; padding: 0 16px; border: 1px solid #d6e0eb; border-radius: 6px; background: #fff; color: #40506a; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.mirror-form .primary,
+.location-form .primary,
+.time-form .primary { border-color: #1769d2; background: #1769d2; color: #fff; }
+.mirror-form button:hover:not(:disabled),
+.location-form button:hover:not(:disabled),
+.time-form button:hover:not(:disabled) { border-color: #8bb8e8; color: #1769d2; background: #f5faff; }
+.mirror-form .primary:hover:not(:disabled),
+.location-form .primary:hover:not(:disabled),
+.time-form .primary:hover:not(:disabled) { border-color: #0f57b0; color: #fff; background: #0f57b0; }
+.location-panel .notice.success,
+.time-panel .notice.success { margin: 0 16px 14px; border-radius: 6px; }
+@media (max-width: 1180px) {
+  .settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .time-panel { grid-column: 1 / -1; }
+  .time-form { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .time-form .time-actions { grid-column: 1 / -1; }
+}
+@media (max-width: 760px) {
+  .control-page { padding: 12px; }
+  .control-header { align-items: flex-start; flex-direction: column; }
+  .settings-grid { grid-template-columns: 1fr; }
+  .time-panel { grid-column: auto; }
+  .mirror-form,
+  .time-form { grid-template-columns: 1fr; }
+  .location-form { grid-template-columns: 1fr; }
+  .time-form .time-actions { grid-column: auto; justify-content: flex-start; }
 }
 </style>

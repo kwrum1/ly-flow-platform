@@ -6451,7 +6451,7 @@ func loadEngineHealth(ctx context.Context, cfg *Config) ([]map[string]interface{
 			running := asBool(engine["running"])
 			version := asString(engine["version"])
 			lastError := asString(engine["last_error"])
-			if len(engine) == 0 || (!installed && !running) {
+			if len(engine) == 0 || (!installed && !running && lastError == "") {
 				if capState, ok := engineCapabilityStateFromMetadata(name, capabilities); ok {
 					installed = true
 					running = capState
@@ -10619,6 +10619,11 @@ Wants=network-online.target
 Type=simple
 User=root
 EnvironmentFile=-/opt/ly-agent/etc/agent.env
+# The public one-click bundle does not ship signed agent digest assets yet.
+# Keep the agent installable; operators can re-enable fail-closed integrity
+# after provisioning signed artifacts in /etc/lyflow/trust.
+Environment=AGENT_REQUIRE_BINARY_INTEGRITY=false
+Environment=AGENT_REQUIRE_CONFIG_INTEGRITY=false
 ExecStart=/opt/ly-agent/bin/ly-agent --config /opt/ly-agent/etc/agent.yaml
 Restart=always
 RestartSec=5

@@ -28,6 +28,11 @@ func TestLyprobeRecentFlowFromMessages(t *testing.T) {
 			wantOK: true,
 		},
 		{
+			name:   "recent local mirror flow is a probe heartbeat",
+			msgs:   []redis.XMessage{lyprobeFlowMessage("1-0", fmt.Sprintf(`{"source":"local-mirror-capture","capture_source":"mirror","timestamp":%q}`, recent))},
+			wantOK: true,
+		},
+		{
 			name:   "old lyprobe flow is not a heartbeat",
 			msgs:   []redis.XMessage{lyprobeFlowMessage("1-0", fmt.Sprintf(`{"source":"lyprobe","timestamp":%q}`, old))},
 			wantOK: false,
