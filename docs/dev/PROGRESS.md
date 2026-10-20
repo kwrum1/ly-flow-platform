@@ -746,3 +746,22 @@
   - UI validation exit 0
 - 仍未完成：clean VM/systemd 安装（ESXi 凭据阻塞）、ESXi 快照、
   Wazuh/OpenRASP/SeaweedFS 离线包固定 digest；Elkeid/Windows 已放弃。
+
+## 2026-10-20 态势感知 UI 重设计
+
+- 新增浅色优先、可切换深色的指挥控制台 shell：顶部一级导航、二级页签、全局搜索、
+  平台在线状态、主题切换、响应式布局。
+- 重做运营总览：真实态势评分、KPI、ATT&CK 阶段、检测趋势、告警构成、来源覆盖、
+  优先 Incident、实时事件流、引擎心跳。
+- 重做事件中心、攻击链处置、资产运维；新增响应处置、证据库、引擎健康页面。
+- 事件详情支持证据抽屉、原始载荷、来源 Schema；攻击链支持阶段时间线、证据展开、
+  真实响应动作创建/审批/回滚、Incident 证据包生成。
+- 证据库支持证据包列表/下载、Incident 证据包、PCAP 对象上传到 SeaweedFS。
+- 检测面页面统一浅色令牌并接入真实流量/运行/RASP 数据；全球态势在无 Geo 数据时
+  显示空态，不生成假攻击线。
+- 修复 Incident 同步在主键冲突场景下的重复键错误，XDR 工作台不再因 Incident 大列表
+  阻塞；深色主题图表重绘。
+- 前端验证：typecheck 通过，115 前端测试通过，生产构建通过；17 页 Playwright
+  验收 0 console/page/network/4xx/5xx；截图见
+  /opt/lyflow/reports/G5/ui-redesign/。
+- 设计说明：docs/dev/UI-REDESIGN.md。
