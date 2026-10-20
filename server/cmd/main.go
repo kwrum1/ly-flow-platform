@@ -1336,7 +1336,7 @@ func (c *ConsumerState) bridgeRawFlow(ctx context.Context, msg redis.XMessage) e
 	// envelope around it. Keeping the original payload lets both the flow
 	// table and persistTrafficSession read the same fields directly.
 	uid := transport.DeterministicUID("flow_bridge", "flows:raw", msg.ID)
-	if err := c.cfg.Redis.Eval(ctx, bridgeFlowScript, []string{"transport_reliability:flow_bridge", "flows:semantic", "sessions:semantic"}, uid, dataStr, msg.ID, now).Err(); err != nil {
+	if err := c.cfg.Redis.Eval(ctx, bridgeFlowScript, []string{"transport_reliability:flow_bridge", "flows:semantic"}, uid, dataStr, msg.ID, now).Err(); err != nil {
 		return fmt.Errorf("bridge raw flow: %w", err)
 	}
 	return nil
@@ -1345,7 +1345,6 @@ func (c *ConsumerState) bridgeRawFlow(ctx context.Context, msg redis.XMessage) e
 const bridgeFlowScript = `
 if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1 then return redis.call('HGET', KEYS[1], ARGV[1]) end
 local first = redis.call('XADD', KEYS[2], '*', 'event_uid', ARGV[1], 'data', ARGV[2], 'bridge_from', 'flows:raw', 'bridge_message_id', ARGV[3], 'bridged_at', ARGV[4])
-redis.call('XADD', KEYS[3], '*', 'event_uid', ARGV[1], 'data', ARGV[2], 'bridge_from', 'flows:raw', 'bridge_message_id', ARGV[3], 'bridged_at', ARGV[4])
 redis.call('HSET', KEYS[1], ARGV[1], first)
 return first
 `

@@ -129,9 +129,18 @@ func (c *Collector) publish(ctx context.Context, record Record) {
 		flow["probe_name"] = "lyprobe"
 		flow["probe_kind"] = "netflow"
 		flow["capture_source"] = "lyprobe"
-		// Publish into flows:raw, the canonical raw flow stream. The server
-		// bridges it into flows:semantic and sessions:semantic, so both the
-		// flow table and the session view receive the same probe evidence.
+		// Sessions are materialized from this direct semantic write; raw
+		// flows feed the flow table. The raw flow bridge intentionally does
+		// not duplicate sessions, otherwise high-volume packet capture would
+		// flood the session consumer.
+		if err := c.postWithRetry(ctx, "/api/v1/agent/traffic-event", map[string]interface{}{
+			"agent_id": c.agentID,
+			"stream":   "sessions:semantic",
+			"type":     "flows:semantic.event",
+			"data":     mustJSON(flow),
+		}); err != nil {
+			log.Printf("netflow collector: publish session: %v", err)
+		}
 		if err := c.postWithRetry(ctx, "/api/v1/agent/traffic-event", map[string]interface{}{
 			"agent_id": c.agentID,
 			"stream":   "flows:raw",
