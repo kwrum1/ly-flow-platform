@@ -1334,19 +1334,11 @@ func (c *ConsumerState) bridgeRawFlow(ctx context.Context, msg redis.XMessage) e
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	flowValues := map[string]interface{}{
-		"data":              dataStr,
-		"bridge_from":       "flows:raw",
-		"bridge_message_id": msg.ID,
-		"bridged_at":        now,
-	}
-
-	encoded, err := json.Marshal(flowValues)
-	if err != nil {
-		return transport.Permanent(transport.ReasonInvalidPayload, err)
-	}
+	// The bridged stream must carry the raw flow object itself, not a second
+	// envelope around it. Keeping the original payload lets both the flow
+	// table and persistTrafficSession read the same fields directly.
 	uid := transport.DeterministicUID("flow_bridge", "flows:raw", msg.ID)
-	if err := c.cfg.Redis.Eval(ctx, bridgeFlowScript, []string{"transport_reliability:flow_bridge", "flows:semantic", "sessions:semantic"}, uid, string(encoded), msg.ID, now).Err(); err != nil {
+	if err := c.cfg.Redis.Eval(ctx, bridgeFlowScript, []string{"transport_reliability:flow_bridge", "flows:semantic", "sessions:semantic"}, uid, dataStr, msg.ID, now).Err(); err != nil {
 		return fmt.Errorf("bridge raw flow: %w", err)
 	}
 	return nil
