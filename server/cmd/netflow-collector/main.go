@@ -99,10 +99,13 @@ func (c *Collector) publish(ctx context.Context, record Record) {
 	// component alerts, which feed XDR/Incident.
 	if flow := flowPayload(record); flow != nil {
 		flow["agent_id"] = c.agentID
+		// Publish into flows:raw, the canonical raw flow stream. The server
+		// bridges it into flows:semantic and sessions:semantic, so both the
+		// flow table and the session view receive the same probe evidence.
 		if err := c.post(ctx, "/api/v1/agent/traffic-event", map[string]interface{}{
 			"agent_id": c.agentID,
-			"stream":   "sessions:semantic",
-			"type":     "flows:semantic.event",
+			"stream":   "flows:raw",
+			"type":     "flows:raw.event",
 			"data":     mustJSON(flow),
 		}); err != nil {
 			log.Printf("netflow collector: publish flow: %v", err)
@@ -163,6 +166,7 @@ func flowPayload(record Record) map[string]interface{} {
 		"dst_port":   dstPort,
 		"protocol":   protocol,
 		"bytes":      intValue(record["bytes"]),
+		"bytes_total": intValue(record["bytes"]),
 		"packets":    intValue(record["packets"]),
 		"source":     "lyprobe",
 		"engine":     "lyprobe",

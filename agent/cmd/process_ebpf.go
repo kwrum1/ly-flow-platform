@@ -70,7 +70,6 @@ func (c *ebpfProcessCollector) start(bpftrace string) bool {
 			}
 			select {
 			case c.events <- event:
-				fmt.Printf("[hids] eBPF process exec: pid=%d comm=%s\n", event.PID, event.Command)
 			default:
 				// Keep the monitor non-blocking under a burst; procfs fallback
 				// still observes the next snapshot.

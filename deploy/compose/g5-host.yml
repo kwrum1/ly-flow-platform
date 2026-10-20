@@ -210,6 +210,8 @@ services:
       - ${LYPROBE_COLLECTOR:-127.0.0.1:9995}
       - -T
       - ${LYPROBE_TEMPLATE:?LYPROBE_TEMPLATE must be set}
+      - -o
+      - "1"
       - -b
       - "1"
     volumes:
