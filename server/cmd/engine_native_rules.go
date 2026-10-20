@@ -190,7 +190,14 @@ func lyprobeRecentFlowFromMessages(msgs []redis.XMessage, now time.Time, window 
 				payload[key] = value
 			}
 		}
-		if !strings.EqualFold(xdrPickString(payload, "source"), "lyprobe") {
+		source := strings.ToLower(strings.TrimSpace(xdrPickString(payload, "source")))
+		captureSource := strings.ToLower(strings.TrimSpace(xdrPickString(payload, "capture_source")))
+		probeName := strings.ToLower(strings.TrimSpace(xdrPickString(payload, "probe_name")))
+		if source != "lyprobe" &&
+			!strings.Contains(source, "local-mirror") &&
+			captureSource != "mirror" &&
+			!strings.Contains(probeName, "mirror") &&
+			!strings.Contains(probeName, "镜像") {
 			continue
 		}
 		at := parseEventTime(payload)

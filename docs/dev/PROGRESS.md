@@ -866,3 +866,12 @@
 - 修复 ClickHouse 24.8 的 v2 事件表 TTL：`TTL toDateTime(event_at) + INTERVAL 30 DAY`（`a8106f6`）。
 - Suricata 使用 `mirror`；本机镜像采集在 PF_RING 模块缺失时回退 AF_PACKET。
 - 详细记录：`docs/dev/ESXI-198-2026-10-21.md`。
+
+## 2026-10-21 真机专家测试与修复
+
+- 在 10.1.18.8 完成真实 Agent 全新安装、心跳、资产和流量上报验证。
+- 修复 LyFlow 探针心跳误判：接受 local-mirror-capture / mirror 流量作为探针活跃证据。
+- 修复 YARA 显式失败被 capability fallback 覆盖为运行中的问题。
+- 规则中心改为「已是最新 / 有新版本 / 未上报」，无更新时不再显示可点击更新按钮；Falco 实测同步 3 条规则成功。
+- 重做平台设置布局，三块设置完整展开；生产 19 页面巡检 0 错误，30 个 API 烟测全部 200。
+- 详细记录：docs/dev/EXPERT-ACCEPTANCE-2026-10-21.md。

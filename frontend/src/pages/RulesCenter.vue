@@ -17,7 +17,7 @@
         <div class="source-head-meta">
           <span v-if="runtimeStatusWarning" class="source-warning">引擎运行时状态暂不可用，规则与来源仍按本地清单展示</span>
           <span v-if="sourceLoading">正在读取实装引擎…</span>
-          <span v-else>{{ engineRows.length }} 个实装引擎 · {{ upstreamLoading ? '读取上游…' : `${upstreamRows.length} 个可更新上游` }} · {{ loading ? '读取中' : `${formatCount(totalNativeCount)} 条规则清单` }}</span>
+          <span v-else>{{ engineRows.length }} 个实装引擎 · {{ upstreamLoading ? '读取上游…' : `${upstreamRows.length} 个上游规则源 / ${upstreamUpdateCount} 个可更新` }} · {{ loading ? '读取中' : `${formatCount(totalNativeCount)} 条规则清单` }}</span>
         </div>
       </div>
 
@@ -84,7 +84,8 @@
                 </td>
                 <td>
                   <b>{{ source.currentVersion }}</b>
-                  <small v-if="source.latestVersion && source.latestVersion !== source.currentVersion">上游 {{ source.latestVersion }}</small>
+                  <small v-if="source.latestVersion && source.latestVersion !== '未上报' && source.latestVersion !== source.currentVersion">上游 {{ source.latestVersion }}</small>
+                  <small v-else-if="source.currentVersion === '未上报'">暂无上游版本</small>
                   <small v-else>上游版本已同步</small>
                 </td>
                 <td>
@@ -92,9 +93,9 @@
                   <small>{{ source.syncStatusText }}</small>
                 </td>
                 <td class="upstream-actions">
-                  <span :class="['update-state', source.updateAvailable ? 'available' : 'synced']">{{ source.updateAvailable ? '有新版本' : '可更新' }}</span>
-                  <button class="confirm-btn" type="button" :disabled="updatingSource === source.key" @click="updateUpstream(source)">
-                    {{ updatingSource === source.key ? '更新中…' : '更新' }}
+                  <span :class="['update-state', source.updateStateTone]">{{ source.updateStateText }}</span>
+                  <button v-if="source.canUpdate" class="confirm-btn" type="button" :disabled="updatingSource === source.key" @click="updateUpstream(source)">
+                    {{ updatingSource === source.key ? '同步中…' : source.updateAvailable ? '更新' : '同步' }}
                   </button>
                   <small v-if="sourceMessages[source.key]" class="row-message">{{ sourceMessages[source.key] }}</small>
                 </td>
@@ -283,6 +284,7 @@ const allUpstreamSources = computed(() => {
 })
 
 const upstreamRows = computed(() => allUpstreamSources.value.filter((source) => installedEngineKeys.value.has(source.engine)))
+const upstreamUpdateCount = computed(() => upstreamRows.value.filter((source) => source.updateAvailable).length)
 const geoSourceInfo = computed(() => platformSourceItems.value.find((source) => (source?.source_id || source?.id) === 'ip-geo-attribution') || null)
 
 const engineRows = computed(() => {
@@ -301,48 +303,55 @@ const engineRows = computed(() => {
       instances: 1,
       note: `统一编译 Bundle · 共享 ${upstreamLoading.value ? '读取中' : formatCount(allUpstreamSources.value.length)} 个上游 · 流量 ${formatCount(ruleCounts.traffic)} / 运行 ${formatCount(ruleCounts.runtime)} / RASP ${formatCount(ruleCounts.rasp)}`,
       sourceCount: allUpstreamSources.value.length,
-      updatableCount: allUpstreamSources.value.length,
+      updatableCount: allUpstreamSources.value.filter((source) => source.updateAvailable).length,
     }))
   }
 
   for (const key of installedEngineKeys.value) {
     if (key === 'security-engine') continue
-    const healthRows = engineHealthItems.value.filter((item) => item?.engine === key && item?.installed !== false)
+    const healthAll = engineHealthItems.value.filter((item) => item?.engine === key)
+    const healthRows = healthAll.filter((item) => item?.installed !== false)
     const runtimeInfo = runtime[key] || {}
     const runningRows = healthRows.filter((item) => isEngineRunning(item))
-    const running = healthRows.length ? runningRows.length === healthRows.length : Boolean(runtimeInfo.running)
+    const runtimeRunning = Boolean(runtimeInfo.running) || (key === 'suricata' && Number(runtimeInfo.signature_count || 0) > 0)
+    const running = healthRows.length ? runningRows.length === healthRows.length : runtimeRunning
+    const unavailable = healthAll.length > 0 && healthRows.length === 0 && !runtimeRunning
     const ruleCount = Number(counts.value?.[key] ?? runtimeInfo.rule_count ?? runtimeInfo.signature_count ?? 0)
-    const rulePack = firstText(healthRows[0]?.rule_pack_version, runtimeInfo.rule_pack_version, runtimeInfo.bundle_version, '未上报')
+    const rulePack = unavailable ? '未安装' : firstText(healthRows[0]?.rule_pack_version, runtimeInfo.rule_pack_version, runtimeInfo.bundle_version, '未上报')
     const sourceCount = allUpstreamSources.value.filter((source) => source.engine === key).length
+    const updatableCount = allUpstreamSources.value.filter((source) => source.engine === key && source.updateAvailable).length
     const isProbe = key === 'lyprobe'
     rows.push(makeEngineRow({
       key,
       running,
+      unavailable,
       ruleCount,
       rulePack,
-      instances: healthRows.length,
+      instances: isProbe && running ? 1 : healthRows.length,
       note: isProbe
         ? 'ET Open 子集 · rulecompiler 生成 · NetFlow v9 证据链'
         : healthRows.length
           ? `${healthRows[0]?.hostname || healthRows[0]?.agent_id || '本机'} · ${firstText(healthRows[0]?.version, '版本未上报')}`
-          : '规则已加载 · 未收到引擎心跳',
+          : unavailable
+            ? 'Agent 未报告可运行的原生引擎，规则仍保留在规则清单中'
+            : '规则包已加载，等待引擎心跳',
       sourceCount: isProbe ? 1 : sourceCount,
-      updatableCount: isProbe ? 0 : sourceCount,
+      updatableCount: isProbe ? 0 : updatableCount,
     }))
   }
   return rows.sort((a, b) => a.order - b.order)
 })
 
-function makeEngineRow({ key, running, ruleCount, rulePack, instances, note, sourceCount, updatableCount }) {
+function makeEngineRow({ key, running, unavailable = false, ruleCount, rulePack, instances, note, sourceCount, updatableCount }) {
   const definition = engineDefinitions[key] || { label: key, short: String(key).slice(0, 2).toUpperCase(), order: 99 }
   return {
     key,
     label: definition.label,
     short: definition.short,
     order: definition.order,
-    tone: running ? 'low' : 'medium',
-    statusText: running ? '运行中' : (instances || ruleCount > 0) ? '规则已加载' : '无心跳',
-    instanceLabel: instances ? `${instances} 个实例` : (ruleCount > 0 ? '规则已加载 · 无心跳' : '无实例'),
+    tone: unavailable ? 'muted' : running ? 'low' : (instances || ruleCount > 0) ? 'medium' : 'muted',
+    statusText: unavailable ? '未安装' : running ? '运行中' : (instances || ruleCount > 0) ? '规则已加载' : '无心跳',
+    instanceLabel: unavailable ? '引擎未安装' : instances ? `${instances} 个实例` : (ruleCount > 0 ? '规则已加载' : '无实例'),
     ruleCount,
     rulePack,
     sourceCount,
@@ -355,8 +364,11 @@ function makeUpstreamSource({ platform, legacy, version, canonicalID }) {
   const sourceID = String(platform?.source_id || legacy?.source_id || canonicalID)
   const raw = platform || legacy || {}
   const engine = engineForSource(raw)
-  const currentVersion = firstText(legacy?.current_version, version?.version, platform ? '未同步' : '未记录')
-  const latestVersion = firstText(legacy?.latest_version, version?.version, '')
+  const currentVersion = firstText(version?.version, legacy?.current_version, '未上报')
+  const latestVersion = firstText(version?.version, legacy?.latest_version, '未上报')
+  const currentKnown = currentVersion !== '未上报' && currentVersion !== '未同步' && currentVersion !== '未记录' && currentVersion !== '已安装'
+  const latestKnown = latestVersion !== '未上报'
+  const updateAvailable = (currentKnown && latestKnown && currentVersion !== latestVersion) || (!version && legacy?.update_available === true)
   return {
     key: canonicalID,
     sourceId: sourceID,
@@ -371,9 +383,12 @@ function makeUpstreamSource({ platform, legacy, version, canonicalID }) {
     currentVersion,
     latestVersion,
     lastSync: version?.synced_at || '',
-    lastSyncText: version?.synced_at ? formatSourceTime(version.synced_at) : '未记录',
-    syncStatusText: version ? '规则平台已同步' : '等待首次同步',
-    updateAvailable: legacy?.update_available === true,
+    lastSyncText: version?.synced_at ? formatSourceTime(version.synced_at) : '未同步',
+    syncStatusText: version ? '规则平台已同步' : '未同步',
+    updateAvailable,
+    updateStateText: updateAvailable ? '有新版本' : (currentKnown && latestKnown ? '已是最新' : '未上报'),
+    updateStateTone: updateAvailable ? 'available' : (currentKnown && latestKnown ? 'synced' : 'unknown'),
+    canUpdate: updateAvailable || !currentKnown || !latestKnown,
   }
 }
 
@@ -670,6 +685,7 @@ onMounted(() => {
 .update-state{font-size:9px;font-weight:800}
 .update-state.available{color:#b45309}
 .update-state.synced{color:#178653}
+.update-state.unknown{color:#64748b}
 .geo-data-note{display:flex;align-items:center;gap:9px;flex-wrap:wrap;padding:8px 12px;border-top:1px dashed #dfe6ef;background:#fbfcfe;color:#758195;font-size:10px}
 .geo-data-note b{color:#475569;font-size:10px}
 .geo-source-ref{color:#8793a5}
