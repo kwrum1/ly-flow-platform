@@ -57,6 +57,11 @@
           </button>
           <div v-if="!filteredIncidents.length" class="sx-empty"><div><strong>暂无匹配 Incident</strong>调整筛选条件或等待关联链生成。</div></div>
         </div>
+        <div class="sidebar-pager">
+          <button class="sx-btn" type="button" :disabled="loading || incidentPage <= 1" @click="changeIncidentPage(-1)">上一页</button>
+          <span>{{ incidentPage }} / {{ incidentPages }}</span>
+          <button class="sx-btn" type="button" :disabled="loading || incidentPage >= incidentPages" @click="changeIncidentPage(1)">下一页</button>
+        </div>
       </aside>
 
       <main class="incident-main">
@@ -214,8 +219,10 @@ import { severityLabel, stageLabel } from '../../domain/attack-labels'
 import { normalizeIncident, normalizeIncidents } from '../../domain/incidents'
 
 const route = useRoute()
+const PAGE_SIZE = 20
 const incidents = ref([])
 const incidentTotal = ref(0)
+const incidentPage = ref(1)
 const selected = ref(null)
 const loading = ref(false)
 const updatingStatus = ref(false)
@@ -254,6 +261,7 @@ const filteredIncidents = computed(() => incidents.value.filter((item) => {
   return true
 }))
 const availableStatuses = computed(() => statusTransitions[selected.value?.status] || statuses)
+const incidentPages = computed(() => Math.max(1, Math.ceil(incidentTotal.value / PAGE_SIZE)))
 const groups = computed(() => {
   if (!selected.value) return []
   if (selected.value.stageGroups?.length) return selected.value.stageGroups
@@ -301,7 +309,8 @@ async function loadIncidents(options = {}) {
   loading.value = true
   error.value = ''
   try {
-    const data = unwrap(await attackWorkbenchClient.incidents({ limit: 20, live: options.live ? 1 : 0 }))
+    const offset = (incidentPage.value - 1) * PAGE_SIZE
+    const data = unwrap(await attackWorkbenchClient.incidents({ limit: PAGE_SIZE, offset, live: options.live ? 1 : 0 }))
     incidents.value = normalizeIncidents(Array.isArray(data.items) ? data.items : [])
     incidentTotal.value = Number(data.total ?? incidents.value.length) || incidents.value.length
     const wanted = String(route.query.id || '')
@@ -312,6 +321,13 @@ async function loadIncidents(options = {}) {
   } finally {
     loading.value = false
   }
+}
+
+function changeIncidentPage(delta) {
+  const next = incidentPage.value + delta
+  if (next < 1 || next > incidentPages.value) return
+  incidentPage.value = next
+  loadIncidents()
 }
 
 async function selectIncident(item) {
@@ -457,6 +473,8 @@ onMounted(() => {
 .sidebar-head span { color: var(--sx-text-3); font-size: 10px; }
 .sidebar-filters { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
 .incident-list { flex: 1; }
+.sidebar-pager { display: flex; align-items: center; justify-content: space-between; gap: 6px; padding: 7px 10px; border-top: 1px solid var(--sx-line-soft); color: var(--sx-text-3); font-size: 9px; }
+.sidebar-pager .sx-btn { height: 24px; padding: 0 7px; font-size: 9px; }
 .incident-list-row { display: grid; width: 100%; grid-template-columns: 46px minmax(0, 1fr) auto; align-items: start; gap: 8px; padding: 10px 12px; border: 0; border-bottom: 1px solid var(--sx-line-soft); background: transparent; color: inherit; text-align: left; cursor: pointer; transition: background var(--transition-fast); }
 .incident-list-row:hover, .incident-list-row.active { background: var(--sx-accent-soft); }
 .incident-list-row.active { box-shadow: inset 3px 0 var(--sx-accent); }

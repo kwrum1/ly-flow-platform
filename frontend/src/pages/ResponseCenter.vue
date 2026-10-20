@@ -106,7 +106,10 @@
               <td><b>{{ actionLabel(action.action) }}</b><small class="sx-mono">{{ action.id }}</small></td>
               <td class="sx-mono">{{ action.target || '-' }}</td>
               <td><span class="sx-badge" :class="riskTone(action.risk)">{{ action.risk || '-' }}</span></td>
-              <td><span class="sx-badge" :class="statusTone(action.status)">{{ statusLabel(action.status) }}</span></td>
+              <td>
+                <span class="sx-badge" :class="statusTone(action.status)">{{ statusLabel(action.status) }}</span>
+                <span v-if="action.auto_approved" class="sx-badge info auto-badge">自动</span>
+              </td>
               <td>{{ action.incident_id || '-' }}</td>
               <td><b>{{ action.requested_by || '-' }}</b><small>{{ action.approved_by ? `审批 ${action.approved_by}` : '等待审批' }}</small></td>
               <td><b>{{ formatTime(action.created_at) }}</b><small>{{ action.completed_at ? formatTime(action.completed_at) : '' }}</small></td>
@@ -314,6 +317,7 @@ onMounted(load)
 .response-table { min-width: 1080px; }
 .action-buttons { display: flex; gap: 4px; }
 .action-buttons .sx-btn { height: 25px; padding: 0 7px; font-size: 9px; }
+.auto-badge { margin-left: 3px; font-size: 8px; }
 .action-error { display: block; max-width: 180px; margin-top: 3px; overflow: hidden; color: var(--sx-danger); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 1100px) {
   .response-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
