@@ -791,3 +791,19 @@
 - 规则源同步接口改为并行容错：引擎健康接口短暂不可用时，仍展示本地规则源、规则数量
   和版本，并给出「引擎健康接口暂不可用」提示，不再整页失败。
 - GeoIP 未配置时显示「未配置 / 0 条」，不再伪造 city-db 运行状态。
+## 2026-10-20 规则源、账户、事件与引擎稳定性修复
+
+- 规则中心「规则源同步」改为由后端实装引擎驱动：LyFlow DPI、Suricata、Wazuh、YARA、OpenRASP；
+  上游来源合并 /rule-platform/sources、/rule-platform/versions 与 /rules/sources，只展示可更新、
+  有真实 URL 的来源，内置/受限/不可更新规则不进入同步列表。
+- 每个上游展示更新地址、当前版本、最近同步和更新按钮；GeoIP 明确标注为地图基础数据，
+  不再作为规则引擎模块或伪造 city-db 状态。
+- 响应处置页删除重复的「发起响应动作」表单，只保留定时自动处置策略与真实处置历史；
+  动作统一从攻击链 Incident 发起。
+- 账户新增不再向 /auth/register 传 role（该接口按安全设计拒绝调用方角色），
+  先创建 viewer，再通过管理员用户更新接口设置角色；账户列表增加角色管理。
+- 运营总览事件流改用 /api/v2/events，事件链接统一使用 event_uid，修复从总览点事件
+  进入详情时 UID 不匹配导致的 event not found。
+- security-engine watchdog 在消费/回收批次中刷新，并将 liveness 窗口从约 2 秒放宽到约 11 秒，
+  定位并修复引擎频繁因 watchdog stale 重启、导致 /engine-runtime/status 偶发
+  127.0.0.1:8082 connection refused 的根因。
