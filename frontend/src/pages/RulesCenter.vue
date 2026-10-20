@@ -85,7 +85,7 @@
                   <small>{{ source.syncStatusText }}</small>
                 </td>
                 <td class="upstream-actions">
-                  <span :class="['update-state', source.updateAvailable ? 'available' : 'synced']">{{ source.updateAvailable ? '有新版本' : '可同步' }}</span>
+                  <span :class="['update-state', source.updateAvailable ? 'available' : 'synced']">{{ source.updateAvailable ? '有新版本' : '可更新' }}</span>
                   <button class="confirm-btn" type="button" :disabled="updatingSource === source.key" @click="updateUpstream(source)">
                     {{ updatingSource === source.key ? '更新中…' : '更新' }}
                   </button>
