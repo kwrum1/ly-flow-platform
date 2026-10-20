@@ -185,9 +185,9 @@
         <div v-if="ready.events && recentEvents.length" class="event-stream">
           <RouterLink
             v-for="event in recentEvents"
-            :key="event.id || event.event_uid"
+            :key="event.event_uid"
             class="event-stream-row"
-            :to="{ path: '/events', query: { uid: event.id || event.event_uid } }"
+            :to="{ path: '/events', query: { uid: event.event_uid } }"
           >
             <span class="stream-dot" :class="event.severity" />
             <time>{{ formatShortTime(event.timestamp || event.event_at || event.created_at) }}</time>
@@ -237,6 +237,7 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import { attackWorkbenchClient, assetAgentClient, overviewClient, ruleClient } from '../../api/domain'
+import { eventsV2Client } from '../../api/v2'
 import { normalizeIncidents } from '../../domain/incidents'
 import { severityLabel } from '../../domain/attack-labels'
 import { formatChinaDateTime, formatChinaTime } from '../../shared/time'
@@ -551,7 +552,7 @@ async function load() {
     assetAgentClient.assetStats().then((value) => { assetStats.value = unwrap(value); ready.assetStats = true; succeeded++ }),
     assetAgentClient.assets({ limit: 8 }).then((value) => { assets.value = normalizePage(value); ready.assets = true; succeeded++ }),
     assetAgentClient.engineHealth().then((value) => { engines.value = normalizePage(value); ready.engines = true; succeeded++ }),
-    attackWorkbenchClient.events({ limit: 160 }).then((value) => { events.value = normalizePage(value); ready.events = true; succeeded++; refreshCharts() }),
+    eventsV2Client.list({ limit: 160 }).then((value) => { events.value = normalizePage(value); ready.events = true; succeeded++; refreshCharts() }),
     ruleClient.responseActions({ limit: 100 }).then((value) => { responseActions.value = normalizePage(value); ready.actions = true; succeeded++ }),
     ruleClient.stats().then((value) => { ruleStats.value = unwrap(value); ready.rules = true; succeeded++ }),
   ]

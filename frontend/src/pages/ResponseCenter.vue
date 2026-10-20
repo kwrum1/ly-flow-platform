@@ -4,7 +4,7 @@
       <div>
         <p class="sx-kicker">RESPONSE ORCHESTRATION</p>
         <h2 class="sx-title">响应处置</h2>
-        <p class="sx-subtitle">选择 Agent、动作和说明即可发起处置；L2 可在自动化窗口内直接执行，L3 始终需要第二名管理员审批，执行结果由 Agent 回写。</p>
+        <p class="sx-subtitle">这里只查看自动处置策略和真实执行历史；具体处置动作统一从攻击链 Incident 发起，避免重复入口。</p>
       </div>
       <div class="sx-head-actions">
         <span class="sx-live"><i />LIVE</span>
@@ -41,35 +41,6 @@
     </section>
 
     <div v-if="error" class="sx-error">{{ error }}</div>
-
-    <section class="response-create sx-panel">
-      <div class="sx-panel-head">
-        <div class="sx-panel-title">发起响应动作</div>
-        <span class="sx-panel-meta">L2 窗口内直接执行；L3 进入审批</span>
-      </div>
-      <div class="sx-panel-body create-grid">
-        <label class="agent-field"><span>Agent</span>
-          <select v-model="form.agent_id" class="sx-select">
-            <option value="" disabled>{{ agents.length ? '选择 Agent' : '暂无已注册 Agent' }}</option>
-            <option v-for="agent in agents" :key="agent.agent_id" :value="agent.agent_id">
-              {{ agent.display_name || agent.hostname || agent.agent_id }} · {{ agent.ip || '无 IP' }} · {{ agent.status === 'online' ? '在线' : '离线' }}
-            </option>
-          </select>
-        </label>
-        <label><span>动作</span>
-          <select v-model="form.action" class="sx-select">
-            <option v-for="item in actionOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-          </select>
-        </label>
-        <label v-if="requiresTarget" class="wide"><span>目标</span><input v-model.trim="form.target" class="sx-input" :placeholder="targetPlaceholder" /></label>
-        <label class="wide description-field"><span>说明</span><textarea v-model.trim="form.reason" class="sx-input reason-input" rows="2" placeholder="处置依据 / 变更单号（可选）" /></label>
-        <div class="create-actions">
-          <span class="sx-muted">L2 在自动化窗口内可直接执行；L3 始终进入审批。</span>
-          <span v-if="message" :class="['response-message', messageType]">{{ message }}</span>
-          <button class="sx-btn primary" type="button" :disabled="creating || !canCreate" @click="createAction">{{ creating ? '提交中…' : '提交处置' }}</button>
-        </div>
-      </div>
-    </section>
 
     <form class="sx-filter" @submit.prevent="load">
       <label><span>状态</span>
@@ -130,16 +101,12 @@
 
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
-import { assetAgentClient, responseClient } from '../api/domain'
+import { responseClient } from '../api/domain'
 
 const loading = ref(false)
-const creating = ref(false)
 const updating = ref('')
 const error = ref('')
-const message = ref('')
-const messageType = ref('success')
 const actions = ref([])
-const agents = ref([])
 const automation = ref({})
 const automationSaving = ref(false)
 const automationMessage = ref('')
@@ -147,21 +114,12 @@ const automationMessageType = ref('success')
 const statusFilter = ref('')
 const riskFilter = ref('')
 const query = ref('')
-const form = reactive({ agent_id: '', action: 'isolate_host', target: '', reason: '' })
 const automationForm = reactive({ enabled: false, window_start_hour: 0, window_end_hour: 23, approval_ttl_minutes: 15 })
 const hourOptions = Array.from({ length: 24 }, (_, index) => index)
 
-const actionOptions = [
-  { value: 'observe', label: '观察' }, { value: 'block_ip', label: '封禁 IP' }, { value: 'isolate_host', label: '主机隔离' },
-  { value: 'process_kill', label: '终止进程' }, { value: 'file_delete', label: '隔离文件' }, { value: 'account_disable', label: '禁用账号' },
-  { value: 'namespace_isolate', label: '容器网络隔离' },
-]
-const targetPlaceholder = computed(() => ({ block_ip: 'IP 地址（必须在 RESPONSE_ALLOWED_CIDRS 内）', process_kill: 'PID', file_delete: '绝对文件路径', account_disable: '用户名', namespace_isolate: '容器 ID' })[form.action] || '目标')
-const requiresTarget = computed(() => ['block_ip', 'process_kill', 'file_delete', 'account_disable', 'namespace_isolate'].includes(form.action))
 const pendingCount = computed(() => actions.value.filter((item) => item.status === 'pending_approval').length)
 const executedCount = computed(() => actions.value.filter((item) => item.status === 'executed').length)
 const failedCount = computed(() => actions.value.filter((item) => ['failed', 'rolled_back'].includes(item.status)).length)
-const canCreate = computed(() => Boolean(form.agent_id && (form.action === 'observe' || form.action === 'isolate_host' || form.target)))
 const filteredActions = computed(() => actions.value.filter((item) => {
   if (statusFilter.value && item.status !== statusFilter.value) return false
   if (riskFilter.value && item.risk !== riskFilter.value) return false
@@ -185,19 +143,13 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [actionResult, agentResult, automationResult] = await Promise.allSettled([
+    const [actionResult, automationResult] = await Promise.allSettled([
       responseClient.actions({ limit: 100 }),
-      assetAgentClient.agents({ limit: 200 }),
       responseClient.automation(),
     ])
     if (actionResult.status === 'fulfilled') {
       const data = unwrap(actionResult.value)
       actions.value = Array.isArray(data.items) ? data.items : []
-    }
-    if (agentResult.status === 'fulfilled') {
-      const data = unwrap(agentResult.value)
-      agents.value = Array.isArray(data.items) ? data.items : []
-      if (!form.agent_id && agents.value.length) form.agent_id = agents.value[0].agent_id
     }
     if (automationResult.status === 'fulfilled') {
       automation.value = unwrap(automationResult.value)
@@ -207,9 +159,12 @@ async function load() {
         window_end_hour: Number(automation.value.window_end_hour ?? 23),
         approval_ttl_minutes: Number(automation.value.approval_ttl_minutes ?? 15),
       })
+    } else {
+      automationMessage.value = '自动化策略加载失败，请检查后端连接。'
+      automationMessageType.value = 'error'
     }
-    if ([actionResult, agentResult].every((result) => result.status === 'rejected')) {
-      error.value = '响应处置数据加载失败。'
+    if (actionResult.status === 'rejected') {
+      error.value = '响应处置历史加载失败。'
     }
   } finally {
     loading.value = false
@@ -235,31 +190,6 @@ async function saveAutomation() {
     automationMessageType.value = 'error'
   } finally {
     automationSaving.value = false
-  }
-}
-
-async function createAction() {
-  if (!canCreate.value) return
-  creating.value = true
-  message.value = ''
-  try {
-    await responseClient.create({
-      agent_id: form.agent_id,
-      action: form.action,
-      target: requiresTarget.value ? form.target : form.agent_id,
-      reason: form.reason || '响应中心人工处置',
-      ttl_seconds: 300,
-    })
-    message.value = '处置已提交；L2 在自动化窗口内会直接执行，L3 进入审批队列。'
-    messageType.value = 'success'
-    form.target = ''
-    form.reason = ''
-    await load()
-  } catch (cause) {
-    message.value = cause?.message || '响应动作提交失败。'
-    messageType.value = 'error'
-  } finally {
-    creating.value = false
   }
 }
 

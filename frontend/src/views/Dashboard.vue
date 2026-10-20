@@ -360,7 +360,7 @@ const responseSteps = [
 
 const severityText = (severity) => severityTextMap[severity] || severity || '未知'
 const go = (path) => router.push(path)
-const openIncident = (incident) => router.push(incident.id !== undefined ? `/events/${incident.id}` : '/events')
+const openIncident = (incident) => router.push(incident.id !== undefined ? `/incidents?id=${encodeURIComponent(incident.id)}` : '/incidents')
 const formatTime = (value) => {
   if (!value) return '-'
   const normalized = typeof value === 'number' && value < 1000000000000 ? value * 1000 : value
