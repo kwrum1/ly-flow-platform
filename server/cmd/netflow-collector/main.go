@@ -39,12 +39,14 @@ func main() {
 		}
 	}
 	collector := &Collector{
-		client:   &http.Client{Timeout: 10 * time.Second},
-		server:   strings.TrimRight(*serverURL, "/"),
-		agentID:  *agentID,
-		agentKey: *agentKey,
+		client:    &http.Client{Timeout: 30 * time.Second},
+		server:    strings.TrimRight(*serverURL, "/"),
+		agentID:   *agentID,
+		agentKey:  *agentKey,
 		templates: map[string]Template{},
+		queue:     make(chan Record, 4096),
 	}
+	collector.startWorkers(context.Background(), 8)
 	log.Printf("netflow collector listening on UDP/%d, forwarding to %s as %s", port, *serverURL, *agentID)
 	if err := listenRaw(context.Background(), port, collector); err != nil {
 		log.Fatalf("netflow collector: raw UDP listener: %v", err)
@@ -76,6 +78,20 @@ type Collector struct {
 	agentID   string
 	agentKey  string
 	templates map[string]Template
+	queue     chan Record
+}
+
+func (c *Collector) startWorkers(ctx context.Context, count int) {
+	if count <= 0 {
+		count = 1
+	}
+	for index := 0; index < count; index++ {
+		go func() {
+			for record := range c.queue {
+				c.publish(ctx, record)
+			}
+		}()
+	}
 }
 
 func (c *Collector) handle(ctx context.Context, packet []byte, remote *net.UDPAddr) {
@@ -89,7 +105,11 @@ func (c *Collector) handle(ctx context.Context, packet []byte, remote *net.UDPAd
 		log.Printf("netflow collector: received %d records from %s", len(records), remote)
 	}
 	for _, record := range records {
-		c.publish(ctx, record)
+		select {
+		case c.queue <- record:
+		default:
+			log.Printf("netflow collector: publish queue full, dropping flow %v", record["id"])
+		}
 	}
 }
 
@@ -102,7 +122,7 @@ func (c *Collector) publish(ctx context.Context, record Record) {
 		// Publish into flows:raw, the canonical raw flow stream. The server
 		// bridges it into flows:semantic and sessions:semantic, so both the
 		// flow table and the session view receive the same probe evidence.
-		if err := c.post(ctx, "/api/v1/agent/traffic-event", map[string]interface{}{
+		if err := c.postWithRetry(ctx, "/api/v1/agent/traffic-event", map[string]interface{}{
 			"agent_id": c.agentID,
 			"stream":   "flows:raw",
 			"type":     "flows:raw.event",
@@ -112,10 +132,23 @@ func (c *Collector) publish(ctx context.Context, record Record) {
 		}
 	}
 	if alert := threatPayload(record, c.agentID); alert != nil {
-		if err := c.post(ctx, "/api/v1/agent/component-alert", alert); err != nil {
+		if err := c.postWithRetry(ctx, "/api/v1/agent/component-alert", alert); err != nil {
 			log.Printf("netflow collector: publish alert: %v", err)
 		}
 	}
+}
+
+func (c *Collector) postWithRetry(ctx context.Context, path string, body interface{}) error {
+	var lastErr error
+	for attempt := 0; attempt < 2; attempt++ {
+		if lastErr = c.post(ctx, path, body); lastErr == nil {
+			return nil
+		}
+		if attempt == 0 {
+			time.Sleep(500 * time.Millisecond)
+		}
+	}
+	return lastErr
 }
 
 func (c *Collector) post(ctx context.Context, path string, body interface{}) error {
