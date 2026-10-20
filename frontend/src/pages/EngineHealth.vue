@@ -93,7 +93,7 @@ const runtimeItem = computed(() => {
     agent_id: runtime.service || 'ly-security-engine',
     agent_status: 'online',
     engine: 'security-engine',
-    hostname: 'LyFlow 控制面',
+    hostname: runtime.service || 'ly-security-engine',
     installed: true,
     running,
     version: '',
