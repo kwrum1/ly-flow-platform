@@ -1,5 +1,7 @@
 package com.lyflow.rasp;
 
+import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.OutputStream;
 import java.lang.instrument.Instrumentation;
 import java.net.HttpURLConnection;
@@ -7,9 +9,13 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.sql.DriverManager;
 import java.time.Instant;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public final class LyRaspAgent {
     private static volatile boolean started;
+    private static volatile String bridgeToken = "";
+    private static volatile String bridgeAgentId = "";
     private static final ThreadLocal<Boolean> EMITTING = new ThreadLocal<Boolean>();
 
     private LyRaspAgent() {}
@@ -28,6 +34,7 @@ public final class LyRaspAgent {
             return;
         }
         started = true;
+        loadBridgeConfig();
         installSecurityHooks();
         installJdbcHook();
         emit("rasp.lifecycle", "java", "jvm", "LyFlow Java RASP attached via " + mode, "agent.lifecycle");
@@ -54,6 +61,33 @@ public final class LyRaspAgent {
         }
     }
 
+    private static void loadBridgeConfig() {
+        String bridge = System.getenv().getOrDefault("LY_RASP_BRIDGE", "http://127.0.0.1:17891/v1/rasp/events");
+        String token = System.getenv().getOrDefault("LY_RASP_TOKEN", "");
+        String agent = System.getenv().getOrDefault("LY_RASP_AGENT_ID", "g5-real-agent");
+        try {
+            URL url = new URL(bridge.replaceAll("/events$", "/config"));
+            HttpURLConnection conn = (HttpURLConnection) url.openConnection();
+            conn.setRequestMethod("GET");
+            conn.setConnectTimeout(500);
+            conn.setReadTimeout(500);
+            conn.setRequestProperty("X-Ly-RASP-Token", token);
+            conn.setRequestProperty("X-Lyflow-Agent-ID", agent);
+            ByteArrayOutputStream output = new ByteArrayOutputStream();
+            try (InputStream input = conn.getInputStream()) {
+                byte[] buffer = new byte[2048];
+                int read;
+                while ((read = input.read(buffer)) >= 0) output.write(buffer, 0, read);
+            }
+            String body = new String(output.toByteArray(), StandardCharsets.UTF_8);
+            Matcher tokenMatcher = Pattern.compile("\"bridge_token\"\\s*:\\s*\"([^\"]+)\"").matcher(body);
+            if (tokenMatcher.find()) bridgeToken = tokenMatcher.group(1);
+            Matcher agentMatcher = Pattern.compile("\"agent_id\"\\s*:\\s*\"([^\"]+)\"").matcher(body);
+            if (agentMatcher.find()) bridgeAgentId = agentMatcher.group(1);
+        } catch (Exception ignored) {
+        }
+    }
+
     public static void emit(String eventType, String language, String hookType, String payload) {
         emit(eventType, language, hookType, payload, "java.runtime");
     }
@@ -63,7 +97,8 @@ public final class LyRaspAgent {
         EMITTING.set(Boolean.TRUE);
         try {
             String bridge = System.getenv().getOrDefault("LY_RASP_BRIDGE", "http://127.0.0.1:17891/v1/rasp/events");
-            String token = System.getenv().getOrDefault("LY_RASP_TOKEN", "");
+            String token = bridgeToken.isEmpty() ? System.getenv().getOrDefault("LY_RASP_TOKEN", "") : bridgeToken;
+            String agentId = bridgeAgentId.isEmpty() ? System.getenv().getOrDefault("LY_RASP_AGENT_ID", "g5-real-agent") : bridgeAgentId;
             String app = System.getenv().getOrDefault("LY_APP_NAME", System.getProperty("ly.app.name", "java-app"));
             String query = fieldForHook(hookType, "sql", payload);
             String command = fieldForHook(hookType, "command", payload);
@@ -93,6 +128,7 @@ public final class LyRaspAgent {
                 conn.setReadTimeout(500);
                 conn.setDoOutput(true);
                 conn.setRequestProperty("Content-Type", "application/json");
+                conn.setRequestProperty("X-Lyflow-Agent-ID", agentId);
                 if (!token.isEmpty()) conn.setRequestProperty("X-Ly-RASP-Token", token);
                 try (OutputStream out = conn.getOutputStream()) {
                     out.write(body.getBytes(StandardCharsets.UTF_8));

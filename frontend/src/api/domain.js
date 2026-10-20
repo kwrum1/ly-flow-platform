@@ -73,14 +73,32 @@ export const ruleClient = Object.freeze({
   engineRuntimeStatus: () => api.get('/engine-runtime/status'),
   updateEngineRules: () => api.post('/engine-rules/update'),
   platformRollback: (payload = {}) => api.post('/rule-platform/rollback', payload),
-  responseCandidates: () => api.get('/response/candidates'),
-  responsePolicy: () => api.get('/response/policy'),
-  updateResponsePolicy: (payload) => api.put('/response/policy', payload),
+  responseActions: (params = {}) => api.get('/response/actions', { params }),
+  createResponseAction: (payload) => api.post('/response/actions', payload),
+  approveResponseAction: (id, payload = {}) => api.post(`/response/actions/${id}/approve`, payload),
+  rollbackResponseAction: (id) => api.post(`/response/actions/${id}/rollback`, {}),
   categories: () => api.get('/rules/categories'),
   stats: () => api.get('/rules/stats'),
   subscription: () => api.get('/rules/subscription'),
   update: (payload) => api.post('/rules/update', payload),
   test: (payload) => api.post('/rules/test', payload),
+})
+
+export const responseClient = Object.freeze({
+  actions: (params = {}) => api.get('/response/actions', { params }),
+  create: (payload) => api.post('/response/actions', payload),
+  approve: (id, payload = {}) => api.post(`/response/actions/${encodeURIComponent(id)}/approve`, payload),
+  rollback: (id) => api.post(`/response/actions/${encodeURIComponent(id)}/rollback`, {}),
+  automation: () => api.get('/response/automation'),
+  updateAutomation: (payload) => api.put('/response/automation', payload),
+})
+
+export const evidenceClient = Object.freeze({
+  bundles: (params = {}) => api.get('/evidence/bundles', { params }),
+  bundle: (id) => api.get(`/evidence/bundles/${encodeURIComponent(id)}`),
+  download: (id) => api.get(`/evidence/bundles/${encodeURIComponent(id)}/download`, { responseType: 'blob' }),
+  createBundle: (payload) => api.post('/evidence/bundles', payload),
+  uploadArtifact: (payload, headers = {}) => api.post('/evidence/artifacts', payload, { headers }),
 })
 
 export const signalClient = Object.freeze({
@@ -105,7 +123,7 @@ export const signalClient = Object.freeze({
 export const overviewClient = Object.freeze({
   health: () => api.get('/health'),
   stats: () => api.get('/stats'),
-  threats: (params = {}) => api.get('/events', { params }),
+  threats: (params = {}) => api.get('/unified/events', { params }),
   globalSituation: () => api.get('/public/situation/global'),
   targetLocation: () => api.get('/situation/target-location'),
   updateTargetLocation: (payload) => api.put('/situation/target-location', payload),

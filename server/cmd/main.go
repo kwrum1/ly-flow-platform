@@ -37,14 +37,18 @@ import (
 	"github.com/lyflow/ly-flow-platform/server/agentpolicy"
 	"github.com/lyflow/ly-flow-platform/server/analytics"
 	wsapi "github.com/lyflow/ly-flow-platform/server/api/websocket"
+	"github.com/lyflow/ly-flow-platform/server/evidence"
 	"github.com/lyflow/ly-flow-platform/server/incidentlifecycle"
 	"github.com/lyflow/ly-flow-platform/server/ingestionauth"
+	"github.com/lyflow/ly-flow-platform/server/ingestv2"
 	"github.com/lyflow/ly-flow-platform/server/internal/redisconfig"
 	"github.com/lyflow/ly-flow-platform/server/models"
 	"github.com/lyflow/ly-flow-platform/server/modules/asset"
 	"github.com/lyflow/ly-flow-platform/server/modules/auth"
 	"github.com/lyflow/ly-flow-platform/server/modules/rasp"
 	"github.com/lyflow/ly-flow-platform/server/modules/trace"
+	"github.com/lyflow/ly-flow-platform/server/queryv2"
+	responsepkg "github.com/lyflow/ly-flow-platform/server/response"
 	"github.com/lyflow/ly-flow-platform/server/rulelifecycle"
 	"github.com/lyflow/ly-flow-platform/server/unified"
 	xdrprocessor "github.com/lyflow/ly-flow-platform/server/xdr"
@@ -92,12 +96,16 @@ type Config struct {
 	RuleVersionStatus           ruleVersionStatusCommitter
 	RuleDownloadRestrictedShown bool
 	XDRResponsePolicyPath       string
+	ResponseActions             *responsepkg.ActionManager
+	Evidence                    *evidence.Store
 
 	XDRV2ResponsePolicyEnabled bool
 	XDRV2MaxDepth              int
 	XDRV2WindowHours           int
 	XDRV2MaxPathsPerSeed       int
 	XDRDefaultTenant           string
+
+	Features FeatureFlags
 }
 
 func loadConfig() *Config {
@@ -132,7 +140,38 @@ func loadConfig() *Config {
 		XDRV2WindowHours:           toInt(getEnv("XDR_V2_WINDOW_HOURS", "24")),
 		XDRV2MaxPathsPerSeed:       toInt(getEnv("XDR_V2_MAX_PATHS_PER_SEED", "50")),
 		XDRDefaultTenant:           getEnv("XDR_DEFAULT_TENANT", "default"),
+
+		Features: loadFeatureFlags(),
 	}
+	responseActions, err := responsepkg.NewActionManager(
+		getEnv("RESPONSE_ACTIONS_PATH", "/var/lib/lyflow/response/actions.json"),
+		responsepkg.Policy{
+			AllowScheduledAuto:       toBool(getEnv("RESPONSE_AUTO_WINDOW_ENABLED", "false")),
+			WindowStartHour:          toInt(getEnv("RESPONSE_WINDOW_START_HOUR", "0")),
+			WindowEndHour:            toInt(getEnv("RESPONSE_WINDOW_END_HOUR", "6")),
+			RequireDifferentApprover: toBool(getEnv("RESPONSE_REQUIRE_DIFFERENT_APPROVER", "true")),
+			ApprovalTTL:              time.Duration(toInt(getEnv("RESPONSE_APPROVAL_TTL_MINUTES", "15"))) * time.Minute,
+		},
+	)
+	if err != nil {
+		log.Fatalf("无法初始化响应动作: %v", err)
+	}
+	cfg.ResponseActions = responseActions
+	evidenceRoot := getEnv("EVIDENCE_ROOT", "/var/lib/lyflow/evidence")
+	var evidenceStore *evidence.Store
+	if strings.EqualFold(getEnv("EVIDENCE_OBJECT_STORE", "filesystem"), "filer") {
+		objects, objectErr := evidence.NewFilerObjectStore(getEnv("EVIDENCE_FILER_URL", "http://127.0.0.1:18888"))
+		if objectErr != nil {
+			log.Fatalf("无法初始化 SeaweedFS filer: %v", objectErr)
+		}
+		evidenceStore, err = evidence.NewWithObjectStore(evidenceRoot, objects)
+	} else {
+		evidenceStore, err = evidence.New(evidenceRoot)
+	}
+	if err != nil {
+		log.Fatalf("无法初始化证据对象存储: %v", err)
+	}
+	cfg.Evidence = evidenceStore
 	sslMode := getEnv("DB_SSLMODE", "disable")
 	dsn := fmt.Sprintf("postgres://%s:%s@%s:%d/%s?sslmode=%s",
 		cfg.DBUser, cfg.DBPassword, cfg.DBHost, cfg.DBPort, cfg.DBName, sslMode)
@@ -222,10 +261,6 @@ func loadConfig() *Config {
 	if err = initializeIncidentLifecycleRuntime(ctx, cfg); err != nil {
 		log.Fatalf("无法初始化持久化 Incident 生命周期: %v", err)
 	}
-	if err = initializeAdvisoryResponseRuntime(cfg); err != nil {
-		log.Fatalf("无法初始化 advisory response 治理: %v", err)
-	}
-
 	return cfg
 }
 
@@ -304,15 +339,30 @@ func main() {
 
 	mux := http.NewServeMux()
 
+	// v2 ingestion: agent/sensor credential in, canonical events out.
+	mux.Handle("/api/v2/ingest/events", ingestv2.Handler{
+		Auth: func(request *http.Request, surface string) (string, error) {
+			if cfg.IngestionAuth == nil {
+				return "", ingestv2.ErrAuthUnavailable
+			}
+			principal, err := cfg.IngestionAuth.HTTPPrincipal(request, surface)
+			if err != nil {
+				return "", err
+			}
+			return principal.AgentID(), nil
+		},
+		Writer: cfg.EventStorage,
+	})
+
+	queryV2Handler := queryv2.Handler{Store: cfg.EventStorage}
+	mux.HandleFunc("/api/v2/events", queryV2Handler.List)
+	mux.HandleFunc("/api/v2/events/", queryV2Handler.Get)
+
 	// 路由
 	mux.HandleFunc("/", rootHandler)
 	mux.HandleFunc("/api/v1/health", healthHandler(cfg))
 	mux.HandleFunc("/api/v1/public/situation/global", publicGlobalSituationHandler(cfg))
 	mux.HandleFunc("/api/v1/stats", statsHandler(cfg))
-	mux.HandleFunc("/api/v1/events", eventsHandler(cfg))
-	mux.Handle("/api/v1/security-events", securityEventsHandler(cfg.EventStorage))
-	mux.Handle("/api/v1/security-events/", securityEventsHandler(cfg.EventStorage))
-	mux.Handle("/api/v1/event-migration", storageMigrationHandler(cfg.EventStorage))
 
 	// Auth API (public and protected)
 	mux.HandleFunc("/api/v1/auth/login", authHandler.Login)
@@ -347,10 +397,13 @@ func main() {
 	mux.HandleFunc("/api/v1/rule-platform/versions", rulePlatformVersionsHandler(cfg))
 	mux.HandleFunc("/api/v1/rule-platform/rollback", rulePlatformRollbackHandler(cfg))
 	mux.HandleFunc("/api/v1/rule-platform/active-bundle", rulePlatformActiveBundleHandler(cfg))
-	mux.HandleFunc("/api/v1/response/candidates", responseCandidatesHandler(cfg))
-	mux.HandleFunc("/api/v1/response/policy", responsePolicyHandler(cfg))
-	mux.HandleFunc("/api/v1/response/advisories", advisoryResponseHandler(cfg))
-	mux.HandleFunc("/api/v1/response/advisories/", advisoryResponseHandler(cfg))
+	mux.HandleFunc("/api/v1/response/actions", responseActionsHandler(cfg))
+	mux.HandleFunc("/api/v1/response/actions/", responseActionHandler(cfg))
+	mux.HandleFunc("/api/v1/response/automation", responseAutomationHandler(cfg))
+	mux.HandleFunc("/api/v1/evidence/bundles", evidenceHandler(cfg))
+	mux.HandleFunc("/api/v1/evidence/bundles/", evidenceHandler(cfg))
+	mux.HandleFunc("/api/v1/evidence/artifacts", evidenceHandler(cfg))
+	mux.HandleFunc("/api/v1/evidence/artifacts/", evidenceHandler(cfg))
 	mux.HandleFunc("/api/v1/debug/components", debugComponentsHandler(cfg))
 	mux.HandleFunc("/api/v1/rules/subscription", subscriptionHandler(cfg))
 	mux.HandleFunc("/api/v1/rules/categories", categoriesHandler(cfg))
@@ -437,6 +490,7 @@ func main() {
 	mux.HandleFunc("/api/v1/agent/install.sh", agentInstallScriptHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/uninstall.sh", agentUninstallScriptHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/download", agentDownloadHandler(cfg))
+	mux.HandleFunc("/api/v1/agent/rasp/policy-root", agentRASPPolicyRootHandler())
 	mux.HandleFunc("/api/v1/agent/rasp/probe/python", agentRASPProbeHandler("python"))
 	mux.HandleFunc("/api/v1/agent/rasp/probe/php", agentRASPProbeHandler("php"))
 	mux.HandleFunc("/api/v1/agent/rasp/probe/java", agentRASPProbeHandler("java"))
@@ -465,7 +519,7 @@ func main() {
 
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.ServerPort),
-		Handler:      EnforceRoutePolicy(mux, authMiddleware),
+		Handler:      SecurityHeaders(EnforceRoutePolicy(mux, authMiddleware)),
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
@@ -1181,6 +1235,10 @@ func startConsumer(cfg *Config) {
 	}
 
 	go consumerState.run()
+	go consumerState.runFlowBridge()
+	go func() { _ = loadNativeEngineRules(cfg) }()
+	go warmRulePlatformSourcesCache(cfg)
+	go warmTrafficSessionQuery(cfg)
 	log.Println("告警消费者已启动")
 }
 
@@ -1203,7 +1261,7 @@ func (c *ConsumerState) processAlerts() {
 		return
 	}
 
-	streams := []string{"flows:raw", "flows:semantic", "sessions:semantic", "alerts:dpi", "alerts:runtime", "alerts:rasp", "component_alerts:v2"}
+	streams := []string{"flows:semantic", "sessions:semantic", "alerts:dpi", "alerts:runtime", "alerts:rasp", "component_alerts:v2"}
 	if c.cfg.SecurityEngineEnabled {
 		streams = []string{"sessions:semantic", "alerts:dpi", "alerts:runtime", "alerts:rasp", "alerts:log_audit", "component_alerts:v2"}
 	}
@@ -1277,19 +1335,11 @@ func (c *ConsumerState) bridgeRawFlow(ctx context.Context, msg redis.XMessage) e
 	}
 
 	now := time.Now().UTC().Format(time.RFC3339Nano)
-	flowValues := map[string]interface{}{
-		"data":              dataStr,
-		"bridge_from":       "flows:raw",
-		"bridge_message_id": msg.ID,
-		"bridged_at":        now,
-	}
-
-	encoded, err := json.Marshal(flowValues)
-	if err != nil {
-		return transport.Permanent(transport.ReasonInvalidPayload, err)
-	}
+	// The bridged stream must carry the raw flow object itself, not a second
+	// envelope around it. Keeping the original payload lets both the flow
+	// table and persistTrafficSession read the same fields directly.
 	uid := transport.DeterministicUID("flow_bridge", "flows:raw", msg.ID)
-	if err := c.cfg.Redis.Eval(ctx, bridgeFlowScript, []string{"transport_reliability:flow_bridge", "flows:semantic", "sessions:semantic"}, uid, string(encoded), msg.ID, now).Err(); err != nil {
+	if err := c.cfg.Redis.Eval(ctx, bridgeFlowScript, []string{"transport_reliability:flow_bridge", "flows:semantic"}, uid, dataStr, msg.ID, now).Err(); err != nil {
 		return fmt.Errorf("bridge raw flow: %w", err)
 	}
 	return nil
@@ -1298,7 +1348,6 @@ func (c *ConsumerState) bridgeRawFlow(ctx context.Context, msg redis.XMessage) e
 const bridgeFlowScript = `
 if redis.call('HEXISTS', KEYS[1], ARGV[1]) == 1 then return redis.call('HGET', KEYS[1], ARGV[1]) end
 local first = redis.call('XADD', KEYS[2], '*', 'event_uid', ARGV[1], 'data', ARGV[2], 'bridge_from', 'flows:raw', 'bridge_message_id', ARGV[3], 'bridged_at', ARGV[4])
-redis.call('XADD', KEYS[3], '*', 'event_uid', ARGV[1], 'data', ARGV[2], 'bridge_from', 'flows:raw', 'bridge_message_id', ARGV[3], 'bridged_at', ARGV[4])
 redis.call('HSET', KEYS[1], ARGV[1], first)
 return first
 `
@@ -1865,6 +1914,95 @@ func responseCandidatesHandler(cfg *Config) http.HandlerFunc {
 	}
 }
 
+func responseActionsHandler(cfg *Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if cfg == nil || cfg.ResponseActions == nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "response_actions_unavailable", "response action store unavailable")
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			records, err := cfg.ResponseActions.List()
+			if err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "response_actions_failed", err.Error())
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": records, "total": len(records)}})
+		case http.MethodPost:
+			var request responsepkg.ActionRequest
+			if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
+				writeJSONError(w, http.StatusBadRequest, "invalid_response_action", "Invalid response action")
+				return
+			}
+			request.RequestedBy = fmt.Sprintf("user:%d", auth.GetUserIDFromContext(r.Context()))
+			record, err := cfg.ResponseActions.Create(request)
+			if err != nil {
+				writeJSONError(w, http.StatusBadRequest, "response_action_rejected", err.Error())
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": record})
+		default:
+			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		}
+	}
+}
+
+func responseActionHandler(cfg *Config) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if cfg == nil || cfg.ResponseActions == nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "response_actions_unavailable", "response action store unavailable")
+			return
+		}
+		path := strings.Trim(strings.TrimPrefix(r.URL.Path, "/api/v1/response/actions/"), "/")
+		parts := strings.Split(path, "/")
+		if len(parts) == 0 || parts[0] == "" {
+			writeJSONError(w, http.StatusNotFound, "response_action_not_found", "Response action not found")
+			return
+		}
+		id := parts[0]
+		if len(parts) == 1 && r.Method == http.MethodGet {
+			records, err := cfg.ResponseActions.List()
+			if err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "response_actions_failed", err.Error())
+				return
+			}
+			for _, record := range records {
+				if record.ID == id {
+					json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": record})
+					return
+				}
+			}
+			writeJSONError(w, http.StatusNotFound, "response_action_not_found", "Response action not found")
+			return
+		}
+		if len(parts) != 2 || r.Method != http.MethodPost {
+			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+			return
+		}
+		switch parts[1] {
+		case "approve":
+			approver := fmt.Sprintf("user:%d", auth.GetUserIDFromContext(r.Context()))
+			record, err := cfg.ResponseActions.Approve(id, approver)
+			if err != nil {
+				writeJSONError(w, http.StatusConflict, "response_approval_rejected", err.Error())
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": record})
+		case "rollback":
+			record, err := cfg.ResponseActions.Rollback(id, fmt.Sprintf("user:%d", auth.GetUserIDFromContext(r.Context())))
+			if err != nil {
+				writeJSONError(w, http.StatusConflict, "response_rollback_rejected", err.Error())
+				return
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": record})
+		default:
+			writeJSONError(w, http.StatusNotFound, "response_action_operation_not_found", "Response action operation not found")
+		}
+	}
+}
+
 func responsePolicyHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -1928,6 +2066,10 @@ func ruleSourcesHandler(cfg *Config) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		if r.Method != http.MethodGet {
 			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+			return
+		}
+		if body, ok := ruleSourcesResponseCache.get("rules-sources"); ok {
+			_, _ = w.Write(body)
 			return
 		}
 		paths := []string{}
@@ -1997,7 +2139,13 @@ func ruleSourcesHandler(cfg *Config) http.HandlerFunc {
 		sort.Slice(items, func(i, j int) bool {
 			return fmt.Sprint(items[i]["vendor"]) < fmt.Sprint(items[j]["vendor"])
 		})
-		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": items, "total": len(items)}})
+		body, err := json.Marshal(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": items, "total": len(items)}})
+		if err != nil {
+			writeJSONError(w, http.StatusInternalServerError, "rule_sources_encode_failed", err.Error())
+			return
+		}
+		ruleSourcesResponseCache.set("rules-sources", body)
+		_, _ = w.Write(body)
 	}
 }
 
@@ -2116,6 +2264,7 @@ func ruleSourceUpdateHandler(cfg *Config) http.HandlerFunc {
 			writeJSONError(w, http.StatusInternalServerError, "rule_source_update_failed", err.Error())
 			return
 		}
+		ruleSourcesResponseCache.clear()
 		liveCount, err := syncLiveRules()
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, "rule_live_sync_failed", err.Error())
@@ -2188,6 +2337,7 @@ func updateRuleSourceConfig(w http.ResponseWriter, r *http.Request, sourceID str
 		writeJSONError(w, http.StatusInternalServerError, "rule_source_save_failed", err.Error())
 		return
 	}
+	ruleSourcesResponseCache.clear()
 	json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"source_id": sourceID, "source_url": sourceURL, "saved": true}})
 }
 
@@ -3340,6 +3490,8 @@ func normalizeComponentAlertStreamEvent(stream, msgID string, payload map[string
 		"source_module":      sourceEngine,
 		"source_engine":      sourceEngine,
 		"component_category": category,
+		"language":           firstNonEmpty(xdrPickString(flat, "language"), xdrPickString(asMap(flat["fields"]), "language")),
+		"application":        firstNonEmpty(xdrPickString(flat, "application", "service"), xdrPickString(asMap(flat["fields"]), "application")),
 		"component_rule_id":  ruleID,
 		"score_hint":         xdrPickNumber(flat, "score_hint", severityBaseScore(severity)),
 		"stage_hint":         firstNonEmpty(xdrPickString(flat, "stage_hint"), inferXDRStage(flat)),
@@ -5812,10 +5964,17 @@ func loadComponentAlerts(cfg *Config, category string, limit, offset int) ([]map
 	}
 	streams := componentAlertStreams(category)
 	ctx := context.Background()
-	all := make([]map[string]interface{}, 0, limit*len(streams))
+	fetchCount := offset + limit
+	if normalizeComponentCategory(category) == "rasp" {
+		// RASP telemetry includes a high-volume protection heartbeat. Read
+		// enough entries so heartbeats cannot crowd real detections out of the
+		// first page.
+		fetchCount += 512
+	}
+	all := make([]map[string]interface{}, 0, fetchCount*len(streams))
 	agentNames := activeAgentDisplayNames(ctx, cfg)
 	for _, stream := range streams {
-		msgs, err := cfg.Redis.XRevRangeN(ctx, stream, "+", "-", int64(offset+limit)).Result()
+		msgs, err := cfg.Redis.XRevRangeN(ctx, stream, "+", "-", int64(fetchCount)).Result()
 		if err != nil {
 			return nil, 0, err
 		}
@@ -5830,6 +5989,10 @@ func loadComponentAlerts(cfg *Config, category string, limit, offset int) ([]map
 			if shouldHideOperationalAgentEvent(payload) {
 				continue
 			}
+			if strings.HasPrefix(strings.ToLower(xdrPickString(payload, "event_type", "type")), "rasp.protection.") ||
+				strings.Contains(strings.ToLower(xdrPickString(payload, "summary", "message", "excerpt")), "rasp protection heartbeat") {
+				continue
+			}
 			if !xdrEventBelongsToActiveAgent(payload, agentNames) {
 				continue
 			}
@@ -5841,6 +6004,12 @@ func loadComponentAlerts(cfg *Config, category string, limit, offset int) ([]map
 				continue
 			}
 			payload["category"] = categoryName
+			if payload["language"] == nil {
+				payload["language"] = firstNonEmpty(xdrPickString(payload, "language"), xdrPickString(asMap(payload["fields"]), "language"))
+			}
+			if payload["application"] == nil {
+				payload["application"] = firstNonEmpty(xdrPickString(payload, "application", "service"), xdrPickString(asMap(payload["fields"]), "application"))
+			}
 			applyMirrorCaptureLabel(payload)
 			all = append(all, payload)
 		}
@@ -5866,7 +6035,7 @@ func componentAlertStreams(category string) []string {
 	case "runtime":
 		return []string{"component_alerts:v2", "alerts:runtime"}
 	case "rasp":
-		return []string{"component_alerts:v2", "alerts:rasp"}
+		return []string{"component_alerts:v2", "alerts:rasp", "telemetry:rasp"}
 	case "log_audit":
 		return []string{"alerts:log_audit"}
 	default:
@@ -7123,6 +7292,9 @@ func loadTrafficStream(cfg *Config, stream string, limit, offset int, query, age
 	if readCount < 100 {
 		readCount = 100
 	}
+	if query != "" || agentID != "" || srcIP != "" || dstIP != "" {
+		readCount = 5000
+	}
 	if readCount > 5000 {
 		readCount = 5000
 	}
@@ -7242,6 +7414,18 @@ func boundedTrafficPort(value int64) uint16 {
 		return 65535
 	}
 	return uint16(value)
+}
+
+// warmTrafficSessionQuery pays the cold PostgreSQL/Redis query cost in the
+// background after startup so the first operator request is not a 20-second
+// wait. Failures are ignored; the HTTP path still retries on demand.
+func warmTrafficSessionQuery(cfg *Config) {
+	if cfg == nil || cfg.DBPool == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	_, _, _ = loadPersistentTrafficSessions(ctx, cfg, 1, 0, "", "", "", "", "", "", nil, nil)
 }
 
 func loadPersistentTrafficSessions(ctx context.Context, cfg *Config, limit, offset int, query, agentID, srcIP, srcPort, dstIP, dstPort string, startTime, endTime *time.Time) ([]map[string]interface{}, int, error) {
@@ -9189,6 +9373,18 @@ func agentConfigHandler(cfg *Config) http.HandlerFunc {
 			http.Error(w, "agent desired config lookup failed", http.StatusInternalServerError)
 			return
 		}
+		if enabled, _ := capabilityEnabled(req.Capabilities, "traffic_collector"); enabled {
+			trafficEnabled = true
+		}
+		if enabled, _ := capabilityEnabled(req.Capabilities, "runtime_sensor"); enabled {
+			hidsEnabled = true
+		}
+		if enabled, _ := capabilityEnabled(req.Capabilities, "yara_scanner"); enabled {
+			hidsEnabled = true
+		}
+		if enabled, _ := capabilityEnabled(req.Capabilities, "rasp_probe_manager"); enabled {
+			raspEnabled = true
+		}
 		desiredStates := engineDesiredStatesForAgent(trafficEnabled, hidsEnabled, raspEnabled)
 		if cfg.RASPPolicy == nil {
 			http.Error(w, "RASP policy lifecycle unavailable", http.StatusServiceUnavailable)
@@ -9211,6 +9407,14 @@ func agentConfigHandler(cfg *Config) http.HandlerFunc {
 		for _, state := range desiredStates {
 			if asString(state["name"]) == "rasp" {
 				state["enabled"] = assignment.Envelope.Policy.Mode == agentpolicy.ModeMonitor
+			}
+		}
+		tasks := []responsepkg.ActionTask{}
+		if cfg.ResponseActions != nil {
+			if pending, taskErr := cfg.ResponseActions.PendingTasks(agentID); taskErr == nil {
+				tasks = pending
+			} else {
+				log.Printf("response action task dispatch failed: agent_id=%s err=%v", agentID, taskErr)
 			}
 		}
 
@@ -9237,7 +9441,7 @@ func agentConfigHandler(cfg *Config) http.HandlerFunc {
 						"streams":   map[string]string{"raw": "flows:raw", "semantic": "flows:semantic", "runtime": "alerts:runtime", "rasp": "alerts:rasp"},
 					},
 				},
-				"tasks": []map[string]interface{}{},
+				"tasks": tasks,
 			},
 		})
 	}
@@ -9415,6 +9619,11 @@ func agentTaskResultHandler(cfg *Config) http.HandlerFunc {
 		}
 		if req.TaskID != "" {
 			log.Printf("agent task result received: agent_id=%s task_id=%s status=%s", agentID, req.TaskID, req.Status)
+			if cfg.ResponseActions != nil {
+				if err := cfg.ResponseActions.Complete(req.TaskID, req.Status, req.Result, req.ErrorMsg); err != nil {
+					log.Printf("response action completion update failed: task_id=%s err=%v", req.TaskID, err)
+				}
+			}
 		}
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"code":    0,
@@ -9440,21 +9649,29 @@ func agentComponentAlertHandler(cfg *Config) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		var alert contracts.ComponentAlert
-		if !decodeIngestionJSON(w, r, cfg, principal, surface, &alert) {
+		var raw json.RawMessage
+		if !decodeIngestionJSON(w, r, cfg, principal, surface, &raw) {
 			return
 		}
-		agentID, ok := bindIngestionPrincipal(w, r, cfg, principal, surface, alert.Entities.AgentID)
-		if !ok {
-			return
-		}
-		alert.Entities.AgentID = agentID
-		if alert.Source == "" {
-			alert.Source = string(alert.SourceEngine)
-		}
-		if err := alert.Validate(); err != nil {
+		alerts, err := decodeComponentAlerts(raw)
+		if err != nil {
 			writeJSONError(w, http.StatusBadRequest, "invalid_component_alert", err.Error())
 			return
+		}
+		for index := range alerts {
+			alert := &alerts[index]
+			agentID, ok := bindIngestionPrincipal(w, r, cfg, principal, surface, alert.Entities.AgentID)
+			if !ok {
+				return
+			}
+			alert.Entities.AgentID = agentID
+			if alert.Source == "" {
+				alert.Source = string(alert.SourceEngine)
+			}
+			if err := alert.Validate(); err != nil {
+				writeJSONError(w, http.StatusBadRequest, "invalid_component_alert", err.Error())
+				return
+			}
 		}
 		if cfg == nil || cfg.Redis == nil {
 			writeJSONError(w, http.StatusServiceUnavailable, "redis_unavailable", "redis unavailable")
@@ -9463,13 +9680,61 @@ func agentComponentAlertHandler(cfg *Config) http.HandlerFunc {
 		if !acceptIngestion(w, r, cfg, principal, surface) {
 			return
 		}
-		msgID, err := storeV2ComponentAlert(r.Context(), cfg, alert)
-		if err != nil {
-			writeJSONError(w, http.StatusInternalServerError, "component_alert_store_failed", err.Error())
-			return
+		ids := make([]string, 0, len(alerts))
+		messageIDs := make([]string, 0, len(alerts))
+		for index := range alerts {
+			alert := &alerts[index]
+			msgID, err := storeV2ComponentAlert(r.Context(), cfg, *alert)
+			if err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "component_alert_store_failed", err.Error())
+				return
+			}
+			payload, err := json.Marshal(alert)
+			if err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "component_alert_encode_failed", err.Error())
+				return
+			}
+			if err := cfg.Redis.XAdd(r.Context(), &redis.XAddArgs{
+				Stream: "component_alerts:v2",
+				Values: map[string]interface{}{"data": string(payload)},
+			}).Err(); err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "component_alert_stream_failed", err.Error())
+				return
+			}
+			ids = append(ids, alert.ID)
+			messageIDs = append(messageIDs, msgID)
 		}
-		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"id": alert.ID, "message_id": msgID, "stream": "component_alerts:v2"}})
+		data := map[string]interface{}{
+			"ids": ids, "message_ids": messageIDs, "stream": "component_alerts:v2",
+		}
+		if len(ids) == 1 {
+			data["id"] = ids[0]
+			data["message_id"] = messageIDs[0]
+		}
+		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": data})
 	}
+}
+
+func decodeComponentAlerts(raw json.RawMessage) ([]contracts.ComponentAlert, error) {
+	trimmed := strings.TrimSpace(string(raw))
+	if trimmed == "" || trimmed == "null" {
+		return nil, fmt.Errorf("empty component alert")
+	}
+	if strings.HasPrefix(trimmed, "[") {
+		var alerts []contracts.ComponentAlert
+		if err := json.Unmarshal(raw, &alerts); err != nil {
+			return nil, err
+		}
+		if len(alerts) == 0 {
+			return nil, fmt.Errorf("empty component alert batch")
+		}
+		return alerts, nil
+	}
+	var alert contracts.ComponentAlert
+	if err := json.Unmarshal(raw, &alert); err != nil {
+		return nil, err
+	}
+	return []contracts.ComponentAlert{alert}, nil
 }
 
 func storeV2ComponentAlert(ctx context.Context, cfg *Config, alert contracts.ComponentAlert) (string, error) {
@@ -9980,7 +10245,11 @@ func agentInstallConfigHandler(cfg *Config) http.HandlerFunc {
 			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
 			return
 		}
-		apiServer := inferAPIServer(r)
+		apiServer, ok := inferAPIServer(r)
+		if !ok {
+			http.Error(w, "invalid request host", http.StatusBadRequest)
+			return
+		}
 		ruleBundle := currentAgentRuleBundleSummary(r.Context(), cfg)
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"code":    0,
@@ -9993,9 +10262,8 @@ func agentInstallConfigHandler(cfg *Config) http.HandlerFunc {
 					"linux_url":     apiServer + "/api/v1/agent/install.sh",
 					"uninstall_url": apiServer + "/api/v1/agent/uninstall.sh",
 					"downloads": map[string]string{
-						"linux_amd64":   apiServer + "/api/v1/agent/download?os=linux&arch=amd64",
-						"linux_arm64":   apiServer + "/api/v1/agent/download?os=linux&arch=arm64",
-						"windows_amd64": apiServer + "/api/v1/agent/download?os=windows&arch=amd64",
+						"linux_amd64": apiServer + "/api/v1/agent/download?os=linux&arch=amd64",
+						"linux_arm64": apiServer + "/api/v1/agent/download?os=linux&arch=arm64",
 					},
 				},
 				"telemetry_streams": map[string]string{
@@ -10087,6 +10355,23 @@ printf 'ly-agent uninstalled\n'
 	}
 }
 
+func agentRASPPolicyRootHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet && r.Method != http.MethodHead {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		trustDir := strings.TrimSpace(getEnv("POLICY_TRUST_DIR", "/var/lib/lyflow/policy/trust"))
+		path := filepath.Join(trustDir, "policy-root.pem")
+		if st, err := os.Stat(path); err != nil || st.IsDir() {
+			http.Error(w, "policy root unavailable", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "application/x-pem-file")
+		http.ServeFile(w, r, path)
+	}
+}
+
 func agentRASPProbeHandler(language string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -10107,8 +10392,8 @@ func agentRASPProbeHandler(language string) http.HandlerFunc {
 			path = "probe/rasp/nodejs/ly_rasp.js"
 			contentType = "application/javascript"
 		case "dotnet":
-			path = "probe/rasp/dotnet/LyRaspProfiler.cs"
-			contentType = "text/plain; charset=utf-8"
+			path = "probe/rasp/dotnet/LyRaspProfiler.dll"
+			contentType = "application/octet-stream"
 		}
 		if path == "" {
 			http.NotFound(w, r)
@@ -10167,10 +10452,20 @@ func agentInstallScriptHandler(cfg *Config) http.HandlerFunc {
 			return
 		}
 
-		apiServer := inferAPIServer(r)
+		apiServer, ok := inferAPIServer(r)
+		if !ok {
+			http.Error(w, "invalid request host", http.StatusBadRequest)
+			return
+		}
+		enrollmentToken := strings.TrimSpace(r.URL.Query().Get("enrollment_token"))
+		if enrollmentToken != "" && !safeEnrollmentToken(enrollmentToken) {
+			http.Error(w, "invalid enrollment token", http.StatusBadRequest)
+			return
+		}
 		w.Header().Set("Content-Type", "text/x-shellscript; charset=utf-8")
 		fmt.Fprintf(w, `#!/bin/sh
 set -eu
+ENROLL_TOKEN="%s"
 REQUEST_API_SERVER="%s"
 REQUEST_HOST=$(printf "%%s" "$REQUEST_API_SERVER" | sed -E 's#^https?://([^/:]+).*#\1#')
 API_SERVER="$REQUEST_API_SERVER"
@@ -10211,6 +10506,9 @@ case "$ARCH" in
 esac
 curl -kfsSL "$API_SERVER/api/v1/agent/download?os=linux&arch=$AGENT_ARCH" -o "$AGENT_TMP"
 chmod +x "$AGENT_TMP"
+mkdir -p /etc/lyflow/trust
+curl -kfsSL "$API_SERVER/api/v1/agent/rasp/policy-root" -o /etc/lyflow/trust/policy-root.pem 2>/dev/null || true
+chmod 0644 /etc/lyflow/trust/policy-root.pem 2>/dev/null || true
 if command -v systemctl >/dev/null 2>&1; then
   systemctl stop ly-agent 2>/dev/null || true
 fi
@@ -10291,11 +10589,13 @@ rasp:
     php: /opt/ly-agent/rasp/php/ly_rasp_prepend.php
     java: /opt/ly-agent/rasp/java/ly-rasp-agent.jar
     nodejs: /opt/ly-agent/rasp/nodejs/ly_rasp.js
-    dotnet: /opt/ly-agent/rasp/dotnet/LyRaspProfiler.cs
+    dotnet: /opt/ly-agent/rasp/dotnet/LyRaspProfiler.dll
 AGENT_CONFIG_EOF
 sed -i "s|__API_SERVER__|$API_SERVER|g" "$CONFIG_FILE"
 sed -i "s|__REDIS_SERVER__|$REDIS_SERVER|g" "$CONFIG_FILE"
 sed -i "s|__TRAFFIC_INTERFACE__|$TRAFFIC_INTERFACE|g" "$CONFIG_FILE"
+printf 'AGENT_ENROLL_TOKEN=%%s\n' "$ENROLL_TOKEN" > "$INSTALL_DIR/etc/agent.env"
+chmod 0600 "$INSTALL_DIR/etc/agent.env"
 curl -kfsSL "$API_SERVER/api/v1/agent/rasp/probe/python" -o "$INSTALL_DIR/rasp/python/sitecustomize.py" 2>/dev/null || true
 curl -kfsSL "$API_SERVER/api/v1/agent/rasp/probe/php" -o "$INSTALL_DIR/rasp/php/ly_rasp_prepend.php" 2>/dev/null || true
 if curl -kfsSL "$API_SERVER/api/v1/agent/rasp/probe/java" -o "$INSTALL_DIR/rasp/java/ly-rasp-agent.jar" 2>/dev/null \
@@ -10307,7 +10607,7 @@ else
 fi
 mkdir -p "$INSTALL_DIR/rasp/nodejs" "$INSTALL_DIR/rasp/dotnet"
 curl -kfsSL "$API_SERVER/api/v1/agent/rasp/probe/nodejs" -o "$INSTALL_DIR/rasp/nodejs/ly_rasp.js" 2>/dev/null || true
-curl -kfsSL "$API_SERVER/api/v1/agent/rasp/probe/dotnet" -o "$INSTALL_DIR/rasp/dotnet/LyRaspProfiler.cs" 2>/dev/null || true
+curl -kfsSL "$API_SERVER/api/v1/agent/rasp/probe/dotnet" -o "$INSTALL_DIR/rasp/dotnet/LyRaspProfiler.dll" 2>/dev/null || true
 curl -kfsSL "$API_SERVER/api/v1/agent/install-config" -o "$INSTALL_DIR/etc/install-control-plane.json" || true
 cat > "$SERVICE_FILE" <<'SYSTEMD_EOF'
 [Unit]
@@ -10318,6 +10618,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 User=root
+EnvironmentFile=-/opt/ly-agent/etc/agent.env
 ExecStart=/opt/ly-agent/bin/ly-agent --config /opt/ly-agent/etc/agent.yaml
 Restart=always
 RestartSec=5
@@ -10330,8 +10631,21 @@ systemctl daemon-reload
 systemctl enable ly-agent
 systemctl restart ly-agent
 printf 'ly-agent installed. API_SERVER=%%s REDIS_SERVER=%%s TRAFFIC_INTERFACE=%%s\n' "$API_SERVER" "$REDIS_SERVER" "$TRAFFIC_INTERFACE"
-`, apiServer)
+`, enrollmentToken, apiServer)
 	}
+}
+
+func safeEnrollmentToken(value string) bool {
+	if len(value) > 256 {
+		return false
+	}
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') || r == '-' || r == '_' || r == '.' || r == '~' {
+			continue
+		}
+		return false
+	}
+	return value != ""
 }
 
 func agentDownloadHandler(cfg *Config) http.HandlerFunc {
@@ -10351,23 +10665,16 @@ func agentDownloadHandler(cfg *Config) http.HandlerFunc {
 		case "aarch64":
 			targetArch = "arm64"
 		}
-		if targetOS != "linux" && targetOS != "windows" {
-			http.Error(w, fmt.Sprintf("unsupported agent os: %s", targetOS), http.StatusBadRequest)
+		if targetOS != "linux" {
+			http.Error(w, fmt.Sprintf("unsupported agent os: %s (Linux only)", targetOS), http.StatusBadRequest)
 			return
 		}
 		if targetArch != "amd64" && targetArch != "arm64" {
 			http.Error(w, fmt.Sprintf("unsupported agent arch: %s", targetArch), http.StatusBadRequest)
 			return
 		}
-		if targetOS == "windows" && targetArch != "amd64" {
-			http.Error(w, "windows pcap agent is available for amd64 only", http.StatusBadRequest)
-			return
-		}
 
 		filename := fmt.Sprintf("ly-agent-%s-%s", targetOS, targetArch)
-		if targetOS == "windows" {
-			filename += ".exe"
-		}
 		candidates := agentBinaryCandidates(targetOS, targetArch)
 		for _, path := range candidates {
 			if st, err := os.Stat(path); err == nil && !st.IsDir() {
@@ -10492,29 +10799,68 @@ func agentSnapshotHandler(cfg *Config) http.HandlerFunc {
 	}
 }
 
-func inferAPIServer(r *http.Request) string {
+func inferAPIServer(r *http.Request) (string, bool) {
 	scheme := "http"
 	if r.TLS != nil || strings.EqualFold(r.Header.Get("X-Forwarded-Proto"), "https") {
 		scheme = "https"
 	}
-	host := r.Host
-	if forwardedHost := r.Header.Get("X-Forwarded-Host"); forwardedHost != "" {
-		host = forwardedHost
+	// Never trust X-Forwarded-Host here: the value is embedded into a shell
+	// installer script. Only a syntactically valid Host header is accepted.
+	host, ok := sanitizeRequestHost(r.Host)
+	if !ok {
+		return "", false
 	}
-	if _, _, err := net.SplitHostPort(host); err != nil && !strings.Contains(host, ":") {
+	if !strings.Contains(host, ":") {
 		if port := serverPortFromRequest(r, scheme); port != "" {
 			host = net.JoinHostPort(host, port)
 		}
 	}
-	return scheme + "://" + host
+	return scheme + "://" + host, true
+}
+
+func sanitizeRequestHost(raw string) (string, bool) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" || len(raw) > 253 || strings.ContainsAny(raw, "\"'`;$(){}|&<>\\ \t\r\n") {
+		return "", false
+	}
+	parsed, err := url.Parse("//" + raw)
+	if err != nil || parsed.Host != raw || parsed.Hostname() == "" || parsed.User != nil {
+		return "", false
+	}
+	hostname := parsed.Hostname()
+	if net.ParseIP(hostname) == nil {
+		for _, label := range strings.Split(hostname, ".") {
+			if label == "" || len(label) > 63 || strings.HasPrefix(label, "-") || strings.HasSuffix(label, "-") {
+				return "", false
+			}
+			for _, character := range label {
+				if (character < 'a' || character > 'z') &&
+					(character < 'A' || character > 'Z') &&
+					(character < '0' || character > '9') && character != '-' {
+					return "", false
+				}
+			}
+		}
+	}
+	if port := parsed.Port(); port != "" {
+		value, err := strconv.Atoi(port)
+		if err != nil || value < 1 || value > 65535 {
+			return "", false
+		}
+	}
+	return raw, true
 }
 
 func serverPortFromRequest(r *http.Request, scheme string) string {
 	if p := r.URL.Port(); p != "" {
-		return p
+		if value, err := strconv.Atoi(p); err == nil && value > 0 && value <= 65535 {
+			return strconv.Itoa(value)
+		}
 	}
 	if forwardedPort := strings.TrimSpace(r.Header.Get("X-Forwarded-Port")); forwardedPort != "" {
-		return forwardedPort
+		if value, err := strconv.Atoi(forwardedPort); err == nil && value > 0 && value <= 65535 {
+			return strconv.Itoa(value)
+		}
 	}
 	if scheme == "https" {
 		return ""

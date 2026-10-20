@@ -25,6 +25,10 @@ type Language string
 const (
 	LanguagePython Language = "python"
 	LanguageJava   Language = "java"
+	LanguagePHP    Language = "php"
+	LanguageNodeJS Language = "nodejs"
+	LanguageDotnet Language = "dotnet"
+	LanguageGo     Language = "go"
 )
 
 type Selectors struct {

@@ -301,7 +301,7 @@ const updateXdrPolling = (snapshot = xdrFreshness.getSnapshot()) => {
 
 const goEventDetail = (event) => {
   if (!event?.eventDetailId) return
-  router.push(`/events/${event.eventDetailId}`)
+  router.push(`/events/${event.event_uid || event.eventDetailId}`)
 }
 
 const renderCharts = async () => {

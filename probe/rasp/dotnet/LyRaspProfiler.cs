@@ -18,6 +18,7 @@ namespace LyFlow.Rasp
         private static readonly string BridgeUrl = Environment.GetEnvironmentVariable("LY_RASP_BRIDGE") ?? "http://127.0.0.1:17891/v1/rasp/events";
         private static readonly string AppName = Environment.GetEnvironmentVariable("LY_RASP_APP") ?? "dotnet-app";
         private static readonly string Token = Environment.GetEnvironmentVariable("LY_RASP_TOKEN") ?? "";
+        private static readonly string AgentId = Environment.GetEnvironmentVariable("LY_RASP_AGENT_ID") ?? "g5-real-agent";
 
         public static void SendEvent(string hookType, string[] fields)
         {
@@ -27,6 +28,7 @@ namespace LyFlow.Rasp
                 payload.Append(Escape(hookType));
                 payload.Append("\",\"hook_type\":\"");
                 payload.Append(Escape(hookType));
+                payload.Append("\",\"language\":\"dotnet");
                 payload.Append("\",\"application\":\"");
                 payload.Append(Escape(AppName));
                 payload.Append("\",\"occurred_at\":\"");
@@ -47,6 +49,7 @@ namespace LyFlow.Rasp
                 payload.Append('}');
                 using var wc = new WebClient();
                 wc.Headers[HttpRequestHeader.ContentType] = "application/json";
+                wc.Headers["X-Lyflow-Agent-ID"] = AgentId;
                 if (!string.IsNullOrEmpty(Token))
                     wc.Headers["X-Ly-RASP-Token"] = Token;
                 wc.UploadString(BridgeUrl, payload.ToString());

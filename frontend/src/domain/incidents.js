@@ -53,11 +53,13 @@ function stageKey(value = '') {
 }
 
 function normalizeStage(stage = {}, index = 0) {
+  if (typeof stage === 'string') stage = { stage }
   const key = stageKey(firstNonEmpty(stage.stage, stage.stage_id, stage.name, stage.phase, stage.tactic))
   const fallbackKey = index === 0 ? 'recon' : index === 1 ? 'initial_access' : 'detection'
   const resolvedKey = STAGE_LABELS[key] ? key : fallbackKey
   return {
     id: firstNonEmpty(stage.id, stage.stage_id, stage.stage, stage.name, `stage-${index + 1}`),
+    stageKey: resolvedKey,
     name: firstNonEmpty(stage.stage_label, stage.label, STAGE_LABELS[resolvedKey], stage.summary, `攻击阶段 ${index + 1}`),
     tactic: firstNonEmpty(stage.tactic, stage.mitre_tactic, STAGE_TACTICS[resolvedKey]),
     shortCode: firstNonEmpty(stage.short_code, stage.code, STAGE_TACTICS[resolvedKey]?.split(' ')[0], 'XDR'),
@@ -71,8 +73,8 @@ function normalizeEvidence(item = {}, index = 0) {
   return {
     id: firstNonEmpty(item.id, item.event_id, item.raw_reference, `evidence-${index + 1}`),
     sourceModule: firstNonEmpty(item.source_module, item.sourceModule, item.module, item.source, 'xdr'),
-    title: firstNonEmpty(item.title, item.rule_name, item.event_type, item.type, item.message, `Evidence ${index + 1}`),
-    summary: firstNonEmpty(item.summary, item.message, item.title, item.rule_name, item.event_type, item.type),
+    title: firstNonEmpty(item.title, item.rule_name, item.raw_event?.rule_name, item.event_type, item.type, item.message, `Evidence ${index + 1}`),
+    summary: firstNonEmpty(item.summary, item.message, item.raw_event?.summary, item.raw_event?.message, item.title, item.rule_name, item.event_type, item.type),
     time: firstNonEmpty(item.time, item.date, item.timestamp, item.created_at, item.occurred_at),
     stage: stageKey(firstNonEmpty(item.stage, item.stage_hint, item.phase, item.tactic)),
     rawReference: firstNonEmpty(item.raw_reference, item.rawReference, item.raw_ref, item.evidence_ref),
@@ -101,17 +103,19 @@ function normalizeStageGroup(group = {}, index = 0) {
 }
 
 export function normalizeIncident(raw = {}) {
-  const stages = Array.isArray(raw.stages) ? raw.stages : Array.isArray(raw.attack_chain) ? raw.attack_chain : []
-  const evidence = Array.isArray(raw.evidence) ? raw.evidence : Array.isArray(raw.events) ? raw.events : []
+  const attackChain = Array.isArray(raw.attack_chain) ? raw.attack_chain : []
+  const stages = Array.isArray(raw.stages) ? raw.stages : attackChain
+  const evidence = Array.isArray(raw.evidence) ? raw.evidence : Array.isArray(raw.events) ? raw.events : attackChain
   const stageGroups = Array.isArray(raw.stage_groups) ? raw.stage_groups : []
+  const firstEvidence = evidence[0] || {}
 
   return {
     id: firstNonEmpty(raw.id, raw.incident_id, raw.chain_id),
     title: firstNonEmpty(raw.title, raw.name, raw.rule_name, raw.attack_type, '关联安全事件'),
     severity: normalizeSeverity(raw.severity || raw.risk_level),
     status: normalizeStatus(raw.status),
-    affectedAsset: firstNonEmpty(raw.affected_asset, raw.affectedAsset, raw.asset, raw.hostname, raw.host, raw.entity_id),
-    entityId: firstNonEmpty(raw.entity_id, raw.entityId, raw.asset_id, raw.agent_id, raw.host_id, raw.chain_id),
+    affectedAsset: firstNonEmpty(raw.affected_asset, raw.affectedAsset, raw.asset, raw.hostname, raw.host, raw.entity_id, raw.asset_id, raw.agent_id, raw.host_id, firstEvidence.entity_id, firstEvidence.asset_id, firstEvidence.agent_id, firstEvidence.host_id),
+    entityId: firstNonEmpty(raw.entity_id, raw.entityId, raw.asset_id, raw.agent_id, raw.host_id, raw.chain_id, raw.source_chain_id, firstEvidence.entity_id, firstEvidence.asset_id),
     recommendedAction: firstNonEmpty(raw.recommended_action, raw.recommendedAction, raw.action, raw.remediation),
     createdAt: firstNonEmpty(raw.created_at, raw.createdAt, raw.timestamp, raw.first_seen),
     updatedAt: firstNonEmpty(raw.updated_at, raw.updatedAt, raw.last_seen),

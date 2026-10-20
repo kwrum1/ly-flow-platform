@@ -1,0 +1,280 @@
+diff --git a/plugins/servicePlugin.c b/plugins/servicePlugin.c
+index ca66511..249cec2 100644
+--- a/plugins/servicePlugin.c
++++ b/plugins/servicePlugin.c
+@@ -22,6 +22,10 @@
+ #include "pcre.h"
+ #include "cJSON.h"
+ 
++#include <pthread.h>
++#include <sys/stat.h>
++#include <unistd.h>
++
+ #if defined(HAVE_PCRE_H) && defined(HAVE_LIBPCRE)
+ 
+ #define GET_URL         "GET /"
+@@ -195,6 +199,10 @@ static char *patDirs[] = {
+ static char *patterns_name[PAT_TYPE_NUM] = {"service", "device", "os", "midware","threat"};
+ static u_int32_t patterns_priority[PAT_TYPE_NUM];
+ static struct common_pat_info *patterns[PAT_TYPE_NUM];
++static pthread_rwlock_t patternsRwLock = PTHREAD_RWLOCK_INITIALIZER;
++static char activePatternDir[512] = {0};
++static pthread_t patternsWatcher;
++static int patternsWatcherStarted = 0;
+ 
+ const char* os_type = "OS";
+ 
+@@ -266,7 +274,11 @@ char *readTextFile(char *file_path) {
+ }
+ 
+ /* Parse the config file, using cJSON */
+-static int loadPattern(const char *file_string, u_int32_t pattern_type) {
++static void freePatternList(struct common_pat_info *pat);
++bool RegexFunc1(u_int8_t argv_type, struct pthread_argv_t *p);
++
++static int loadPattern(const char *file_string, u_int32_t pattern_type, struct common_pat_info **out) {
++  *out = NULL;
+   cJSON *file_obj, *class_obj, *pat_obj, *priority_obj, *rules_obj;
+   cJSON *type_obj, *is_http_obj, /* *reverse_obj, */ *version_obj, *os_obj;
+   cJSON *name_obj, *proto_obj, *port_obj, *part_obj, *regex_obj, *vendor_obj;
+@@ -303,6 +315,7 @@ static int loadPattern(const char *file_string, u_int32_t pattern_type) {
+   //循环逐条处理每类规则中的匹配规则
+   struct common_pat_info *pat_head = (struct common_pat_info*)malloc(sizeof(struct common_pat_info));
+   struct common_pat_info *pat_rear = NULL;
++  memset(pat_head, 0, sizeof(struct common_pat_info));
+   pat_head->next = NULL;
+   pat_rear = pat_head;
+   int pat_num = 0;
+@@ -324,7 +337,8 @@ static int loadPattern(const char *file_string, u_int32_t pattern_type) {
+     struct common_pat_info *new_pat = (struct common_pat_info*)malloc(sizeof(struct common_pat_info));
+     if(new_pat == NULL) {
+       traceEvent(TRACE_WARNING, "Not enough memory while loading pattern");
+-      return num_patterns;
++      freePatternList(pat_head);
++      return -1;
+     }
+     memset(new_pat, 0, sizeof(struct common_pat_info));
+     new_pat->type = NULL; new_pat->name = NULL; new_pat->vendor = NULL;
+@@ -505,11 +519,11 @@ static int loadPattern(const char *file_string, u_int32_t pattern_type) {
+   traceEvent(TRACE_NORMAL, ">load %d %s patterns.", pat_num, class_obj->string);
+ 
+   if(pat_head){
+-    patterns[pattern_type] = pat_head;
++    *out = pat_head;
+     num_patterns += pat_num;
+   } else {
+     free(pat_head);
+-    patterns[pattern_type] = NULL;
++    *out = NULL;
+   }
+ 
+   //free space
+@@ -519,7 +533,7 @@ static int loadPattern(const char *file_string, u_int32_t pattern_type) {
+ }
+ 
+ /* Match regex rules */
+-bool RegexFunc1(u_int8_t argv_type, struct pthread_argv_t *p){
++static bool RegexFunc1Locked(u_int8_t argv_type, struct pthread_argv_t *p){
+ 
+   int output[30] = {0};
+   int head_length = p->head_length;
+@@ -743,57 +757,152 @@ bool RegexFunc1(u_int8_t argv_type, struct pthread_argv_t *p){
+   return 0;
+ }
+ 
++
+ /* *********************************************** */
+ 
+-void SrvPlugin_init(int argc, char *argv[]) {
+-  int num_patterns = 0;
+-  char *file_string;
++static void freePatternList(struct common_pat_info *pat) {
++  while(pat != NULL) {
++    struct common_pat_info *next = pat->next;
++    free(pat->type);
++    free(pat->name);
++    free(pat->vendor);
++    free(pat->version);
++    free(pat->os);
++    if(pat->pat_regex) pcre_free(pat->pat_regex);
++    if(pat->pat_extra) pcre_free_study(pat->pat_extra);
++    free(pat);
++    pat = next;
++  }
++}
+ 
+-  if(readOnlyGlobals.traceMode) traceEvent(TRACE_NORMAL, "Initialized servicePlugin");
+-  
+-  int idp = 0;
++static void freeAllPatterns(void) {
++  int i;
++  for(i = 0; i < PAT_TYPE_NUM; i++) {
++    freePatternList(patterns[i]);
++    patterns[i] = NULL;
++  }
++}
++
++static int loadAllPatterns(struct common_pat_info **out) {
++  int idp = 0, i, total = 0;
+   char dirPath[256];
+-  DIR* directoryPointer=NULL;
+ 
++  for(i = 0; i < PAT_TYPE_NUM; i++) out[i] = NULL;
+   for(idp = 0; patDirs[idp] != NULL; idp++) {
+     snprintf(dirPath, sizeof(dirPath), "%s", patDirs[idp]);
+-    directoryPointer = opendir(dirPath);
+-
+-    if(directoryPointer != NULL){
++    DIR *directoryPointer = opendir(dirPath);
++    if(directoryPointer != NULL) {
++      closedir(directoryPointer);
+       traceEvent(TRACE_NORMAL, "Load pattern in %s", dirPath);
++      snprintf(activePatternDir, sizeof(activePatternDir), "%s", dirPath);
+       break;
+-    }else{
+-      traceEvent(TRACE_NORMAL, "No pattern found in %s", dirPath);
+-      memset(dirPath, 0, sizeof(dirPath));
+     }
++    traceEvent(TRACE_INFO, "No pattern found in %s", dirPath);
+   }
+-
+-  if (patDirs[idp] == NULL) return;
+-
+-  int i = 0;
+-  for (; i < PAT_TYPE_NUM; i++) {
+-
+-    char *file_path = (char *)malloc(128 * sizeof(char));
+-    sprintf(file_path, "%s/%s.json", patDirs[idp], patterns_name[i]);
+-    file_string = readTextFile(file_path);
+-    if (file_string == NULL){
+-      if(readOnlyGlobals.traceMode) traceEvent(TRACE_WARNING, ">>No pattern Loaded.");
+-      continue; 
++  if(patDirs[idp] == NULL) return 0;
++
++  for(i = 0; i < PAT_TYPE_NUM; i++) {
++    char file_path[512];
++    snprintf(file_path, sizeof(file_path), "%s/%s.json", activePatternDir, patterns_name[i]);
++    char *file_string = readTextFile(file_path);
++    if(file_string == NULL) {
++      traceEvent(TRACE_WARNING, ">>No pattern loaded from %s.", file_path);
++      continue;
+     }
+-
+-    num_patterns += loadPattern(file_string, i);
+-
+-    free(file_path);
++    int loaded = loadPattern(file_string, i, &out[i]);
+     free(file_string);
++    if(loaded < 0) {
++      int j;
++      for(j = 0; j < PAT_TYPE_NUM; j++) {
++        freePatternList(out[j]);
++        out[j] = NULL;
++      }
++      traceEvent(TRACE_ERROR, "Unable to parse %s; keeping old rules.", file_path);
++      return -1;
++    }
++    total += loaded;
+   }
++  return total;
++}
+ 
+-  // PrintLoadedPatterns();
++static unsigned long long patternStamp(void) {
++  unsigned long long stamp = 1469598103934665603ULL;
++  int i;
++  for(i = 0; i < PAT_TYPE_NUM; i++) {
++    char file_path[512];
++    struct stat st;
++    snprintf(file_path, sizeof(file_path), "%s/%s.json", activePatternDir, patterns_name[i]);
++    if(stat(file_path, &st) == 0) {
++      stamp ^= (unsigned long long)st.st_ino;
++      stamp *= 1099511628211ULL;
++      stamp ^= (unsigned long long)st.st_size;
++      stamp *= 1099511628211ULL;
++      stamp ^= (unsigned long long)st.st_mtime;
++      stamp *= 1099511628211ULL;
++    } else {
++      stamp ^= 0x9e3779b97f4a7c15ULL;
++      stamp *= 1099511628211ULL;
++    }
++  }
++  return stamp;
++}
+ 
+-  traceEvent(TRACE_NORMAL, ">>Loaded %d patterns totally.", num_patterns); 
++static void *patternsWatcherThread(void *unused) {
++  unsigned long long last = patternStamp();
++  (void)unused;
++  while(1) {
++    sleep(2);
++    unsigned long long now = patternStamp();
++    if(now == last) continue;
++    last = now;
++    struct common_pat_info *new_patterns[PAT_TYPE_NUM] = {0};
++    int total = loadAllPatterns(new_patterns);
++    if(total < 0) {
++      traceEvent(TRACE_ERROR, "Hot reload failed; keeping previous patterns.");
++      continue;
++    }
++    pthread_rwlock_wrlock(&patternsRwLock);
++    freeAllPatterns();
++    int i;
++    for(i = 0; i < PAT_TYPE_NUM; i++) patterns[i] = new_patterns[i];
++    pthread_rwlock_unlock(&patternsRwLock);
++    traceEvent(TRACE_NORMAL, "Hot-reloaded %d patterns from %s.", total, activePatternDir);
++  }
++  return NULL;
+ }
+ 
+ /* *********************************************** */
+ 
++void SrvPlugin_init(int argc, char *argv[]) {
++  (void)argc;
++  (void)argv;
++  if(readOnlyGlobals.traceMode) traceEvent(TRACE_NORMAL, "Initialized servicePlugin");
++
++  struct common_pat_info *new_patterns[PAT_TYPE_NUM] = {0};
++  int num_patterns = loadAllPatterns(new_patterns);
++  if(num_patterns < 0) {
++    traceEvent(TRACE_ERROR, "Unable to load patterns; servicePlugin disabled.");
++    return;
++  }
++
++  pthread_rwlock_wrlock(&patternsRwLock);
++  freeAllPatterns();
++  int i;
++  for(i = 0; i < PAT_TYPE_NUM; i++) patterns[i] = new_patterns[i];
++  pthread_rwlock_unlock(&patternsRwLock);
++
++  traceEvent(TRACE_NORMAL, ">>Loaded %d patterns totally.", num_patterns);
++  if(activePatternDir[0] != '\0' && !patternsWatcherStarted) {
++    patternsWatcherStarted = 1;
++    if(pthread_create(&patternsWatcher, NULL, patternsWatcherThread, NULL) == 0) {
++      pthread_detach(patternsWatcher);
++    } else {
++      patternsWatcherStarted = 0;
++      traceEvent(TRACE_WARNING, "Unable to start pattern watcher.");
++    }
++  }
++}
++
+ /* Handler called whenever an incoming packet is received */
+ 
+ static void SrvPlugin_packet(u_char new_bucket, void *pluginData,
+@@ -921,6 +1030,15 @@ static void SrvPlugin_packet(u_char new_bucket, void *pluginData,
+ 
+ /* *********************************************** */
+ 
++/* *********************************************** */
++
++bool RegexFunc1(u_int8_t argv_type, struct pthread_argv_t *p) {
++  pthread_rwlock_rdlock(&patternsRwLock);
++  bool matched = RegexFunc1Locked(argv_type, p);
++  pthread_rwlock_unlock(&patternsRwLock);
++  return matched;
++}
++
+ /* Handler called when the flow is deleted (after export) */
+ 
+ static void SrvPlugin_delete(FlowHashBucket* bkt, void *pluginData) {

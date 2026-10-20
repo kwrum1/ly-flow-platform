@@ -7,6 +7,12 @@ import App from './App.vue'
 import router from './router'
 import { useAuthStore } from './stores/auth'
 
+try {
+  document.documentElement.dataset.theme = localStorage.getItem('lyflow-theme') === 'dark' ? 'dark' : 'light'
+} catch {
+  document.documentElement.dataset.theme = 'light'
+}
+
 const app = createApp(App)
 const pinia = createPinia()
 

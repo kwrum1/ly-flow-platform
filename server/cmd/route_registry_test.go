@@ -1,4 +1,4 @@
-package main
+﻿package main
 
 import (
 	"go/ast"
@@ -50,15 +50,15 @@ func TestArchitectureRouteSnapshot_characterizesCurrentCountAndRoles(t *testing.
 	}
 
 	// Then
-	if len(ArchitectureRouteSnapshot) != 116 {
-		t.Fatalf("route snapshot count=%d, want 116", len(ArchitectureRouteSnapshot))
+	if len(ArchitectureRouteSnapshot) != 120 {
+		t.Fatalf("route snapshot count=%d, want 120", len(ArchitectureRouteSnapshot))
 	}
 	want := map[string]int{
-		"public":           2,
-		"agent_credential": 10,
+		"public":           12,
+		"agent_credential": 11,
 		"loopback":         1,
-		"admin_only":       24,
-		"default_roles":    79,
+		"admin_only":       26,
+		"default_roles":    70,
 	}
 	for class, expected := range want {
 		if counts[class] != expected {
@@ -124,7 +124,7 @@ func TestRouteRegistryDenyByDefaultAndEnforcesRoles(t *testing.T) {
 	// When
 	handler.ServeHTTP(response, unknown)
 	register, registerFound := findRouteSpec("/api/v1/auth/register")
-	events, eventsFound := findRouteSpec("/api/v1/events")
+	events, eventsFound := findRouteSpec("/api/v2/events")
 	health, healthFound := findRouteSpec("/api/v1/health")
 	global, globalFound := findRouteSpec("/api/v1/public/situation/global")
 
@@ -144,6 +144,14 @@ func TestRouteRegistryDenyByDefaultAndEnforcesRoles(t *testing.T) {
 }
 
 func TestArchitectureRouteSnapshotMarksPublicAndProtectedRoutes(t *testing.T) {
+	publicRoutePaths := map[string]bool{
+		"/api/v1/health": true, "/api/v1/auth/login": true,
+		"/api/v1/agent/install.sh": true, "/api/v1/agent/uninstall.sh": true,
+		"/api/v1/agent/download": true, "/api/v1/agent/rasp/policy-root": true, "/api/v1/agent/rasp/probe/python": true,
+		"/api/v1/agent/rasp/probe/php": true, "/api/v1/agent/rasp/probe/java": true,
+		"/api/v1/agent/rasp/probe/java/source/": true,
+		"/api/v1/agent/rasp/probe/nodejs":       true, "/api/v1/agent/rasp/probe/dotnet": true,
+	}
 	publicCount := 0
 	agentCredentialPaths := map[string]bool{
 		"/api/v1/agent/enroll":          true,
@@ -156,6 +164,7 @@ func TestArchitectureRouteSnapshotMarksPublicAndProtectedRoutes(t *testing.T) {
 		"/api/v1/agent/realtime":        true,
 		"/api/v1/agent/snapshot":        true,
 		"/api/v1/rasp/event":            true,
+		"/api/v2/ingest/events":         true,
 	}
 	for _, route := range ArchitectureRouteSnapshot {
 		if len(route.Methods) == 0 {
@@ -170,7 +179,7 @@ func TestArchitectureRouteSnapshotMarksPublicAndProtectedRoutes(t *testing.T) {
 		}
 		if route.Public {
 			publicCount++
-			if route.Path != "/api/v1/health" && route.Path != "/api/v1/auth/login" {
+			if !publicRoutePaths[route.Path] {
 				t.Fatalf("unexpected public route: %s", route.Path)
 			}
 			continue
@@ -191,8 +200,8 @@ func TestArchitectureRouteSnapshotMarksPublicAndProtectedRoutes(t *testing.T) {
 			t.Fatalf("protected route has no roles: %s", route.Path)
 		}
 	}
-	if publicCount != 2 {
-		t.Fatalf("public route count=%d, want 2", publicCount)
+	if publicCount != 12 {
+		t.Fatalf("public route count=%d, want 12", publicCount)
 	}
 }
 
@@ -234,3 +243,4 @@ func rolesEqual(left, right []auth.UserRole) bool {
 	}
 	return true
 }
+

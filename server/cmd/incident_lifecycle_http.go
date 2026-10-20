@@ -31,7 +31,12 @@ func incidentsHandler(cfg *Config) http.HandlerFunc {
 			return
 		}
 		var activeResult xdrActiveRouteResult
-		if cfg.XDRGraph != nil && cfg.XDRInput != nil {
+		// Incident list reads are latency-sensitive and are often used for the
+		// first dashboard paint. `live=0` serves durable state without running
+		// the expensive active-graph sync; the refresh action explicitly asks
+		// for live synchronization.
+		liveSync := r.URL.Query().Get("live") != "0"
+		if liveSync && cfg.XDRGraph != nil && cfg.XDRInput != nil {
 			var err error
 			activeResult, err = xdrActiveChainsResponse(r.Context(), cfg, offset+limit+50)
 			if err != nil {
@@ -53,7 +58,8 @@ func incidentsHandler(cfg *Config) http.HandlerFunc {
 				return
 			}
 		}
-		persisted, total, err := cfg.Incidents.List(r.Context(), limit, offset)
+		persisted, total, err := cfg.Incidents.ListFiltered(r.Context(), limit, offset,
+			r.URL.Query().Get("status"), r.URL.Query().Get("severity"))
 		if err != nil {
 			writeJSONError(w, http.StatusServiceUnavailable, "incident_load_failed", err.Error())
 			return
@@ -100,7 +106,7 @@ func incidentDetailHandler(cfg *Config) http.HandlerFunc {
 			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
 			return
 		}
-		if cfg.XDRGraph != nil && cfg.XDRInput != nil {
+		if r.URL.Query().Get("live") == "1" && cfg.XDRGraph != nil && cfg.XDRInput != nil {
 			activeResult, err := xdrActiveChainsResponse(r.Context(), cfg, 100)
 			if err == nil {
 				if err := syncActiveIncidentLifecycle(r.Context(), cfg, activeResult); err != nil {

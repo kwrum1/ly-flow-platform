@@ -22,7 +22,8 @@ export function evaluateAuthGuard({
 
   if (requiresAuth && !hasSession) return '/login'
   if (needsPasswordChange && !passwordChanged && toPath !== '/change-password') return '/change-password'
-  if (roles.length > 0 && !roles.includes(userRole)) return '/xdr'
+  if (toPath === '/forbidden') return true
+  if (roles.length > 0 && !roles.includes(userRole)) return '/forbidden'
 
   return true
 }

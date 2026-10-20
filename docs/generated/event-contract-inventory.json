@@ -399,6 +399,11 @@
         "delivery",
         "knownRASPBridgeEventType",
         "knownRASPBridgeSeverity",
+        "legacyEventType",
+        "legacyLanguage",
+        "legacyString",
+        "looksLikeLegacyRASPEvent",
+        "normalizeLegacyRASPEvent",
         "raspBridgeLanguageAllowed",
         "validate"
       ],
@@ -510,6 +515,39 @@
         "lyflow.security_event.v1"
       ],
       "owner": "dpi-engine",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
+      "id": "adapter:pkg/attack/mapping.go",
+      "kind": "adapter",
+      "path": "pkg/attack/mapping.go",
+      "symbols": [
+        "Resolve",
+        "ResolveWithFallback",
+        "TacticByID",
+        "TechniqueByID",
+        "firstSource",
+        "indexTactics",
+        "indexTechniques",
+        "metadataValue",
+        "normalizeID",
+        "resolveTactic",
+        "resolveTechnique",
+        "tagValue"
+      ],
+      "roles": [
+        "adapter"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "pkg",
       "phases": [
         "reader_first",
         "dual_write",
@@ -793,6 +831,36 @@
       ]
     },
     {
+      "id": "adapter:pkg/contracts/security_event_v2.go",
+      "kind": "adapter",
+      "path": "pkg/contracts/security_event_v2.go",
+      "symbols": [
+        "FromCanonicalV1",
+        "HasAny",
+        "IsKnownAttackStage",
+        "IsKnownEvidenceType",
+        "StageForTactic",
+        "Validate",
+        "validateGovernanceV2",
+        "validateQualityFlags"
+      ],
+      "roles": [
+        "adapter"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1",
+        "lyflow.security_event.v2"
+      ],
+      "owner": "pkg",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
       "id": "adapter:pkg/contracts/security_event_validate.go",
       "kind": "adapter",
       "path": "pkg/contracts/security_event_validate.go",
@@ -906,6 +974,37 @@
       ]
     },
     {
+      "id": "adapter:server/analytics/query_v2.go",
+      "kind": "adapter",
+      "path": "server/analytics/query_v2.go",
+      "symbols": [
+        "DecodeEventV2Cursor",
+        "GetEventV2",
+        "QueryEventsV2",
+        "decodeEventV2Rows",
+        "encodeEventV2Cursor",
+        "normalized",
+        "parseClickHouseTime",
+        "quoteClickHouseString",
+        "quoteClickHouseTime",
+        "view"
+      ],
+      "roles": [
+        "adapter"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
       "id": "adapter:server/analytics/storage_migration.go",
       "kind": "adapter",
       "path": "server/analytics/storage_migration.go",
@@ -966,6 +1065,31 @@
         "AuthorizeExpiry",
         "DefaultRetentionPolicy",
         "PolicyForPhase"
+      ],
+      "roles": [
+        "adapter"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
+      "id": "adapter:server/bench/generator.go",
+      "kind": "adapter",
+      "path": "server/bench/generator.go",
+      "symbols": [
+        "Config",
+        "Count",
+        "Event",
+        "NewGenerator"
       ],
       "roles": [
         "adapter"
@@ -1117,6 +1241,7 @@
         "agentInstallScriptHandler",
         "agentNamesHandler",
         "agentRASPJavaSourceHandler",
+        "agentRASPPolicyRootHandler",
         "agentRASPProbeHandler",
         "agentRenameHandler",
         "agentRuntimeEventHandler",
@@ -1182,6 +1307,7 @@
         "currentAgentRuleBundleSummary",
         "currentAgentRuleSourceSummary",
         "dataStrFromPayload",
+        "decodeComponentAlerts",
         "dedupXDRComponentEvents",
         "defaultEngineDesiredStates",
         "defaultTargetLocationConfig",
@@ -1331,6 +1457,8 @@
         "requireAgentKey",
         "resolveRulesDir",
         "resolveXDRRulesDir",
+        "responseActionHandler",
+        "responseActionsHandler",
         "responseCandidatesForChain",
         "responseCandidatesHandler",
         "responsePolicyHandler",
@@ -1348,10 +1476,12 @@
         "rulesStatsHandler",
         "run",
         "runLogRetention",
+        "safeEnrollmentToken",
         "safeID",
         "safeRuleFilename",
         "sameSecret",
         "sanitizeAgentRecord",
+        "sanitizeRequestHost",
         "saveAgentNames",
         "saveMirrorCaptureConfig",
         "saveRASPProtectionAgent",
@@ -1448,6 +1578,7 @@
         "updateRulesHandler",
         "upsertAgent",
         "upsertHostControlRecord",
+        "warmTrafficSessionQuery",
         "writeJSONError",
         "xdrAttackerIP",
         "xdrChainIsCorrelated",
@@ -1666,11 +1797,14 @@
       "path": "server/cmd/storage_event_runtime.go",
       "symbols": [
         "Delete",
+        "GetEventV2",
+        "QueryEventsV2",
         "Read",
         "ReadCanonicalPayloads",
         "TrafficSessionCount",
         "WriteCanonical",
         "WriteComponentAlert",
+        "WriteEventsV2",
         "WriteTrafficSession",
         "newProductionStorageEventRuntime",
         "normalizeStoredCanonicalPayload"
@@ -1721,6 +1855,31 @@
         "deleteStoredEvent",
         "readStoredEvents",
         "securityEventsHandler"
+      ],
+      "roles": [
+        "adapter"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
+      "id": "adapter:server/cmd/storage_xdr_projection.go",
+      "kind": "adapter",
+      "path": "server/cmd/storage_xdr_projection.go",
+      "symbols": [
+        "canonicalProjectionFromV2",
+        "firstProjectionValue",
+        "projectEventsV2ForXDR",
+        "projectionPayload"
       ],
       "roles": [
         "adapter"
@@ -2952,6 +3111,11 @@
         "delivery",
         "knownRASPBridgeEventType",
         "knownRASPBridgeSeverity",
+        "legacyEventType",
+        "legacyLanguage",
+        "legacyString",
+        "looksLikeLegacyRASPEvent",
+        "normalizeLegacyRASPEvent",
         "raspBridgeLanguageAllowed",
         "validate"
       ],
@@ -3363,6 +3527,49 @@
       ]
     },
     {
+      "id": "consumer:server/cmd/engine_native_rules.go",
+      "kind": "consumer",
+      "path": "server/cmd/engine_native_rules.go",
+      "symbols": [
+        "applyNativeRuleOverride",
+        "between",
+        "hasExt",
+        "loadLyprobeRules",
+        "loadNativeEngineRules",
+        "lyprobeManifestVersion",
+        "lyprobeRecentFlowAt",
+        "lyprobeRecentFlowFromMessages",
+        "mergeDetectionRules",
+        "nativeEngineRulesHandler",
+        "nativeEngineRulesUpdateHandler",
+        "nativeEngineStatusHandler",
+        "nativeRuleOverrideID",
+        "parseRASPRule",
+        "parseSuricataRule",
+        "parseWazuhRule",
+        "parseYARARule",
+        "scanNativeEngineRules",
+        "scanRuleFiles"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "streams": [
+        "flows:raw"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
       "id": "consumer:server/cmd/event_migration_reader.go",
       "kind": "consumer",
       "path": "server/cmd/event_migration_reader.go",
@@ -3428,6 +3635,31 @@
       ]
     },
     {
+      "id": "consumer:server/cmd/flow_bridge.go",
+      "kind": "consumer",
+      "path": "server/cmd/flow_bridge.go",
+      "symbols": [
+        "runFlowBridge"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "streams": [
+        "flows:raw"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
       "id": "consumer:server/cmd/main.go",
       "kind": "consumer",
       "path": "server/cmd/main.go",
@@ -3451,6 +3683,7 @@
         "agentInstallScriptHandler",
         "agentNamesHandler",
         "agentRASPJavaSourceHandler",
+        "agentRASPPolicyRootHandler",
         "agentRASPProbeHandler",
         "agentRenameHandler",
         "agentRuntimeEventHandler",
@@ -3516,6 +3749,7 @@
         "currentAgentRuleBundleSummary",
         "currentAgentRuleSourceSummary",
         "dataStrFromPayload",
+        "decodeComponentAlerts",
         "dedupXDRComponentEvents",
         "defaultEngineDesiredStates",
         "defaultTargetLocationConfig",
@@ -3665,6 +3899,8 @@
         "requireAgentKey",
         "resolveRulesDir",
         "resolveXDRRulesDir",
+        "responseActionHandler",
+        "responseActionsHandler",
         "responseCandidatesForChain",
         "responseCandidatesHandler",
         "responsePolicyHandler",
@@ -3682,10 +3918,12 @@
         "rulesStatsHandler",
         "run",
         "runLogRetention",
+        "safeEnrollmentToken",
         "safeID",
         "safeRuleFilename",
         "sameSecret",
         "sanitizeAgentRecord",
+        "sanitizeRequestHost",
         "saveAgentNames",
         "saveMirrorCaptureConfig",
         "saveRASPProtectionAgent",
@@ -3782,6 +4020,7 @@
         "updateRulesHandler",
         "upsertAgent",
         "upsertHostControlRecord",
+        "warmTrafficSessionQuery",
         "writeJSONError",
         "xdrAttackerIP",
         "xdrChainIsCorrelated",
@@ -4000,11 +4239,14 @@
       "path": "server/cmd/storage_event_runtime.go",
       "symbols": [
         "Delete",
+        "GetEventV2",
+        "QueryEventsV2",
         "Read",
         "ReadCanonicalPayloads",
         "TrafficSessionCount",
         "WriteCanonical",
         "WriteComponentAlert",
+        "WriteEventsV2",
         "WriteTrafficSession",
         "newProductionStorageEventRuntime",
         "normalizeStoredCanonicalPayload"
@@ -4595,6 +4837,29 @@
       ]
     },
     {
+      "id": "observer:server/correlation/lateral/tracker.go",
+      "kind": "observer",
+      "path": "server/correlation/lateral/tracker.go",
+      "symbols": [
+        "Events",
+        "NewTracker",
+        "Observe",
+        "findingKey",
+        "prune"
+      ],
+      "roles": [
+        "observer"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reconcile",
+        "observe"
+      ]
+    },
+    {
       "id": "persistence:agent/cmd/main.go",
       "kind": "persistence",
       "path": "agent/cmd/main.go",
@@ -4939,6 +5204,7 @@
         "agentInstallScriptHandler",
         "agentNamesHandler",
         "agentRASPJavaSourceHandler",
+        "agentRASPPolicyRootHandler",
         "agentRASPProbeHandler",
         "agentRenameHandler",
         "agentRuntimeEventHandler",
@@ -5004,6 +5270,7 @@
         "currentAgentRuleBundleSummary",
         "currentAgentRuleSourceSummary",
         "dataStrFromPayload",
+        "decodeComponentAlerts",
         "dedupXDRComponentEvents",
         "defaultEngineDesiredStates",
         "defaultTargetLocationConfig",
@@ -5153,6 +5420,8 @@
         "requireAgentKey",
         "resolveRulesDir",
         "resolveXDRRulesDir",
+        "responseActionHandler",
+        "responseActionsHandler",
         "responseCandidatesForChain",
         "responseCandidatesHandler",
         "responsePolicyHandler",
@@ -5170,10 +5439,12 @@
         "rulesStatsHandler",
         "run",
         "runLogRetention",
+        "safeEnrollmentToken",
         "safeID",
         "safeRuleFilename",
         "sameSecret",
         "sanitizeAgentRecord",
+        "sanitizeRequestHost",
         "saveAgentNames",
         "saveMirrorCaptureConfig",
         "saveRASPProtectionAgent",
@@ -5270,6 +5541,7 @@
         "updateRulesHandler",
         "upsertAgent",
         "upsertHostControlRecord",
+        "warmTrafficSessionQuery",
         "writeJSONError",
         "xdrAttackerIP",
         "xdrChainIsCorrelated",
@@ -5499,6 +5771,30 @@
         "lyflow.security_event.v1"
       ],
       "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
+      "id": "producer:agent/cmd/capturedoctor/main.go",
+      "kind": "producer",
+      "path": "agent/cmd/capturedoctor/main.go",
+      "symbols": [
+        "emit",
+        "main",
+        "runAlert"
+      ],
+      "roles": [
+        "producer"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "agent",
       "phases": [
         "reader_first",
         "dual_write",
@@ -6241,6 +6537,7 @@
         "agentInstallScriptHandler",
         "agentNamesHandler",
         "agentRASPJavaSourceHandler",
+        "agentRASPPolicyRootHandler",
         "agentRASPProbeHandler",
         "agentRenameHandler",
         "agentRuntimeEventHandler",
@@ -6306,6 +6603,7 @@
         "currentAgentRuleBundleSummary",
         "currentAgentRuleSourceSummary",
         "dataStrFromPayload",
+        "decodeComponentAlerts",
         "dedupXDRComponentEvents",
         "defaultEngineDesiredStates",
         "defaultTargetLocationConfig",
@@ -6455,6 +6753,8 @@
         "requireAgentKey",
         "resolveRulesDir",
         "resolveXDRRulesDir",
+        "responseActionHandler",
+        "responseActionsHandler",
         "responseCandidatesForChain",
         "responseCandidatesHandler",
         "responsePolicyHandler",
@@ -6472,10 +6772,12 @@
         "rulesStatsHandler",
         "run",
         "runLogRetention",
+        "safeEnrollmentToken",
         "safeID",
         "safeRuleFilename",
         "sameSecret",
         "sanitizeAgentRecord",
+        "sanitizeRequestHost",
         "saveAgentNames",
         "saveMirrorCaptureConfig",
         "saveRASPProtectionAgent",
@@ -6572,6 +6874,7 @@
         "updateRulesHandler",
         "upsertAgent",
         "upsertHostControlRecord",
+        "warmTrafficSessionQuery",
         "writeJSONError",
         "xdrAttackerIP",
         "xdrChainIsCorrelated",
@@ -6654,6 +6957,47 @@
       ]
     },
     {
+      "id": "producer:server/cmd/netflow-collector/main.go",
+      "kind": "producer",
+      "path": "server/cmd/netflow-collector/main.go",
+      "symbols": [
+        "env",
+        "flowPayload",
+        "handle",
+        "intValue",
+        "main",
+        "mustJSON",
+        "post",
+        "postWithRetry",
+        "protocolName",
+        "publish",
+        "startWorkers",
+        "stringValue",
+        "threatPayload"
+      ],
+      "roles": [
+        "producer"
+      ],
+      "streams": [
+        "flows:raw",
+        "flows:raw.event",
+        "flows:semantic.event",
+        "sessions:semantic"
+      ],
+      "schemas": [
+        "lyflow.component_alert.v1",
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
       "id": "producer:server/cmd/security_event_handler.go",
       "kind": "producer",
       "path": "server/cmd/security_event_handler.go",
@@ -6685,11 +7029,14 @@
       "path": "server/cmd/storage_event_runtime.go",
       "symbols": [
         "Delete",
+        "GetEventV2",
+        "QueryEventsV2",
         "Read",
         "ReadCanonicalPayloads",
         "TrafficSessionCount",
         "WriteCanonical",
         "WriteComponentAlert",
+        "WriteEventsV2",
         "WriteTrafficSession",
         "newProductionStorageEventRuntime",
         "normalizeStoredCanonicalPayload"
@@ -6753,6 +7100,31 @@
       ],
       "streams": [
         "events:unified"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
+      "id": "producer:server/ingestv2/handler.go",
+      "kind": "producer",
+      "path": "server/ingestv2/handler.go",
+      "symbols": [
+        "ServeHTTP",
+        "eventErrorMessage",
+        "writeError",
+        "writeJSON"
+      ],
+      "roles": [
+        "producer"
       ],
       "schemas": [
         "lyflow.security_event.v1"
@@ -7182,6 +7554,36 @@
       ]
     },
     {
+      "id": "schema:pkg/contracts/security_event_v2.go",
+      "kind": "schema",
+      "path": "pkg/contracts/security_event_v2.go",
+      "symbols": [
+        "FromCanonicalV1",
+        "HasAny",
+        "IsKnownAttackStage",
+        "IsKnownEvidenceType",
+        "StageForTactic",
+        "Validate",
+        "validateGovernanceV2",
+        "validateQualityFlags"
+      ],
+      "roles": [
+        "schema"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1",
+        "lyflow.security_event.v2"
+      ],
+      "owner": "pkg",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
       "id": "schema:pkg/contracts/security_event_validate.go",
       "kind": "schema",
       "path": "pkg/contracts/security_event_validate.go",
@@ -7494,37 +7896,6 @@
         "lyflow.agent.capability.v1",
         "lyflow.security_event.v1",
         "lyflow.telemetry.v1"
-      ],
-      "owner": "agent",
-      "phases": [
-        "reader_first",
-        "dual_write",
-        "reconcile",
-        "read_switch",
-        "observe"
-      ]
-    },
-    {
-      "id": "stream:agent/cmd/pcap_windows.go",
-      "kind": "stream",
-      "path": "agent/cmd/pcap_windows.go",
-      "symbols": [
-        "defaultWindowsPCAPInterface",
-        "localIPv4Set",
-        "outboundIPv4ForHost",
-        "preferredWindowsCaptureIPs",
-        "recordPCAPStats",
-        "runPCAPPacketCapture",
-        "validateWindowsPCAPInterface"
-      ],
-      "roles": [
-        "stream"
-      ],
-      "streams": [
-        "alerts:dpi"
-      ],
-      "schemas": [
-        "lyflow.security_event.v1"
       ],
       "owner": "agent",
       "phases": [
@@ -7940,6 +8311,49 @@
       ]
     },
     {
+      "id": "stream:server/cmd/engine_native_rules.go",
+      "kind": "stream",
+      "path": "server/cmd/engine_native_rules.go",
+      "symbols": [
+        "applyNativeRuleOverride",
+        "between",
+        "hasExt",
+        "loadLyprobeRules",
+        "loadNativeEngineRules",
+        "lyprobeManifestVersion",
+        "lyprobeRecentFlowAt",
+        "lyprobeRecentFlowFromMessages",
+        "mergeDetectionRules",
+        "nativeEngineRulesHandler",
+        "nativeEngineRulesUpdateHandler",
+        "nativeEngineStatusHandler",
+        "nativeRuleOverrideID",
+        "parseRASPRule",
+        "parseSuricataRule",
+        "parseWazuhRule",
+        "parseYARARule",
+        "scanNativeEngineRules",
+        "scanRuleFiles"
+      ],
+      "roles": [
+        "stream"
+      ],
+      "streams": [
+        "flows:raw"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
       "id": "stream:server/cmd/event_migration_runtime.go",
       "kind": "stream",
       "path": "server/cmd/event_migration_runtime.go",
@@ -7961,6 +8375,31 @@
       "streams": [
         "component_alerts:v2",
         "security_events:v1"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
+      "id": "stream:server/cmd/flow_bridge.go",
+      "kind": "stream",
+      "path": "server/cmd/flow_bridge.go",
+      "symbols": [
+        "runFlowBridge"
+      ],
+      "roles": [
+        "stream"
+      ],
+      "streams": [
+        "flows:raw"
       ],
       "schemas": [
         "lyflow.security_event.v1"
@@ -7998,6 +8437,7 @@
         "agentInstallScriptHandler",
         "agentNamesHandler",
         "agentRASPJavaSourceHandler",
+        "agentRASPPolicyRootHandler",
         "agentRASPProbeHandler",
         "agentRenameHandler",
         "agentRuntimeEventHandler",
@@ -8063,6 +8503,7 @@
         "currentAgentRuleBundleSummary",
         "currentAgentRuleSourceSummary",
         "dataStrFromPayload",
+        "decodeComponentAlerts",
         "dedupXDRComponentEvents",
         "defaultEngineDesiredStates",
         "defaultTargetLocationConfig",
@@ -8212,6 +8653,8 @@
         "requireAgentKey",
         "resolveRulesDir",
         "resolveXDRRulesDir",
+        "responseActionHandler",
+        "responseActionsHandler",
         "responseCandidatesForChain",
         "responseCandidatesHandler",
         "responsePolicyHandler",
@@ -8229,10 +8672,12 @@
         "rulesStatsHandler",
         "run",
         "runLogRetention",
+        "safeEnrollmentToken",
         "safeID",
         "safeRuleFilename",
         "sameSecret",
         "sanitizeAgentRecord",
+        "sanitizeRequestHost",
         "saveAgentNames",
         "saveMirrorCaptureConfig",
         "saveRASPProtectionAgent",
@@ -8329,6 +8774,7 @@
         "updateRulesHandler",
         "upsertAgent",
         "upsertHostControlRecord",
+        "warmTrafficSessionQuery",
         "writeJSONError",
         "xdrAttackerIP",
         "xdrChainIsCorrelated",
@@ -8400,6 +8846,47 @@
         "lyflow.security_event.v1",
         "lyflow.unified.v1",
         "xdr-eval.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
+      "id": "stream:server/cmd/netflow-collector/main.go",
+      "kind": "stream",
+      "path": "server/cmd/netflow-collector/main.go",
+      "symbols": [
+        "env",
+        "flowPayload",
+        "handle",
+        "intValue",
+        "main",
+        "mustJSON",
+        "post",
+        "postWithRetry",
+        "protocolName",
+        "publish",
+        "startWorkers",
+        "stringValue",
+        "threatPayload"
+      ],
+      "roles": [
+        "stream"
+      ],
+      "streams": [
+        "flows:raw",
+        "flows:raw.event",
+        "flows:semantic.event",
+        "sessions:semantic"
+      ],
+      "schemas": [
+        "lyflow.component_alert.v1",
+        "lyflow.security_event.v1"
       ],
       "owner": "server",
       "phases": [

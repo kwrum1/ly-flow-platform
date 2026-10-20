@@ -1,0 +1,413 @@
+name: lyflow-lean
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  init: true
+  stop_grace_period: 30s
+  logging:
+    driver: json-file
+    options:
+      max-size: 20m
+      max-file: "5"
+
+x-data-healthcheck: &data-healthcheck
+  interval: 10s
+  timeout: 5s
+  retries: 10
+  start_period: 10s
+
+x-core-environment: &core-environment
+  DB_HOST: postgres
+  DB_PORT: "5432"
+  DB_USER: lyflow
+  DB_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+  DB_NAME: lyflow
+  REDIS_ADDR: redis:6379
+  REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
+  REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
+  REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+
+services:
+  postgres:
+    <<: *service-defaults
+    profiles: ["core"]
+    image: ${POSTGRES_IMAGE:-postgres:16-alpine}
+    environment:
+      POSTGRES_DB: lyflow
+      POSTGRES_USER: lyflow
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be set}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../../scripts/init-db.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+      - ../../server/sql/asset_tables.sql:/docker-entrypoint-initdb.d/02-asset-tables.sql:ro
+    healthcheck:
+      <<: *data-healthcheck
+      test: [CMD-SHELL, pg_isready -h 127.0.0.1 -U lyflow -d lyflow]
+    deploy:
+      resources:
+        limits: {cpus: "2", memory: 2g}
+    networks: [core]
+
+  redis:
+    <<: *service-defaults
+    profiles: ["core"]
+    image: ${REDIS_IMAGE:-redis:7.2-alpine}
+    command:
+      - /bin/sh
+      - -ec
+      - >-
+        exec redis-server --appendonly yes --appendfsync everysec
+        --maxmemory "${REDIS_MAXMEMORY:-2gb}"
+        --maxmemory-policy "${REDIS_MAXMEMORY_POLICY:-noeviction}"
+        --requirepass "$$REDIS_PASSWORD"
+        --user "$$REDIS_ACL_USERNAME" on ">$$REDIS_ACL_PASSWORD" "~*" "&*" "+@all"
+    environment:
+      REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
+      REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      <<: *data-healthcheck
+      test: [CMD-SHELL, 'reply=$$(redis-cli --no-auth-warning --user "$$REDIS_ACL_USERNAME" --pass "$$REDIS_ACL_PASSWORD" ping 2>/dev/null) && [ "$$reply" = PONG ]']
+    deploy:
+      resources:
+        limits: {cpus: "1", memory: 2g}
+    networks: [core]
+
+  clickhouse:
+    <<: *service-defaults
+    profiles: ["core"]
+    image: ${CLICKHOUSE_IMAGE:-clickhouse/clickhouse-server:24.8-alpine}
+    environment:
+      CLICKHOUSE_DB: lyflow
+      CLICKHOUSE_USER: lyflow
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set}
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+      - ./clickhouse/lyflow-bench.xml:/etc/clickhouse-server/config.d/lyflow-bench.xml:ro
+    healthcheck:
+      <<: *data-healthcheck
+      test: [CMD-SHELL, "wget -q -O /dev/null http://127.0.0.1:8123/ping || exit 1"]
+    deploy:
+      resources:
+        limits: {cpus: "3", memory: 4g}
+    networks: [core]
+
+  ly-server:
+    <<: *service-defaults
+    profiles: ["core"]
+    image: ${LY_SERVER_IMAGE:-ly-flow/server:latest}
+    command: [/app/ly-server]
+    environment:
+      <<: *core-environment
+      DB_SSLMODE: disable
+      DB_MAX_CONNS: "10"
+      DB_MIN_CONNS: "2"
+      CLICKHOUSE_ADDR: http://clickhouse:8123
+      CLICKHOUSE_DB: lyflow
+      CLICKHOUSE_USER: lyflow
+      CLICKHOUSE_PASSWORD: ${CLICKHOUSE_PASSWORD:?CLICKHOUSE_PASSWORD must be set}
+      SERVER_PORT: "8080"
+      MANAGEMENT_INTERFACE: ${MANAGEMENT_INTERFACE:-eth0}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
+      DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-password}
+      LYFLOW_FORCE_FIRST_LOGIN_PASSWORD_CHANGE: ${LYFLOW_FORCE_FIRST_LOGIN_PASSWORD_CHANGE:-true}
+      AGENT_SELF_ENROLL: ${AGENT_SELF_ENROLL:-false}
+      INCIDENT_LIFECYCLE_LEGACY_MODE: "true"
+      XDR_RULES_DIR: /etc/ly/rules/xdr
+      SECURITY_ENGINE_RELOAD_URL: http://ly-security-engine:8080/reload
+      SECURITY_ENGINE_CONTROL_TOKEN: ${SECURITY_ENGINE_CONTROL_TOKEN:?SECURITY_ENGINE_CONTROL_TOKEN must be set}
+      POLICY_TRUST_DIR: /var/lib/lyflow/policy/trust
+      POLICY_KEY_DIR: /var/lib/lyflow/policy/keys
+      RESPONSE_ACTIONS_PATH: /var/lib/lyflow/response/actions.json
+      RESPONSE_AUTO_WINDOW_ENABLED: ${RESPONSE_AUTO_WINDOW_ENABLED:-false}
+      RESPONSE_WINDOW_START_HOUR: ${RESPONSE_WINDOW_START_HOUR:-0}
+      RESPONSE_WINDOW_END_HOUR: ${RESPONSE_WINDOW_END_HOUR:-6}
+      EVIDENCE_ROOT: /var/lib/lyflow/evidence
+      EVIDENCE_OBJECT_STORE: ${EVIDENCE_OBJECT_STORE:-filesystem}
+      EVIDENCE_FILER_URL: ${EVIDENCE_FILER_URL:-http://seaweedfs:18888}
+    volumes:
+      - server_data:/data
+      - ../../rules:/etc/ly/rules:ro
+      - ../../rules:/app/rules
+      - rule_lifecycle:/app/rules/security-engine/lifecycle
+      - policy_trust:/var/lib/lyflow/policy
+      - response_data:/var/lib/lyflow/response
+      - evidence_data:/var/lib/lyflow/evidence
+      - /sys:/host/sys:ro
+      - /proc:/host/proc:ro
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+      clickhouse: {condition: service_healthy}
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 30s
+      test: [CMD-SHELL, "wget -q -O /dev/null http://127.0.0.1:8080/api/v1/health || exit 1"]
+    deploy:
+      resources:
+        limits: {cpus: "2", memory: 2g}
+    networks: [core]
+
+  ly-security-engine:
+    <<: *service-defaults
+    profiles: ["core"]
+    image: ${LY_SECURITY_ENGINE_IMAGE:-ly-flow/security-engine:latest}
+    command: [/app/ly-security-engine]
+    environment:
+      REDIS_ADDR: redis:6379
+      REDIS_ACL_USERNAME: ${REDIS_ACL_USERNAME:?REDIS_ACL_USERNAME must be set}
+      REDIS_ACL_PASSWORD: ${REDIS_ACL_PASSWORD:?REDIS_ACL_PASSWORD must be set}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      SECURITY_ENGINE_GROUP: security-engine-workers
+      SECURITY_ENGINE_NAME: security-engine-1
+      SECURITY_ENGINE_INPUT_STREAMS: telemetry:traffic,telemetry:runtime,telemetry:rasp,telemetry:log_audit
+      SECURITY_ENGINE_CONTROL_HEALTH_STREAM: control:health
+      ALERTS_DPI_STREAM: alerts:dpi
+      ALERTS_RUNTIME_STREAM: alerts:runtime
+      ALERTS_RASP_STREAM: alerts:rasp
+      ALERTS_LOG_AUDIT_STREAM: alerts:log_audit
+      SECURITY_ENGINE_LIFECYCLE_MANIFEST: /app/rules/security-engine/lifecycle/active-manifest.json
+      SECURITY_ENGINE_RULE_TRUST_ROOT: /var/lib/lyflow/policy/trust/rule-root.pem
+      SECURITY_ENGINE_BUNDLE_ROOT: /app/rules
+      SECURITY_ENGINE_CONTROL_TOKEN: ${SECURITY_ENGINE_CONTROL_TOKEN:?SECURITY_ENGINE_CONTROL_TOKEN must be set}
+      SECURITY_ENGINE_CPU_BUDGET_MS: "1000"
+      SECURITY_ENGINE_RELOAD_AUDIT_PATH: /var/lib/lyflow/audit/reload.jsonl
+    volumes:
+      - security_engine_data:/data
+      - ../../rules:/app/rules:ro
+      - rule_lifecycle:/app/rules/security-engine/lifecycle:ro
+      - policy_trust:/var/lib/lyflow/policy:ro
+      - security_engine_audit:/var/lib/lyflow/audit
+    depends_on:
+      redis: {condition: service_healthy}
+      ly-server: {condition: service_healthy}
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+      test: [CMD-SHELL, "wget -q -O /dev/null http://127.0.0.1:8080/health || exit 1"]
+    deploy:
+      resources:
+        limits: {cpus: "2", memory: 2g}
+    networks: [core]
+
+  agent-center:
+    <<: *service-defaults
+    profiles: ["core"]
+    image: ${LY_SERVER_IMAGE:-ly-flow/server:latest}
+    command: [/app/ly-agent-center]
+    environment:
+      <<: *core-environment
+      GRPC_PORT: "8081"
+    volumes:
+      - agent_center_data:/data
+    depends_on:
+      postgres: {condition: service_healthy}
+      redis: {condition: service_healthy}
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+      test: [CMD, /app/ly-agent-center, healthcheck]
+    deploy:
+      resources:
+        limits: {cpus: "1", memory: 1g}
+    networks: [core]
+
+  ly-vis:
+    <<: *service-defaults
+    profiles: ["core"]
+    image: ${LY_FRONTEND_IMAGE:-ly-flow/frontend:latest}
+    ulimits:
+      nofile: 65536
+    environment:
+      LYFLOW_WEB_ROOT: /usr/share/lyflow/web
+      LY_SERVER_HOST: ly-server
+      LY_SERVER_PORT: "8080"
+      LYFLOW_TLS_CERT: /etc/lyflow/ssl/lyflow.crt
+      LYFLOW_TLS_KEY: /etc/lyflow/ssl/lyflow.key
+    ports:
+      - ${HTTPS_BIND_PORT:-443}:443
+      - ${HTTP_BIND_PORT:-80}:80
+    depends_on:
+      ly-server: {condition: service_healthy}
+    healthcheck:
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+      test: [CMD-SHELL, "wget --no-check-certificate -q -O /dev/null https://127.0.0.1/ || exit 1"]
+    networks: [core]
+
+  # Host-network capture plane. Use --profile capture.
+  lyprobe-sensor:
+    <<: *service-defaults
+    profiles: ["capture"]
+    image: ${LYPROBE_IMAGE:-ly-flow/lyprobe:latest}
+    network_mode: host
+    pid: host
+    cap_add: [NET_RAW, NET_ADMIN]
+    working_dir: /opt/lyflow
+    command:
+      - -i
+      - ${LYPROBE_INTERFACE:-ens160}
+      - -n
+      - ${LYPROBE_COLLECTOR:-127.0.0.1:9995}
+      - -T
+      - ${LYPROBE_TEMPLATE:?LYPROBE_TEMPLATE must be set}
+      - -b
+      - "1"
+    volumes:
+      - ${LYFLOW_FP_PATTERNS_DIR:-./runtime/fp-patterns}:/opt/lyflow/fp-patterns:ro
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+      test: [CMD-SHELL, "pgrep -x lyprobe >/dev/null || exit 1"]
+
+  suricata-sensor:
+    <<: *service-defaults
+    profiles: ["capture"]
+    image: ${LY_SURICATA_IMAGE:-ly-flow/suricata:latest}
+    network_mode: host
+    cap_add: [NET_RAW, NET_ADMIN, SYS_NICE]
+    command:
+      - -c
+      - /etc/suricata/lyflow-suricata-profile.yaml
+      - -i
+      - ${SURICATA_INTERFACE:-ens160}
+    volumes:
+      - ../suricata/lyflow-suricata-profile.yaml:/etc/suricata/lyflow-suricata-profile.yaml:ro
+      - ../suricata/lyflow-suricata.rules:/var/lib/suricata/rules/lyflow-suricata.rules:ro
+      - ./runtime/suricata:/var/log/suricata
+    healthcheck:
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+      test: [CMD-SHELL, "pgrep -x Suricata-Main >/dev/null || exit 1"]
+
+  seaweedfs:
+    <<: *service-defaults
+    profiles: ["evidence"]
+    image: ${LYFLOW_SEAWEEDFS_IMAGE:-docker.1ms.run/chrislusf/seaweedfs@sha256:1055999e08eed1789b0ae45d235126e4495e23d3fb9d6396293fd42539b1ae6a}
+    command:
+      - server
+      - -dir=/data
+      - -master.port=19333
+      - -volume.port=18080
+      - -filer
+      - -filer.port=18888
+      - -s3
+      - -s3.port=18333
+    volumes:
+      - seaweed_data:/data
+    healthcheck:
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 20s
+      test: [CMD-SHELL, "wget -q -O /dev/null http://127.0.0.1:18888/ || exit 1"]
+
+  lyflow-vector:
+    <<: *service-defaults
+    profiles: ["capture"]
+    image: ${LYFLOW_VECTOR_IMAGE:-docker.1ms.run/timberio/vector:0.49.0-alpine}
+    command: ["--config", "/etc/vector/vector.toml"]
+    environment:
+      VECTOR_SURICATA_EVE: ${VECTOR_SURICATA_EVE:-/var/log/suricata/eve.json}
+      VECTOR_READ_FROM: ${VECTOR_READ_FROM:-end}
+      LYFLOW_INGEST_URL: ${LYFLOW_INGEST_URL:-http://ly-server:8080/api/v1/agent/component-alert}
+      VECTOR_AGENT_ID: ${VECTOR_AGENT_ID:?VECTOR_AGENT_ID must be set}
+      VECTOR_AGENT_KEY: ${VECTOR_AGENT_KEY:?VECTOR_AGENT_KEY must be set}
+    volumes:
+      - ../vector/vector.toml:/etc/vector/vector.toml:ro
+      - ./runtime/suricata:/var/log/suricata:ro
+      - vector_data:/var/lib/vector
+    depends_on:
+      ly-server: {condition: service_healthy}
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+      test: [CMD-SHELL, "vector --version >/dev/null"]
+    networks: [core]
+
+  lyflow-rulecompiler:
+    <<: *service-defaults
+    profiles: ["capture"]
+    image: ${LYFLOW_RULECOMPILER_IMAGE:-ly-flow/rulecompiler:latest}
+    command:
+      - -source
+      - /var/lib/lyflow/rules/source
+      - -output
+      - /opt/lyflow/fp-patterns/threat.json
+      - -manifest
+      - /opt/lyflow/fp-patterns/manifest.json
+      - -interval
+      - ${LYFLOW_RULE_INTERVAL:-2s}
+    volumes:
+      - ./runtime/rules/source:/var/lib/lyflow/rules/source:ro
+      - ${LYFLOW_FP_PATTERNS_DIR:-./runtime/fp-patterns}:/opt/lyflow/fp-patterns
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+      test: [CMD-SHELL, "kill -0 1"]
+
+  lyflow-capturedoctor:
+    <<: *service-defaults
+    profiles: ["capture"]
+    image: ${LYFLOW_CAPTUREDOCTOR_IMAGE:-ly-flow/capturedoctor:latest}
+    network_mode: host
+    pid: host
+    cap_add: [NET_ADMIN]
+    command:
+      - -interface
+      - ${LYPROBE_INTERFACE:-ens160}
+      - -process
+      - lyprobe
+      - -interval
+      - ${LYFLOW_CAPTURE_INTERVAL:-5s}
+      - -output
+      - /var/lib/lyflow/capture-doctor.json
+      - -restart-command
+      - ${LYFLOW_CAPTURE_RESTART_COMMAND:-}
+      - -alert-command
+      - ${LYFLOW_CAPTURE_ALERT_COMMAND:-}
+    volumes:
+      - ./runtime/status:/var/lib/lyflow
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+      test: [CMD-SHELL, "test -s /var/lib/lyflow/capture-doctor.json"]
+
+networks:
+  core:
+    name: lyflow-lean-core
+
+volumes:
+  postgres_data:
+  redis_data:
+  clickhouse_data:
+  server_data:
+  policy_trust:
+  rule_lifecycle:
+  security_engine_data:
+  security_engine_audit:
+  agent_center_data:
+  vector_data:
+  response_data:
+  evidence_data:
+  seaweed_data:

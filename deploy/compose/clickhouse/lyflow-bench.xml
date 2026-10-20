@@ -1,0 +1,11 @@
+<clickhouse>
+  <max_server_memory_usage>4294967296</max_server_memory_usage>
+  <mark_cache_size>134217728</mark_cache_size>
+  <uncompressed_cache_size>0</uncompressed_cache_size>
+  <profiles>
+    <default>
+      <max_memory_usage>3000000000</max_memory_usage>
+      <max_threads>4</max_threads>
+    </default>
+  </profiles>
+</clickhouse>

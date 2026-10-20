@@ -62,12 +62,22 @@ func rulePlatformSourcesHandler(cfg *Config) http.HandlerFunc {
 		w.Header().Set("Content-Type", "application/json")
 		switch r.Method {
 		case http.MethodGet:
+			if body, ok := rulePlatformSourcesResponseCache.get("rule-platform-sources"); ok {
+				_, _ = w.Write(body)
+				return
+			}
 			items, err := loadRulePlatformSources(r.Context(), cfg)
 			if err != nil {
 				writeJSONError(w, http.StatusInternalServerError, "rule_sources_failed", err.Error())
 				return
 			}
-			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": items, "total": len(items)}})
+			body, err := json.Marshal(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": items, "total": len(items)}})
+			if err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "rule_sources_encode_failed", err.Error())
+				return
+			}
+			rulePlatformSourcesResponseCache.set("rule-platform-sources", body)
+			_, _ = w.Write(body)
 		case http.MethodPost:
 			var req map[string]interface{}
 			if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<20)).Decode(&req); err != nil {
@@ -84,6 +94,7 @@ func rulePlatformSourcesHandler(cfg *Config) http.HandlerFunc {
 				writeJSONError(w, http.StatusBadRequest, "source_save_failed", err.Error())
 				return
 			}
+			rulePlatformSourcesResponseCache.clear()
 			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": row})
 		default:
 			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")

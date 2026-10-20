@@ -59,9 +59,6 @@ func (a *Agent) runSuricataEVEAdapterContext(ctx context.Context) {
 		if err != nil && !errors.Is(err, os.ErrNotExist) {
 			fmt.Printf("[suricata] eve adapter warning: %v\n", err)
 		}
-		if isRuntimeBudgetError(err) {
-			return
-		}
 		if next >= 0 {
 			offset = next
 		}

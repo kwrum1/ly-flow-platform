@@ -3,6 +3,34 @@
 > Base URL：`https://<server>/api/v1`  
 > 默认认证：登录后使用返回 token。前端通过同源 HTTPS 反向代理访问 API。
 
+## 0. Event v2 / Query v2
+
+### Ingest
+
+```text
+POST /api/v2/ingest/events
+Authorization: Bearer <agent-credential>
+X-Lyflow-Agent-ID: <agent-id>
+Content-Type: application/json
+```
+
+- 请求体为 `{"events":[...]}`，默认最大 4 MiB，单批最多 1000 条。
+- 认证复用 `ingestionauth`，按 Agent 限流并记录审计。
+- 必须通过 `contracts.EventV2.Validate()`；客户端若提供 `Raw.PayloadSHA256` 需匹配 payload。
+- 租户/资产字段目前由调用方提供；多租户强制绑定仍是 T4.8 记录的残余风险。
+
+### Query
+
+```text
+GET /api/v2/events?from=<RFC3339>&to=<RFC3339>&source=&event_type=&severity=&stage=&asset_id=&technique_id=&q=&limit=50&cursor=
+GET /api/v2/events/{event_uid}
+```
+
+- 最大查询范围 30 天，`limit` 默认 50，最大 500。
+- 返回 `items` 与 `next_cursor`；cursor 为不透明 base64 值。
+- 关键词检索覆盖 IP、asset、user、process、file hash、rule id、event type，命中字段经过 ClickHouse 参数引用转义。
+
+
 ## 1. 通用响应
 
 成功响应通常为：

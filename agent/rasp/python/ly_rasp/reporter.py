@@ -269,7 +269,7 @@ class Reporter(RuntimeHealthMixin):
 _reporter: Optional[Reporter] = None
 
 
-def set_reporter(reporter: Reporter) -> None:
+def set_reporter(reporter: Optional[Reporter]) -> None:
     """设置全局 reporter 实例"""
     global _reporter
     _reporter = reporter

@@ -1,0 +1,85 @@
+data_dir = "/var/lib/vector"
+
+[sources.suricata_eve]
+type = "file"
+include = ["${VECTOR_SURICATA_EVE}"]
+read_from = "${VECTOR_READ_FROM}"
+
+[transforms.parse_json]
+type = "remap"
+inputs = ["suricata_eve"]
+source = '''
+  parsed = parse_json!(.message)
+  . = parsed
+  .eve_time = to_string!(parsed.timestamp)
+'''
+
+[transforms.alerts_only]
+type = "filter"
+inputs = ["parse_json"]
+condition = '.event_type == "alert"'
+
+[transforms.component_alert]
+type = "remap"
+inputs = ["alerts_only"]
+drop_on_error = true
+source = '''
+  signature_id = to_string!(.alert.signature_id)
+  flow_id = to_string!(.flow_id)
+  .schema_version = "lyflow.component_alert.v1"
+  .id = "vector-suricata-" + flow_id + "-" + signature_id
+  .category = "traffic"
+  .source_engine = "suricata"
+  .native_rule = {}
+  .native_rule.attributes = {}
+  .entities = {}
+  .details = {}
+  .rule_id = to_string!(.alert.gid) + ":" + signature_id
+  .rule_name = to_string!(.alert.signature)
+  .native_rule.engine = "suricata"
+  .native_rule.id = signature_id
+  .native_rule.name = to_string!(.alert.signature)
+  .native_rule.revision = to_string!(.alert.rev)
+  .native_rule.category = to_string!(.alert.category)
+  .native_rule.source = "suricata"
+  .native_rule.attributes.gid = to_string!(.alert.gid)
+  .native_rule.attributes.signature_id = signature_id
+  .native_rule.attributes.action = to_string!(.alert.action)
+  .severity = if to_int!(.alert.severity) <= 2 { "high" } else { "medium" }
+  .score_hint = 55
+  .occurred_at = to_string!(parse_timestamp!(string!(.eve_time), format: "%Y-%m-%dT%H:%M:%S%.f%z"))
+  .source = "suricata"
+  .engine_version = to_string!(.suricata_version)
+  .rule_pack = "suricata.eve"
+  .entities.source_ip = to_string!(.src_ip)
+  .entities.target_ip = to_string!(.dest_ip)
+  .entities.hostname = to_string!(.host)
+  .summary = to_string!(.alert.signature) + " " + to_string!(.src_ip) + ":" + to_string!(.src_port) + " -> " + to_string!(.dest_ip) + ":" + to_string!(.dest_port)
+  .details.flow_id = flow_id
+  .details.signature_id = signature_id
+  .details.category = to_string!(.alert.category)
+  .details.app_proto = to_string!(.app_proto)
+  .details.protocol = to_string!(.proto)
+  .details.community_id = to_string!(.community_id)
+  .action = to_string!(.alert.action)
+  .policy_state = "audit_only"
+  .candidate_only = true
+'''
+
+[sinks.lyflow]
+type = "http"
+inputs = ["component_alert"]
+uri = "${LYFLOW_INGEST_URL}"
+method = "post"
+encoding.codec = "json"
+framing.method = "newline_delimited"
+batch.max_events = 1
+healthcheck.enabled = false
+
+[sinks.lyflow.auth]
+strategy = "bearer"
+token = "${VECTOR_AGENT_KEY}"
+
+[sinks.lyflow.request.headers]
+X-Lyflow-Agent-ID = "${VECTOR_AGENT_ID}"
+Content-Type = "application/json"

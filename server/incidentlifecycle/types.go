@@ -50,13 +50,15 @@ func LegalTransition(from, to Status) bool {
 	case StatusOpen:
 		return to == StatusTriaged || to == StatusProcessing
 	case StatusTriaged:
-		return to == StatusProcessing
+		// Reopen is an explicit analyst correction path; it is audited like
+		// every other transition and clears the acknowledgement timestamps.
+		return to == StatusProcessing || to == StatusOpen
 	case StatusProcessing:
-		return to == StatusResolved
+		return to == StatusResolved || to == StatusOpen || to == StatusTriaged
 	case StatusResolved:
-		return to == StatusProcessing || to == StatusClosed
+		return to == StatusProcessing || to == StatusClosed || to == StatusOpen
 	case StatusClosed:
-		return false
+		return to == StatusOpen
 	default:
 		return false
 	}

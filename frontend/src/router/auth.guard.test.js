@@ -66,6 +66,6 @@ describe('流影访问守卫', () => {
       userRole: 'viewer',
     })
 
-    expect(result).toBe('/xdr')
+    expect(result).toBe('/forbidden')
   })
 })

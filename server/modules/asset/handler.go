@@ -237,7 +237,7 @@ func (h *Handler) GetStats(w http.ResponseWriter, r *http.Request) {
 
 	_ = h.db.QueryRow(ctx, "SELECT COALESCE(SUM(vuln_count), 0) FROM hosts").Scan(&stats.WithVulns)
 	_ = h.db.QueryRow(ctx, "SELECT COUNT(*) FROM hosts WHERE DATE(first_seen) = CURRENT_DATE").Scan(&stats.TodayNew)
-	_ = h.db.QueryRow(ctx, "SELECT COUNT(*) FROM hosts WHERE COALESCE(agent_id, '') <> ''").Scan(&stats.WithRASP)
+	_ = h.db.QueryRow(ctx, "SELECT COUNT(*) FROM hosts WHERE LOWER(COALESCE(metadata #>> '{capabilities,engine_supervisors,rasp,running}', 'false')) = 'true'").Scan(&stats.WithRASP)
 	_ = h.db.QueryRow(ctx, "SELECT COALESCE(SUM(alert_count), 0) FROM hosts").Scan(&stats.TotalAlerts)
 	_ = h.db.QueryRow(ctx, "SELECT COALESCE(SUM(rasp_blocked), 0) FROM hosts").Scan(&stats.TotalRASPBlocked)
 

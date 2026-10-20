@@ -1,5 +1,6 @@
 <template>
-  <div class="ly-shell" :class="{ 'is-collapsed': collapsed, 'is-mobile-open': mobileOpen }">
+  <AppShellV2 v-if="features.uiShellV2" />
+  <div v-else class="ly-shell" :class="{ 'is-collapsed': collapsed, 'is-mobile-open': mobileOpen }">
     <button v-if="mobileOpen" class="nav-scrim" aria-label="关闭导航" @click="mobileOpen = false" />
 
     <aside class="ly-sidebar">
@@ -80,6 +81,8 @@ import {
 } from '@element-plus/icons-vue'
 import { overviewClient } from '../api/domain'
 import XdrLogo from '../components/XdrLogo.vue'
+import { features } from '../config/features'
+import AppShellV2 from './shell/AppShellV2.vue'
 import { productNavigation, canAccessNavigationItem, flattenNavigation } from '../shared/navigation'
 import { formatChinaTime, refreshPlatformTimeOffset } from '../shared/time'
 import { useAuthStore } from '../stores/auth'

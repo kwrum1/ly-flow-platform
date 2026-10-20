@@ -41,6 +41,7 @@ SERVER_BASE_IMAGE="${SERVER_BASE_IMAGE:-ly-flow/server@sha256:bdec70a7c0c9841f04
 FRONTEND_BASE_IMAGE="${FRONTEND_BASE_IMAGE:-ly-flow/frontend@sha256:89d88f6ad4e2119d564394a413bf95e26e4ada5d3773169cbc5543f6daf52179}"
 SURICATA_PROFILE_IMAGE="${SURICATA_PROFILE_IMAGE:-}"
 SURICATA_BUILD_IMAGE="${SURICATA_BUILD_IMAGE:-ly-flow/suricata-profile:release-rc-652a7b620dfd-todo5-20260730T071221Z-amd64}"
+SEAWEEDFS_IMAGE="${SEAWEEDFS_IMAGE:-docker.1ms.run/chrislusf/seaweedfs@sha256:1055999e08eed1789b0ae45d235126e4495e23d3fb9d6396293fd42539b1ae6a}"
 : "${RASP_PYTHON_310_IMAGE:?RASP_PYTHON_310_IMAGE must be supplied as a local sha256 digest reference}"
 : "${RASP_PYTHON_311_IMAGE:?RASP_PYTHON_311_IMAGE must be supplied as a local sha256 digest reference}"
 : "${RASP_PYTHON_312_IMAGE:?RASP_PYTHON_312_IMAGE must be supplied as a local sha256 digest reference}"
@@ -91,13 +92,11 @@ run_in "$ROOT_DIR/server" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENABLED=0 GOW
 mkdir -p "$ROOT_DIR/server/dist/linux/$TARGET_ARCH"
 cp "$ROOT_DIR/server/ly-server" "$ROOT_DIR/server/dist/linux/$TARGET_ARCH/ly-server"
 cp "$ROOT_DIR/server/ly-agent-center" "$ROOT_DIR/server/dist/linux/$TARGET_ARCH/ly-agent-center"
-mkdir -p "$ROOT_DIR/agent/dist/linux/amd64" "$ROOT_DIR/agent/dist/linux/arm64" "$ROOT_DIR/agent/dist/windows/amd64"
+mkdir -p "$ROOT_DIR/agent/dist/linux/amd64" "$ROOT_DIR/agent/dist/linux/arm64"
 run_in "$ROOT_DIR/agent" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENABLED=0 GOWORK=off go build -trimpath -buildvcs=false -o ly-agent ./cmd
 cp "$ROOT_DIR/agent/ly-agent" "$ROOT_DIR/agent/ly-agent-linux-$TARGET_ARCH"
 cp "$ROOT_DIR/agent/ly-agent" "$ROOT_DIR/agent/dist/linux/$TARGET_ARCH/ly-agent"
 run env RELEASE_SIGNING_KEY="$RELEASE_SIGNING_KEY" "$ROOT_DIR/scripts/prepare-agent-release.sh"
-run_in "$ROOT_DIR/agent" env GOOS=windows GOARCH=amd64 CGO_ENABLED=0 GOWORK=off go build -trimpath -buildvcs=false -ldflags=-H=windowsgui -o ly-agent-windows-amd64.exe ./cmd
-cp "$ROOT_DIR/agent/ly-agent-windows-amd64.exe" "$ROOT_DIR/agent/dist/windows/amd64/ly-agent.exe"
 run_in "$ROOT_DIR/dpi-engine" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENABLED=0 GOWORK=off go build -trimpath -buildvcs=false -o ly-dpi-engine ./cmd
 run_in "$ROOT_DIR/security-engine" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENABLED=0 GOWORK=off go build -trimpath -buildvcs=false -o ly-security-engine ./cmd
 
@@ -112,6 +111,7 @@ ensure_image "$SERVER_BASE_IMAGE"
 ensure_image "$FRONTEND_BASE_IMAGE"
 ensure_image "$SURICATA_PROFILE_IMAGE"
 ensure_image "$SURICATA_BUILD_IMAGE"
+ensure_image "$SEAWEEDFS_IMAGE"
 suricata_build_id=$(docker image inspect "$SURICATA_BUILD_IMAGE" --format '{{.Id}}')
 [[ "$suricata_build_id" == "${SURICATA_PROFILE_IMAGE##*@}" ]] \
   || { printf '[lyflow-release] ERROR: local Suricata build alias does not match the pinned upstream digest\n' >&2; exit 1; }
@@ -151,7 +151,7 @@ SECURITY_ENGINE_IMAGE=$(image_digest_ref "ly-flow/security-engine:$APP_TAG" ly-f
 AGENT_IMAGE=$(image_digest_ref "ly-flow/agent:$APP_TAG" ly-flow/agent)
 DPI_IMAGE=$(image_digest_ref "ly-flow/dpi-engine:$APP_TAG" ly-flow/dpi-engine)
 SURICATA_SENSOR_IMAGE=$(image_digest_ref "ly-flow/suricata-profile:$APP_TAG" ly-flow/suricata-profile)
-IMAGES=("$DB_POSTGRES_IMAGE" "$DB_REDIS_IMAGE" "$DB_CLICKHOUSE_IMAGE" "$SERVER_IMAGE" "$FRONTEND_IMAGE" "$SECURITY_ENGINE_IMAGE" "$AGENT_IMAGE" "$DPI_IMAGE" "$SURICATA_SENSOR_IMAGE")
+IMAGES=("$DB_POSTGRES_IMAGE" "$DB_REDIS_IMAGE" "$DB_CLICKHOUSE_IMAGE" "$SERVER_IMAGE" "$FRONTEND_IMAGE" "$SECURITY_ENGINE_IMAGE" "$AGENT_IMAGE" "$DPI_IMAGE" "$SURICATA_SENSOR_IMAGE" "$SEAWEEDFS_IMAGE")
 
 rm -rf "$RELEASE_DIR/.task22-evidence-$RELEASE_ID"
 TODO22_IMAGE_REFS=$(printf '%s\n' "${IMAGES[@]}" | paste -sd, -)
@@ -175,12 +175,16 @@ ly-flow/frontend:productfix-20260731	$FRONTEND_IMAGE
 ly-flow/security-engine:healthstream2-20260731	$SECURITY_ENGINE_IMAGE
 ly-flow/local-mirror:signed4	$AGENT_IMAGE
 ly-flow/suricata-profile:release-rc-652a7b620dfd-todo5-20260730T071221Z-amd64	$SURICATA_SENSOR_IMAGE
+seaweedfs:3.80	$SEAWEEDFS_IMAGE
 EOF
 run "$ROOT_DIR/scripts/release-provenance.sh" pin-compose --input docker-compose.yml --output "$PACKAGE_DIR/docker-compose.yml" --pins "$PACKAGE_DIR/image-pins.tsv"
 cp scripts/install-offline.sh "$PACKAGE_DIR/scripts/install-offline.sh"
 cp scripts/release-provenance.sh "$PACKAGE_DIR/scripts/release-provenance.sh"
 chmod +x "$PACKAGE_DIR/scripts/install-offline.sh"
 cp scripts/init-db.sql "$PACKAGE_DIR/scripts/init-db.sql"
+cp -a deploy/native "$PACKAGE_DIR/native"
+cp -a deploy/systemd "$PACKAGE_DIR/systemd"
+cp -a scripts/native "$PACKAGE_DIR/scripts/native"
 cp server/sql/asset_tables.sql "$PACKAGE_DIR/server/sql/asset_tables.sql"
 cp -a rules/. "$PACKAGE_DIR/rules/"
 rm -f "$PACKAGE_DIR/rules/security-engine/.lifecycle.bootstrap.lock"

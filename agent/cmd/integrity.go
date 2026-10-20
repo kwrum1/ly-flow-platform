@@ -67,7 +67,7 @@ func (a *Agent) verifyAgentStartupIntegrity(ctx context.Context, executablePath 
 			return a.failClosedIntegrity("binary_integrity_failed", err)
 		}
 	}
-	if configRequired || strings.TrimSpace(configSignaturePath) != "" {
+	if configRequired {
 		if strings.TrimSpace(configPath) == "" {
 			configPath = resolveConfigPath(os.Args[1:])
 		}

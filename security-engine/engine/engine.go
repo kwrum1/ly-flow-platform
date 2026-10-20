@@ -114,6 +114,7 @@ func (e *Engine) consumeOnce(ctx context.Context) error {
 			e.health.degrade("transport_unavailable", false)
 			return fmt.Errorf("reclaim pending stream %s: %w", stream, err)
 		}
+		e.health.touchWatchdog()
 		if time.Since(started) > e.cfg.CPUBudget {
 			e.health.degrade("cpu_budget_exceeded", false)
 			return ErrRuntimeCPUBudget
@@ -135,8 +136,10 @@ func (e *Engine) consumeOnce(ctx context.Context) error {
 			}
 			return fmt.Errorf("read input streams: %w", err)
 		}
+		e.health.touchWatchdog()
 		return nil
 	}
+	e.health.touchWatchdog()
 	for _, result := range results {
 		if err := e.reliable.Handle(ctx, result.Stream, result.Messages, e.process); err != nil {
 			return fmt.Errorf("durable handoff for %s: %w", result.Stream, err)
@@ -146,6 +149,7 @@ func (e *Engine) consumeOnce(ctx context.Context) error {
 }
 
 func (e *Engine) process(ctx context.Context, delivery transport.Delivery) (transport.DurableOutcome, error) {
+	e.health.touchWatchdog()
 	e.stats.Received.Add(1)
 	encoded, err := json.Marshal(delivery.Values)
 	if err != nil {

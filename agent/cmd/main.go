@@ -220,8 +220,11 @@ func NewAgent(cfg *Config) *Agent {
 		hostname:       hostname,
 		localIP:        getLocalIP(),
 		clock:          systemTrafficClock{},
-		raspLanguages:  []shared.Language{shared.LanguagePython, shared.LanguageJava},
-		runtimeHealth:  newRuntimeControlHealth("agent-runtime", agentRuntimeLimits(), time.Now),
+		raspLanguages: []shared.Language{
+			shared.LanguagePython, shared.LanguageJava, shared.LanguagePHP,
+			shared.LanguageNodeJS, shared.LanguageDotnet, shared.LanguageGo,
+		},
+		runtimeHealth: newRuntimeControlHealth("agent-runtime", agentRuntimeLimits(), time.Now),
 	}
 	a.trafficQuality = newTrafficQualityMonitor(a.clock, captureQualityConfigFrom(cfg))
 	a.runtimePublisher = NewHTTPRuntimePublisher(a)
@@ -242,7 +245,7 @@ func (a *Agent) capabilityModel() map[string]interface{} {
 	runtimeBackend := "disabled"
 	if a.cfg.HIDSEnabled {
 		runtimeStatus = "fallback"
-		runtimeBackend = fallbackBackendLabel(runtimeStrategy)
+		runtimeBackend = selectRuntimeBackend(runtimeStrategy)
 	}
 	yaraStatus := "disabled"
 	yaraBackend := "disabled"
@@ -338,7 +341,7 @@ func (a *Agent) capabilityModel() map[string]interface{} {
 			"python":         "sitecustomize_runtime_hooks",
 			"php":            "native_extension_with_prepend_fallback",
 			"java":           "javaagent_security_jdbc_hooks",
-			"languages":      []string{"python", "java"},
+			"languages":      []string{"python", "java", "php", "nodejs", "dotnet", "go"},
 			"generic":        "local_bridge_transport",
 			"active_backend": runtimeLanguageHint(),
 			"stream":         a.cfg.RASPStream,
@@ -819,10 +822,22 @@ func (a *Agent) pullConfigAndReportTasks() {
 	for _, task := range result.Data.Tasks {
 		taskID, _ := task["task_id"].(string)
 		status := "ignored"
+		taskResult := map[string]interface{}{}
+		errorMessage := ""
 		if taskID == "" {
 			status = "skipped"
+		} else {
+			result, taskStatus, err := a.executeResponseTask(task)
+			status = taskStatus
+			if result != nil {
+				taskResult = result
+			}
+			if err != nil {
+				status = "failed"
+				errorMessage = err.Error()
+			}
 		}
-		if err := a.reportTaskResult(taskID, status, map[string]interface{}{"note": "task execution stub"}, ""); err != nil {
+		if err := a.reportTaskResult(taskID, status, taskResult, errorMessage); err != nil {
 			fmt.Printf("[task] Warning: failed to report task result task_id=%s: %v\n", taskID, err)
 		}
 	}
@@ -2304,7 +2319,7 @@ func parseProcNetAddr(value string) (string, uint16) {
 
 func (a *Agent) runHIDS() {
 	strategy := detectStrategy()
-	backend := NewRuntimeMonitorBackend(strategy)
+	backend := NewRuntimeMonitorBackend(strategy, a)
 	mode := "monitor"
 	fmt.Printf("[hids] Monitoring (strategy: %s, mode: %s)\n", strategy, mode)
 	a.publishLogAuditHeartbeat()
@@ -2874,15 +2889,27 @@ type fileSignalCollector struct {
 	maxEvents int
 }
 
-func NewRuntimeMonitorBackend(strategy string) RuntimeMonitorBackend {
+func NewRuntimeMonitorBackend(strategy string, agents ...*Agent) RuntimeMonitorBackend {
+	var agent *Agent
+	if len(agents) > 0 {
+		agent = agents[0]
+	}
+	collectors := make([]runtimeCollector, 0, 4)
+	if ebpf := newEBPFProcessCollector(agent); ebpf != nil {
+		collectors = append(collectors, ebpf)
+	} else if auditd := newAuditdProcessCollector(agent); auditd != nil {
+		collectors = append(collectors, auditd)
+	} else {
+		collectors = append(collectors, newProcessDeltaCollector(256, 4))
+	}
+	collectors = append(collectors,
+		newAuthLogCollector([]string{"/var/log/auth.log", "/var/log/secure", "/var/log/messages"}, 4),
+		newFileSignalCollector([]string{"/etc/passwd", "/etc/shadow", "/etc/sudoers", "/etc/ssh/sshd_config", "/root/.ssh/authorized_keys", "/etc/crontab", "/etc/cron.d", "/etc/ld.so.preload", "/etc/systemd/system"}, 4),
+	)
 	return &runtimeCompositeBackend{
-		strategy: strategy,
-		collectors: []runtimeCollector{
-			newProcessDeltaCollector(256, 4),
-			newAuthLogCollector([]string{"/var/log/auth.log", "/var/log/secure", "/var/log/messages"}, 4),
-			newFileSignalCollector([]string{"/etc/passwd", "/etc/shadow", "/etc/sudoers", "/etc/ssh/sshd_config", "/root/.ssh/authorized_keys", "/etc/crontab", "/etc/cron.d", "/etc/ld.so.preload", "/etc/systemd/system"}, 4),
-		},
-		fallback: &runtimeFallbackBackend{backend: fallbackBackendLabel(strategy)},
+		strategy:   strategy,
+		collectors: collectors,
+		fallback:   &runtimeFallbackBackend{backend: fallbackBackendLabel(strategy)},
 	}
 }
 

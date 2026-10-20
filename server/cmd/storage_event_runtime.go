@@ -11,11 +11,13 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/lyflow/ly-flow-platform/contracts"
 	"github.com/lyflow/ly-flow-platform/server/analytics"
+	"github.com/lyflow/ly-flow-platform/server/correlation/lateral"
 )
 
 type StorageEventRuntime struct {
 	migration  *analytics.StorageMigration
 	clickhouse *analytics.HTTPClickHouse
+	lateral    *lateral.Tracker
 }
 
 func newProductionStorageEventRuntime(ctx context.Context, postgres *pgxpool.Pool) (*StorageEventRuntime, error) {
@@ -46,7 +48,13 @@ func newProductionStorageEventRuntime(ctx context.Context, postgres *pgxpool.Poo
 	if err := clickhouse.EnsureTrafficSessionTable(ctx); err != nil {
 		return nil, fmt.Errorf("initialize full-session storage: %w", err)
 	}
-	return &StorageEventRuntime{migration: migration, clickhouse: clickhouse}, nil
+	return &StorageEventRuntime{
+		migration: migration, clickhouse: clickhouse,
+		lateral: lateral.NewTracker(lateral.Config{
+			Window:     time.Duration(toInt(getEnv("LATERAL_MOVEMENT_WINDOW_SECONDS", "600"))) * time.Second,
+			MinTargets: toInt(getEnv("LATERAL_MOVEMENT_MIN_TARGETS", "3")),
+		}),
+	}, nil
 }
 
 func (runtime *StorageEventRuntime) WriteCanonical(ctx context.Context, event contracts.CanonicalSecurityEvent) error {
@@ -65,6 +73,37 @@ func (runtime *StorageEventRuntime) WriteCanonical(ctx context.Context, event co
 		RawReference: event.Provenance.NativeEventID, Message: event.EventType, PayloadJSON: string(payload),
 	}
 	return runtime.migration.Write(ctx, record)
+}
+
+// WriteEventsV2 persists validated canonical v2 events. The v2 path is a direct
+// ClickHouse append; the legacy v1 path keeps its migration/dual-write logic.
+func (runtime *StorageEventRuntime) WriteEventsV2(ctx context.Context, events []contracts.EventV2) error {
+	if runtime == nil || runtime.clickhouse == nil {
+		return fmt.Errorf("ClickHouse v2 event storage unavailable")
+	}
+	if runtime.lateral != nil {
+		findings := runtime.lateral.Observe(events)
+		events = append(events, lateralDerivedEventsFromFindings(runtime.lateral.Events(), findings)...)
+	}
+	if err := runtime.clickhouse.InsertEventsV2(ctx, events); err != nil {
+		return err
+	}
+	runtime.projectEventsV2ForXDR(ctx, events)
+	return nil
+}
+
+func (runtime *StorageEventRuntime) QueryEventsV2(ctx context.Context, query analytics.EventV2Query) (analytics.EventV2Page, error) {
+	if runtime == nil || runtime.clickhouse == nil {
+		return analytics.EventV2Page{}, fmt.Errorf("ClickHouse v2 event storage unavailable")
+	}
+	return runtime.clickhouse.QueryEventsV2(ctx, query)
+}
+
+func (runtime *StorageEventRuntime) GetEventV2(ctx context.Context, eventUID string) (analytics.EventV2View, error) {
+	if runtime == nil || runtime.clickhouse == nil {
+		return analytics.EventV2View{}, fmt.Errorf("ClickHouse v2 event storage unavailable")
+	}
+	return runtime.clickhouse.GetEventV2(ctx, eventUID)
 }
 
 func (runtime *StorageEventRuntime) WriteTrafficSession(ctx context.Context, session analytics.TrafficSessionRecord) error {

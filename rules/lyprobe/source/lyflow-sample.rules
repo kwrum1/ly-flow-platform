@@ -1,0 +1,26 @@
+# LyFlow sample source rules for the ly_probe converter.
+# These are examples, not a replacement for ET Open.
+
+# HTTP URI: SQL injection keywords (converted)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET WEB SQL union select"; flow:to_server,established; http_uri; content:"union select"; nocase; sid:9100001; rev:1; classtype:web-application-attack;)
+
+# HTTP URI: path traversal (converted)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET WEB path traversal"; flow:to_server,established; http_uri; content:"../"; sid:9100002; rev:1; classtype:web-application-attack;)
+
+# HTTP body: PHP eval (converted)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET WEB PHP eval body"; flow:to_server,established; http_client_body; content:"eval("; sid:9100003; rev:1; classtype:web-application-attack;)
+
+# TLS SNI: suspicious TLD (converted)
+alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"ET MALWARE suspicious xyz SNI"; tls_sni; content:".xyz"; sid:9100004; rev:1; classtype:trojan-activity;)
+
+# DNS query: exact name, encoded as DNS label regex (converted)
+alert dns $HOME_NET any -> any 53 (msg:"ET TROJAN profile test query"; dns_query; content:"profile.test"; sid:9100005; rev:1; classtype:trojan-activity;)
+
+# Simple PCRE (converted)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET WEB pcre union select"; flow:to_server,established; http_uri; pcre:"/union\s+select/i"; sid:9100006; rev:1; classtype:web-application-attack;)
+
+# Complex: flowbits is Suricata-only (skipped)
+alert tcp any any -> any any (msg:"ET MALWARE flowbits example"; content:"cmd.exe"; flowbits:set,lyflow_demo; sid:9100007; rev:1; classtype:trojan-activity;)
+
+# Complex: two content matches are Suricata-only (skipped)
+alert http any any -> any any (msg:"ET WEB multiple contents"; content:"GET"; content:"POST"; sid:9100008; rev:1; classtype:web-application-attack;)

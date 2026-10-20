@@ -7,6 +7,11 @@ const api = axios.create({
   timeout: 30000,
 })
 
+export const apiV2 = axios.create({
+  baseURL: '/api/v2',
+  timeout: 30000,
+})
+
 function clearSession() {
   localStorage.removeItem('token')
   localStorage.removeItem('user')
@@ -103,40 +108,45 @@ function normalizeAxiosError(error) {
   return toAPIError(error)
 }
 
-api.interceptors.request.use(config => {
-  const token = localStorage.getItem('token')
-  if (token) {
-    config.headers = config.headers || {}
-    config.headers.Authorization = `Bearer ${token}`
-  }
-  return config
-})
+function installInterceptors(client) {
+  client.interceptors.request.use(config => {
+    const token = localStorage.getItem('token')
+    if (token) {
+      config.headers = config.headers || {}
+      config.headers.Authorization = `Bearer ${token}`
+    }
+    return config
+  })
 
-api.interceptors.response.use(
-  response => {
-    try {
-      return unwrapAPIEnvelope(response.data)
-    } catch (error) {
-      const normalized = toAPIError(error)
-      ElMessage.error(normalized.message)
+  client.interceptors.response.use(
+    response => {
+      try {
+        return unwrapAPIEnvelope(response.data)
+      } catch (error) {
+        const normalized = toAPIError(error)
+        ElMessage.error(normalized.message)
+        return Promise.reject(normalized)
+      }
+    },
+    error => {
+      const normalized = normalizeAxiosError(error)
+
+      if (normalized.code === API_ERROR_CODES.UNAUTHORIZED) {
+        clearSession()
+        redirectToLogin()
+      }
+
+      if (normalized.code !== API_ERROR_CODES.REQUEST_CANCELED) {
+        ElMessage.error(normalized.message)
+      }
+
       return Promise.reject(normalized)
     }
-  },
-  error => {
-    const normalized = normalizeAxiosError(error)
+  )
+}
 
-    if (normalized.code === API_ERROR_CODES.UNAUTHORIZED) {
-      clearSession()
-      redirectToLogin()
-    }
-
-    if (normalized.code !== API_ERROR_CODES.REQUEST_CANCELED) {
-      ElMessage.error(normalized.message)
-    }
-
-    return Promise.reject(normalized)
-  }
-)
+installInterceptors(api)
+installInterceptors(apiV2)
 
 export function createRequestController() {
   return new AbortController()

@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# One-command lifecycle for the lean LyFlow Compose stack.
+set -euo pipefail
+
+DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT="$(cd "$DIR/../.." && pwd)"
+ENV_FILE="${LYFLOW_ENV_FILE:-$DIR/lean.env}"
+PROFILE_MODE="${LYFLOW_PROFILE:-lean}"
+COMPOSE=(docker compose --env-file "$ENV_FILE" -f "$DIR/lean.yml")
+if [ "$PROFILE_MODE" = "full-private" ]; then
+  COMPOSE+=(-f "$DIR/full-private.yml" --profile full-private)
+fi
+
+usage() {
+  cat <<'EOF'
+Usage: lyflowctl <command>
+
+Commands:
+  bootstrap       create lean.env, runtime directories and seed rules
+  config          validate the selected Compose profile
+  up              start core + capture profiles
+  down            stop the stack (volumes are retained)
+  ps              show service status
+  logs [service]  follow logs
+  upgrade         back up env, pull images, restart
+  rollback        restore the most recent env backup and restart
+  backup          dump PostgreSQL to backups/
+EOF
+}
+
+bootstrap() {
+  if [ ! -f "$ENV_FILE" ]; then
+    cp "$DIR/lean.env.example" "$ENV_FILE"
+    chmod 0600 "$ENV_FILE"
+    for key in POSTGRES_PASSWORD REDIS_ACL_PASSWORD CLICKHOUSE_PASSWORD JWT_SECRET SECURITY_ENGINE_CONTROL_TOKEN DEFAULT_ADMIN_PASSWORD; do
+      value="$(openssl rand -hex 24)"
+      sed -i "s|^${key}=.*|${key}=${value}|" "$ENV_FILE"
+    done
+    sed -i 's|^DEFAULT_ADMIN_PASSWORD=.*|DEFAULT_ADMIN_PASSWORD=change-me-now|' "$ENV_FILE"
+    echo "generated $ENV_FILE (change the admin password before first login)"
+  fi
+  mkdir -p "$DIR/runtime/fp-patterns" "$DIR/runtime/rules/source" "$DIR/runtime/status" "$DIR/runtime/suricata"
+  if [ -z "$(ls -A "$DIR/runtime/rules/source" 2>/dev/null)" ]; then
+    cp "$ROOT/rules/lyprobe/source/"*.rules "$DIR/runtime/rules/source/" 2>/dev/null || true
+  fi
+  if [ -f "$ROOT/rules/lyprobe/threat.json" ]; then
+    cp "$ROOT/rules/lyprobe/threat.json" "$DIR/runtime/fp-patterns/threat.json"
+    cp "$ROOT/rules/lyprobe/manifest.json" "$DIR/runtime/fp-patterns/manifest.json" 2>/dev/null || true
+  fi
+  source_dir="${LYPROBE_SOURCE_DIR:-/opt/lyflow/build/lyprobe-src}"
+  if [ -d "$source_dir/fp-patterns" ]; then
+    for name in service device os midware; do
+      cp "$source_dir/fp-patterns/$name.json" "$DIR/runtime/fp-patterns/" 2>/dev/null || true
+    done
+  else
+    echo "warning: upstream fp-patterns not found at $source_dir/fp-patterns" >&2
+    echo "         set LYPROBE_SOURCE_DIR or copy service/device/os/midware JSON manually" >&2
+  fi
+}
+
+case "${1:-}" in
+  bootstrap) bootstrap ;;
+  config)
+    [ -f "$ENV_FILE" ] || bootstrap
+    shift
+    "${COMPOSE[@]}" --profile core --profile capture config "$@"
+    ;;
+  up) [ -f "$ENV_FILE" ] || bootstrap; "${COMPOSE[@]}" --profile core --profile capture up -d ;;
+  down) "${COMPOSE[@]}" down ;;
+  ps) "${COMPOSE[@]}" ps ;;
+  logs)
+    shift
+    if [ "$#" -gt 0 ]; then
+      "${COMPOSE[@]}" logs -f --tail=200 "$@"
+    else
+      "${COMPOSE[@]}" logs -f --tail=200
+    fi
+    ;;
+  upgrade)
+    [ -f "$ENV_FILE" ] || { echo "missing $ENV_FILE" >&2; exit 1; }
+    mkdir -p "$DIR/releases"
+    cp "$ENV_FILE" "$DIR/releases/lean.env.$(date -u +%Y%m%dT%H%M%SZ)"
+    "${COMPOSE[@]}" --profile core --profile capture pull || true
+    "${COMPOSE[@]}" --profile core --profile capture up -d
+    ;;
+  rollback)
+    latest=$(ls -1t "$DIR/releases"/lean.env.* 2>/dev/null | head -1 || true)
+    [ -n "$latest" ] || { echo "no env backup found" >&2; exit 1; }
+    cp "$latest" "$ENV_FILE"
+    "${COMPOSE[@]}" --profile core --profile capture up -d
+    ;;
+  backup)
+    mkdir -p "$DIR/backups"
+    "${COMPOSE[@]}" exec -T postgres pg_dump -U lyflow -d lyflow \
+      > "$DIR/backups/postgres-$(date -u +%Y%m%dT%H%M%SZ).sql"
+    ;;
+  *) usage; exit 2 ;;
+esac

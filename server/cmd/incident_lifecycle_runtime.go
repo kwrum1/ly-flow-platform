@@ -11,6 +11,7 @@ import (
 
 	"github.com/lyflow/ly-flow-platform/server/incidentlifecycle"
 	"github.com/lyflow/ly-flow-platform/server/modules/auth"
+	"github.com/lyflow/ly-flow-platform/server/xdr/models"
 )
 
 type incidentSnapshotState struct {
@@ -91,6 +92,9 @@ func syncActiveIncidentStore(ctx context.Context, store *incidentlifecycle.Postg
 		if chain.EventCount < 2 || len(uniqueStrings(chain.Stages)) < 2 || chain.CandidateOnly && chain.PathEvidence == nil {
 			continue
 		}
+		if !incidentPathHasStrongEdge(chain.PathEvidence) {
+			continue
+		}
 		row := chain.jsonRow()
 		evidence := make([]incidentlifecycle.Evidence, 0)
 		displayEvidence := make(map[string]map[string]interface{}, len(chain.Evidence))
@@ -137,6 +141,22 @@ func syncActiveIncidentStore(ctx context.Context, store *incidentlifecycle.Postg
 	return nil
 }
 
+// incidentPathHasStrongEdge prevents a weak same-source-IP edge from being
+// promoted to an incident. Weak IP coincidence alone produces cross-asset
+// false chains; a path must not contain any weak same-IP edge.
+func incidentPathHasStrongEdge(path *models.PathEvidence) bool {
+	if path == nil || len(path.Timeline) == 0 {
+		return true
+	}
+	for _, step := range path.Timeline {
+		edgeType := strings.ToLower(strings.TrimSpace(step.EdgeType))
+		if edgeType == models.EdgeTypeWeakSameIP {
+			return false
+		}
+	}
+	return true
+}
+
 func loadLegacyIncidentStatus(id string) (incidentlifecycle.Status, bool) {
 	value, exists := incidentStatusStore.Load(strings.TrimSpace(id))
 	if !exists {
@@ -171,7 +191,7 @@ func incidentJSONRow(incident incidentlifecycle.Incident) map[string]interface{}
 		}
 		var rawValue map[string]interface{}
 		if json.Unmarshal(item.Raw, &rawValue) == nil {
-			for _, key := range []string{"id", "event_type", "source_module", "source_engine", "src_ip", "dst_ip", "summary", "raw_event", "raw_reference", "entity_id", "tactic", "technique"} {
+			for _, key := range []string{"id", "event_type", "source_module", "source_engine", "src_ip", "dst_ip", "asset_id", "agent_id", "host_id", "summary", "raw_event", "raw_reference", "entity_id", "tactic", "technique"} {
 				if value, exists := rawValue[key]; exists {
 					row[key] = value
 				}

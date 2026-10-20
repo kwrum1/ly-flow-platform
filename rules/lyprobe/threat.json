@@ -1,0 +1,57 @@
+{
+  "threat": {
+    "rules": {
+      "9100001": {
+        "type": "WEB",
+        "name": "ET WEB SQL union select",
+        "desc": "ET WEB SQL union select",
+        "protocol": "tcp",
+        "is_http": 1,
+        "part": "head",
+        "regex": "(?i)union select"
+      },
+      "9100002": {
+        "type": "WEB",
+        "name": "ET WEB path traversal",
+        "desc": "ET WEB path traversal",
+        "protocol": "tcp",
+        "is_http": 1,
+        "part": "head",
+        "regex": "\\.\\./"
+      },
+      "9100003": {
+        "type": "WEB",
+        "name": "ET WEB PHP eval body",
+        "desc": "ET WEB PHP eval body",
+        "protocol": "tcp",
+        "is_http": 1,
+        "part": "body",
+        "regex": "eval\\("
+      },
+      "9100004": {
+        "type": "MALWARE",
+        "name": "ET MALWARE suspicious xyz SNI",
+        "desc": "ET MALWARE suspicious xyz SNI",
+        "protocol": "tcp",
+        "regex": "\\.xyz"
+      },
+      "9100005": {
+        "type": "MALWARE",
+        "name": "ET TROJAN profile test query",
+        "desc": "ET TROJAN profile test query",
+        "protocol": "udp",
+        "port": 53,
+        "regex": "\\x07profile\\x04test"
+      },
+      "9100006": {
+        "type": "WEB",
+        "name": "ET WEB pcre union select",
+        "desc": "ET WEB pcre union select",
+        "protocol": "tcp",
+        "is_http": 1,
+        "part": "head",
+        "regex": "(?i)union\\s+select"
+      }
+    }
+  }
+}

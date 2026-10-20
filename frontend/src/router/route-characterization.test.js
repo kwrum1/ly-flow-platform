@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+﻿import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const routerCapture = vi.hoisted(() => ({ routes: [] }))
 
@@ -22,9 +22,28 @@ describe('current route characterization', () => {
     const protectedRoutes = shell?.children ?? []
     const routeCount = routerCapture.routes.length + protectedRoutes.length
 
-    expect(routeCount).toBe(27)
-    expect(protectedRoutes).toHaveLength(22)
-    expect(protectedRoutes.every((route) => route.meta?.roles?.join(',') === 'admin')).toBe(true)
+    expect(routeCount).toBe(32)
+    expect(protectedRoutes).toHaveLength(27)
+    const adminRoutes = protectedRoutes.filter((route) => route.meta?.roles?.length)
+    expect(adminRoutes.every((route) => route.meta.roles.join(',') === 'admin')).toBe(true)
+    expect(protectedRoutes.find((route) => route.path === 'forbidden')?.meta?.roles).toBeUndefined()
+  })
+
+  it('redirects legacy duplicate routes to canonical screens', () => {
+    const shell = routerCapture.routes.find((route) => Array.isArray(route.children))
+    const protectedRoutes = shell?.children ?? []
+    const redirects = Object.fromEntries(
+      protectedRoutes.filter((route) => route.redirect).map((route) => [route.path, route.redirect]),
+    )
+
+    expect(redirects).toEqual({
+      'application-threats': '/rasp',
+      'system-security-audit': '/runtime',
+      'host-ops': '/assets',
+      'real-time-posture': '/xdr',
+      'rule-visibility': '/rules',
+      'rule-updates': '/rules',
+    })
   })
 
   it('records the current unknown-path dashboard fallback', () => {
@@ -36,3 +55,4 @@ describe('current route characterization', () => {
     })
   })
 })
+

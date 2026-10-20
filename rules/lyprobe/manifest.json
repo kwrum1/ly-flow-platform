@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-10-19T03:06:25.384520423Z",
+  "source_hash": "b125b8ea434261448c226deac65d5820f27e908a33171a06d2e5fca5928cf4d4",
+  "source_files": [
+    "rules/lyprobe/source/lyflow-sample.rules"
+  ],
+  "converted": 6,
+  "skipped": [
+    {
+      "sid": 9100007,
+      "msg": "ET MALWARE flowbits example",
+      "reason": "complex matcher is Suricata-only: flowbits",
+      "source": "rules/lyprobe/source/lyflow-sample.rules",
+      "line": 23
+    },
+    {
+      "sid": 9100008,
+      "msg": "ET WEB multiple contents",
+      "reason": "multiple content/pcre matches are Suricata-only",
+      "source": "rules/lyprobe/source/lyflow-sample.rules",
+      "line": 26
+    }
+  ],
+  "output_sha256": "3245b38643774d4d3fcf2b33ad845700a3236927feb0a7cf7f2882509ee799bc"
+}

@@ -12,12 +12,19 @@
     <article class="panel table-panel">
       <div class="panel-title"><strong>账户列表</strong><button class="primary" @click="openCreate">新增账户</button></div>
       <table>
-        <thead><tr><th>用户名</th><th>状态</th><th>创建时间</th><th>最近登录</th><th>操作</th></tr></thead>
+        <thead><tr><th>用户名</th><th>角色</th><th>状态</th><th>创建时间</th><th>最近登录</th><th>操作</th></tr></thead>
         <tbody>
-          <tr v-if="loading"><td colspan="5" class="empty-cell">正在读取账户数据</td></tr>
-          <tr v-else-if="!users.length"><td colspan="5" class="empty-cell">暂无账户</td></tr>
+          <tr v-if="loading"><td colspan="6" class="empty-cell">正在读取账户数据</td></tr>
+          <tr v-else-if="!users.length"><td colspan="6" class="empty-cell">暂无账户</td></tr>
           <tr v-for="user in users" :key="user.id || user.username">
             <td><strong>{{ pickText(user.username, '未命名账户') }}</strong><span v-if="isSelf(user)" class="self-tag">本机账号</span></td>
+            <td>
+              <select class="role-select" :value="user.role || 'viewer'" :disabled="busy || isSelf(user)" @change="changeRole(user, $event.target.value)">
+                <option value="admin">管理员</option>
+                <option value="analyst">分析员</option>
+                <option value="viewer">只读</option>
+              </select>
+            </td>
             <td><span :class="['state', user.is_active === false ? 'off' : 'on']">{{ user.is_active === false ? '停用' : '启用' }}</span></td>
             <td>{{ formatTime(user.created_at) }}</td>
             <td>{{ formatTime(user.last_login_at) }}</td>
@@ -38,6 +45,13 @@
         <label><span>用户名</span><input v-model.trim="createForm.username" autocomplete="off"></label>
         <label><span>密码</span><input v-model="createForm.password" type="password" autocomplete="new-password"></label>
         <label><span>确认密码</span><input v-model="createForm.confirmPassword" type="password" autocomplete="new-password"></label>
+        <label><span>角色</span>
+          <select v-model="createForm.role">
+            <option value="viewer">只读</option>
+            <option value="analyst">分析员</option>
+            <option value="admin">管理员</option>
+          </select>
+        </label>
         <div class="modal-actions"><button @click="closeCreate" :disabled="busy">取消</button><button class="primary" @click="createUser" :disabled="busy">保存</button></div>
       </section>
     </div>
@@ -46,7 +60,7 @@
       <section class="modal-card">
         <div class="modal-title"><strong>修改 {{ resetUser.username }} 的密码</strong><button @click="closeReset">×</button></div>
         <div v-if="modalError" class="modal-notice error">{{ modalError }}</div>
-        <label><span>旧密码</span><input v-model="resetOldPassword" type="password" autocomplete="current-password"></label>
+        <label v-if="isSelf(resetUser)"><span>旧密码</span><input v-model="resetOldPassword" type="password" autocomplete="current-password"></label>
         <label><span>新密码</span><input v-model="resetPassword" type="password" autocomplete="new-password"></label>
         <label><span>确认新密码</span><input v-model="resetConfirmPassword" type="password" autocomplete="new-password"></label>
         <div class="modal-actions"><button @click="closeReset" :disabled="busy">取消</button><button class="primary" @click="submitReset" :disabled="busy">确认</button></div>
@@ -74,7 +88,7 @@ const resetUser = ref(null)
 const resetOldPassword = ref('')
 const resetPassword = ref('')
 const resetConfirmPassword = ref('')
-const createForm = ref({ username: '', password: '', confirmPassword: '' })
+const createForm = ref({ username: '', password: '', confirmPassword: '', role: 'viewer' })
 
 function formatTime(value) { return value ? formatChinaDateTime(value) : '-' }
 function isSelf(user) { return String(user.id) === String(authStore.user?.id) }
@@ -92,7 +106,7 @@ function notify(text) { message.value = text; error.value = '' }
 function fail(text) { error.value = text; message.value = '' }
 function failModal(text) { modalError.value = text; message.value = '' }
 function openCreate() { showCreate.value = true; message.value = ''; error.value = ''; modalError.value = '' }
-function closeCreate() { showCreate.value = false; modalError.value = ''; createForm.value = { username: '', password: '', confirmPassword: '' } }
+function closeCreate() { showCreate.value = false; modalError.value = ''; createForm.value = { username: '', password: '', confirmPassword: '', role: 'viewer' } }
 
 async function loadUsers() {
   loading.value = true; error.value = ''
@@ -105,10 +119,37 @@ async function createUser() {
   if (validation) return failModal(validation)
   busy.value = true
   try {
-    await authClient.createUser({ username: createForm.value.username, password: createForm.value.password, role: 'admin' })
-    closeCreate(); notify('账户已新增'); await loadUsers()
+    // /auth/register intentionally rejects caller-supplied roles; create as viewer,
+    // then apply the selected role through the admin-only user update endpoint.
+    const createdResponse = await authClient.createUser({ username: createForm.value.username, password: createForm.value.password })
+    const created = unwrap(createdResponse)
+    const role = createForm.value.role || 'viewer'
+    if (role !== 'viewer' && created.id) {
+      try {
+        await authClient.updateUser(created.id, { role })
+      } catch (roleError) {
+        closeCreate()
+        await loadUsers()
+        fail(`账户已创建为只读，角色设置失败：${roleError?.message || role || '未知错误'}`)
+        return
+      }
+    }
+    closeCreate(); notify(`账户已新增${role !== 'viewer' ? `（${roleLabel(role)}）` : ''}`); await loadUsers()
   } catch (e) { failModal(e?.message || '新增账户失败') } finally { busy.value = false }
 }
+
+async function changeRole(user, role) {
+  if (!user?.id || user.role === role || isSelf(user)) return
+  busy.value = true
+  try {
+    await authClient.updateUser(user.id, { role })
+    notify(`已将 ${user.username} 的角色调整为${roleLabel(role)}`)
+    await loadUsers()
+  } catch (e) { fail(e?.message || '角色修改失败') } finally { busy.value = false }
+}
+
+function roleLabel(value) { return ({ admin: '管理员', analyst: '分析员', viewer: '只读' })[value] || value }
+function unwrap(response) { return response?.data?.data ?? response?.data ?? response ?? {} }
 
 async function toggleActive(user) {
   if (isSelf(user)) return fail('不能停用当前登录账号')
@@ -123,13 +164,14 @@ function openReset(user) { resetUser.value = user; resetOldPassword.value = ''; 
 function closeReset() { resetUser.value = null; modalError.value = ''; resetOldPassword.value = ''; resetPassword.value = ''; resetConfirmPassword.value = '' }
 
 async function submitReset() {
-  if (!resetOldPassword.value) return failModal('请输入旧密码')
+  if (!resetUser.value) return
+  if (isSelf(resetUser.value) && !resetOldPassword.value) return failModal('请输入旧密码')
   const validation = validatePassword(resetPassword.value, resetConfirmPassword.value)
   if (validation) return failModal(validation)
   busy.value = true
   try {
     if (isSelf(resetUser.value)) await authClient.changePassword({ old_password: resetOldPassword.value, new_password: resetPassword.value })
-    else await authClient.resetPassword({ user_id: resetUser.value.id, old_password: resetOldPassword.value, new_password: resetPassword.value })
+    else await authClient.resetPassword({ user_id: resetUser.value.id, new_password: resetPassword.value })
     closeReset(); notify('密码已修改')
   } catch (e) { failModal(e?.message || '修改密码失败') } finally { busy.value = false }
 }
@@ -151,5 +193,5 @@ onUnmounted(() => clearInterval(refreshTimer))
 
 <style scoped>
 .account-page{position:relative;height:100%;min-height:0;display:grid;grid-template-rows:auto auto minmax(0,1fr);gap:12px;padding:14px;color:var(--text-primary);box-sizing:border-box}.account-header,.panel,.modal-card{border:1px solid var(--border-color);border-radius:var(--card-radius);background:var(--bg-card);box-shadow:var(--shadow-card)}.account-header{height:44px;display:flex;align-items:center;padding:0 16px}.account-header h2{margin:0;color:var(--text-primary);font-size:16px}.panel{min-height:0;overflow:hidden}.table-panel{display:grid;grid-template-rows:44px minmax(0,1fr)}.panel-title{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border-light);background:rgba(4,12,24,.38)}.panel-title strong{color:var(--text-primary);font-size:14px}button{height:32px;padding:0 12px;border:1px solid var(--border-color);border-radius:var(--card-radius-sm);background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer;font-size:12px;transition:border-color var(--transition-fast),color var(--transition-fast),background var(--transition-fast)}button:hover:not(:disabled){border-color:var(--border-glow);color:var(--text-primary);background:var(--bg-hover)}button:disabled{opacity:.45;cursor:not-allowed}.primary{border:0;background:linear-gradient(135deg,var(--primary-color),var(--risk-low));color:var(--text-inverse);font-weight:900;box-shadow:0 10px 28px rgba(56,189,248,.18)}input,select{height:32px;min-width:0;border:1px solid var(--border-color);border-radius:var(--card-radius-sm);background:var(--bg-secondary);color:var(--text-primary);padding:0 11px;font-size:12px;outline:0}input:focus,select:focus{border-color:var(--border-glow);box-shadow:0 0 0 3px var(--primary-glow)}table{width:100%;min-width:760px;border-collapse:separate;border-spacing:0;table-layout:fixed}th,td{padding:8px 12px;border-bottom:1px solid var(--border-light);text-align:left;vertical-align:middle}th{position:sticky;top:0;z-index:1;height:36px;color:var(--text-muted);background:var(--bg-card);font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}td{height:38px;color:var(--text-primary);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}td strong{color:var(--text-primary);font-size:12px}.empty-cell{height:96px;text-align:center;color:var(--text-secondary)}.self-tag{display:inline-flex;margin-left:8px;padding:3px 8px;border-radius:999px;color:var(--primary-light);background:rgba(125,211,252,.09);font-size:11px}.state{display:inline-flex;align-items:center;justify-content:center;min-width:44px;height:22px;border-radius:999px;font-size:11px;font-weight:900}.state.on{color:var(--risk-low);background:var(--risk-low-bg);border:1px solid var(--risk-low-border)}.state.off{color:var(--risk-critical);background:var(--risk-critical-bg);border:1px solid var(--risk-critical-border)}.ops{display:flex;gap:8px;align-items:center}.danger{color:#fecaca;border-color:var(--risk-critical-border);background:var(--risk-critical-bg)}.notice,.modal-notice{padding:10px 12px;border-radius:var(--card-radius-sm);font-size:12px}.notice.success{border:1px solid var(--risk-low-border);color:var(--risk-low);background:var(--risk-low-bg)}.notice.error,.modal-notice.error{border:1px solid var(--risk-critical-border);color:#fecaca;background:var(--risk-critical-bg)}.modal-mask{position:fixed;inset:0;z-index:40;display:flex;align-items:center;justify-content:center;padding:24px;background:rgba(2,8,23,.58)}.modal-card{width:min(520px,92vw);display:grid;gap:14px;padding:18px}.modal-title{display:flex;align-items:center;justify-content:space-between;padding-bottom:12px;border-bottom:1px solid var(--border-light)}.modal-title strong{font-size:16px}.modal-card label{display:grid;gap:6px;color:var(--text-secondary);font-size:12px}.modal-actions{display:flex;justify-content:flex-end;gap:10px}@media(max-width:900px){.account-page{padding:10px}.ops{flex-wrap:wrap}}
-.account-page{color:#243149!important;background:#f3f6fa!important}.account-header,.panel,.modal-card{border-color:#dce3ec!important;background:#fff!important;box-shadow:0 3px 12px rgba(44,66,96,.07)!important}.panel-title{border-color:#e3e9f1!important;background:#f6f8fb!important}.panel-title strong,.account-header h2,td strong{color:#263247!important}input,select{border-color:#d7e0eb!important;background:#fff!important;color:#263247!important}.notice.error,.modal-notice.error{color:#b42318!important;background:#fff3f2!important;border-color:#f0b5b1!important}.primary{background:#1769d2!important;color:#fff!important;box-shadow:none!important}.danger{color:#b42318!important;background:#fff3f2!important}.self-tag{color:#1769ba!important;background:#edf6ff!important}.state.on{color:#178653!important;background:#edf9f2!important}.state.off{color:#b42318!important;background:#fff3f2!important}
+.account-page{color:#243149!important;background:#f3f6fa!important}.account-header,.panel,.modal-card{border-color:#dce3ec!important;background:#fff!important;box-shadow:0 3px 12px rgba(44,66,96,.07)!important}.panel-title{border-color:#e3e9f1!important;background:#f6f8fb!important}.panel-title strong,.account-header h2,td strong{color:#263247!important}input,select{border-color:#d7e0eb!important;background:#fff!important;color:#263247!important}.notice.error,.modal-notice.error{color:#b42318!important;background:#fff3f2!important;border-color:#f0b5b1!important}.primary{background:#1769d2!important;color:#fff!important;box-shadow:none!important}.danger{color:#b42318!important;background:#fff3f2!important}.self-tag{color:#1769ba!important;background:#edf6ff!important}.state.on{color:#178653!important;background:#edf9f2!important}.state.off{color:#b42318!important;background:#fff3f2!important}.role-select{height:26px!important;padding:0 6px!important;font-size:11px!important}
 </style>

@@ -15,7 +15,7 @@
       <article class="surface-card metric-card">
         <span>组件告警</span>
         <strong>{{ stats.total_alerts ?? stats.total_events ?? 0 }}</strong>
-        <em>今日 {{ stats.alerts_today ?? stats.today_events ?? 0 }} 条</em>
+        <em>今日 {{ stats.today_alerts ?? stats.alerts_today ?? stats.today_events ?? 0 }} 条</em>
       </article>
       <article class="surface-card metric-card">
         <span>活跃攻击链</span>
@@ -40,7 +40,7 @@
           <strong>XDR 攻击链</strong>
           <span>{{ chainTotal }} 条</span>
         </div>
-        <div v-if="loading" class="state-card">正在读取 XDR 攻击链</div>
+        <div v-if="loading && !chains.length" class="state-card">正在读取 XDR 攻击链</div>
         <div v-else-if="chains.length === 0" class="state-card">当前没有满足关联阈值的攻击链。</div>
         <ul v-else class="incident-list">
           <li v-for="chain in chains" :key="chain.id">
@@ -67,7 +67,7 @@
           <strong>攻击时间线</strong>
           <span>{{ timelineTotal }} 个节点</span>
         </div>
-        <div v-if="loading" class="state-card">正在读取后端时间线</div>
+        <div v-if="loading && !timeline.length" class="state-card">正在读取后端时间线</div>
         <div v-else-if="timeline.length === 0" class="state-card">当前攻击链没有可展示的时间线节点。</div>
         <ol v-else class="timeline-list">
           <li v-for="item in timeline" :key="item.id">
@@ -116,17 +116,14 @@ import { formatChinaDateTime } from '../shared/time'
 const loading = ref(false)
 const error = ref('')
 const stats = ref({})
-const incidentsPayload = ref({ items: [], total: 0 })
 const chainsPayload = ref({ items: [], total: 0 })
 const timelinePayload = ref({ items: [], total: 0 })
 const eventsPayload = ref({ items: [], total: 0 })
 const posture = ref({})
 
-const incidents = computed(() => incidentsPayload.value.items)
 const chains = computed(() => chainsPayload.value.items)
 const timeline = computed(() => timelinePayload.value.items)
 const events = computed(() => eventsPayload.value.items)
-const incidentTotal = computed(() => incidentsPayload.value.total)
 const chainTotal = computed(() => chainsPayload.value.total)
 const timelineTotal = computed(() => timelinePayload.value.total)
 const eventTotal = computed(() => eventsPayload.value.total)
@@ -163,21 +160,17 @@ function stageGroups(chain) {
 const loadAll = async () => {
   loading.value = true
   error.value = ''
+  let succeeded = 0
+  const jobs = [
+    attackWorkbenchClient.stats().then((value) => { stats.value = value || {}; succeeded++ }),
+    attackWorkbenchClient.xdrChains({ limit: 20 }).then((value) => { chainsPayload.value = normalizeItems(value); succeeded++ }),
+    attackWorkbenchClient.xdrPosture().then((value) => { posture.value = value || {}; succeeded++ }),
+    attackWorkbenchClient.timeline({ limit: 30 }).then((value) => { timelinePayload.value = normalizeItems(value); succeeded++ }),
+    attackWorkbenchClient.events({ limit: 20 }).then((value) => { eventsPayload.value = normalizeItems(value); succeeded++ }),
+  ]
   try {
-    const [nextStats, nextIncidents, nextChains, nextPosture, nextTimeline, nextEvents] = await Promise.all([
-      attackWorkbenchClient.stats(),
-      attackWorkbenchClient.incidents({ limit: 20 }),
-      attackWorkbenchClient.xdrChains({ limit: 20 }),
-      attackWorkbenchClient.xdrPosture(),
-      attackWorkbenchClient.timeline({ limit: 30 }),
-      attackWorkbenchClient.events({ limit: 20 }),
-    ])
-    stats.value = nextStats || {}
-    incidentsPayload.value = normalizeItems(nextIncidents)
-    chainsPayload.value = normalizeItems(nextChains)
-    posture.value = nextPosture || {}
-    timelinePayload.value = normalizeItems(nextTimeline)
-    eventsPayload.value = normalizeItems(nextEvents)
+    await Promise.allSettled(jobs)
+    if (succeeded === 0) error.value = '无法读取攻击链工作台数据'
   } catch (requestError) {
     error.value = requestError?.message || '无法读取攻击链工作台数据'
   } finally {

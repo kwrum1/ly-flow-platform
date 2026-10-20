@@ -33,13 +33,41 @@ func NewManager(config ManagerConfig) *Manager {
 func (manager *Manager) EnsureDefault(ctx context.Context, owner, auditLink string) (SignedPolicy, error) {
 	active, err := manager.store.Active(ctx)
 	if err == nil {
-		return active.Envelope, nil
+		latest, latestErr := manager.store.Latest(ctx)
+		if latestErr == nil && latest.State == StateCanary && selectorsCoverDefaultLanguages(latest.Envelope.Policy.Selectors.Languages) {
+			return latest.Envelope, nil
+		}
+		if selectorsCoverDefaultLanguages(active.Envelope.Policy.Selectors.Languages) {
+			return active.Envelope, nil
+		}
+		version := active.Envelope.Policy.Version + 1
+		if latestErr == nil && latest.Envelope.Policy.Version >= version {
+			version = latest.Envelope.Policy.Version + 1
+		}
+		policy := active.Envelope.Policy
+		policy.Version = version
+		policy.Selectors.Languages = DefaultLanguages()
+		policy.ExpiresAt = manager.now().Add(365 * 24 * time.Hour)
+		return manager.create(ctx, policy, StateCanary)
 	}
 	if !errors.Is(err, ErrNotFound) {
 		return SignedPolicy{}, fmt.Errorf("load active policy: %w", err)
 	}
 	policy := DefaultPolicy(manager.now(), owner, auditLink)
 	return manager.create(ctx, policy, StateActive)
+}
+
+func selectorsCoverDefaultLanguages(selectors []Language) bool {
+	present := make(map[Language]bool, len(selectors))
+	for _, language := range selectors {
+		present[language] = true
+	}
+	for _, language := range DefaultLanguages() {
+		if !present[language] {
+			return false
+		}
+	}
+	return true
 }
 
 func (manager *Manager) Create(ctx context.Context, policy Policy) (SignedPolicy, error) {

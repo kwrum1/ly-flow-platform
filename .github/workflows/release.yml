@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 检出源码
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
       - name: 安装规则构建工具
         run: sudo apt-get update && sudo apt-get install -y jq
       - name: 从公网重新获取全部规则源
@@ -34,7 +34,7 @@ jobs:
           sha256sum --check rules/cloud-snapshot/compiled.sha256
           tar -czf "$RUNNER_TEMP/lyflow-rules-${GITHUB_SHA}.tar.gz" rules/cloud-snapshot
       - name: 传递本次规则快照
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: current-rule-snapshot
           path: ${{ runner.temp }}/lyflow-rules-${{ github.sha }}.tar.gz
@@ -57,18 +57,18 @@ jobs:
       LYFLOW_TARGET_ARCH: ${{ matrix.arch }}
     steps:
       - name: 检出源码
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
       - name: 安装 Go 工具链
-        uses: actions/setup-go@v7
+        uses: actions/setup-go@v5
         with:
           go-version-file: server/go.mod
           cache: false
       - name: 安装 Node.js 长期支持版
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: 'lts/*'
       - name: 下载本次规则快照
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           name: current-rule-snapshot
           path: ${{ runner.temp }}/rules
@@ -125,7 +125,7 @@ jobs:
           tar -tzf "$bundle" ly-flow-platform/rules/cloud-snapshot/manifest.json >/dev/null
           tar -tzf "$bundle" ly-flow-platform/scripts/install-docker-bundle.sh >/dev/null
       - name: 暂存当前架构服务端包
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@v4
         with:
           name: lyflow-server-${{ matrix.arch }}
           path: release/lyflow-server-${{ matrix.arch }}.tar.gz
@@ -138,7 +138,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: 下载双架构服务端包
-        uses: actions/download-artifact@v8
+        uses: actions/download-artifact@v4
         with:
           pattern: lyflow-server-*
           path: release

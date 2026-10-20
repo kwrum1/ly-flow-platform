@@ -113,6 +113,15 @@ func (bridge *raspBridgeRuntime) handleEvent(w http.ResponseWriter, r *http.Requ
 		http.Error(w, "RASP event resource budget exceeded", http.StatusTooManyRequests)
 		return
 	}
+	if request.AgentID == "" {
+		request.AgentID = binding.AgentID
+	}
+	if request.PolicyID == "" {
+		request.PolicyID = binding.PolicyID
+	}
+	if request.PolicyVersion == 0 {
+		request.PolicyVersion = binding.Version
+	}
 	if err := request.validate(binding); err != nil {
 		if errors.Is(err, errRASPBridgeBinding) {
 			http.Error(w, "RASP event binding mismatch", http.StatusConflict)
