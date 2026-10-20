@@ -285,12 +285,12 @@ async function loadIncidents() {
   loading.value = true
   error.value = ''
   try {
-    const data = unwrap(await attackWorkbenchClient.incidents({ limit: 20 }))
+    const data = unwrap(await attackWorkbenchClient.incidents({ limit: 10 }))
     incidents.value = normalizeIncidents(Array.isArray(data.items) ? data.items : [])
     incidentTotal.value = Number(data.total ?? incidents.value.length) || incidents.value.length
     const wanted = String(route.query.id || '')
     const current = incidents.value.find((item) => item.id === wanted) || incidents.value.find((item) => item.id === selected.value?.id) || incidents.value[0]
-    if (current) await selectIncident(current)
+    if (current) selectIncident(current)
   } catch (cause) {
     error.value = 'Incident 数据加载失败，请检查后端连接。'
   } finally {
