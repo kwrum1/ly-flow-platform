@@ -209,7 +209,7 @@ const severityOptions = [
 ]
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
-const totalNativeCount = computed(() => Object.values(counts.value || {}).reduce((sum, value) => sum + Number(value || 0), 0))
+const totalNativeCount = computed(() => total.value)
 const engineDefinitions = {
   'security-engine': { label: 'LyFlow DPI 引擎', short: 'LY', order: 0 },
   suricata: { label: 'Suricata', short: 'SU', order: 1 },
