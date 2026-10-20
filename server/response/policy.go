@@ -130,7 +130,9 @@ var chinaTime = time.FixedZone("Asia/Shanghai", 8*60*60)
 func (engine *Engine) inWindow(now time.Time) bool {
 	hour := now.In(chinaTime).Hour()
 	if engine.policy.WindowStartHour <= engine.policy.WindowEndHour {
-		return hour >= engine.policy.WindowStartHour && hour < engine.policy.WindowEndHour
+		// The UI exposes an inclusive end hour: an end of 23 means the
+		// window remains open through 23:59 local time.
+		return hour >= engine.policy.WindowStartHour && hour <= engine.policy.WindowEndHour
 	}
 	return hour >= engine.policy.WindowStartHour || hour < engine.policy.WindowEndHour
 }
