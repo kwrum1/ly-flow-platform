@@ -14,7 +14,7 @@
         <span>{{ sourceRows.length }} 个规则模块 / {{ totalNativeCount }} 条原生规则</span>
       </div>
       <div class="source-grid">
-        <div v-for="item in sourceRows" :key="item.key" class="source-row">
+        <div v-for="item in sourceRows" :key="item.key" :class="['source-row', `engine-${item.key}`]">
           <div class="source-main">
             <span :class="['status-dot', item.running ? 'ok' : item.installed ? 'warn' : 'bad']"></span>
             <div>
@@ -23,15 +23,15 @@
             </div>
           </div>
           <div class="source-fields">
-            <div class="path-field"><span>本地路径</span><strong>{{ item.localPath }}</strong></div>
+            <div class="path-field"><span>本地路径</span><strong :title="item.localPath">{{ item.localPath }}</strong></div>
             <div v-if="item.feeds?.length" class="feed-field"><span>更新源</span><strong>{{ item.feeds.length }} 个</strong></div>
-            <div><span>当前版本</span><strong>{{ item.currentVersion }}</strong></div>
-            <div><span>最新版本</span><strong>{{ item.latestVersion }}</strong></div>
+            <div><span>当前版本</span><strong :title="item.currentVersion">{{ item.currentVersion }}</strong></div>
+            <div><span>最新版本</span><strong :title="item.latestVersion">{{ item.latestVersion }}</strong></div>
             <div><span>{{ item.ruleCountLabel }}</span><strong>{{ item.ruleCount }} 条</strong></div>
             <div v-if="item.ruleFileCount !== null"><span>规则文件</span><strong>{{ item.ruleFileCount }} 个</strong></div>
           </div>
           <div v-if="item.feeds?.length" class="feed-list">
-            <span v-for="feed in item.feeds" :key="feed.source_id">{{ feed.name }}</span>
+            <span v-for="feed in item.feeds" :key="feed.source_id" :title="feed.name">{{ feed.name }}</span>
           </div>
           <div class="source-actions">
             <em :class="item.running ? 'run' : item.installed ? 'warn' : 'bad'">{{ item.statusText }}</em>
@@ -140,31 +140,35 @@ const sourceRows = computed(() => {
   const engines = runtimeStatus.value?.engines || {}
   const trafficSources = sourceItems.value.filter((source) => isTrafficSource(source))
   const suricataSemantics = countSemantics.value?.suricata || {}
-  return ['suricata', 'wazuh', 'yara', 'geoip'].map((name) => {
+  return ['suricata', 'wazuh', 'yara', 'rasp', 'geoip'].map((name) => {
     const runtime = engines[name] || {}
     const source = findSourceForEngine(name)
     const geoSource = name === 'geoip'
+    const hasGeoSource = geoSource && !!source
     const trafficSource = name === 'suricata'
-    const currentVersion = geoSource ? firstText(source?.current_version, 'city-db') : firstText(source?.current_version, runtime.rule_pack_version, runtime.version)
+    const raspSource = name === 'rasp'
+    const currentVersion = geoSource
+      ? (hasGeoSource ? firstText(source?.current_version, 'city-db') : '未配置')
+      : firstText(source?.current_version, runtime.rule_pack_version, runtime.version, raspSource ? '内置规则' : '')
     const feeds = trafficSource ? trafficSources : []
-    const ruleCount = trafficSource ? Number(suricataSemantics.signature_count ?? 0) : geoSource ? 1 : Number(counts.value?.[name] || runtime.rule_count || 0)
-    const effectiveInstalled = geoSource || !!runtime.installed || ruleCount > 0 || !!source?.current_version
-    const effectiveRunning = geoSource || !!runtime.running || (trafficSource && effectiveInstalled)
+    const ruleCount = trafficSource ? Number(suricataSemantics.signature_count ?? 0) : geoSource ? (hasGeoSource ? 1 : 0) : Number(counts.value?.[name] || runtime.rule_count || 0)
+    const effectiveInstalled = geoSource ? hasGeoSource : !!runtime.installed || ruleCount > 0 || !!source?.current_version
+    const effectiveRunning = geoSource ? hasGeoSource : !!runtime.running || (trafficSource && effectiveInstalled)
     return {
       key: name,
       engine: name,
       sourceId: source?.source_id,
       sourceIds: trafficSource ? feeds.map((item) => item.source_id).filter(Boolean) : [source?.source_id].filter(Boolean),
       title: engineLabel(name),
-      subtitle: trafficSource ? '' : geoSource ? '公网 IP 城市级归属库' : displayRulePath(firstText(runtime.rule_path, source?.vendor, source?.name, '本地原生规则源')),
-      localPath: trafficSource ? 'traffic-rules/signature-feeds' : geoSource ? 'geoip/city-attribution' : displayRulePath(firstText(runtime.rule_path, source?.path)),
+      subtitle: trafficSource ? '' : geoSource ? (hasGeoSource ? '公网 IP 城市级归属库' : '未配置 GeoIP 数据源') : displayRulePath(firstText(runtime.rule_path, source?.vendor, source?.name, raspSource ? '内置应用防护规则' : '本地原生规则源')),
+      localPath: trafficSource ? 'traffic-rules/signature-feeds' : geoSource ? (hasGeoSource ? displayRulePath(firstText(source?.path, 'geoip/city-attribution')) : '未配置') : displayRulePath(firstText(runtime.rule_path, source?.path, raspSource ? 'rules/rasp' : '')),
       currentVersion,
-      latestVersion: geoSource ? firstText(source?.latest_version, source?.current_version, currentVersion) : firstText(source?.latest_version, source?.current_version, currentVersion),
+      latestVersion: geoSource ? (hasGeoSource ? firstText(source?.latest_version, source?.current_version, currentVersion) : '未配置') : firstText(source?.latest_version, source?.current_version, currentVersion),
       ruleCountLabel: trafficSource ? '规则签名' : '规则数量',
       ruleCount,
       ruleFileCount: trafficSource ? Number(suricataSemantics.rule_file_count ?? 0) : null,
       feeds,
-      updatable: name !== 'rasp' && (trafficSource ? feeds.length > 0 : (!!source || geoSource)),
+      updatable: raspSource ? false : geoSource ? hasGeoSource : (trafficSource ? feeds.length > 0 : !!source),
       running: effectiveRunning,
       installed: effectiveInstalled,
       statusText: sourceStatusText(name, source, effectiveInstalled, effectiveRunning),
@@ -325,8 +329,8 @@ async function updateSourceRow(item) {
         if (result.status === 'fulfilled') results.push(result.value)
         else failed.push(`${sourceLabel(sourceIds[index])}：${result.reason?.message || '更新失败'}`)
       })
-    } else if (item.key === 'geoip') {
-      results.push({ updated: true, version: 'city-db' })
+    } else if (item.key !== 'geoip') {
+      results.push(await ruleClient.updateEngineRules())
     } else {
       results.push(await ruleClient.updateEngineRules())
     }
@@ -379,4 +383,27 @@ onMounted(loadAll)
 
 .table-wrap table{table-layout:fixed}.rule-col{width:19%}.engine-col{width:11%}.path-col{width:20%}.status-col{width:9%}.severity-col{width:29%}.action-col{width:12%}.rule-cell,.path-cell{min-width:0}.rule-cell b,.path-cell b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.status-cell,.engine-cell,.action-cell{vertical-align:middle}.severity-cell{vertical-align:middle;padding-top:8px;padding-bottom:8px}.severity-pills{display:grid!important;grid-template-columns:repeat(5,minmax(38px,1fr));gap:6px;align-items:center;min-width:230px}.severity-pill{height:28px!important;min-width:0;padding:0 8px!important;border-radius:8px!important;border:1px solid rgba(148,163,184,.2)!important;background:#0b1220!important;color:#94a3b8!important;font-size:12px!important;font-weight:800!important;line-height:28px!important;text-align:center;box-sizing:border-box}.severity-pill.active.info{background:#0e7490!important;color:#ecfeff!important;border-color:#22d3ee!important}.severity-pill.active.low{background:#166534!important;color:#dcfce7!important;border-color:#22c55e!important}.severity-pill.active.medium{background:#854d0e!important;color:#fef3c7!important;border-color:#f59e0b!important}.severity-pill.active.high{background:#9a3412!important;color:#ffedd5!important;border-color:#fb923c!important}.severity-pill.active.critical{background:#991b1b!important;color:#fee2e2!important;border-color:#f87171!important}.action-cell{display:flex;flex-direction:column;align-items:flex-start;gap:5px}.action-cell .confirm-btn{height:30px;min-width:76px;padding:0 12px;border-radius:9px}.action-cell .row-message{margin:0;line-height:1.2}.enable-pill{white-space:nowrap}.engine-chip{white-space:nowrap}@media(max-width:1280px){table{min-width:1180px}.severity-col{width:320px}.severity-pills{min-width:280px}}
 .ops-page{color:#243149}.page-head{padding:10px 16px;border-color:#dce4ef;border-radius:6px;background:#fff;box-shadow:0 3px 12px rgba(44,66,96,.07)}.page-head p{color:#2782e8;letter-spacing:0}.page-head h2{color:#243149;font-size:22px;letter-spacing:0}.surface-card{border-color:#dce4ef;background:#fff;border-radius:6px;box-shadow:0 3px 12px rgba(44,66,96,.07)}.panel-heading,.panel-title{border-color:#e3e9f1;background:#f6f8fb}.panel-heading strong,.panel-title strong{color:#263247}.panel-heading span,.panel-title span{color:#758195}.source-row{border-color:#dfe6ef;border-radius:5px;background:#fff}.source-main b{color:#263247}.source-main small{color:#7b8798}.source-fields span{color:#758195}.source-fields strong{color:#334155}.address-field input,.filters select,.filters input{border-color:#d5deea;background:#fff;color:#263247}.feed-list span{border-color:#c4dcf5;border-radius:4px;background:#edf6ff;color:#1769d2}.source-actions em{color:#6f7c91}.source-actions em.run{color:#16824f}.source-actions em.warn{color:#a55d08}.source-actions em.bad{color:#b42318}.source-actions button,.filters button,.pager button,.confirm-btn{border-radius:4px;background:#1769d2;color:#fff}.state-card{border-color:#a9cdf3;background:#edf6ff;color:#1769d2}.table-wrap table th{background:#eef3f8;color:#53627a}.table-wrap table td{color:#304058}.table-wrap table th,.table-wrap table td{border-color:#e6ebf2;text-align:center;vertical-align:middle}.table-wrap td b{color:#263247}.table-wrap td small{color:#758195}.engine-chip{border-radius:4px;background:#e8f3ff;color:#1769d2}.enable-pill{border-radius:4px;background:#f0f3f7;color:#66758a}.enable-pill.active{background:#e9f7ef;color:#178653}.severity-pill{border-radius:4px!important;border-color:#d7e0eb!important;background:#fff!important;color:#526078!important}.pager{border-color:#e3e9f1;background:#f7f9fc;color:#68758a}.pager span{border-color:#d7e0eb;border-radius:4px;background:#fff}.action-cell{align-items:center}
+/* Five engine modules: keep the source overview on one compact row on wide screens. */
+.source-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:8px}
+.source-row{padding:7px 8px;gap:5px;border-top:2px solid #dce4ef}
+.source-row.engine-suricata{border-top-color:#2f80ed}
+.source-row.engine-wazuh{border-top-color:#7c5cff}
+.source-row.engine-yara{border-top-color:#e0a11b}
+.source-row.engine-rasp{border-top-color:#16a36a}
+.source-row.engine-geoip{border-top-color:#0f9bb5}
+.source-main{gap:6px}
+.source-main b{font-size:12px}
+.source-main small{font-size:9px}
+.source-fields{gap:3px 6px}
+.source-fields>div{grid-template-columns:42px minmax(0,1fr);gap:4px}
+.source-fields span{font-size:9px}
+.source-fields strong{font-size:10px}
+.source-fields .path-field strong{font-size:9.5px}
+.feed-list{grid-template-columns:repeat(2,minmax(0,1fr));gap:4px;padding:0 4px 5px}
+.feed-list span{height:19px;padding:0 6px;font-size:9px}
+.source-actions em{font-size:9.5px}
+.source-actions button{height:24px;padding:0 7px;font-size:10px}
+@media(max-width:1500px){.source-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:1000px){.source-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:760px){.source-grid{grid-template-columns:1fr}}
 </style>
