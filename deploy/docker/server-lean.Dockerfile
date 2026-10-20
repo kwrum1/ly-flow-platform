@@ -9,12 +9,13 @@ RUN apt-get update \
 WORKDIR /app
 COPY server/ly-server /app/ly-server
 COPY server/ly-agent-center /app/ly-agent-center
+COPY server/lyflow-netflow-collector /app/lyflow-netflow-collector
 COPY rules/ /etc/ly/rules/
 COPY agent/rasp/python/ /app/agent/rasp/python/
 COPY probe/ /app/probe/
 COPY agent/ly-agent /app/agents/linux/amd64/ly-agent
 COPY agent/ly-agent-linux-arm64 /app/agents/linux/arm64/ly-agent
-RUN chmod 0755 /app/ly-server /app/ly-agent-center \
+RUN chmod 0755 /app/ly-server /app/ly-agent-center /app/lyflow-netflow-collector \
   /app/agents/linux/amd64/ly-agent \
   /app/agents/linux/arm64/ly-agent
 

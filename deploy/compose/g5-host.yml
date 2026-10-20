@@ -221,6 +221,25 @@ services:
       retries: 5
       start_period: 10s
 
+  lyflow-netflow-collector:
+    <<: *defaults
+    image: ${LY_SERVER_IMAGE:-ly-flow/server:latest}
+    network_mode: host
+    command: ["/app/lyflow-netflow-collector"]
+    environment:
+      NETFLOW_LISTEN: "${NETFLOW_LISTEN:-:9995}"
+      LYFLOW_INGEST_URL: "http://127.0.0.1:8080"
+      VECTOR_AGENT_ID: ${VECTOR_AGENT_ID:?VECTOR_AGENT_ID must be set}
+      VECTOR_AGENT_KEY: ${VECTOR_AGENT_KEY:?VECTOR_AGENT_KEY must be set}
+    depends_on:
+      ly-server: {condition: service_healthy}
+    healthcheck:
+      test: [CMD-SHELL, "kill -0 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
   suricata-sensor:
     <<: *defaults
     image: ${LY_SURICATA_IMAGE:-ly-flow/suricata:latest}
