@@ -2,11 +2,37 @@
 
 流影是面向单机安全设备和中小型安全运营场景的一体化 XDR 平台。服务端通过本机镜像口分析流量，外部主机通过无容器 Agent 上报运行时、日志、RASP、YARA 和小流量网络遥测；平台统一完成存储、检测、ATT&CK 关联、Incident 处置与可视化。
 
+## 生产验收状态
+
+- 最新生产验收：2026-10-20，功能/UI/Agent/lyprobe 验收通过（`PASS_WITH_EXCEPTIONS`）
+- 生产验收报告：[docs/dev/PRODUCTION-ACCEPTANCE-2026-10-20.md](docs/dev/PRODUCTION-ACCEPTANCE-2026-10-20.md)
+- 二次回归报告：[docs/dev/REGRESSION-2026-10-20.md](docs/dev/REGRESSION-2026-10-20.md)
+- CI：`.github/workflows/ci.yml` 已在 `feat/lyflow-v2` 通过
+- 公网发布：GitHub Actions 继续生成 AMD64/ARM64 一键安装包，Release 固定为 `latest-server`
+
+### 界面预览
+
+| 运营总览 | 攻击链处置 |
+|---|---|
+| ![运营总览](docs/assets/screenshots/dashboard.png) | ![攻击链处置](docs/assets/screenshots/incidents.png) |
+
+| 规则中心 | 流量观测 |
+|---|---|
+| ![规则中心](docs/assets/screenshots/rules-center.png) | ![流量观测](docs/assets/screenshots/traffic-observe.png) |
+
+| 运行威胁 / eBPF | 响应处置 |
+|---|---|
+| ![运行威胁](docs/assets/screenshots/runtime.png) | ![响应处置](docs/assets/screenshots/response.png) |
+
+| 平台设置 | 移动端 |
+|---|---|
+| ![平台设置](docs/assets/screenshots/control-center.png) | ![移动端](docs/assets/screenshots/dashboard-mobile.png) |
+
 ## 当前能力
 
-- 本机镜像流量：AMD64 使用 PF_RING，Suricata 与统一安全引擎完成流量审计。
+- 本机镜像流量：AMD64 使用 PF_RING，Suricata 与统一安全引擎完成流量审计；lyprobe 通过 NetFlow v9 输出可追踪的流量证据。
 - 主机 Agent：Linux AMD64/ARM64、Windows AMD64；Linux 使用 AF_PACKET，可独立开关流量采集。
-- 主机审计：日志、Runtime、YARA 文件扫描、Python RASP；Java RASP 仍为实验能力。
+- 主机审计：日志、Runtime、YARA 文件扫描、Python RASP；进程采集优先 eBPF，回退 auditd，最后回退 procfs；Java RASP 仍为实验能力。
 - 数据存储：PostgreSQL 保存账号、资产、规则、告警和处置状态；ClickHouse 保存长期会话与分析事件；Redis 只承担实时事件总线和短期缓冲。
 - XDR：多源事件按实体、时间和 ATT&CK 阶段关联，只有关联链生成 Incident。
 - 规则中心：在线发现版本、下载、编译、签名、热加载和回滚；不兼容规则会隔离并记录原因。
@@ -24,6 +50,11 @@ GitHub Release 固定提供两个文件：
 选择与服务器 CPU 架构一致的文件，在已安装 Docker Engine 与 Compose Plugin 的 Linux 服务器上执行：
 
 ```bash
+# AMD64
+curl -fL -o lyflow-server-amd64.tar.gz \
+  https://github.com/kwrum1/ly-flow-platform/releases/download/latest-server/lyflow-server-amd64.tar.gz
+# ARM64 改用 lyflow-server-arm64.tar.gz
+
 tar -xzf lyflow-server-amd64.tar.gz
 cd ly-flow-platform
 sudo bash scripts/install-docker-bundle.sh
@@ -100,6 +131,8 @@ ARM64 服务器只需将第一行改为对应的 `lyflow-server-arm64.tar.gz`。
 当前实现状态、已知限制和容量基线见：
 
 - [v2 进度](docs/dev/PROGRESS.md)
+- [生产验收报告](docs/dev/PRODUCTION-ACCEPTANCE-2026-10-20.md)
+- [二次回归报告](docs/dev/REGRESSION-2026-10-20.md)
 - [T4.6 性能报告](docs/dev/T4.6-REPORT.md)
 - [T4.7 打包报告](docs/dev/T4.7-REPORT.md)
 - [T4.8 安全审计](docs/dev/T4.8-AUDIT.md)

@@ -11,9 +11,14 @@ build/
 
 # Generated binaries
 agent/ly-agent
+agent/ly-agent-*
 server/ly-server
 server/ly-agent
+server/ly-agent-center
+server/lyflow-netflow-collector
+server/cmd/server/
 dpi-engine/ly-dpi-engine
+security-engine/ly-security-engine
 frontend/dist/
 frontend/node_modules/
 frontend/pingora/target/

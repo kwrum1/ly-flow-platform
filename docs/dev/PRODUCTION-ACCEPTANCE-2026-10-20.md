@@ -113,7 +113,16 @@
 - `frontend/e2e/second-regression.js` → `second-regression.json`，`rc=0`
 - 截图、JSON：`/opt/lyflow/reports/G5/production-acceptance-2026-10-20/ui/`
 
-## 7. 签署
+## 7. 代码发布
+
+- GitHub 仓库：`https://github.com/kwrum1/ly-flow-platform`
+- 分支：`feat/lyflow-v2` 已通过 CI；本报告配套提交将同步到 `main`。
+- CI：`.github/workflows/ci.yml` 使用受支持的 `actions/checkout@v4`、`actions/setup-go@v5`、`actions/setup-node@v4`。
+- 云构建：`.github/workflows/release.yml` 继续构建 AMD64/ARM64 一键安装包，发布标签保持 `latest-server`。
+- 代码清理：移除 6 个重复页面、6 条重复路由、控制中心重复 Agent 列表，以及仓库内过期编译二进制。
+- 文档/截图：README 增加生产验收状态、界面预览与 GitHub Release 一键安装命令；截图位于 `docs/assets/screenshots/`。
+
+## 8. 签署
 
 - 功能测试：通过
 - UI 验收：通过
