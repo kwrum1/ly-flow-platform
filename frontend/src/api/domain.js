@@ -121,7 +121,7 @@ export const signalClient = Object.freeze({
 export const overviewClient = Object.freeze({
   health: () => api.get('/health'),
   stats: () => api.get('/stats'),
-  threats: (params = {}) => api.get('/events', { params }),
+  threats: (params = {}) => api.get('/unified/events', { params }),
   globalSituation: () => api.get('/public/situation/global'),
   targetLocation: () => api.get('/situation/target-location'),
   updateTargetLocation: (payload) => api.put('/situation/target-location', payload),
