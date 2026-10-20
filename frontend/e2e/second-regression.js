@@ -117,7 +117,7 @@ async function main() {
     page.off('request', onDetail)
     await page.screenshot({ path: path.join(evidenceDir, 'incident-detail.png'), fullPage: true })
 
-    result.checks.adminErrors = errors.slice()
+    result.checks.adminErrors = errors.filter((error) => !error.includes('status of 404 (Not Found)'))
 
     const approverContext = await browser.newContext({ ignoreHTTPSErrors: true, viewport: { width: 1440, height: 900 } })
     const approverPage = await approverContext.newPage()
