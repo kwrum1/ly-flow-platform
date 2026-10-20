@@ -91,6 +91,25 @@ func TestProcess_rejects_message_over_memory_budget(t *testing.T) {
 	}
 }
 
+func TestProcess_refreshesWatchdogForLongBatchProcessing(t *testing.T) {
+	// Given
+	eng := New(config.Config{MaxMessageBytes: 1, MemoryBudgetBytes: 1, RestartBudget: 3}, redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}))
+	eng.health.mu.Lock()
+	eng.health.watchdogAt = time.Now().Add(-time.Hour)
+	eng.health.mu.Unlock()
+
+	// When
+	_, _ = eng.process(context.Background(), transport.Delivery{Stream: "telemetry:runtime", MessageID: "1-0", Values: map[string]any{"data": "too-large"}})
+
+	// Then
+	eng.health.mu.RLock()
+	age := time.Since(eng.health.watchdogAt)
+	eng.health.mu.RUnlock()
+	if age > time.Second {
+		t.Fatalf("process did not refresh the watchdog, age=%s", age)
+	}
+}
+
 func TestRuntimeHealth_restart_budget_exhaustion_fails_closed(t *testing.T) {
 	// Given
 	eng := New(config.Config{RestartBudget: 1}, redis.NewClient(&redis.Options{Addr: "127.0.0.1:1"}))

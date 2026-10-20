@@ -4,7 +4,7 @@
       <div>
         <p class="sx-kicker">DETECTION ENGINE HEALTH</p>
         <h2 class="sx-title">引擎健康</h2>
-        <p class="sx-subtitle">按 Agent 查看 Suricata、Wazuh、YARA、RASP 的安装、运行、规则包和最后一次事件；状态直接来自引擎心跳。</p>
+        <p class="sx-subtitle">按 Agent 查看 Suricata、Wazuh、YARA、RASP 的安装、运行、规则包和最后一次事件；LyFlow DPI 引擎来自平台运行时状态，所有状态均以后端心跳为准。</p>
       </div>
       <div class="sx-head-actions">
         <span class="sx-live"><i />LIVE</span>
@@ -71,10 +71,12 @@ import { assetAgentClient, ruleClient } from '../api/domain'
 const loading = ref(false)
 const error = ref('')
 const items = ref([])
+const runtimeStatus = ref({ engines: {} })
 const ruleTotal = ref(0)
 const showUninstalled = ref(false)
 
 const engineDefinitions = [
+  { key: 'security-engine', label: 'LyFlow DPI 引擎', short: 'LY' },
   { key: 'suricata', label: 'Suricata', short: 'SU' },
   { key: 'wazuh', label: 'Wazuh', short: 'WA' },
   { key: 'yara', label: 'YARA', short: 'YA' },
@@ -82,29 +84,67 @@ const engineDefinitions = [
   { key: 'dpi', label: 'DPI Engine', short: 'DP' },
 ]
 
-const installedItems = computed(() => items.value.filter((item) => item.installed !== false))
-const visibleItems = computed(() => showUninstalled.value ? items.value : installedItems.value)
+const runtimeItem = computed(() => {
+  const runtime = runtimeStatus.value?.engines?.['security-engine']
+  if (!runtime) return null
+  const health = runtime.control_health || {}
+  const running = health.status === 'healthy' || runtime.status === 'running'
+  return {
+    agent_id: 'local-security-engine',
+    agent_status: 'online',
+    engine: 'security-engine',
+    hostname: 'LyFlow 控制面',
+    installed: true,
+    running,
+    version: health.schema_version || '',
+    rule_pack_version: runtime.bundle_version || '',
+    last_event_at: health.watchdog_at || '',
+    last_heartbeat: health.watchdog_at || '',
+    last_error: health.reason || '',
+    output_path: runtime.bundle_path || '',
+  }
+})
+const allItems = computed(() => {
+  const rows = [...items.value]
+  if (runtimeItem.value && !rows.some((item) => item.engine === 'security-engine')) rows.unshift(runtimeItem.value)
+  return rows
+})
+const installedItems = computed(() => allItems.value.filter((item) => item.installed !== false))
+const visibleItems = computed(() => showUninstalled.value ? allItems.value : installedItems.value)
 const runningCount = computed(() => installedItems.value.filter((item) => isRunning(item)).length)
 const abnormalCount = computed(() => installedItems.value.filter((item) => !isRunning(item)).length)
-const engineCards = computed(() => engineDefinitions.map((definition) => {
-  const rows = installedItems.value.filter((item) => item.engine === definition.key)
-  const running = rows.filter(isRunning).length
-  const last = rows.map((item) => item.last_event_at).filter(Boolean).sort().at(-1)
-  return {
-    ...definition,
-    count: rows.length,
-    running,
-    status: !rows.length ? '无实例' : running === rows.length ? '正常' : running > 0 ? '部分异常' : '异常',
-    tone: !rows.length ? 'muted' : running === rows.length ? 'low' : running > 0 ? 'medium' : 'critical',
-    lastEvent: last ? formatTime(last) : '-',
-    rulePack: rows[0]?.rule_pack_version || '',
+const engineCards = computed(() => {
+  const rows = []
+  const definitions = [...engineDefinitions]
+  const known = new Set(definitions.map((item) => item.key))
+  for (const item of installedItems.value) {
+    if (item.engine && !known.has(item.engine)) {
+      known.add(item.engine)
+      definitions.push({ key: item.engine, label: engineLabel(item.engine), short: String(item.engine).slice(0, 2).toUpperCase() })
+    }
   }
-}))
+  for (const definition of definitions) {
+    const itemsForEngine = installedItems.value.filter((item) => item.engine === definition.key)
+    if (!itemsForEngine.length) continue
+    const running = itemsForEngine.filter(isRunning).length
+    const last = itemsForEngine.map((item) => item.last_event_at).filter(Boolean).sort().at(-1)
+    rows.push({
+      ...definition,
+      count: itemsForEngine.length,
+      running,
+      status: running === itemsForEngine.length ? '正常' : running > 0 ? '部分异常' : '异常',
+      tone: running === itemsForEngine.length ? 'low' : running > 0 ? 'medium' : 'critical',
+      lastEvent: last ? formatTime(last) : '-',
+      rulePack: itemsForEngine[0]?.rule_pack_version || '',
+    })
+  }
+  return rows
+})
 
 function unwrap(response) { return response?.data?.data ?? response?.data ?? response ?? {} }
 function formatNumber(value) { return Number(value || 0).toLocaleString('zh-CN') }
 function formatTime(value) { if (!value) return '-'; const date = new Date(value); return Number.isNaN(date.getTime()) || date.getFullYear() < 2000 ? '-' : date.toLocaleString('zh-CN', { hour12: false }) }
-function engineLabel(value) { return ({ suricata: 'Suricata', wazuh: 'Wazuh', yara: 'YARA', rasp: 'OpenRASP', dpi: 'DPI Engine' })[value] || value || '-' }
+function engineLabel(value) { return ({ 'security-engine': 'LyFlow DPI 引擎', suricata: 'Suricata', wazuh: 'Wazuh', yara: 'YARA', rasp: 'OpenRASP', dpi: 'DPI Engine' })[value] || value || '-' }
 function isRunning(item) { return Boolean(item.running) && String(item.agent_status || '').toLowerCase() !== 'offline' }
 function statusLabel(item) {
   if (!item.installed) return '未安装'
@@ -121,11 +161,23 @@ async function load() {
   loading.value = true
   error.value = ''
   try {
-    const [health, rules] = await Promise.all([assetAgentClient.engineHealth(), ruleClient.stats()])
-    const data = unwrap(health)
-    items.value = Array.isArray(data.items) ? data.items : []
-    const stats = unwrap(rules)
-    ruleTotal.value = Number(stats.totalRules || stats.total_rules || 0)
+    const [healthResult, rulesResult, runtimeResult] = await Promise.allSettled([
+      assetAgentClient.engineHealth(),
+      ruleClient.stats(),
+      ruleClient.engineRuntimeStatus(),
+    ])
+    if (healthResult.status === 'fulfilled') {
+      const data = unwrap(healthResult.value)
+      items.value = Array.isArray(data.items) ? data.items : []
+    }
+    if (rulesResult.status === 'fulfilled') {
+      const stats = unwrap(rulesResult.value)
+      ruleTotal.value = Number(stats.totalRules || stats.total_rules || 0)
+    }
+    runtimeStatus.value = runtimeResult.status === 'fulfilled' ? (unwrap(runtimeResult.value) || { engines: {} }) : { engines: {} }
+    if (healthResult.status === 'rejected' && runtimeResult.status === 'rejected') {
+      error.value = healthResult.reason?.message || '引擎健康数据加载失败。'
+    }
   } catch (cause) {
     error.value = cause?.message || '引擎健康数据加载失败。'
   } finally {
