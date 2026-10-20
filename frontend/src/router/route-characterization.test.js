@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+﻿import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const routerCapture = vi.hoisted(() => ({ routes: [] }))
 
@@ -22,8 +22,8 @@ describe('current route characterization', () => {
     const protectedRoutes = shell?.children ?? []
     const routeCount = routerCapture.routes.length + protectedRoutes.length
 
-    expect(routeCount).toBe(27)
-    expect(protectedRoutes).toHaveLength(22)
+    expect(routeCount).toBe(31)
+    expect(protectedRoutes).toHaveLength(26)
     expect(protectedRoutes.every((route) => route.meta?.roles?.join(',') === 'admin')).toBe(true)
   })
 
@@ -36,3 +36,4 @@ describe('current route characterization', () => {
     })
   })
 })
+
