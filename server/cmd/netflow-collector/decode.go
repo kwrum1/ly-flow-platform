@@ -82,6 +82,7 @@ func parseTemplates(body []byte, templates map[string]Template, source string) {
 		}
 		if templateID != 0 && len(fields) > 0 {
 			templates[templateKey(source, templateID)] = Template{ID: templateID, Fields: fields}
+			log.Printf("netflow collector: template id=%d fields=%d source=%s", templateID, len(fields), source)
 		}
 	}
 }

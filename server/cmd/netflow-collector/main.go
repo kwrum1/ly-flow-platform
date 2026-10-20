@@ -9,6 +9,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -18,7 +19,7 @@ import (
 // Suricata EVE, so without this collector the probe's flows disappear into
 // a UDP socket that nobody reads.
 func main() {
-	listen := flag.String("listen", env("NETFLOW_LISTEN", ":9995"), "UDP listen address")
+	listen := flag.String("listen", env("NETFLOW_LISTEN", "0.0.0.0:9995"), "UDP listen address")
 	serverURL := flag.String("server", env("LYFLOW_INGEST_URL", "http://127.0.0.1:8080"), "ly-server base URL")
 	agentID := flag.String("agent-id", env("VECTOR_AGENT_ID", env("NETFLOW_AGENT_ID", "")), "ingestion agent id")
 	agentKey := flag.String("agent-key", env("VECTOR_AGENT_KEY", env("NETFLOW_AGENT_KEY", "")), "ingestion agent key")
@@ -26,15 +27,17 @@ func main() {
 	if strings.TrimSpace(*agentID) == "" || strings.TrimSpace(*agentKey) == "" {
 		log.Fatal("netflow collector: VECTOR_AGENT_ID and VECTOR_AGENT_KEY are required")
 	}
-	addr, err := net.ResolveUDPAddr("udp", *listen)
+	addr, err := net.ResolveUDPAddr("udp4", *listen)
 	if err != nil {
 		log.Fatalf("netflow collector: resolve %s: %v", *listen, err)
 	}
-	conn, err := net.ListenUDP("udp", addr)
-	if err != nil {
-		log.Fatalf("netflow collector: listen %s: %v", *listen, err)
+	_ = addr
+	port := uint16(9995)
+	if _, parsedPort, err := net.SplitHostPort(*listen); err == nil {
+		if value, convErr := strconv.Atoi(parsedPort); convErr == nil && value > 0 && value <= 65535 {
+			port = uint16(value)
+		}
 	}
-	defer conn.Close()
 	collector := &Collector{
 		client:   &http.Client{Timeout: 10 * time.Second},
 		server:   strings.TrimRight(*serverURL, "/"),
@@ -42,15 +45,9 @@ func main() {
 		agentKey: *agentKey,
 		templates: map[string]Template{},
 	}
-	log.Printf("netflow collector listening on %s, forwarding to %s as %s", *listen, *serverURL, *agentID)
-	buf := make([]byte, 65535)
-	for {
-		n, remote, err := conn.ReadFromUDP(buf)
-		if err != nil {
-			log.Printf("netflow collector: read: %v", err)
-			continue
-		}
-		collector.handle(context.Background(), append([]byte(nil), buf[:n]...), remote)
+	log.Printf("netflow collector listening on UDP/%d, forwarding to %s as %s", port, *serverURL, *agentID)
+	if err := listenRaw(context.Background(), port, collector); err != nil {
+		log.Fatalf("netflow collector: raw UDP listener: %v", err)
 	}
 }
 
@@ -86,6 +83,10 @@ func (c *Collector) handle(ctx context.Context, packet []byte, remote *net.UDPAd
 	if err != nil {
 		log.Printf("netflow collector: decode %s: %v", remote, err)
 		return
+	}
+	log.Printf("netflow collector: packet %d bytes from %s, records=%d templates=%d", len(packet), remote, len(records), len(c.templates))
+	if len(records) > 0 {
+		log.Printf("netflow collector: received %d records from %s", len(records), remote)
 	}
 	for _, record := range records {
 		c.publish(ctx, record)
