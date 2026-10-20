@@ -67,18 +67,13 @@ func parseTemplates(body []byte, templates map[string]Template, source string) {
 		pos += 4
 		fields := make([]Field, 0, count)
 		for index := 0; index < count && pos+4 <= len(body); index++ {
-			rawType := binary.BigEndian.Uint16(body[pos : pos+2])
+			// NetFlow v9 field types are plain 16-bit IDs. The IPFIX
+			// enterprise bit does not exist in v9; lyprobe uses 0xe169
+			// (57705) and higher for its threat fields, so masking or
+			// consuming a PEN here would corrupt the template.
+			fieldType := binary.BigEndian.Uint16(body[pos : pos+2])
 			length := binary.BigEndian.Uint16(body[pos+2 : pos+4])
 			pos += 4
-			fieldType := rawType
-			if rawType&0x8000 != 0 {
-				// Enterprise field: 4-byte PEN follows the standard type/length.
-				if pos+4 > len(body) {
-					return
-				}
-				pos += 4
-				fieldType = rawType &^ 0x8000
-			}
 			fields = append(fields, Field{Type: fieldType, Length: length})
 		}
 		if templateID != 0 && len(fields) > 0 {
