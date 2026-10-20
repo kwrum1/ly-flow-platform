@@ -376,14 +376,15 @@ onMounted(() => {
 <style scoped>
 .control-page {
   position: relative;
-  height: 100%;
-  min-height: 0;
-  display: grid;
-  grid-template-rows: auto auto auto minmax(0, 1fr);
+  height: auto;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   padding: 14px;
   color: var(--text-primary);
   box-sizing: border-box;
+  overflow: visible;
 }
 
 .control-header,
@@ -445,12 +446,14 @@ onMounted(() => {
 }
 
 .panel {
-  overflow: hidden;
+  min-width: 0;
+  overflow: visible;
 }
 
 .settings-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
   gap: 12px;
   background: transparent;
   border: 0;
@@ -1056,5 +1059,34 @@ th, td { border-color: #e6ebf2; }
 @media (max-width: 900px) {
   .control-page { min-height: 0; grid-template-rows: auto; }
   .settings-grid { grid-template-columns: 1fr; }
+}
+
+/* Settings panels must grow with their forms; the legacy page grid rows
+   were sized for the old Agent table and clipped these cards. */
+.control-page {
+  display: flex;
+  flex-direction: column;
+  height: auto;
+  min-height: 100%;
+  grid-template-rows: none;
+}
+.settings-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  align-items: start;
+}
+.mirror-panel {
+  grid-template-rows: 34px auto auto;
+}
+@media (max-width: 1200px) {
+  .settings-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .time-panel { grid-column: 1 / -1; }
+  .time-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 800px) {
+  .settings-grid { grid-template-columns: 1fr; }
+  .time-panel { grid-column: auto; }
+  .mirror-form,
+  .time-form { grid-template-columns: 1fr; }
+  .location-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 </style>
