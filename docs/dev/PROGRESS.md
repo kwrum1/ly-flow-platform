@@ -837,3 +837,14 @@
 - 运行威胁页显示 eBPF/auditd/日志审计来源；lyprobe 引擎状态改为基于最近 5 分钟 flows:raw 心跳。
 - 规则源目录增加 30s 进程内缓存；冷请求仍较慢，作为后续性能项。
 - 回归报告：`docs/dev/REGRESSION-2026-10-20.md`；证据：`/opt/lyflow/reports/G5/regression-2026-10-20/`。
+
+## 2026-10-20 生产级最终验收
+
+- 生产验收脚本 `frontend/e2e/production-acceptance.js` 通过：19 个页面、6 条 legacy 重定向、重复 UI、Incident、响应、规则、流量、eBPF 全部通过。
+- 全量 UI 巡检 17 个页面/视口：全部 200，console/page/network error 0，移动端无横向溢出。
+- API 烟测 29 个接口全部 200；lyprobe 流量 158 条、坏地址 0；eBPF process 事件 68 条；规则清单 29,906 条。
+- 去重：删除 6 个重复页面并重定向到 `/rasp`、`/runtime`、`/assets`、`/xdr`、`/rules`；控制中心移除重复 Agent 列表，改名平台设置。
+- 修复 security-engine CPU budget 重启循环（1000ms），控制健康稳定、restart_count=0。
+- 修复 lyprobe 心跳扫描窗口、规则源冷启动缓存和流量会话冷查询预热。
+- 报告：`docs/dev/PRODUCTION-ACCEPTANCE-2026-10-20.md`；证据：`/opt/lyflow/reports/G5/production-acceptance-2026-10-20/`。
+- 发布级例外：clean VM 安装/回滚、20k EPS 容量复测。
