@@ -11,7 +11,10 @@
     <article class="surface-card source-card">
       <div class="panel-heading">
         <strong>规则源同步</strong>
-        <span>{{ sourceRows.length }} 个规则模块 / {{ totalNativeCount }} 条原生规则</span>
+        <div class="source-head-meta">
+          <span v-if="runtimeStatusWarning" class="source-warning">引擎健康接口暂不可用，规则源按本地清单展示</span>
+          <span>{{ sourceRows.length }} 个规则模块 / {{ totalNativeCount }} 条原生规则</span>
+        </div>
       </div>
       <div class="source-grid">
         <div v-for="item in sourceRows" :key="item.key" :class="['source-row', `engine-${item.key}`]">
@@ -116,6 +119,7 @@ const runtimeStatus = ref({ engines: {} })
 const counts = ref({})
 const countSemantics = ref({})
 const sourceItems = ref([])
+const runtimeStatusWarning = ref(false)
 const total = ref(0)
 const page = ref(1)
 const pageSize = ref(24)
@@ -233,20 +237,41 @@ function findSourceForEngine(name) {
 async function loadAll() {
   loading.value = true
   error.value = ''
+  runtimeStatusWarning.value = false
   try {
-    const [native, status, sourceData] = await Promise.all([
+    const [nativeResult, statusResult, sourceResult] = await Promise.allSettled([
       ruleClient.engineRules({ limit: pageSize.value, offset: (page.value - 1) * pageSize.value, engine: engine.value || undefined, query: query.value || undefined }),
       ruleClient.engineRuntimeStatus(),
       ruleClient.sources(),
     ])
-    const normalized = normalizeItems(native)
-    nativeRules.value = normalized.items
-    total.value = normalized.total
-    counts.value = native?.counts || native?.data?.counts || {}
-    countSemantics.value = native?.count_semantics || native?.data?.count_semantics || {}
-    runtimeStatus.value = status || { engines: {} }
-    sourceItems.value = normalizeItems(sourceData).items
+    if (nativeResult.status === 'fulfilled') {
+      const native = nativeResult.value
+      const normalized = normalizeItems(native)
+      nativeRules.value = normalized.items
+      total.value = normalized.total
+      counts.value = native?.counts || native?.data?.counts || {}
+      countSemantics.value = native?.count_semantics || native?.data?.count_semantics || {}
+    } else {
+      nativeRules.value = []
+      total.value = 0
+      counts.value = {}
+      countSemantics.value = {}
+    }
+    if (statusResult.status === 'fulfilled') {
+      runtimeStatus.value = statusResult.value || { engines: {} }
+    } else {
+      runtimeStatus.value = { engines: {} }
+      runtimeStatusWarning.value = true
+    }
+    if (sourceResult.status === 'fulfilled') {
+      sourceItems.value = normalizeItems(sourceResult.value).items
+    } else {
+      sourceItems.value = []
+    }
     seedDrafts()
+    if (nativeResult.status === 'rejected') {
+      error.value = nativeResult.reason?.message || '无法读取原生引擎规则'
+    }
   } catch (err) {
     error.value = err?.message || '无法读取四引擎规则'
   } finally {
@@ -384,6 +409,8 @@ onMounted(loadAll)
 .table-wrap table{table-layout:fixed}.rule-col{width:19%}.engine-col{width:11%}.path-col{width:20%}.status-col{width:9%}.severity-col{width:29%}.action-col{width:12%}.rule-cell,.path-cell{min-width:0}.rule-cell b,.path-cell b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.status-cell,.engine-cell,.action-cell{vertical-align:middle}.severity-cell{vertical-align:middle;padding-top:8px;padding-bottom:8px}.severity-pills{display:grid!important;grid-template-columns:repeat(5,minmax(38px,1fr));gap:6px;align-items:center;min-width:230px}.severity-pill{height:28px!important;min-width:0;padding:0 8px!important;border-radius:8px!important;border:1px solid rgba(148,163,184,.2)!important;background:#0b1220!important;color:#94a3b8!important;font-size:12px!important;font-weight:800!important;line-height:28px!important;text-align:center;box-sizing:border-box}.severity-pill.active.info{background:#0e7490!important;color:#ecfeff!important;border-color:#22d3ee!important}.severity-pill.active.low{background:#166534!important;color:#dcfce7!important;border-color:#22c55e!important}.severity-pill.active.medium{background:#854d0e!important;color:#fef3c7!important;border-color:#f59e0b!important}.severity-pill.active.high{background:#9a3412!important;color:#ffedd5!important;border-color:#fb923c!important}.severity-pill.active.critical{background:#991b1b!important;color:#fee2e2!important;border-color:#f87171!important}.action-cell{display:flex;flex-direction:column;align-items:flex-start;gap:5px}.action-cell .confirm-btn{height:30px;min-width:76px;padding:0 12px;border-radius:9px}.action-cell .row-message{margin:0;line-height:1.2}.enable-pill{white-space:nowrap}.engine-chip{white-space:nowrap}@media(max-width:1280px){table{min-width:1180px}.severity-col{width:320px}.severity-pills{min-width:280px}}
 .ops-page{color:#243149}.page-head{padding:10px 16px;border-color:#dce4ef;border-radius:6px;background:#fff;box-shadow:0 3px 12px rgba(44,66,96,.07)}.page-head p{color:#2782e8;letter-spacing:0}.page-head h2{color:#243149;font-size:22px;letter-spacing:0}.surface-card{border-color:#dce4ef;background:#fff;border-radius:6px;box-shadow:0 3px 12px rgba(44,66,96,.07)}.panel-heading,.panel-title{border-color:#e3e9f1;background:#f6f8fb}.panel-heading strong,.panel-title strong{color:#263247}.panel-heading span,.panel-title span{color:#758195}.source-row{border-color:#dfe6ef;border-radius:5px;background:#fff}.source-main b{color:#263247}.source-main small{color:#7b8798}.source-fields span{color:#758195}.source-fields strong{color:#334155}.address-field input,.filters select,.filters input{border-color:#d5deea;background:#fff;color:#263247}.feed-list span{border-color:#c4dcf5;border-radius:4px;background:#edf6ff;color:#1769d2}.source-actions em{color:#6f7c91}.source-actions em.run{color:#16824f}.source-actions em.warn{color:#a55d08}.source-actions em.bad{color:#b42318}.source-actions button,.filters button,.pager button,.confirm-btn{border-radius:4px;background:#1769d2;color:#fff}.state-card{border-color:#a9cdf3;background:#edf6ff;color:#1769d2}.table-wrap table th{background:#eef3f8;color:#53627a}.table-wrap table td{color:#304058}.table-wrap table th,.table-wrap table td{border-color:#e6ebf2;text-align:center;vertical-align:middle}.table-wrap td b{color:#263247}.table-wrap td small{color:#758195}.engine-chip{border-radius:4px;background:#e8f3ff;color:#1769d2}.enable-pill{border-radius:4px;background:#f0f3f7;color:#66758a}.enable-pill.active{background:#e9f7ef;color:#178653}.severity-pill{border-radius:4px!important;border-color:#d7e0eb!important;background:#fff!important;color:#526078!important}.pager{border-color:#e3e9f1;background:#f7f9fc;color:#68758a}.pager span{border-color:#d7e0eb;border-radius:4px;background:#fff}.action-cell{align-items:center}
 /* Five engine modules: keep the source overview on one compact row on wide screens. */
+.source-head-meta{display:flex;align-items:center;justify-content:flex-end;gap:8px;min-width:0}
+.source-warning{color:#b45309;font-size:10px;font-weight:700;white-space:nowrap}
 .source-grid{grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:8px}
 .source-row{padding:7px 8px;gap:5px;border-top:2px solid #dce4ef}
 .source-row.engine-suricata{border-top-color:#2f80ed}
