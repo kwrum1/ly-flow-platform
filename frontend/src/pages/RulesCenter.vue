@@ -17,7 +17,7 @@
         <div class="source-head-meta">
           <span v-if="runtimeStatusWarning" class="source-warning">引擎运行时状态暂不可用，规则与来源仍按本地清单展示</span>
           <span v-if="sourceLoading">正在读取实装引擎…</span>
-          <span v-else>{{ engineRows.length }} 个实装引擎 · {{ upstreamLoading ? '读取上游…' : `${upstreamRows.length} 个可更新上游` }} · {{ formatCount(totalNativeCount) }} 条原生规则</span>
+          <span v-else>{{ engineRows.length }} 个实装引擎 · {{ upstreamLoading ? '读取上游…' : `${upstreamRows.length} 个可更新上游` }} · {{ loading ? '读取中' : `${formatCount(totalNativeCount)} 条规则清单` }}</span>
         </div>
       </div>
 
@@ -42,7 +42,7 @@
             <span class="sx-badge" :class="engine.tone">{{ engine.statusText }}</span>
           </div>
           <div class="engine-source-facts">
-            <div><span>规则</span><b>{{ formatCount(engine.ruleCount) }}</b></div>
+            <div><span>生效规则</span><b>{{ formatCount(engine.ruleCount) }}</b></div>
             <div><span>上游</span><b>{{ upstreamLoading ? '读取中' : engine.sourceCount }}</b></div>
             <div><span>可更新</span><b>{{ upstreamLoading ? '读取中' : engine.updatableCount }}</b></div>
             <div><span>规则包</span><b :title="engine.rulePack">{{ engine.rulePack }}</b></div>
@@ -126,6 +126,7 @@
               <option value="wazuh">运行威胁</option>
               <option value="yara">文件扫描</option>
               <option value="rasp">应用防护</option>
+              <option value="lyprobe">LyFlow 探针</option>
             </select>
           </label>
           <input v-model.trim="query" placeholder="搜索规则 ID / 名称 / 路径" @keyup.enter="resetAndLoad">
@@ -298,7 +299,7 @@ const engineRows = computed(() => {
       ruleCount,
       rulePack: security.bundle_version || activeBundle.value?.bundle_id || activeBundle.value?.version || '-',
       instances: 1,
-      note: `统一编译 Bundle · 共享 ${formatCount(allUpstreamSources.value.length)} 个上游 · 流量 ${formatCount(ruleCounts.traffic)} / 运行 ${formatCount(ruleCounts.runtime)} / RASP ${formatCount(ruleCounts.rasp)}`,
+      note: `统一编译 Bundle · 共享 ${upstreamLoading.value ? '读取中' : formatCount(allUpstreamSources.value.length)} 个上游 · 流量 ${formatCount(ruleCounts.traffic)} / 运行 ${formatCount(ruleCounts.runtime)} / RASP ${formatCount(ruleCounts.rasp)}`,
       sourceCount: allUpstreamSources.value.length,
       updatableCount: allUpstreamSources.value.length,
     }))
@@ -629,7 +630,7 @@ onMounted(() => {
 .source-warning{color:#b45309;font-size:10px;font-weight:700;white-space:nowrap}
 .source-empty{padding:24px 16px;color:#758195;text-align:center;font-size:11px}
 .source-empty strong{display:block;margin-bottom:4px;color:#263247;font-size:12px}
-.engine-source-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:7px;padding:9px 10px 8px}
+.engine-source-grid{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;padding:9px 10px 8px}
 .engine-source-card{display:grid;gap:7px;min-width:0;padding:9px;border:1px solid #dfe6ef;border-top:3px solid #2f80ed;border-radius:5px;background:#fff}
 .engine-source-card.engine-security-engine{border-top-color:#0f766e}
 .engine-source-card.engine-suricata{border-top-color:#2f80ed}

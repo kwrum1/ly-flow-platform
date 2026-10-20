@@ -54,7 +54,7 @@ async function main() {
     const rulesText = await page.locator('body').innerText()
     result.checks.rules = {
       hasProbeEngine: rulesText.includes('LyFlow 探针规则'),
-      stillLoadingSources: rulesText.includes('正在读取实装引擎与上游'),
+      stillLoadingSources: rulesText.includes('正在读取实装引擎…') || rulesText.includes('正在读取实装引擎与上游'),
       hasEtOpen: rulesText.includes('ET Open'),
       hasRuleCount: /29,?906|29906/.test(rulesText),
       bodyText: rulesText.slice(0, 1800),
@@ -146,6 +146,8 @@ async function main() {
       if (name === 'missingEvent') return !value.hasNotFound
       if (name === 'rules') return !value.hasProbeEngine || value.stillLoadingSources
       if (name === 'response') return value.hasCreateResponse
+      if (name === 'traffic-observe') return !value.hasLyprobe
+      if (name === 'runtime') return !value.hasEbpf
       if (name === 'incidentDetail') return !value.hasTimeline || value.detailRequests.length > 1
       return false
     })

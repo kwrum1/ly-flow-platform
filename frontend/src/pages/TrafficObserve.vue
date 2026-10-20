@@ -14,7 +14,7 @@
     <div v-if="error" class="notice error">{{ error }}</div>
 
     <article class="panel session-panel">
-      <div class="panel-title"><strong>会话列表</strong><span>{{ `${flows.length} 条 / 当前页可显示 ${pageSize} 条` }}</span></div>
+      <div class="panel-title"><strong>会话列表</strong><span>{{ `${totalFlows || flows.length} 条 / 当前页 ${flows.length} 条` }}</span></div>
       <div ref="tableWrap" :class="['table-wrap', { updating: loading && hasLoaded }]">
         <table>
           <thead><tr><th>时间</th><th>探针</th><th>会话方向</th><th>应用内容</th><th>流量</th><th>操作</th></tr></thead>
@@ -99,7 +99,11 @@ async function loadAll() {
   try {
     const flowData = await trafficClient.flows(params())
     const flowNormalized = normalizeItems(flowData)
-    flows.value = flowNormalized.items
+    flows.value = [...flowNormalized.items].sort((left, right) => {
+      const leftTime = new Date(left.timestamp || 0).getTime() || 0
+      const rightTime = new Date(right.timestamp || 0).getTime() || 0
+      return rightTime - leftTime
+    })
     totalFlows.value = flowNormalized.total
     hasLoaded.value = true
   } catch (e) {

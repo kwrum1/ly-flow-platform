@@ -5,7 +5,7 @@
         <div>
           <p class="threat-kicker">DETECTION SURFACE</p>
           <h2>{{ title }}</h2>
-          <p class="threat-subtitle">{{ category === 'rasp' ? '应用运行时攻击、检测与阻断证据；数据来自 RASP 组件告警。' : category === 'runtime' ? '主机运行时与日志审计告警；数据来自 Wazuh 组件告警。' : '流量检测与攻击会话；数据来自 Suricata / DPI 与流量组件告警。' }}</p>
+          <p class="threat-subtitle">{{ category === 'rasp' ? '应用运行时攻击、检测与阻断证据；数据来自 RASP 组件告警。' : category === 'runtime' ? '主机运行时与日志审计告警；数据来自 eBPF/auditd/ps 进程采集、认证日志与 Wazuh 组件告警。' : '流量检测与攻击会话；数据来自 Suricata / DPI 与流量组件告警。' }}</p>
         </div>
         <div class="threat-summary">
           <span><b>{{ total }}</b> 条结果</span>
@@ -38,7 +38,7 @@
               <td><span class="engine-chip">{{ sourceEngineLabel(item.source_engine || item.source) }}</span><small>{{ categoryLabel(item.category) }}</small></td>
               <td><b>{{ threatTypeLabel(item) }}</b><small>{{ threatMetaText(item) }}</small></td>
               <td>{{ agentName(item) }}</td>
-              <td>{{ threatIP(item) }}</td>
+              <td>{{ threatIP(item) || '-' }}</td>
               <td>{{ contentSummary(item) }}</td>
               <td><span class="count-chip">{{ occurrenceCount(item) }}</span></td>
               <td><button data-testid="traffic-threat-detail-open" @click="selected = item">详情</button></td>
