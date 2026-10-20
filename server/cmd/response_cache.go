@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"encoding/json"
 	"sync"
 	"time"
 )
@@ -8,7 +10,7 @@ import (
 // sourceCatalogCacheTTL keeps rule-source catalog responses warm without
 // hiding configuration changes for long. Source updates clear the relevant
 // cache entries immediately.
-const sourceCatalogCacheTTL = 30 * time.Second
+const sourceCatalogCacheTTL = 5 * time.Minute
 
 type ttlResponseCache struct {
 	mu      sync.Mutex
@@ -67,3 +69,24 @@ var (
 	ruleSourcesResponseCache         = newTTLResponseCache(sourceCatalogCacheTTL)
 	rulePlatformSourcesResponseCache = newTTLResponseCache(sourceCatalogCacheTTL)
 )
+
+// warmRulePlatformSourcesCache removes the first-request penalty for the
+// database-backed rule-platform source catalog. It intentionally runs in the
+// background and degrades silently: the HTTP handler still loads the catalog
+// on demand if warmup fails.
+func warmRulePlatformSourcesCache(cfg *Config) {
+	if cfg == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	items, err := loadRulePlatformSources(ctx, cfg)
+	if err != nil {
+		return
+	}
+	body, err := json.Marshal(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": items, "total": len(items)}})
+	if err != nil {
+		return
+	}
+	rulePlatformSourcesResponseCache.set("rule-platform-sources", body)
+}

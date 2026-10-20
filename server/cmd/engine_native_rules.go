@@ -172,7 +172,7 @@ func lyprobeRecentFlowAt(ctx context.Context, cfg *Config, now time.Time) (time.
 	}
 	readCtx, cancel := context.WithTimeout(ctx, 2*time.Second)
 	defer cancel()
-	msgs, err := cfg.Redis.XRevRangeN(readCtx, "flows:raw", "+", "-", 500).Result()
+	msgs, err := cfg.Redis.XRevRangeN(readCtx, "flows:raw", "+", "-", 5000).Result()
 	if err != nil {
 		return time.Time{}, false
 	}
