@@ -128,7 +128,7 @@ func decodeRecord(raw []byte, template Template, occurred time.Time) Record {
 			record["threat_version"] = stringValueBytes(value)
 		}
 	}
-	if record["src_ip"] == nil || record["dst_ip"] == nil {
+	if record["src_ip"] == nil || record["src_ip"] == "" || record["dst_ip"] == nil || record["dst_ip"] == "" {
 		return nil
 	}
 	digest := sha256.Sum256(append(append([]byte{}, raw...), []byte(occurred.Format(time.RFC3339Nano))...))
