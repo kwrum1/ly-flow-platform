@@ -37,7 +37,7 @@
           </div>
           <div class="posture-facts">
             <div><span>活跃攻击链</span><b>{{ postureActiveChains }}</b></div>
-            <div><span>Incident 总量</span><b>{{ formatNumber(incidentTotal) }}</b></div>
+            <div><span>Incident 总量</span><b>{{ incidentsReady ? formatNumber(incidentTotal) : '…' }}</b></div>
             <div><span>在线 Agent</span><b>{{ formatNumber(onlineAgents) }}<em>/{{ formatNumber(totalAssets) }}</em></b></div>
             <div><span>待审批处置</span><b class="warning">{{ formatNumber(pendingApprovalCount) }}</b></div>
           </div>
@@ -63,8 +63,8 @@
         </article>
         <article class="sx-metric">
           <span class="sx-metric-label"><i />处置队列</span>
-          <strong class="sx-metric-value warning">{{ formatNumber(openIncidentCount) }}</strong>
-          <span class="sx-metric-note">最近 {{ normalizedIncidents.length }} 条样本中的待处置</span>
+          <strong class="sx-metric-value warning">{{ incidentsReady ? formatNumber(openIncidentCount) : '…' }}</strong>
+          <span class="sx-metric-note">{{ incidentsReady ? `最近 ${normalizedIncidents.length} 条样本中的待处置` : '正在加载 Incident' }}</span>
         </article>
         <article class="sx-metric">
           <span class="sx-metric-label"><i />资产覆盖</span>
@@ -77,7 +77,7 @@
     <section class="sx-panel stage-panel">
       <div class="sx-panel-head">
         <div class="sx-panel-title">ATT&CK 攻击阶段</div>
-        <div class="sx-panel-meta">来自 {{ incidentSampleLabel }} Incident + {{ chains.items.length }} 条活跃链 · 点击阶段筛选事件</div>
+        <div class="sx-panel-meta">{{ incidentsReady ? `来自 ${incidentSampleLabel} Incident` : 'Incident 加载中' }} + {{ chains.items.length }} 条活跃链 · 点击阶段筛选事件</div>
       </div>
       <div class="sx-panel-body">
         <div class="sx-stage-ribbon">
@@ -155,7 +155,8 @@
           <div class="sx-panel-title">优先处置</div>
           <RouterLink class="sx-panel-meta" to="/incidents">全部 {{ formatNumber(incidentTotal) }} 条 →</RouterLink>
         </div>
-        <div v-if="activeIncidents.length" class="incident-list">
+        <div v-if="!incidentsReady" class="sx-empty"><div><strong>正在加载 Incident</strong>列表返回后立即展示处置队列。</div></div>
+        <div v-else-if="activeIncidents.length" class="incident-list">
           <RouterLink
             v-for="incident in activeIncidents"
             :key="incident.id"
@@ -255,6 +256,7 @@ const events = ref({ items: [], total: 0 })
 const responseActions = ref({ items: [], total: 0 })
 const ruleStats = ref({})
 const platformOnline = ref(true)
+const incidentsReady = ref(false)
 
 const trendElement = ref(null)
 const severityElement = ref(null)
@@ -531,7 +533,7 @@ async function load() {
     attackWorkbenchClient.stats().then((value) => { unified.value = unwrap(value); succeeded++ }),
     attackWorkbenchClient.xdrPosture().then((value) => { posture.value = unwrap(value); succeeded++ }),
     attackWorkbenchClient.xdrChains({ limit: 30 }).then((value) => { chains.value = normalizePage(value); succeeded++ }),
-    attackWorkbenchClient.incidents({ limit: 20 }).then((value) => { incidents.value = normalizePage(value); succeeded++ }),
+    attackWorkbenchClient.incidents({ limit: 5 }).then((value) => { incidents.value = normalizePage(value); incidentsReady.value = true; succeeded++ }),
     assetAgentClient.assetStats().then((value) => { assetStats.value = unwrap(value); succeeded++ }),
     assetAgentClient.assets({ limit: 8 }).then((value) => { assets.value = normalizePage(value); succeeded++ }),
     assetAgentClient.engineHealth().then((value) => { engines.value = normalizePage(value); succeeded++ }),
