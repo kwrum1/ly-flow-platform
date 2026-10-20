@@ -1238,6 +1238,7 @@ func startConsumer(cfg *Config) {
 	go consumerState.runFlowBridge()
 	go func() { _ = loadNativeEngineRules(cfg) }()
 	go warmRulePlatformSourcesCache(cfg)
+	go warmTrafficSessionQuery(cfg)
 	log.Println("告警消费者已启动")
 }
 
@@ -7413,6 +7414,18 @@ func boundedTrafficPort(value int64) uint16 {
 		return 65535
 	}
 	return uint16(value)
+}
+
+// warmTrafficSessionQuery pays the cold PostgreSQL/Redis query cost in the
+// background after startup so the first operator request is not a 20-second
+// wait. Failures are ignored; the HTTP path still retries on demand.
+func warmTrafficSessionQuery(cfg *Config) {
+	if cfg == nil || cfg.DBPool == nil {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
+	defer cancel()
+	_, _, _ = loadPersistentTrafficSessions(ctx, cfg, 1, 0, "", "", "", "", "", "", nil, nil)
 }
 
 func loadPersistentTrafficSessions(ctx context.Context, cfg *Config, limit, offset int, query, agentID, srcIP, srcPort, dstIP, dstPort string, startTime, endTime *time.Time) ([]map[string]interface{}, int, error) {
