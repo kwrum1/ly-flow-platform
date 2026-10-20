@@ -1,16 +1,16 @@
-<template>
+﻿<template>
   <section class="sx-page overview-page">
     <header class="sx-page-head">
       <div>
         <p class="sx-kicker">LIVE SECURITY OPERATIONS</p>
-        <h2 class="sx-title">态势总览</h2>
-        <p class="sx-subtitle">从真实事件、攻击链与资产心跳中聚合当前安全态势；每个数字都可以下钻到对应事件或 Incident。</p>
+        <h2 class="sx-title">鎬佸娍鎬昏</h2>
+        <p class="sx-subtitle">浠庣湡瀹炰簨浠躲€佹敾鍑婚摼涓庤祫浜у績璺充腑鑱氬悎褰撳墠瀹夊叏鎬佸娍锛涙瘡涓暟瀛楅兘鍙互涓嬮捇鍒板搴斾簨浠舵垨 Incident銆?/p>
       </div>
       <div class="sx-head-actions">
         <span class="sx-live"><i />LIVE</span>
-        <span class="overview-updated">最近同步 {{ lastUpdated }}</span>
+        <span class="overview-updated">鏈€杩戝悓姝?{{ lastUpdated }}</span>
         <button class="sx-btn" type="button" :disabled="loading" @click="load">
-          {{ loading ? '同步中…' : '刷新态势' }}
+          {{ loading ? '鍚屾涓€? : '鍒锋柊鎬佸娍' }}
         </button>
       </div>
     </header>
@@ -32,52 +32,52 @@
           <div class="score-ring" :style="scoreRingStyle">
             <div>
               <strong>{{ riskScore }}</strong>
-              <span>态势评分</span>
+              <span>鎬佸娍璇勫垎</span>
             </div>
           </div>
           <div class="posture-facts">
-            <div><span>活跃攻击链</span><b>{{ postureActiveChains }}</b></div>
-            <div><span>Incident 总量</span><b>{{ formatNumber(incidentTotal) }}</b></div>
-            <div><span>在线 Agent</span><b>{{ formatNumber(onlineAgents) }}<em>/{{ formatNumber(totalAssets) }}</em></b></div>
-            <div><span>待审批处置</span><b class="warning">{{ formatNumber(pendingApprovalCount) }}</b></div>
+            <div><span>娲昏穬鏀诲嚮閾?/span><b>{{ postureActiveChains }}</b></div>
+            <div><span>Incident 鎬婚噺</span><b>{{ formatNumber(incidentTotal) }}</b></div>
+            <div><span>鍦ㄧ嚎 Agent</span><b>{{ formatNumber(onlineAgents) }}<em>/{{ formatNumber(totalAssets) }}</em></b></div>
+            <div><span>寰呭鎵瑰缃?/span><b class="warning">{{ formatNumber(pendingApprovalCount) }}</b></div>
           </div>
         </div>
 
         <div class="posture-card-foot">
-          <span><i class="dot ok" />检测引擎 {{ engineOnline }}/{{ engineTotal }}</span>
-          <span><i class="dot" :class="platformOnline ? 'ok' : 'bad'" />平台{{ platformOnline ? '在线' : '异常' }}</span>
-          <span>规则 {{ formatNumber(ruleTotal) }} 条</span>
+          <span><i class="dot ok" />妫€娴嬪紩鎿?{{ engineOnline }}/{{ engineTotal }}</span>
+          <span><i class="dot" :class="platformOnline ? 'ok' : 'bad'" />骞冲彴{{ platformOnline ? '鍦ㄧ嚎' : '寮傚父' }}</span>
+          <span>瑙勫垯 {{ formatNumber(ruleTotal) }} 鏉?/span>
         </div>
       </article>
 
       <div class="hero-metrics">
         <article class="sx-metric metric-live">
-          <span class="sx-metric-label"><i />24h 检测事件</span>
+          <span class="sx-metric-label"><i />24h 妫€娴嬩簨浠?/span>
           <strong class="sx-metric-value">{{ formatNumber(todayEvents) }}</strong>
-          <span class="sx-metric-note">累计 {{ formatNumber(totalEvents) }} 条 · 样本 {{ eventItems.length }} 条</span>
+          <span class="sx-metric-note">绱 {{ formatNumber(totalEvents) }} 鏉?路 鏍锋湰 {{ eventItems.length }} 鏉?/span>
         </article>
         <article class="sx-metric">
-          <span class="sx-metric-label"><i />高危 / 严重</span>
+          <span class="sx-metric-label"><i />楂樺嵄 / 涓ラ噸</span>
           <strong class="sx-metric-value danger">{{ formatNumber(highRiskCount) }}</strong>
           <span class="sx-metric-note">{{ highRiskNote }}</span>
         </article>
         <article class="sx-metric">
-          <span class="sx-metric-label"><i />处置队列</span>
+          <span class="sx-metric-label"><i />澶勭疆闃熷垪</span>
           <strong class="sx-metric-value warning">{{ formatNumber(openIncidentCount) }}</strong>
-          <span class="sx-metric-note">最近 {{ normalizedIncidents.length }} 条样本中的待处置</span>
+          <span class="sx-metric-note">鏈€杩?{{ normalizedIncidents.length }} 鏉℃牱鏈腑鐨勫緟澶勭疆</span>
         </article>
         <article class="sx-metric">
-          <span class="sx-metric-label"><i />资产覆盖</span>
+          <span class="sx-metric-label"><i />璧勪骇瑕嗙洊</span>
           <strong class="sx-metric-value success">{{ formatNumber(totalAssets) }}</strong>
-          <span class="sx-metric-note">在线 {{ formatNumber(onlineAgents) }} · 离线 {{ formatNumber(offlineAgents) }}</span>
+          <span class="sx-metric-note">鍦ㄧ嚎 {{ formatNumber(onlineAgents) }} 路 绂荤嚎 {{ formatNumber(offlineAgents) }}</span>
         </article>
       </div>
     </section>
 
     <section class="sx-panel stage-panel">
       <div class="sx-panel-head">
-        <div class="sx-panel-title">ATT&CK 攻击阶段</div>
-        <div class="sx-panel-meta">来自 {{ incidentSampleLabel }} Incident + {{ chains.items.length }} 条活跃链 · 点击阶段筛选事件</div>
+        <div class="sx-panel-title">ATT&CK 鏀诲嚮闃舵</div>
+        <div class="sx-panel-meta">鏉ヨ嚜 {{ incidentSampleLabel }} Incident + {{ chains.items.length }} 鏉℃椿璺冮摼 路 鐐瑰嚮闃舵绛涢€変簨浠?/div>
       </div>
       <div class="sx-panel-body">
         <div class="sx-stage-ribbon">
@@ -100,12 +100,12 @@
     <section class="overview-main-grid">
       <article class="sx-panel trend-panel">
         <div class="sx-panel-head">
-          <div class="sx-panel-title">检测活动趋势</div>
-          <div class="sx-panel-meta">按严重度堆叠 · 最近 {{ eventItems.length }} 条事件</div>
+          <div class="sx-panel-title">妫€娴嬫椿鍔ㄨ秼鍔?/div>
+          <div class="sx-panel-meta">鎸変弗閲嶅害鍫嗗彔 路 鏈€杩?{{ eventItems.length }} 鏉′簨浠?/div>
         </div>
         <div class="sx-panel-body trend-body">
           <div v-if="trendRows.length" ref="trendElement" class="chart-box trend-chart" />
-          <div v-else class="sx-empty"><div><strong>暂无可绘制的检测样本</strong>当前时间窗内没有事件返回。</div></div>
+          <div v-else class="sx-empty"><div><strong>鏆傛棤鍙粯鍒剁殑妫€娴嬫牱鏈?/strong>褰撳墠鏃堕棿绐楀唴娌℃湁浜嬩欢杩斿洖銆?/div></div>
           <div class="trend-legend">
             <span v-for="item in severityRows" :key="item.key"><i :style="{ background: item.color }" />{{ item.label }} <b>{{ item.count }}</b></span>
           </div>
@@ -115,12 +115,12 @@
       <div class="overview-side">
         <article class="sx-panel severity-panel">
           <div class="sx-panel-head">
-            <div class="sx-panel-title">告警等级构成</div>
-            <span class="sx-panel-meta">有等级告警</span>
+            <div class="sx-panel-title">鍛婅绛夌骇鏋勬垚</div>
+            <span class="sx-panel-meta">鏈夌瓑绾у憡璀?/span>
           </div>
           <div class="sx-panel-body severity-body">
             <div v-if="severityTotal" ref="severityElement" class="chart-box severity-chart" />
-            <div v-else class="sx-empty"><div><strong>暂无告警等级数据</strong>等待检测引擎上报。</div></div>
+            <div v-else class="sx-empty"><div><strong>鏆傛棤鍛婅绛夌骇鏁版嵁</strong>绛夊緟妫€娴嬪紩鎿庝笂鎶ャ€?/div></div>
             <div class="severity-list">
               <div v-for="item in severityRows" :key="item.key">
                 <span><i :style="{ background: item.color }" />{{ item.label }}</span>
@@ -132,8 +132,8 @@
 
         <article class="sx-panel source-panel">
           <div class="sx-panel-head">
-            <div class="sx-panel-title">数据来源覆盖</div>
-            <span class="sx-panel-meta">{{ sourceRows.length }} 个来源</span>
+            <div class="sx-panel-title">鏁版嵁鏉ユ簮瑕嗙洊</div>
+            <span class="sx-panel-meta">{{ sourceRows.length }} 涓潵婧?/span>
           </div>
           <div class="sx-panel-body source-body">
             <div v-if="sourceRows.length" class="source-list">
@@ -143,7 +143,7 @@
                 <b>{{ formatNumber(item.count) }}</b>
               </div>
             </div>
-            <div v-else class="sx-empty"><div><strong>暂无来源数据</strong></div></div>
+            <div v-else class="sx-empty"><div><strong>鏆傛棤鏉ユ簮鏁版嵁</strong></div></div>
           </div>
         </article>
       </div>
@@ -152,8 +152,8 @@
     <section class="overview-lower-grid">
       <article class="sx-panel incident-panel">
         <div class="sx-panel-head">
-          <div class="sx-panel-title">优先处置</div>
-          <RouterLink class="sx-panel-meta" to="/incidents">全部 {{ formatNumber(incidentTotal) }} 条 →</RouterLink>
+          <div class="sx-panel-title">浼樺厛澶勭疆</div>
+          <RouterLink class="sx-panel-meta" to="/incidents">鍏ㄩ儴 {{ formatNumber(incidentTotal) }} 鏉?鈫?/RouterLink>
         </div>
         <div v-if="activeIncidents.length" class="incident-list">
           <RouterLink
@@ -165,7 +165,7 @@
             <span class="sx-badge" :class="incident.severity">{{ severityLabel(incident.severity) }}</span>
             <div class="incident-copy">
               <b>{{ incident.title }}</b>
-              <small>{{ incident.affectedAsset || incident.entityId || '未绑定资产' }} · {{ formatTime(incident.updatedAt || incident.createdAt) }}</small>
+              <small>{{ incident.affectedAsset || incident.entityId || '鏈粦瀹氳祫浜? }} 路 {{ formatTime(incident.updatedAt || incident.createdAt) }}</small>
             </div>
             <div class="incident-stages">
               <span v-for="stage in incident.stages.slice(0, 3)" :key="stage.id">{{ stage.name }}</span>
@@ -173,13 +173,13 @@
             <span class="incident-status">{{ statusLabel(incident.status) }}</span>
           </RouterLink>
         </div>
-        <div v-else class="sx-empty"><div><strong>暂无待处置 Incident</strong>当前队列为空。</div></div>
+        <div v-else class="sx-empty"><div><strong>鏆傛棤寰呭缃?Incident</strong>褰撳墠闃熷垪涓虹┖銆?/div></div>
       </article>
 
       <article class="sx-panel event-panel">
         <div class="sx-panel-head">
-          <div class="sx-panel-title">实时事件流</div>
-          <RouterLink class="sx-panel-meta" to="/events">事件中心 →</RouterLink>
+          <div class="sx-panel-title">瀹炴椂浜嬩欢娴?/div>
+          <RouterLink class="sx-panel-meta" to="/events">浜嬩欢涓績 鈫?/RouterLink>
         </div>
         <div v-if="recentEvents.length" class="event-stream">
           <RouterLink
@@ -191,19 +191,19 @@
             <span class="stream-dot" :class="event.severity" />
             <time>{{ formatShortTime(event.timestamp || event.event_at || event.created_at) }}</time>
             <div>
-              <b>{{ event.rule_name || event.rule_id || event.event_type || '检测事件' }}</b>
-              <small>{{ event.source || event.source_engine || 'unknown' }} · {{ event.hostname || event.agent_id || event.src_ip || '未绑定资产' }}</small>
+              <b>{{ event.rule_name || event.rule_id || event.event_type || '妫€娴嬩簨浠? }}</b>
+              <small>{{ event.source || event.source_engine || 'unknown' }} 路 {{ event.hostname || event.agent_id || event.src_ip || '鏈粦瀹氳祫浜? }}</small>
             </div>
             <span class="sx-badge" :class="event.severity">{{ severityLabel(event.severity) }}</span>
           </RouterLink>
         </div>
-        <div v-else class="sx-empty"><div><strong>暂无实时事件</strong>等待采集面上报。</div></div>
+        <div v-else class="sx-empty"><div><strong>鏆傛棤瀹炴椂浜嬩欢</strong>绛夊緟閲囬泦闈笂鎶ャ€?/div></div>
       </article>
 
       <article class="sx-panel engine-panel">
         <div class="sx-panel-head">
-          <div class="sx-panel-title">检测引擎</div>
-          <RouterLink class="sx-panel-meta" to="/engines">引擎健康 →</RouterLink>
+          <div class="sx-panel-title">妫€娴嬪紩鎿?/div>
+          <RouterLink class="sx-panel-meta" to="/engines">寮曟搸鍋ュ悍 鈫?/RouterLink>
         </div>
         <div v-if="engineRows.length" class="engine-list">
           <div v-for="engine in engineRows" :key="engine.key" class="engine-row">
@@ -215,15 +215,15 @@
             <span class="sx-badge" :class="engine.tone">{{ engine.status }}</span>
           </div>
         </div>
-        <div v-else class="sx-empty"><div><strong>暂无引擎心跳</strong></div></div>
+        <div v-else class="sx-empty"><div><strong>鏆傛棤寮曟搸蹇冭烦</strong></div></div>
         <div class="asset-mini">
-          <div class="asset-mini-head"><span>资产风险</span><RouterLink to="/assets">资产中心 →</RouterLink></div>
+          <div class="asset-mini-head"><span>璧勪骇椋庨櫓</span><RouterLink to="/assets">璧勪骇涓績 鈫?/RouterLink></div>
           <div v-for="asset in topAssets" :key="asset.id || asset.agent_id || asset.hostname" class="asset-mini-row">
             <span>{{ asset.hostname || asset.display_name || asset.id }}</span>
             <i :class="asset.status === 'online' ? 'ok' : 'bad'" />
-            <b>{{ asset.ip || '未上报 IP' }}</b>
+            <b>{{ asset.ip || '鏈笂鎶?IP' }}</b>
           </div>
-          <div v-if="!topAssets.length" class="sx-muted">暂无资产心跳</div>
+          <div v-if="!topAssets.length" class="sx-muted">鏆傛棤璧勪骇蹇冭烦</div>
         </div>
       </article>
     </section>
@@ -263,23 +263,23 @@ let severityChart = null
 let pollTimer = null
 
 const stageDefinitions = [
-  ['detection', '检测命中'],
-  ['recon', '侦察'],
-  ['initial_access', '初始访问'],
-  ['execution', '执行'],
-  ['persistence', '持久化'],
-  ['privilege_escalation', '提权'],
-  ['lateral_movement', '横向移动'],
-  ['command_and_control', '命令控制'],
-  ['exfiltration', '外传'],
-  ['impact', '影响'],
+  ['detection', '妫€娴嬪懡涓?],
+  ['recon', '渚﹀療'],
+  ['initial_access', '鍒濆璁块棶'],
+  ['execution', '鎵ц'],
+  ['persistence', '鎸佷箙鍖?],
+  ['privilege_escalation', '鎻愭潈'],
+  ['lateral_movement', '妯悜绉诲姩'],
+  ['command_and_control', '鍛戒护鎺у埗'],
+  ['exfiltration', '澶栦紶'],
+  ['impact', '褰卞搷'],
 ]
 
 const severityDefinitions = [
-  { key: 'critical', label: '严重', color: '#d92d20' },
-  { key: 'high', label: '高危', color: '#e26a00' },
-  { key: 'medium', label: '中危', color: '#c58b00' },
-  { key: 'low', label: '低危', color: '#0f9f6e' },
+  { key: 'critical', label: '涓ラ噸', color: '#d92d20' },
+  { key: 'high', label: '楂樺嵄', color: '#e26a00' },
+  { key: 'medium', label: '涓嵄', color: '#c58b00' },
+  { key: 'low', label: '浣庡嵄', color: '#0f9f6e' },
 ]
 
 const normalizedIncidents = computed(() => normalizeIncidents(incidents.value.items || []))
@@ -297,20 +297,20 @@ const postureActiveChains = computed(() => Number(posture.value.active_chains ??
 const riskScore = computed(() => Math.max(0, Math.min(100, Number(posture.value.risk_score || 0))))
 const riskTone = computed(() => ['critical', 'high', 'medium', 'low'].includes(posture.value.risk_level) ? posture.value.risk_level : 'low')
 const riskToneLabel = computed(() => severityLabel(riskTone.value))
-const riskLabel = computed(() => ({ critical: '严重风险', high: '高风险', medium: '中风险', low: '低风险' })[riskTone.value] || '低风险')
+const riskLabel = computed(() => ({ critical: '涓ラ噸椋庨櫓', high: '楂橀闄?, medium: '涓闄?, low: '浣庨闄? })[riskTone.value] || '浣庨闄?)
 const postureNote = computed(() => {
-  if (riskTone.value === 'low') return '当前未发现需要立即升级的活跃攻击链，保持持续监测。'
-  if (riskTone.value === 'medium') return '存在需要关注的关联活动，建议优先核查高严重度事件。'
-  return '检测到高风险关联活动，请进入攻击链处置队列。'
+  if (riskTone.value === 'low') return '褰撳墠鏈彂鐜伴渶瑕佺珛鍗冲崌绾х殑娲昏穬鏀诲嚮閾撅紝淇濇寔鎸佺画鐩戞祴銆?
+  if (riskTone.value === 'medium') return '瀛樺湪闇€瑕佸叧娉ㄧ殑鍏宠仈娲诲姩锛屽缓璁紭鍏堟牳鏌ラ珮涓ラ噸搴︿簨浠躲€?
+  return '妫€娴嬪埌楂橀闄╁叧鑱旀椿鍔紝璇疯繘鍏ユ敾鍑婚摼澶勭疆闃熷垪銆?
 })
 const highRiskNote = computed(() => {
   const total = Number(unified.value.total_alerts || unified.value.total_events || 0)
-  if (!total) return '等待统一告警聚合'
+  if (!total) return '绛夊緟缁熶竴鍛婅鑱氬悎'
   const ratio = (highRiskCount.value / total) * 100
-  return `占全部告警 ${ratio > 0 && ratio < 0.1 ? '<0.1' : ratio.toFixed(1)}% · 建议优先研判`
+  return `鍗犲叏閮ㄥ憡璀?${ratio > 0 && ratio < 0.1 ? '<0.1' : ratio.toFixed(1)}% 路 寤鸿浼樺厛鐮斿垽`
 })
 const openIncidentCount = computed(() => normalizedIncidents.value.filter((item) => ['new', 'open', 'triaged', 'processing'].includes(item.status)).length || incidentTotal.value)
-const incidentSampleLabel = computed(() => `${normalizedIncidents.value.length} 条样本`)
+const incidentSampleLabel = computed(() => `${normalizedIncidents.value.length} 鏉℃牱鏈琡)
 const engineRows = computed(() => {
   const groups = new Map()
   for (const item of engines.value.items || []) {
@@ -327,9 +327,9 @@ const engineRows = computed(() => {
       key,
       short: ({ suricata: 'SU', wazuh: 'WA', yara: 'YA', rasp: 'RA', dpi: 'DP' })[key] || key.slice(0, 2).toUpperCase(),
       label: ({ suricata: 'Suricata', wazuh: 'Wazuh', yara: 'YARA', rasp: 'OpenRASP', dpi: 'DPI Engine' })[key] || key,
-      status: !installed ? '未安装' : running ? '运行中' : offline ? 'Agent 离线' : '待连接',
+      status: !installed ? '鏈畨瑁? : running ? '杩愯涓? : offline ? 'Agent 绂荤嚎' : '寰呰繛鎺?,
       tone: !installed ? 'muted' : running ? 'low' : 'medium',
-      note: [item.rule_pack_version || '', items.length > 1 ? `${items.length} 个探针` : item.hostname || ''].filter(Boolean).join(' · ') || '无心跳详情',
+      note: [item.rule_pack_version || '', items.length > 1 ? `${items.length} 涓帰閽坄 : item.hostname || ''].filter(Boolean).join(' 路 ') || '鏃犲績璺宠鎯?,
       running,
       offline,
     }
@@ -413,11 +413,11 @@ function formatShortTime(value) {
 }
 
 function statusLabel(value) {
-  return ({ new: '新发', open: '新发', triaged: '已分诊', processing: '处理中', resolved: '已解决', closed: '已关闭' })[value] || value || '-'
+  return ({ new: '鏂板彂', open: '鏂板彂', triaged: '宸插垎璇?, processing: '澶勭悊涓?, resolved: '宸茶В鍐?, closed: '宸插叧闂? })[value] || value || '-'
 }
 
 function sourceLabel(value) {
-  return ({ 'g5-real-agent': 'Agent 采集', wazuh: 'Wazuh', suricata: 'Suricata', 'ly-security-engine': '安全引擎', sshd: 'SSH 日志', rasp: 'RASP', yara: 'YARA', dpi_engine: 'DPI' })[value] || value || '未知'
+  return ({ 'g5-real-agent': 'Agent 閲囬泦', wazuh: 'Wazuh', suricata: 'Suricata', 'ly-security-engine': '瀹夊叏寮曟搸', sshd: 'SSH 鏃ュ織', rasp: 'RASP', yara: 'YARA', dpi_engine: 'DPI' })[value] || value || '鏈煡'
 }
 
 function normalizeStageKey(value) {
@@ -510,7 +510,7 @@ function renderSeverity() {
     }],
     graphic: [
       { type: 'text', left: 'center', top: '42%', style: { text: severityTotal.value.toLocaleString('zh-CN'), fill: styles.getPropertyValue('--sx-text').trim() || '#17283d', fontSize: 18, fontWeight: 750, textAlign: 'center' } },
-      { type: 'text', left: 'center', top: '56%', style: { text: '有等级告警', fill: text, fontSize: 10, textAlign: 'center' } },
+      { type: 'text', left: 'center', top: '56%', style: { text: '鏈夌瓑绾у憡璀?, fill: text, fontSize: 10, textAlign: 'center' } },
     ],
   }, true)
 }
@@ -523,38 +523,32 @@ function renderCharts() {
 async function load() {
   loading.value = true
   error.value = ''
-  const results = await Promise.allSettled([
-    overviewClient.health(),
-    overviewClient.stats(),
-    attackWorkbenchClient.stats(),
-    attackWorkbenchClient.xdrPosture(),
-    attackWorkbenchClient.xdrChains({ limit: 30 }),
-    attackWorkbenchClient.incidents({ limit: 40 }),
-    assetAgentClient.assetStats(),
-    assetAgentClient.assets({ limit: 8 }),
-    assetAgentClient.engineHealth(),
-    attackWorkbenchClient.events({ limit: 160 }),
-    ruleClient.responseActions({ limit: 100 }),
-    ruleClient.stats(),
-  ])
-  const [health, nextStats, nextUnified, nextPosture, nextChains, nextIncidents, nextAssetStats, nextAssets, nextEngines, nextEvents, nextActions, nextRules] = results
-  platformOnline.value = health.status === 'fulfilled'
-  if (nextStats.status === 'fulfilled') stats.value = unwrap(nextStats.value)
-  if (nextUnified.status === 'fulfilled') unified.value = unwrap(nextUnified.value)
-  if (nextPosture.status === 'fulfilled') posture.value = unwrap(nextPosture.value)
-  if (nextChains.status === 'fulfilled') chains.value = normalizePage(nextChains.value)
-  if (nextIncidents.status === 'fulfilled') incidents.value = normalizePage(nextIncidents.value)
-  if (nextAssetStats.status === 'fulfilled') assetStats.value = unwrap(nextAssetStats.value)
-  if (nextAssets.status === 'fulfilled') assets.value = normalizePage(nextAssets.value)
-  if (nextEngines.status === 'fulfilled') engines.value = normalizePage(nextEngines.value)
-  if (nextEvents.status === 'fulfilled') events.value = normalizePage(nextEvents.value)
-  if (nextActions.status === 'fulfilled') responseActions.value = normalizePage(nextActions.value)
-  if (nextRules.status === 'fulfilled') ruleStats.value = unwrap(nextRules.value)
-  if (results.every((result) => result.status === 'rejected')) error.value = '态势数据加载失败，请检查后端连接。'
-  lastUpdated.value = formatChinaTime()
-  loading.value = false
-  await nextTick()
-  renderCharts()
+  let succeeded = 0
+  const refreshCharts = () => nextTick(renderCharts)
+  const jobs = [
+    overviewClient.health().then(() => { platformOnline.value = true; succeeded++ }).catch(() => { platformOnline.value = false }),
+    overviewClient.stats().then((value) => { stats.value = unwrap(value); succeeded++ }),
+    attackWorkbenchClient.stats().then((value) => { unified.value = unwrap(value); succeeded++ }),
+    attackWorkbenchClient.xdrPosture().then((value) => { posture.value = unwrap(value); succeeded++ }),
+    attackWorkbenchClient.xdrChains({ limit: 30 }).then((value) => { chains.value = normalizePage(value); succeeded++ }),
+    attackWorkbenchClient.incidents({ limit: 20 }).then((value) => { incidents.value = normalizePage(value); succeeded++ }),
+    assetAgentClient.assetStats().then((value) => { assetStats.value = unwrap(value); succeeded++ }),
+    assetAgentClient.assets({ limit: 8 }).then((value) => { assets.value = normalizePage(value); succeeded++ }),
+    assetAgentClient.engineHealth().then((value) => { engines.value = normalizePage(value); succeeded++ }),
+    attackWorkbenchClient.events({ limit: 160 }).then((value) => { events.value = normalizePage(value); succeeded++; refreshCharts() }),
+    ruleClient.responseActions({ limit: 100 }).then((value) => { responseActions.value = normalizePage(value); succeeded++ }),
+    ruleClient.stats().then((value) => { ruleStats.value = unwrap(value); succeeded++ }),
+  ]
+  try {
+    await Promise.allSettled(jobs)
+    if (succeeded === 0) error.value = '鎬佸娍鏁版嵁鍔犺浇澶辫触锛岃妫€鏌ュ悗绔繛鎺ャ€?
+  } catch (panic) {
+    error.value = '鎬佸娍鏁版嵁鍔犺浇澶辫触锛岃妫€鏌ュ悗绔繛鎺ャ€?
+  } finally {
+    lastUpdated.value = formatChinaTime()
+    loading.value = false
+    await refreshCharts()
+  }
 }
 
 function normalizePage(value) {
@@ -1047,3 +1041,4 @@ onUnmounted(() => {
   .event-stream-row .sx-badge { display: none; }
 }
 </style>
+
