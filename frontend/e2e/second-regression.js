@@ -68,6 +68,13 @@ async function main() {
     ]) {
       await page.goto(`${baseURL}${route}`, { waitUntil: 'domcontentloaded' })
       await page.waitForTimeout(wait)
+      if (name === 'traffic-observe') {
+        const probe = page.getByLabel('探针')
+        if (await probe.count()) {
+          await probe.selectOption('lyprobe')
+          await page.waitForTimeout(2500)
+        }
+      }
       const text = await page.locator('body').innerText()
       result.checks[name] = {
         url: page.url(),
