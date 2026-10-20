@@ -83,7 +83,7 @@
           <section class="incident-facts">
             <div><span>源 IP</span><b class="sx-mono">{{ selected.sourceIPs?.join(', ') || '-' }}</b></div>
             <div><span>受害 IP</span><b class="sx-mono">{{ selected.victimIPs?.join(', ') || '-' }}</b></div>
-            <div><span>实体 / Agent</span><b>{{ selected.entityId || selected.affectedAsset || '-' }}</b></div>
+            <div><span>实体 / Agent</span><b>{{ agentIdentity }}</b></div>
             <div><span>证据</span><b>{{ selected.evidence?.length || 0 }} 条</b></div>
             <div><span>建议动作</span><b>{{ selected.recommendedAction || '待研判' }}</b></div>
           </section>
@@ -264,6 +264,7 @@ const stageRibbon = computed(() => {
   for (const stage of selected.value?.stages || []) counts[stage.stageKey] = (counts[stage.stageKey] || 0) + 1
   return stageDefinitions.map(([key, label]) => ({ key, label, active: Boolean(counts[key]), count: counts[key] || 0 }))
 })
+const agentIdentity = computed(() => incidentAgent(selected.value))
 const actionsForIncident = computed(() => actions.value.filter((item) => item.incident_id === selected.value?.id))
 const bundlesForIncident = computed(() => bundles.value.filter((item) => item.incident_id === selected.value?.id))
 const canCreateAction = computed(() => Boolean(actionForm.agent_id && (actionForm.action === 'observe' || actionForm.target)))
@@ -278,6 +279,11 @@ function actionStatusLabel(value) { return ({ pending_approval: '待审批', app
 function actionTone(value) { return ({ pending_approval: 'medium', approved: 'info', executed: 'low', failed: 'critical', rolled_back: 'muted' })[value] || 'muted' }
 function actionLabel(value) { return ({ observe: '观察', block_ip: '封禁 IP', isolate_host: '主机隔离', process_kill: '终止进程', file_delete: '隔离文件', account_disable: '禁用账号', namespace_isolate: '容器隔离' })[value] || value || '-' }
 function canRollback(action) { return ['executed', 'failed'].includes(action.status) && ['block_ip', 'isolate_host', 'file_delete', 'account_disable', 'namespace_isolate'].includes(action.action) }
+function incidentAgent(item) {
+  const evidenceAgent = (item?.evidence || []).map((evidence) => evidence.entityId).find((value) => value && !/^(inc-|hyp-)/.test(value))
+  return evidenceAgent || item?.affectedAsset || item?.entityId || '-'
+}
+
 function prettyEvidence(evidence) { try { return JSON.stringify(evidence?.raw || evidence, null, 2) } catch { return String(evidence?.raw || '') } }
 function toggleEvidence(id) { expandedEvidence.value = expandedEvidence.value === id ? '' : id }
 
@@ -301,8 +307,7 @@ async function loadIncidents(options = {}) {
 async function selectIncident(item) {
   if (!item) return
   selected.value = item
-  const evidenceAgent = (item.evidence || []).map((evidence) => evidence.entityId).find((value) => value && !/^(inc-|hyp-)/.test(value))
-  actionForm.agent_id = evidenceAgent || item.affectedAsset || item.entityId || ''
+  actionForm.agent_id = incidentAgent(item) === '-' ? '' : incidentAgent(item)
   try {
     const detail = unwrap(await attackWorkbenchClient.incident(item.id))
     selected.value = normalizeIncident(Object.keys(detail).length ? detail : item)
