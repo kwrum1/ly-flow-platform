@@ -18,7 +18,12 @@ async function login(page, username, password, target) {
   await page.getByLabel('账号').fill(username)
   await page.getByLabel('密码').fill(password)
   await page.getByRole('button', { name: '进入控制台' }).click()
-  await page.waitForTimeout(3000)
+  try {
+    await page.waitForURL((url) => url.pathname !== '/login', { timeout: 12000 })
+  } catch {
+    // Keep the current page so the caller can record the failed navigation.
+  }
+  await page.waitForTimeout(1500)
   if (target) {
     await page.goto(`${baseURL}${target}`, { waitUntil: 'domcontentloaded' })
     await page.waitForTimeout(2500)
