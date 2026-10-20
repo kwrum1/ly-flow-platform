@@ -80,3 +80,6 @@
 - **G3**：3 条 ATT&CK 链路验证通过。
 - **G4**：Agent 安装/回滚 + 响应安全护栏通过。
 - **G5**：ESXi 测试机全量验收通过，可发布。当前：`PASS_WITH_EXCEPTIONS`（2026-10-19，12 服务健康、Pingora 前端、Event v2/Incident、真实 Agent/资产/心跳、YARA、Python/Java/PHP/Node/.NET RASP、OpenRASP alarm→component alerts、Wazuh manager 本地告警进入 NDR/XDR、全部响应动作审批/执行/回滚、SeaweedFS 证据对象存储、横向移动实时接入、Suricata→Vector→ly-server、自签 UI 验收通过；clean VM、ESXi 快照、离线 digest 见例外）。
+
+> 2026-10-20：lyprobe NetFlow v9 collector、flows/sessions 证据链、规则中心 lyprobe 引擎与 eBPF→auditd→procfs
+> 进程采集已实现并验证；T4.3/T4.4 继续保留 REVIEW，待 clean VM 安装/回滚验收。

@@ -807,3 +807,24 @@
 - security-engine watchdog 在消费/回收批次中刷新，并将 liveness 窗口从约 2 秒放宽到约 11 秒，
   定位并修复引擎频繁因 watchdog stale 重启、导致 /engine-runtime/status 偶发
   127.0.0.1:8082 connection refused 的根因。
+
+## 2026-10-20 lyprobe NetFlow 证据链、eBPF 进程检测与规则可见性
+
+- 新增 `server/cmd/netflow-collector`：NetFlow v9 template/data 解码、原始 UDP 接收（规避 lyprobe 校验和问题）、
+  8 worker 并发发布、30s 超时和重试。修复 `0xe169` 等 threat 字段被误判为 IPFIX enterprise 字段导致模板丢失的问题。
+- lyprobe 模板加入 `%IN_BYTES %IN_PKTS`；collector 同时写入 `flows:raw` 与 `sessions:semantic`，
+  流量归属到被观测主机 `g5-real-agent`，同时保留 `probe_name=lyprobe`、`capture_source=lyprobe`、`engine=lyprobe`。
+- 新增独立 `flow-bridge` 消费组：只把 `flows:raw` 桥接到 `flows:semantic`，不再重复写入 `sessions:semantic`，
+  避免高频抓包流量把会话消费者积压。
+- 规则中心新增 lyprobe 实装引擎：`/api/v1/engine-rules` 返回 6 条真实 `rules/lyprobe/threat.json` 规则，
+  `/api/v1/engine-runtime/status` 返回 lyprobe 规则集、来源、NetFlow v9 传输与生成版本；前端显示
+  「LyFlow 探针规则」卡片，不伪造可更新 URL。原生规则扫描增加 2 分钟缓存与启动预热，消除规则页首次加载超时。
+- Agent 运行时进程采集改为 eBPF 优先：`bpftrace` 监听 `sched_process_exec`；不可用时回退
+  `/var/log/audit/audit.log` 的 EXECVE/SYSCALL；最后回退 procfs 快照。事件继续写入 `alerts:runtime`，
+  在运行威胁页展示 `runtime.process.exec` 与 `backend=ebpf`。
+- 验证：netflow 解码单测通过；`/traffic/flows` 可查到 lyprobe 流（含真实 bytes/packets），
+  `/traffic/sessions` 可查到 lyprobe 会话；`/engine-rules?engine=lyprobe` 0.36s 返回 6 条；
+  eBPF 事件在 `/component-alerts/runtime` 可见；前端 typecheck 与 115 项测试通过。
+- 已知限制：测试机 Docker 守护进程曾因容器重启循环卡住，已重启恢复；单击流会话的 PostgreSQL 持久化
+  仍受测试机历史会话积压影响，UI 会话查询当前以 Redis 语义流为准。
+
