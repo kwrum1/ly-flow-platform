@@ -90,15 +90,15 @@ const runtimeItem = computed(() => {
   const health = runtime.control_health || {}
   const running = health.status === 'healthy' || runtime.status === 'running'
   return {
-    agent_id: 'local-security-engine',
+    agent_id: runtime.service || 'ly-security-engine',
     agent_status: 'online',
     engine: 'security-engine',
     hostname: 'LyFlow 控制面',
     installed: true,
     running,
-    version: health.schema_version || '',
+    version: '',
     rule_pack_version: runtime.bundle_version || '',
-    last_event_at: health.watchdog_at || '',
+    last_event_at: '',
     last_heartbeat: health.watchdog_at || '',
     last_error: health.reason || '',
     output_path: runtime.bundle_path || '',
