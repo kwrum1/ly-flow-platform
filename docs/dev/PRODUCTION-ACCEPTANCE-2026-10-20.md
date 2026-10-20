@@ -151,4 +151,4 @@
   - 本地构建/安装脚本不注入代理变量。
 - 发布门禁结论：功能/UI/API/Agent/lyprobe/eBPF/规则/响应/证据通过；clean VM 安装/回滚与 20k EPS 容量复测仍为本报告保留例外。
 - CI run `39449614495`（提交 `8d63164`）进一步暴露 supervisor stdout/stderr 管道关闭竞态；已将输出改为行缓冲 writer + `WaitDelay`，`agent` 全量测试与 100 次重复运行通过。
-- 最终状态：`main` 提交 `659093d`；CI run `39450350180` 成功；Release run `39450350251` 成功，`latest-server` target 为 `659093d`，AMD64/ARM64 安装包已发布。
+- 最终状态：代码提交 `659093d`；CI run `39450350180` 成功；Release run `39450350251` 成功，`latest-server` target 为 `659093d`，AMD64/ARM64 安装包已发布；后续仅追加 docs-only 报告提交（`[skip ci]`）。

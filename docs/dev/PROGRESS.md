@@ -856,4 +856,4 @@
 - GitHub Release run `39448186932` 成功，`latest-server` 已发布 AMD64/ARM64 一键安装包。
 - 重新生成事件清单，修复 CI 的 192/191 路径不一致。
 - 修复 supervisor 在进程退出时提前关闭 stdout/stderr 管道导致的日志丢失竞态，改为行缓冲 writer + `WaitDelay`，100 次重复测试通过。
-- 最终 `main` 提交 `659093d` 的 CI run `39450350180` 与 Release run `39450350251` 均成功，`latest-server` 已指向该提交。
+- 最终代码提交 `659093d` 的 CI run `39450350180` 与 Release run `39450350251` 均成功，`latest-server` 已指向该提交；后续仅追加 docs-only 报告提交（`[skip ci]`）。
