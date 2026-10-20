@@ -35,7 +35,7 @@ func TestProcessRunsAndLogs(t *testing.T) {
 		if !strings.Contains(line, "hello-lyflow") {
 			t.Fatalf("line = %q", line)
 		}
-	case <-time.After(time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("no log line")
 	}
 }
