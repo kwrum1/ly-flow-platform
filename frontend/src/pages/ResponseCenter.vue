@@ -4,7 +4,7 @@
       <div>
         <p class="sx-kicker">RESPONSE ORCHESTRATION</p>
         <h2 class="sx-title">响应处置</h2>
-        <p class="sx-subtitle">所有动作都从真实审批队列进入；L2/L3 需要第二名管理员审批，执行结果由 Agent 回写，可回滚动作在这里直接回滚。</p>
+        <p class="sx-subtitle">选择 Agent、动作和说明即可发起处置；L2 可在自动化窗口内直接执行，L3 始终需要第二名管理员审批，执行结果由 Agent 回写。</p>
       </div>
       <div class="sx-head-actions">
         <span class="sx-live"><i />LIVE</span>
@@ -33,7 +33,7 @@
         <label><span>结束小时</span><select v-model.number="automationForm.window_end_hour" class="sx-select"><option v-for="hour in hourOptions" :key="`e-${hour}`" :value="hour">{{ String(hour).padStart(2, '0') }}:00</option></select></label>
         <label><span>审批 TTL（分钟）</span><input v-model.number="automationForm.approval_ttl_minutes" class="sx-input" type="number" min="1" max="1440" /></label>
         <div class="automation-actions">
-          <span class="sx-muted">时区：Asia/Shanghai · {{ automation.scope || 'L2 actions only' }}</span>
+          <span class="sx-muted">全局策略 · 时区：Asia/Shanghai · 窗口内仅 L2 自动执行；L3 始终审批</span>
           <button class="sx-btn primary" type="button" :disabled="automationSaving" @click="saveAutomation">{{ automationSaving ? '保存中…' : '保存自动化策略' }}</button>
         </div>
         <div v-if="automationMessage" class="response-message" :class="automationMessageType">{{ automationMessage }}</div>

@@ -137,6 +137,7 @@
                 </div>
                 <div class="sx-panel-body">
                   <div class="response-form">
+                    <div class="response-agent"><span>处置 Agent</span><b>{{ agentIdentity }}</b><small>来自当前 Incident 证据</small></div>
                     <div class="response-form-row">
                       <label><span>动作</span>
                         <select v-model="actionForm.action" class="sx-select">
@@ -149,13 +150,12 @@
                           <option value="namespace_isolate">容器网络隔离</option>
                         </select>
                       </label>
-                      <label><span>目标</span><input v-model.trim="actionForm.target" class="sx-input" placeholder="IP / PID / 路径 / 用户名" /></label>
+                      <label v-if="actionRequiresTarget"><span>目标</span><input v-model.trim="actionForm.target" class="sx-input" :placeholder="actionTargetPlaceholder" /></label>
                     </div>
-                    <label><span>Agent ID</span><input v-model.trim="actionForm.agent_id" class="sx-input" placeholder="g5-real-agent" /></label>
-                    <label><span>原因</span><input v-model.trim="actionForm.reason" class="sx-input" placeholder="说明处置依据" /></label>
+                    <label><span>说明</span><textarea v-model.trim="actionForm.reason" class="sx-input reason-input" rows="2" placeholder="处置依据 / 变更单号（可选）" /></label>
                     <div class="response-form-actions">
                       <span v-if="actionMessage" :class="['response-message', actionMessageType]">{{ actionMessage }}</span>
-                      <button class="sx-btn primary" type="button" :disabled="creatingAction || !canCreateAction" @click="createAction">{{ creatingAction ? '提交中…' : '提交审批' }}</button>
+                      <button class="sx-btn primary" type="button" :disabled="creatingAction || !canCreateAction" @click="createAction">{{ creatingAction ? '提交中…' : '提交处置' }}</button>
                     </div>
                   </div>
 
@@ -275,7 +275,9 @@ const stageRibbon = computed(() => {
 const agentIdentity = computed(() => incidentAgent(selected.value))
 const actionsForIncident = computed(() => actions.value.filter((item) => item.incident_id === selected.value?.id))
 const bundlesForIncident = computed(() => bundles.value.filter((item) => item.incident_id === selected.value?.id))
-const canCreateAction = computed(() => Boolean(actionForm.agent_id && (actionForm.action === 'observe' || actionForm.target)))
+const actionRequiresTarget = computed(() => ['block_ip', 'process_kill', 'file_delete', 'account_disable', 'namespace_isolate'].includes(actionForm.action))
+const actionTargetPlaceholder = computed(() => ({ block_ip: 'IP 地址（必须在 RESPONSE_ALLOWED_CIDRS 内）', process_kill: 'PID', file_delete: '绝对文件路径', account_disable: '用户名', namespace_isolate: '容器 ID' })[actionForm.action] || '目标')
+const canCreateAction = computed(() => Boolean(actionForm.agent_id && (!actionRequiresTarget.value || actionForm.target)))
 
 function unwrap(response) { return response?.data?.data ?? response?.data ?? response ?? {} }
 function formatNumber(value) { return Number(value || 0).toLocaleString('zh-CN') }
@@ -360,7 +362,7 @@ async function createAction() {
       incident_id: selected.value.id,
       agent_id: actionForm.agent_id,
       action: actionForm.action,
-      target: actionForm.action === 'observe' ? actionForm.agent_id : actionForm.target,
+      target: actionRequiresTarget.value ? actionForm.target : actionForm.agent_id,
       reason: actionForm.reason || `Incident ${selected.value.id} 人工处置`,
       ttl_seconds: 300,
     })
@@ -495,7 +497,12 @@ onMounted(() => {
 .timeline-empty { padding: 8px 0; color: var(--sx-text-3); font-size: 10px; }
 .incident-side-stack { display: grid; gap: 12px; }
 .response-form { display: grid; gap: 7px; }
+.response-agent { display: flex; align-items: center; gap: 7px; padding: 7px 9px; border: 1px solid var(--sx-line-soft); border-radius: 5px; background: var(--sx-surface-2); }
+.response-agent span { color: var(--sx-text-3); font-size: 9px; }
+.response-agent b { color: var(--sx-text); font-size: 10px; font-weight: 650; }
+.response-agent small { color: var(--sx-text-3); font-size: 8px; }
 .response-form-row { display: grid; grid-template-columns: 1fr 1.1fr; gap: 7px; }
+.reason-input { height: auto; min-height: 52px; padding: 7px 9px; resize: vertical; }
 .response-form label { display: grid; gap: 3px; }
 .response-form label > span { color: var(--sx-text-3); font-size: 9px; }
 .response-form-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
