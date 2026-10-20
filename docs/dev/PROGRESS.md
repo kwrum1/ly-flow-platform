@@ -848,3 +848,10 @@
 - 修复 lyprobe 心跳扫描窗口、规则源冷启动缓存和流量会话冷查询预热。
 - 报告：`docs/dev/PRODUCTION-ACCEPTANCE-2026-10-20.md`；证据：`/opt/lyflow/reports/G5/production-acceptance-2026-10-20/`。
 - 发布级例外：clean VM 安装/回滚、20k EPS 容量复测。
+
+## 2026-10-20 GitHub 主分支与云发布收敛
+
+- 恢复被 `3ffa445` 误删的 Windows Agent 平台文件，修复 Release 工作流 Windows 编译失败；Windows amd64 与 Linux amd64 交叉编译通过。
+- 云构建改用 `GOPROXY=direct`，不注入 HTTP/HTTPS 代理；移除构建机/测试机 Docker 代理覆盖和 RASP 验收脚本的代理环境。
+- GitHub Release run `39448186932` 成功，`latest-server` 已发布 AMD64/ARM64 一键安装包。
+- 重新生成事件清单，修复 CI 的 192/191 路径不一致。

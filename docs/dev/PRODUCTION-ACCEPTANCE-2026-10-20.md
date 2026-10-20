@@ -128,3 +128,25 @@
 - UI 验收：通过
 - 开发联调：通过
 - 发布级验收：`PASS_WITH_EXCEPTIONS`（clean VM、容量两项例外）
+
+
+## 9. 发布修复与 GitHub 云构建最终状态（2026-10-20 晚）
+
+- GitHub `main` 已包含生产验收代码、去重页面、截图与发布修复。
+- 修复 Release 工作流 Windows Agent 编译失败：提交 `3ffa445` 误删了 6 个 Windows 平台文件，导致 `hiddenCommand`、`applyPlatformTrafficPolicy`、`runPCAPPacketCapture`、`readDiskUsage` 未定义。已从 `0ee2180` 恢复：
+  - `agent/cmd/command_hidden_windows.go`
+  - `agent/cmd/disk_windows.go`
+  - `agent/cmd/pcap_windows.go`
+  - `agent/cmd/tray_windows.go`
+  - `agent/cmd/windows_defaults.go`
+  - `agent/cmd/windows_install.go`
+- 已在构建机验证 Windows amd64 Agent 与 Linux amd64 Agent 交叉编译，`agent` 全量单测通过。
+- GitHub Actions：
+  - Release run `39448186932`（提交 `fe221b0`）成功：AMD64/ARM64 镜像、服务端安装包和 `latest-server` 发布全部成功。
+  - `latest-server` 资产：`lyflow-server-amd64.tar.gz`（588,918,057 字节）、`lyflow-server-arm64.tar.gz`（540,676,698 字节）。
+  - CI run `39448186884` 暴露事件清单缺少恢复的 Windows 抓包流，已重新生成 `docs/generated/event-contract-inventory.json`（192 条扫描路径），随文档提交同步。
+- 云构建与本地代理环境：
+  - `.github/workflows/release.yml` 使用 `GOPROXY=direct`，不设置 HTTP/HTTPS 代理；规则、Go 依赖、npm 和 Docker 基础镜像直接访问上游。
+  - 移除构建机/测试机 Docker systemd 的 `99-no-proxy.conf` 代理覆盖；仓库脚本不再读取 `TASK13_AUTHORIZED_PROXY`。
+  - 本地构建/安装脚本不注入代理变量。
+- 发布门禁结论：功能/UI/API/Agent/lyprobe/eBPF/规则/响应/证据通过；clean VM 安装/回滚与 20k EPS 容量复测仍为本报告保留例外。
