@@ -2,7 +2,7 @@
 
 - 日期：2026-10-20
 - 测试角色：功能测试专家（二次回归）
-- 被测版本：`feat/lyflow-v2`，测试时提交 `82492d1`
+- 被测版本：`feat/lyflow-v2`，测试时提交 `d83ca9b`
 - 构建机：`10.1.18.100`
 - 测试机：`10.1.18.126`
 - 测试入口：`https://10.1.18.126/`
@@ -14,7 +14,7 @@
 
 - 完整 UI 巡检：17 个页面/视口，全部 HTTP 200，横向溢出 0，console/page error 0，异常请求 0。
 - 定向回归：`rc=0`，关键断言全部通过。
-- 发现并已修复 5 个问题；保留 3 个中低风险问题作为后续优化。
+- 发现并已修复 6 个问题；保留 2 个中风险性能问题作为后续优化。
 - 未执行破坏性响应动作；未修改生产数据卷。
 
 ## 2. 测试方法
@@ -35,7 +35,7 @@
 - `unexpectedRequestFailures=0`
 - `badResponses=0`
 - 所有页面 `horizontalOverflow=0`
-- 证据：`validation4.stdout.json`、`validation4.stderr.txt`、各页面 PNG
+- 证据：`validation5.stdout.json`、`validation5.stderr.txt`、各页面 PNG
 
 > 注：中间一次巡检出现浏览器 `ERR_NETWORK_CHANGED` 导致动态 chunk 加载失败，复跑 `validation4` 清零；判定为构建机网络瞬断，非产品缺陷。
 
@@ -52,7 +52,7 @@
 7. Incident 详情只发起 1 次详情请求，且显示阶段时间线与证据包。
 8. viewer 账号登录后进入 `/forbidden`，访问 `/xdr` 仍停留 `/forbidden`。
 
-结果：`rc=0`，证据：`second7.stdout.json`、`second7.stderr.txt`、`second-regression.json`。
+结果：`rc=0`，证据：`second9.stdout.json`、`second9.stderr.txt`、`second-regression.json`。
 
 ### 2.3 API/数据核验
 
@@ -106,7 +106,7 @@
 
 **原因**：标题使用引擎 `counts` 求和（Suricata 使用生效 bundle 479），清单使用实际规则项（Suricata 本地 11 条）；两者语义不同。
 
-**修复**：标题改用规则清单 `total`，与分页清单一致；引擎卡仍保留各自“生效规则”口径。复测标题与清单均为 `29,906`。
+**修复**：标题改用规则清单 `total`，与分页清单一致；引擎卡改为“生效规则”口径，避免把生效 bundle 与本地清单混为一谈。复测标题与清单均为 `29,906`，卡片显示“生效规则 479/22,214/...”。
 
 ### F6（通过）非管理员访问控制
 
@@ -133,26 +133,26 @@
 - 同时保留事件列表，不再静默显示普通列表。
 - 请求返回 404 属预期，已从自动化 console 过滤中排除。
 
+### F10（中，已修复）lyprobe 引擎卡显示“无心跳”
+
+**现象**：lyprobe 有持续 NetFlow 流量，但 `/engine-runtime/status` 返回 `running=false`、`rules_loaded`。
+
+**修复**：后端读取 `flows:raw` 最近 500 条，发现 5 分钟内的 `source=lyprobe` 记录即返回 `running=true`、`status=running` 和 `last_export`。验证返回 `running=true`，`last_export=13:29:53Z`，规则卡显示“运行中”。
+
 ## 4. 保留问题（未阻塞本轮）
 
-### R1（中）规则源目录接口仍偏慢
+### R1（中，已缓解）规则源目录接口冷启动仍偏慢
 
-- `/api/v1/rules/sources`：约 5.7s
-- `/api/v1/rule-platform/sources`：约 4.8s
-- 高负载下上游表可能显示“读取上游…”约 9–12s。
-- 引擎卡片已不再被阻塞；建议后端增加短 TTL 缓存或把来源目录改为按需加载。
+- 冷请求 `/api/v1/rules/sources`：约 8.4s
+- 冷请求 `/api/v1/rule-platform/sources`：约 0.3–4.8s
+- 已增加 30s 进程内响应缓存：第二次请求分别降至约 0.01s；来源更新时立即清缓存。
+- 引擎卡片已不再被阻塞；冷启动期间上游表显示“读取上游…”。后续可考虑持久缓存或异步预热。
 
 ### R2（中）服务重启后 Incident 首次列表冷启动慢
 
 - 服务重启后首次 `/api/v1/incidents?limit=3&live=0`：约 15.6s。
 - 后续同一请求：约 14ms。
 - 推测为 DB/Redis/规则缓存冷启动；建议启动预热或在健康检查中标记 warmup 状态，避免 UI 首屏误判超时。
-
-### R3（低）lyprobe 引擎卡显示“无心跳”
-
-- `/engine-runtime/status` 返回 `lyprobe.running=false`、`status=rules_loaded`，但 NetFlow 流量持续到达。
-- 当前文案为“规则已加载 · 无心跳”，不会伪造运行状态。
-- 建议后续用最近 lyprobe 流时间作为心跳，显示“运行中 / 最近导出”。
 
 ## 5. 环境问题（非产品缺陷）
 
@@ -168,6 +168,9 @@
 - `25c84f6`、`6c2125b`、`6a91519`：二次回归脚本与登录等待修正。
 - `ff39e3b`：auditd fallback 单测。
 - `82492d1`：规则总数与分页清单口径统一（30,374 → 29,906 一致）。
+- `90b7518`：lyprobe 流量心跳 + 规则源目录 30s 缓存。
+- `d152ee4`：6 列引擎卡、生效规则文案、探针/运行时来源与筛选优化。
+- `d83ca9b`：流量观测 lyprobe 探针筛选与回归断言加固。
 
 ## 7. 测试结论
 
