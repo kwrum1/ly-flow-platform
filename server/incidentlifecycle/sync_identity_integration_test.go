@@ -1,6 +1,9 @@
 package incidentlifecycle
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestPostgresStore_rekeys_same_incident_id_without_primary_key_collision(t *testing.T) {
 	store, pool, ctx, now := newTestStore(t)
