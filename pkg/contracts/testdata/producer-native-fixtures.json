@@ -24,5 +24,7 @@
   {"producer_path":"server/rulelifecycle/bootstrap.go","fixture_source":"security_engine"},
   {"producer_path":"server/webhook/manager.go","fixture_source":"security_engine"},
   {"producer_path":"server/webhook/wecom.go","fixture_source":"security_engine"},
-  {"producer_path":"server/xdr/xdr.go","fixture_source":"server.xdr_v2"}
+  {"producer_path":"server/xdr/xdr.go","fixture_source":"server.xdr_v2"},
+  {"producer_path":"agent/cmd/capturedoctor/main.go","fixture_source":"agent.traffic"},
+  {"producer_path":"server/cmd/netflow-collector/main.go","fixture_source":"agent.traffic"}
 ]
