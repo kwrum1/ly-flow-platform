@@ -324,7 +324,7 @@ const highRiskNote = computed(() => {
   const ratio = (highRiskCount.value / total) * 100
   return `占全部告警 ${ratio > 0 && ratio < 0.1 ? '<0.1' : ratio.toFixed(1)}% · 建议优先研判`
 })
-const openIncidentCount = computed(() => normalizedIncidents.value.filter((item) => ['new', 'open', 'triaged', 'processing'].includes(item.status)).length || incidentTotal.value)
+const openIncidentCount = computed(() => normalizedIncidents.value.filter((item) => ['new', 'open', 'triaged', 'processing'].includes(item.status)).length)
 const incidentSampleLabel = computed(() => `${normalizedIncidents.value.length} 条样本`)
 const engineRows = computed(() => {
   const groups = new Map()
