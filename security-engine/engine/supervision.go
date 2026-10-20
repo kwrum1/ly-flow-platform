@@ -69,9 +69,9 @@ func (e *Engine) runSupervisedWorker(ctx context.Context) error {
 	go func() {
 		result <- e.Run(workerCtx)
 	}()
-	maxAge := e.cfg.ReadBlock + e.cfg.CPUBudget + time.Second
+	maxAge := e.cfg.ReadBlock + e.cfg.CPUBudget + 10*time.Second
 	if maxAge <= time.Second {
-		maxAge = 2 * time.Second
+		maxAge = 11 * time.Second
 	}
 	ticker := time.NewTicker(maxAge / 2)
 	defer ticker.Stop()

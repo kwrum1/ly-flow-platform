@@ -114,6 +114,7 @@ func (e *Engine) consumeOnce(ctx context.Context) error {
 			e.health.degrade("transport_unavailable", false)
 			return fmt.Errorf("reclaim pending stream %s: %w", stream, err)
 		}
+		e.health.touchWatchdog()
 		if time.Since(started) > e.cfg.CPUBudget {
 			e.health.degrade("cpu_budget_exceeded", false)
 			return ErrRuntimeCPUBudget
