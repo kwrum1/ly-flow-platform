@@ -857,3 +857,12 @@
 - 删除 Windows 抓包文件后重新生成事件清单，保持 Linux-only 路径计数一致。
 - 修复 supervisor 在进程退出时提前关闭 stdout/stderr 管道导致的日志丢失竞态，改为行缓冲 writer + `WaitDelay`，100 次重复测试通过。
 - 最终代码提交 `659093d` 的 CI run `39450350180` 与 Release run `39450350251` 均成功，`latest-server` 已指向该提交；后续仅追加 docs-only 报告提交（`[skip ci]`）。
+
+## 2026-10-21 ESXi 10.1.18.123 / 10.1.18.198 全新部署
+
+- 在 vCenter `10.1.18.110` 管理的 ESXi `10.1.18.123` 上新建 `lyflow-198`，配置 8 vCPU / 16 GiB / 200 GiB。
+- 管理口 `mgmt` 配置 `10.1.18.198/24`，镜像口 `mirror` 无 IP；安装 9 个正式容器并全部 healthy。
+- 验证 `https://10.1.18.198/`、`/api/v1/health` 和 `admin` 登录成功。
+- 修复 ClickHouse 24.8 的 v2 事件表 TTL：`TTL toDateTime(event_at) + INTERVAL 30 DAY`（`a8106f6`）。
+- Suricata 使用 `mirror`；本机镜像采集在 PF_RING 模块缺失时回退 AF_PACKET。
+- 详细记录：`docs/dev/ESXI-198-2026-10-21.md`。
