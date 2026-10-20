@@ -29,6 +29,23 @@ describe('current route characterization', () => {
     expect(protectedRoutes.find((route) => route.path === 'forbidden')?.meta?.roles).toBeUndefined()
   })
 
+  it('redirects legacy duplicate routes to canonical screens', () => {
+    const shell = routerCapture.routes.find((route) => Array.isArray(route.children))
+    const protectedRoutes = shell?.children ?? []
+    const redirects = Object.fromEntries(
+      protectedRoutes.filter((route) => route.redirect).map((route) => [route.path, route.redirect]),
+    )
+
+    expect(redirects).toEqual({
+      'application-threats': '/rasp',
+      'system-security-audit': '/runtime',
+      'host-ops': '/assets',
+      'real-time-posture': '/xdr',
+      'rule-visibility': '/rules',
+      'rule-updates': '/rules',
+    })
+  })
+
   it('records the current unknown-path dashboard fallback', () => {
     const fallback = routerCapture.routes.find((route) => route.path === '/:pathMatch(.*)*')
 

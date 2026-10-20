@@ -1,23 +1,8 @@
 <template>
   <section class="control-page">
     <header class="control-header">
-      <h2>控制中心</h2>
+      <h2>平台设置</h2>
     </header>
-
-    <section class="stats-bar">
-      <div class="stat-card">
-        <span>在线 Agent</span>
-        <strong>{{ onlineCount }}</strong>
-      </div>
-      <div class="stat-card online">
-        <span>登记 Agent</span>
-        <strong>{{ agents.length }}</strong>
-      </div>
-      <div class="stat-card offline">
-        <span>离线 Agent</span>
-        <strong>{{ offlineCount }}</strong>
-      </div>
-    </section>
 
     <section class="settings-grid">
       <article class="panel mirror-panel">
@@ -59,95 +44,6 @@
         <div v-if="systemTimeMessage" class="notice success">{{ systemTimeMessage }}</div>
       </article>
     </section>
-
-    <article class="panel agent-panel">
-      <div class="panel-title"><strong>Agent 列表</strong><span>{{ `${onlineCount} 在线 / ${agents.length} 登记` }}</span></div>
-      <div class="table-wrap">
-        <table>
-          <colgroup>
-            <col class="col-agent">
-            <col class="col-ip">
-            <col class="col-uptime">
-            <col class="col-caps">
-            <col class="col-status">
-            <col class="col-action">
-          </colgroup>
-          <thead><tr><th>探针名</th><th>IP 地址</th><th>运行时间</th><th>开启功能</th><th>状态</th><th>操作</th></tr></thead>
-          <tbody>
-            <tr v-if="loading && !hasLoaded"><td colspan="6" class="empty-cell">正在读取 Agent 数据</td></tr>
-            <tr v-else-if="!agents.length"><td colspan="6" class="empty-cell">暂无 Agent 注册</td></tr>
-            <template v-for="agent in pagedAgents" :key="agent.id || agent.agent_id">
-              <tr :class="['agent-row', { offline: !isOnline(agent), editing: renaming && renaming.agent_id === agent.agent_id }]">
-                <td>
-                  <button type="button" class="probe-name" :title="'点击修改名称'" @click="startRename(agent)">
-                    <span>{{ agent.display_name || agent.hostname || agent.agent_id }}</span>
-                    <small class="rename-hint">点击改名</small>
-                  </button>
-                  <small class="agent-id">{{ agent.agent_id }}</small>
-                </td>
-                <td>{{ cleanIP(agent.ip) }}</td>
-                <td>{{ uptimeText(agent) }}</td>
-                <td class="caps-col">
-                  <div class="caps-group">
-                    <button :class="['cap-btn', agent.traffic_enabled ? 'on' : 'off']" :disabled="toggling === agent.agent_id + '_traffic'" @click="toggleCap(agent, 'traffic')">{{ toggling === agent.agent_id + '_traffic' ? '…' : '流量' }}</button>
-                    <span class="cap-tag">HIDS</span>
-                    <button :class="['cap-btn', 'rasp', agent.rasp_enabled ? 'protect' : 'detect']" :disabled="toggling === agent.agent_id + '_rasp'" @click="toggleCap(agent, 'rasp')" :title="agent.rasp_enabled ? '已开启防护阻断' : '点击审批开启阻断'">{{ toggling === agent.agent_id + '_rasp' ? '…' : (agent.rasp_enabled ? 'RASP 防护' : 'RASP 审计') }}</button>
-                  </div>
-                </td>
-                <td class="status-col">
-                  <span :class="['status-pill', agentStatus(agent)]"><span class="status-dot"></span>{{ isOnline(agent) ? '在线' : '离线' }}</span>
-                </td>
-                <td class="ops-col">
-                  <button v-if="!isOnline(agent)" class="cap-btn off del-text" :disabled="deleting === agent.agent_id" @click="deleteAgent(agent)">{{ deleting === agent.agent_id ? '…' : '删除' }}</button>
-                </td>
-              </tr>
-              <tr v-if="renaming && renaming.agent_id === agent.agent_id" class="rename-row">
-                <td colspan="6">
-                  <div class="rename-editor">
-                    <div class="rename-context">
-                      <span>修改探针名称</span>
-                      <strong>{{ renaming.agent_id }}</strong>
-                    </div>
-                    <label>
-                      <span>新名称</span>
-                      <input v-model="renameValue" @keydown.enter="confirmRename" placeholder="输入唯一名称">
-                    </label>
-                    <div class="rename-actions">
-                      <button type="button" @click="renaming = null">取消</button>
-                      <button type="button" class="primary" :disabled="!renameValue.trim() || savingRename" @click="confirmRename">{{ savingRename ? '保存中' : '确认' }}</button>
-                    </div>
-                  </div>
-                </td>
-              </tr>
-            </template>
-          </tbody>
-        </table>
-      </div>
-      <div class="agent-pager">
-        <span>第 {{ agentPage }} / {{ agentTotalPages }} 页</span>
-        <button type="button" :disabled="agentPage === 1" @click="agentPage -= 1">上一页</button>
-        <button type="button" :disabled="agentPage >= agentTotalPages" @click="agentPage += 1">下一页</button>
-      </div>
-      <div v-if="error" class="notice error">{{ error }}</div>
-    </article>
-
-    <div v-if="raspApproval" class="modal-mask" @click.self="raspApproval = null">
-      <section class="score-modal">
-        <div class="modal-head"><strong>RASP 防护阻断审批</strong><button @click="raspApproval = null">×</button></div>
-        <div class="modal-body">
-          <p class="rasp-agent-name">{{ raspApproval.display_name || raspApproval.hostname || raspApproval.agent_id }}</p>
-          <div class="rasp-warn">
-            <p>将 RASP 从 <b class="rasp-mode-audit">审计模式</b> 切换至 <b class="rasp-mode-protect">防护阻断模式</b></p>
-            <ul>
-              <li>开启后系统将实时拦截探测到的 SQL 注入 / 命令执行 / 文件访问 / SSRF 等攻击行为</li>
-              <li>拦截日志可在威胁中心查看，阻断动作不可撤销</li>
-              <li>请确认该探针上的业务应用已通过安全评估</li>
-            </ul>
-          </div>
-        </div>
-        <div class="modal-actions"><button @click="raspApproval = null">取消</button><button class="primary" :disabled="approvingRasp" @click="confirmRaspProtection">{{ approvingRasp ? '审批中…' : '确认开启阻断' }}</button></div>
-      </section>
-    </div>
   </section>
 </template>
 
@@ -471,7 +367,6 @@ async function confirmRename() {
 }
 
 onMounted(() => {
-  loadAgents()
   loadMirrorConfig()
   loadTargetLocation()
   loadSystemTime()

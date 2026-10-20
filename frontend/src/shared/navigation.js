@@ -30,7 +30,7 @@ export const productNavigation = Object.freeze([
     items: [
       { path: '/rules', label: '规则中心', description: '规则源、索引与生命周期', roles: ['admin'] },
       { path: '/engines', label: '引擎健康', description: 'Suricata / Wazuh / RASP / YARA', roles: ['admin'] },
-      { path: '/control-center', label: '控制中心', description: '采集接口、时间与 Agent 控制', roles: ['admin'] },
+      { path: '/control-center', label: '平台设置', description: '采集接口、设备地点与时间', roles: ['admin'] },
       { path: '/install-config', label: '安装配置', description: 'Agent 安装与令牌', roles: ['admin'] },
       { path: '/users', label: '账户管理', description: '用户、角色与登录状态', roles: ['admin'] },
     ],
