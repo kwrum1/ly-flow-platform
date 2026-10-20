@@ -1,4 +1,4 @@
-const { chromium } = require('@playwright/test')
+const { chromium, firefox } = require('@playwright/test')
 const fs = require('node:fs/promises')
 const path = require('node:path')
 
@@ -65,10 +65,11 @@ async function inspectPage(page, name, pathname, viewport) {
 
 async function main() {
   await fs.mkdir(evidenceDir, { recursive: true })
-  const browser = await chromium.launch({
+  const useFirefox = process.env.LY_UI_BROWSER === 'firefox'
+  const browser = await (useFirefox ? firefox : chromium).launch({
     headless: true,
     executablePath: process.env.LY_UI_BROWSER_PATH || undefined,
-    args: ['--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage'],
+    args: useFirefox ? [] : ['--disable-gpu', '--no-sandbox', '--disable-dev-shm-usage'],
   })
   const result = { generatedAt: new Date().toISOString(), consoleErrors: [], pageErrors: [], requestFailures: [], badResponses: [], pages: [] }
   try {
