@@ -55,6 +55,7 @@
 
 - 在 `10.1.18.8` 完成全新安装，服务 `active`。
 - 验证 Agent 在线、心跳、资产入库、`flows:raw` 真实流量上报。
+- 修复安装脚本 `systemd` 单元固定写入 `AGENT_REQUIRE_BINARY_INTEGRITY=false`、覆盖已下载摘要的问题；安装器现在只在摘要与 trust root 均可用时启用 binary fail-closed，并把设置写入 `agent.env`。
 - 修复公开一键包缺少签名摘要文件导致 Agent 启动失败的问题：服务端使用平台 policy signer 为 `/app/agents/linux/<arch>/ly-agent` 动态签发 `lyflow.signed_digest.v1` 摘要，安装器下载摘要与 policy root 后启用 `AGENT_REQUIRE_BINARY_INTEGRITY=true`；配置摘要仍保持关闭（`AGENT_REQUIRE_CONFIG_INTEGRITY=false`），因为按主机生成的配置尚无稳定签名流程。
 - 测试机使用新的摘要与 trust root 重启后仍在线，binary fail-closed 校验通过。
 
@@ -71,7 +72,7 @@
 
 - 19 个生产页面巡检：全部 HTTP 200，`console/page error=0`，异常 API 响应 `0`，桌面横向溢出 `0`
 - API 烟测：30 个接口全部 200，`FAILURES=[]`
-- Agent：`test8-fresh` 在线，心跳正常，资产统计在线 1
+- Agent：`test8-final3` 在线，心跳正常，资产统计在线 1
 - 流量：可按 Agent 查询真实 TLS/DNS/TCP 流
 - 引擎健康：6 张卡片，LyFlow DPI / Suricata / LyFlow 探针 / Wazuh / OpenRASP / YARA；测试机 YARA 安装后运行中
 - 规则中心：11 个上游，0 个可更新；Falco 更新实测成功
