@@ -6,7 +6,6 @@
 
 - 最新真机专家验收：2026-10-21，生产 UI、真实 Agent、YARA、RASP 探针下载、Agent 二进制完整性和 Incident 闭环通过
 - 专家验收报告：[docs/dev/EXPERT-ACCEPTANCE-2026-10-21.md](docs/dev/EXPERT-ACCEPTANCE-2026-10-21.md)
-- 检测窗口/事件中心修正：[docs/dev/DETECTION-WINDOWS-2026-10-21.md](docs/dev/DETECTION-WINDOWS-2026-10-21.md)
 - CI：`.github/workflows/ci.yml` 已通过
 - 公网发布：GitHub Actions 继续生成 AMD64/ARM64 一键安装包，Release 固定为 `latest-server`
 
@@ -148,7 +147,6 @@ ARM64 服务器只需将第一行改为对应的 `lyflow-server-arm64.tar.gz`。
 
 - [v2 进度](docs/dev/PROGRESS.md)
 - [真机专家验收报告](docs/dev/EXPERT-ACCEPTANCE-2026-10-21.md)
-- [检测窗口与事件中心修正](docs/dev/DETECTION-WINDOWS-2026-10-21.md)
 - [T4.6 性能报告](docs/dev/T4.6-REPORT.md)
 - [T4.7 打包报告](docs/dev/T4.7-REPORT.md)
 - [T4.8 安全审计](docs/dev/T4.8-AUDIT.md)
@@ -157,7 +155,7 @@ ARM64 服务器只需将第一行改为对应的 `lyflow-server-arm64.tar.gz`。
 
 使用直接安装到宿主机的 Agent，不要求 Docker。Linux Agent 以静态二进制构建，面向现代 Linux（Ubuntu 22.04+/Debian 12+/RHEL 9+）；抓包使用 AF_PACKET/PF_RING，运行监控在旧内核回退到 auditd。容器 Agent 只用于自动化测试。
 
-Agent 安装、卸载和一键安装命令由控制台“安装配置”页面提供，当前仅支持 Linux AMD64/ARM64；服务端和 Agent 均不支持 Windows，平台不再提供 Windows/Npcap 安装入口。
+Agent 安装、卸载和一键安装命令由控制台“安装配置”页面提供，当前仅支持 Linux AMD64/ARM64；服务端和 Agent 均不支持 Windows。
 
 ## 正式发布
 
