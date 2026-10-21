@@ -10549,14 +10549,6 @@ if curl -kfsSL "$API_SERVER/api/v1/agent/download?os=linux&arch=$AGENT_ARCH&asse
 else
   rm -f /etc/lyflow/trust/agent-binary.digest.json
 fi
-mkdir -p /opt/ly-agent/etc
-cat > /opt/ly-agent/etc/agent.env <<AGENT_ENV_EOF
-AGENT_REQUIRE_BINARY_INTEGRITY=$AGENT_INTEGRITY_FLAG
-AGENT_REQUIRE_CONFIG_INTEGRITY=false
-AGENT_BINARY_DIGEST=/etc/lyflow/trust/agent-binary.digest.json
-AGENT_BINARY_ROOT=/etc/lyflow/trust/policy-root.pem
-AGENT_ENV_EOF
-chmod 600 /opt/ly-agent/etc/agent.env
 curl -kfsSL "$API_SERVER/api/v1/agent/yara/rules" -o "$INSTALL_DIR/yara/rules.yar" 2>/dev/null || true
 if [ "${LYFLOW_INSTALL_YARA:-true}" = "true" ] && ! command -v yara >/dev/null 2>&1; then
   if command -v apt-get >/dev/null 2>&1; then
@@ -10654,7 +10646,13 @@ AGENT_CONFIG_EOF
 sed -i "s|__API_SERVER__|$API_SERVER|g" "$CONFIG_FILE"
 sed -i "s|__REDIS_SERVER__|$REDIS_SERVER|g" "$CONFIG_FILE"
 sed -i "s|__TRAFFIC_INTERFACE__|$TRAFFIC_INTERFACE|g" "$CONFIG_FILE"
-printf 'AGENT_ENROLL_TOKEN=%%s\n' "$ENROLL_TOKEN" > "$INSTALL_DIR/etc/agent.env"
+cat > "$INSTALL_DIR/etc/agent.env" <<AGENT_ENV_EOF
+AGENT_ENROLL_TOKEN=$ENROLL_TOKEN
+AGENT_REQUIRE_BINARY_INTEGRITY=$AGENT_INTEGRITY_FLAG
+AGENT_REQUIRE_CONFIG_INTEGRITY=false
+AGENT_BINARY_DIGEST=/etc/lyflow/trust/agent-binary.digest.json
+AGENT_BINARY_ROOT=/etc/lyflow/trust/policy-root.pem
+AGENT_ENV_EOF
 chmod 0600 "$INSTALL_DIR/etc/agent.env"
 curl -kfsSL "$API_SERVER/api/v1/agent/rasp/probe/python" -o "$INSTALL_DIR/rasp/python/sitecustomize.py" 2>/dev/null || true
 curl -kfsSL "$API_SERVER/api/v1/agent/rasp/probe/php" -o "$INSTALL_DIR/rasp/php/ly_rasp_prepend.php" 2>/dev/null || true
@@ -10668,7 +10666,7 @@ fi
 mkdir -p "$INSTALL_DIR/rasp/nodejs" "$INSTALL_DIR/rasp/dotnet"
 curl -kfsSL "$API_SERVER/api/v1/agent/rasp/probe/nodejs" -o "$INSTALL_DIR/rasp/nodejs/ly_rasp.js" 2>/dev/null || true
 curl -kfsSL "$API_SERVER/api/v1/agent/rasp/probe/dotnet" -o "$INSTALL_DIR/rasp/dotnet/LyRaspProfiler.dll" 2>/dev/null || true
-curl -kfsSL "$API_SERVER/api/v1/agent/install-config" -o "$INSTALL_DIR/etc/install-control-plane.json" || true
+curl -kfsSL "$API_SERVER/api/v1/agent/install-config" -o "$INSTALL_DIR/etc/install-control-plane.json" 2>/dev/null || true
 cat > "$SERVICE_FILE" <<'SYSTEMD_EOF'
 [Unit]
 Description=LyFlow Security Agent
@@ -10679,11 +10677,6 @@ Wants=network-online.target
 Type=simple
 User=root
 EnvironmentFile=-/opt/ly-agent/etc/agent.env
-# The public one-click bundle does not ship signed agent digest assets yet.
-# Keep the agent installable; operators can re-enable fail-closed integrity
-# after provisioning signed artifacts in /etc/lyflow/trust.
-Environment=AGENT_REQUIRE_BINARY_INTEGRITY=false
-Environment=AGENT_REQUIRE_CONFIG_INTEGRITY=false
 ExecStart=/opt/ly-agent/bin/ly-agent --config /opt/ly-agent/etc/agent.yaml
 Restart=always
 RestartSec=5

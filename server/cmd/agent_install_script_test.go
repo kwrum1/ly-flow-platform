@@ -21,6 +21,17 @@ func TestAgentInstallScriptCarriesOneTimeEnrollmentToken(t *testing.T) {
 	if !strings.Contains(body, "EnvironmentFile=-/opt/ly-agent/etc/agent.env") {
 		t.Fatal("install script does not load enrollment environment")
 	}
+	if !strings.Contains(body, "AGENT_REQUIRE_BINARY_INTEGRITY=$AGENT_INTEGRITY_FLAG") {
+		t.Fatal("install script does not persist signed binary integrity setting")
+	}
+	if strings.Contains(body, "Environment=AGENT_REQUIRE_BINARY_INTEGRITY=false") {
+		t.Fatal("install script hard-disables signed binary integrity")
+	}
+	enrollIndex := strings.Index(body, "AGENT_ENROLL_TOKEN=$ENROLL_TOKEN")
+	integrityIndex := strings.Index(body, "AGENT_REQUIRE_BINARY_INTEGRITY=$AGENT_INTEGRITY_FLAG")
+	if enrollIndex < 0 || integrityIndex < 0 || enrollIndex > integrityIndex {
+		t.Fatalf("install environment order is unsafe: enroll=%d integrity=%d", enrollIndex, integrityIndex)
+	}
 }
 
 func TestAgentInstallScriptRejectsUnsafeEnrollmentToken(t *testing.T) {
