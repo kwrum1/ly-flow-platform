@@ -184,7 +184,7 @@
                       <div v-if="closureForm.suppress_scope !== 'none'" class="closure-value-line">
                         <span>匹配值</span><input v-model.trim="closureForm.suppress_value" class="sx-input" :placeholder="suppressionValuePlaceholder" />
                       </div>
-                      <div class="closure-hint">误报建议抑制“同规则”；本人登录等预期操作建议抑制“同来源”或“同资产”，避免永久屏蔽真实风险。</div>
+                      <div class="closure-hint">误报才使用“同规则”抑制；本人登录等预期操作请选择“授权/预期操作”，不要屏蔽 SSH 规则。</div>
                       <div v-if="evidenceRules.length" class="rule-hints">
                         <span>当前证据规则</span>
                         <button v-for="rule in evidenceRules" :key="rule.value" type="button" class="sx-btn ghost" @click="presetRuleSuppression(rule)">误报？抑制 {{ rule.label }}</button>
