@@ -10679,6 +10679,11 @@ Wants=network-online.target
 Type=simple
 User=root
 EnvironmentFile=-/opt/ly-agent/etc/agent.env
+# The public one-click bundle does not ship signed agent digest assets yet.
+# Keep the agent installable; operators can re-enable fail-closed integrity
+# after provisioning signed artifacts in /etc/lyflow/trust.
+Environment=AGENT_REQUIRE_BINARY_INTEGRITY=false
+Environment=AGENT_REQUIRE_CONFIG_INTEGRITY=false
 ExecStart=/opt/ly-agent/bin/ly-agent --config /opt/ly-agent/etc/agent.yaml
 Restart=always
 RestartSec=5
