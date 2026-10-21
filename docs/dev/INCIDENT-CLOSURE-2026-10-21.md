@@ -24,7 +24,7 @@
 - 抑制时长 7/30/90 天，写入 `xdr-response-policy` 的 `suppressions`，过期自动失效。
 - 威胁详情页新增“标记误报并抑制 30 天”，用于没有 Incident 的单点流量告警。
 - 当前验证：`GPL NETBIOS SMB NT Trans NT CREATE oversized Security Descriptor attempt`（`et-open-2103018`）已抑制 30 天；抑制后流量告警查询不再返回该规则。
-- 策略持久化到 `/var/lib/lyflow/response/xdr-response-policy.json`，使用 `response_data` 卷，容器重建后保留。
+- 策略持久化到 `.sisyphus/runtime/xdr-response-policy.json`，使用 `response_data` 卷，容器重建后保留。
 
 ## 3. 本轮生产处置
 

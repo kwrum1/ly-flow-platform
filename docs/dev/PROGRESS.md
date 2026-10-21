@@ -888,7 +888,7 @@
 
 - Incident 页面新增闭环结论：观察、确认误报、授权/预期操作、确认已处置；关闭必须填写原因，生命周期审计完整保留。
 - 支持按规则、来源 IP、资产/受害实体抑制 7/30/90 天；威胁详情页可直接标记单点告警为误报。
-- 修复重复闭环幂等键冲突；抑制策略持久化到 `/var/lib/lyflow/response/xdr-response-policy.json`（response_data 卷）。
+- 修复重复闭环幂等键冲突；抑制策略持久化到 `.sisyphus/runtime/xdr-response-policy.json`（.sisyphus 持久化目录）。
 - 生产已将 `test8-final3` 的 SSH 授权登录按预期操作关闭，旧 `test8-fresh` 重复链按历史测试数据关闭；`et-open-2103018`（GPL NETBIOS）已抑制 30 天。
 - 平台设置卡片改为等高；验证：前端 117 项测试、typecheck、build，`server/cmd` 测试，Playwright 闭环提交全部通过。
 - 详细记录：`docs/dev/INCIDENT-CLOSURE-2026-10-21.md`。
