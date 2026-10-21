@@ -623,7 +623,7 @@ onUnmounted(() => {
 
 .overview-updated {
   color: var(--sx-text-3);
-  font-size: 10px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -684,7 +684,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 6px;
   color: #75c7f6;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 750;
   letter-spacing: 0.12em;
 }
@@ -762,7 +762,7 @@ onUnmounted(() => {
 .score-ring span {
   margin-top: 4px;
   color: #84a7c1;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .posture-facts {
@@ -775,7 +775,7 @@ onUnmounted(() => {
 .posture-facts span {
   display: block;
   color: #86a8c2;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .posture-facts b {
@@ -789,7 +789,7 @@ onUnmounted(() => {
 .posture-facts b em {
   margin-left: 3px;
   color: #7f9eb6;
-  font-size: 10px;
+  font-size: 12px;
   font-style: normal;
   font-weight: 500;
 }
@@ -803,7 +803,7 @@ onUnmounted(() => {
   padding-top: 12px;
   border-top: 1px solid rgb(128 196 241 / 14%);
   color: #87a8c0;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .posture-card-foot span {
@@ -864,7 +864,7 @@ onUnmounted(() => {
   flex-wrap: wrap;
   gap: 12px;
   color: var(--sx-text-3);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .trend-legend span { display: inline-flex; align-items: center; gap: 5px; }
@@ -898,7 +898,7 @@ onUnmounted(() => {
   padding: 5px 7px;
   border-radius: 5px;
   background: var(--sx-surface-2);
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .severity-list span { display: inline-flex; align-items: center; gap: 6px; color: var(--sx-text-2); }
@@ -914,7 +914,7 @@ onUnmounted(() => {
   grid-template-columns: 80px minmax(0, 1fr) 44px;
   align-items: center;
   gap: 8px;
-  font-size: 10px;
+  font-size: 12px;
 }
 
 .source-row > span { overflow: hidden; color: var(--sx-text-2); text-overflow: ellipsis; white-space: nowrap; }
@@ -947,11 +947,11 @@ onUnmounted(() => {
 
 .incident-copy { min-width: 0; }
 .incident-copy b { display: block; overflow: hidden; color: var(--sx-text); font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.incident-copy small { display: block; overflow: hidden; margin-top: 2px; color: var(--sx-text-3); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
+.incident-copy small { display: block; overflow: hidden; margin-top: 2px; color: var(--sx-text-3); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
 
 .incident-stages { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 3px; }
-.incident-stages span { padding: 2px 5px; border-radius: 3px; background: var(--sx-surface-3); color: var(--sx-text-2); font-size: 8px; }
-.incident-status { color: var(--sx-text-3); font-size: 9px; text-align: right; }
+.incident-stages span { padding: 2px 5px; border-radius: 3px; background: var(--sx-surface-3); color: var(--sx-text-2); font-size: 12px; }
+.incident-status { color: var(--sx-text-3); font-size: 11px; text-align: right; }
 
 .event-stream { display: grid; }
 
@@ -975,11 +975,11 @@ onUnmounted(() => {
 .stream-dot.medium { background: var(--sx-medium); }
 .stream-dot.low { background: var(--sx-success); }
 
-.event-stream-row time { color: var(--sx-text-3); font-family: var(--sx-font-mono); font-size: 9px; }
+.event-stream-row time { color: var(--sx-text-3); font-family: var(--sx-font-mono); font-size: 11px; }
 .event-stream-row div { min-width: 0; }
-.event-stream-row b { display: block; overflow: hidden; color: var(--sx-text); font-size: 10px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
-.event-stream-row small { display: block; overflow: hidden; margin-top: 1px; color: var(--sx-text-3); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; }
-.event-stream-row .sx-badge { font-size: 8px; }
+.event-stream-row b { display: block; overflow: hidden; color: var(--sx-text); font-size: 12px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
+.event-stream-row small { display: block; overflow: hidden; margin-top: 1px; color: var(--sx-text-3); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.event-stream-row .sx-badge { font-size: 12px; }
 
 .engine-list { display: grid; padding: 4px 0; }
 
@@ -999,7 +999,7 @@ onUnmounted(() => {
   border-radius: 6px;
   background: var(--sx-accent-soft);
   color: var(--sx-accent);
-  font-size: 8px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -1007,9 +1007,9 @@ onUnmounted(() => {
 .engine-icon.medium { background: var(--sx-warning-soft); color: var(--sx-warning); }
 .engine-icon.muted { background: var(--sx-surface-3); color: var(--sx-text-3); }
 
-.engine-row b { display: block; color: var(--sx-text); font-size: 10px; font-weight: 650; }
-.engine-row small { display: block; overflow: hidden; margin-top: 1px; color: var(--sx-text-3); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
-.engine-row .sx-badge { font-size: 8px; }
+.engine-row b { display: block; color: var(--sx-text); font-size: 12px; font-weight: 650; }
+.engine-row small { display: block; overflow: hidden; margin-top: 1px; color: var(--sx-text-3); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.engine-row .sx-badge { font-size: 12px; }
 
 .asset-mini {
   margin-top: 4px;
@@ -1025,11 +1025,11 @@ onUnmounted(() => {
   gap: 8px;
   margin-bottom: 6px;
   color: var(--sx-text-3);
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .asset-mini-head a { color: var(--sx-accent); text-decoration: none; }
-.asset-mini-row { display: grid; grid-template-columns: minmax(0, 1fr) 6px auto; align-items: center; gap: 7px; padding: 4px 0; font-size: 9px; }
+.asset-mini-row { display: grid; grid-template-columns: minmax(0, 1fr) 6px auto; align-items: center; gap: 7px; padding: 4px 0; font-size: 11px; }
 .asset-mini-row span { overflow: hidden; color: var(--sx-text-2); text-overflow: ellipsis; white-space: nowrap; }
 .asset-mini-row i { width: 5px; height: 5px; border-radius: 50%; background: var(--sx-text-3); }
 .asset-mini-row i.ok { background: var(--sx-success); }

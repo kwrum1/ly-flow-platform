@@ -229,18 +229,18 @@ onMounted(load)
 .automation-toggle input { width: 15px; height: 15px; accent-color: var(--sx-accent); }
 .automation-toggle span { display: grid; gap: 2px; }
 .automation-toggle b { color: var(--sx-text); font-size: 11px; }
-.automation-toggle small { color: var(--sx-text-3); font-size: 9px; }
+.automation-toggle small { color: var(--sx-text-3); font-size: 11px; }
 .automation-body label { display: grid; gap: 4px; }
-.automation-body label > span { color: var(--sx-text-3); font-size: 9px; }
+.automation-body label > span { color: var(--sx-text-3); font-size: 11px; }
 .automation-actions { display: flex; grid-column: 1 / -1; align-items: center; justify-content: space-between; gap: 10px; }
-.response-message { font-size: 10px; }
+.response-message { font-size: 12px; }
 .response-message.success { color: var(--sx-success); }
 .response-message.error { color: var(--sx-danger); }
 .response-table { min-width: 1080px; }
 .action-buttons { display: flex; gap: 4px; }
-.action-buttons .sx-btn { height: 25px; padding: 0 7px; font-size: 9px; }
-.auto-badge { margin-left: 3px; font-size: 8px; }
-.action-error { display: block; max-width: 180px; margin-top: 3px; overflow: hidden; color: var(--sx-danger); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.action-buttons .sx-btn { height: 25px; padding: 0 7px; font-size: 11px; }
+.auto-badge { margin-left: 3px; font-size: 12px; }
+.action-error { display: block; max-width: 180px; margin-top: 3px; overflow: hidden; color: var(--sx-danger); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 1100px) {
   .response-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }

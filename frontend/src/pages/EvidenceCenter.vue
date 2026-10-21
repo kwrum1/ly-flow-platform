@@ -198,20 +198,20 @@ onMounted(load)
 .evidence-tools { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; }
 .evidence-form { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
 .evidence-form label { display: grid; gap: 4px; }
-.evidence-form label > span { color: var(--sx-text-3); font-size: 9px; }
+.evidence-form label > span { color: var(--sx-text-3); font-size: 11px; }
 .evidence-form .form-actions { display: flex; grid-column: span 2; align-items: center; justify-content: flex-end; gap: 10px; }
 .upload-form { display: grid; gap: 9px; }
-.file-input { width: 100%; color: var(--sx-text-2); font-size: 10px; }
+.file-input { width: 100%; color: var(--sx-text-2); font-size: 12px; }
 .upload-actions { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .uploaded-list { display: grid; gap: 4px; }
 .uploaded-list > div { padding: 6px 8px; border: 1px solid var(--sx-line-soft); border-radius: 5px; background: var(--sx-surface-2); }
-.uploaded-list b { display: block; color: var(--sx-text); font-size: 9px; }
-.uploaded-list small { color: var(--sx-text-3); font-size: 9px; }
-.response-message { font-size: 10px; }
+.uploaded-list b { display: block; color: var(--sx-text); font-size: 11px; }
+.uploaded-list small { color: var(--sx-text-3); font-size: 11px; }
+.response-message { font-size: 12px; }
 .response-message.success { color: var(--sx-success); }
 .response-message.error { color: var(--sx-danger); }
 .evidence-table { min-width: 1040px; }
-.evidence-table .hash { display: block; max-width: 240px; overflow: hidden; color: var(--sx-text-3); font-family: var(--sx-font-mono); font-size: 8px; text-overflow: ellipsis; white-space: nowrap; }
+.evidence-table .hash { display: block; max-width: 240px; overflow: hidden; color: var(--sx-text-3); font-family: var(--sx-font-mono); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 @media (max-width: 1000px) {
   .evidence-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .evidence-tools { grid-template-columns: 1fr; }

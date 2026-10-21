@@ -662,7 +662,7 @@ td {
   border-radius: 999px;
   color: var(--primary-light);
   background: rgba(125, 211, 252, 0.09);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
 }
 
@@ -1023,7 +1023,7 @@ button:disabled {
 .time-form { grid-template-columns: repeat(4,minmax(100px,1fr)); align-items:end; }
 .time-form input { min-width: 0; width: 100%; padding: 0 7px; font-size: 11px; }
 .time-form button { grid-row: 2; }
-.mirror-form label, .location-form label, .time-form label { gap: 3px; color: #5c6a80; font-size: 10px; }
+.mirror-form label, .location-form label, .time-form label { gap: 3px; color: #5c6a80; font-size: 12px; }
 input, select { height: 29px; border-color: #d7e0eb; border-radius: 4px; background: #fff; color: #263247; }
 input:disabled { background: #f2f5f8; color: #78869a; }
 button { height: 29px; border-color: #d7e0eb; border-radius: 4px; background: #fff; color: #40506a; }
@@ -1136,7 +1136,7 @@ th, td { border-color: #e6ebf2; }
   display: block;
   margin-bottom: 5px;
   color: #1769d2;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 800;
   letter-spacing: .14em;
 }
@@ -1187,7 +1187,7 @@ th, td { border-color: #e6ebf2; }
   border-radius: 8px;
   background: #eaf4ff;
   color: #1769d2;
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 900;
   letter-spacing: .04em;
 }

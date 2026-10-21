@@ -198,21 +198,21 @@ onMounted(load)
 .engine-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(155px, 1fr)); gap: 10px; }
 .engine-card { padding: 12px; }
 .engine-card-head { display: flex; align-items: center; gap: 8px; }
-.engine-monogram { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 7px; background: var(--sx-accent-soft); color: var(--sx-accent); font-size: 9px; font-weight: 800; }
+.engine-monogram { display: grid; width: 30px; height: 30px; place-items: center; border-radius: 7px; background: var(--sx-accent-soft); color: var(--sx-accent); font-size: 11px; font-weight: 800; }
 .engine-monogram.low { background: var(--sx-success-soft); color: var(--sx-success); }
 .engine-monogram.medium { background: var(--sx-warning-soft); color: var(--sx-warning); }
 .engine-monogram.critical { background: var(--sx-danger-soft); color: var(--sx-danger); }
 .engine-monogram.muted { background: var(--sx-surface-3); color: var(--sx-text-3); }
 .engine-card-head > div { min-width: 0; flex: 1; }
 .engine-card-head b { display: block; color: var(--sx-text); font-size: 11px; }
-.engine-card-head small { display: block; color: var(--sx-text-3); font-size: 9px; }
+.engine-card-head small { display: block; color: var(--sx-text-3); font-size: 11px; }
 .engine-card-body { display: grid; gap: 5px; margin-top: 10px; padding-top: 9px; border-top: 1px solid var(--sx-line-soft); }
-.engine-card-body div { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 9px; }
+.engine-card-body div { display: flex; align-items: center; justify-content: space-between; gap: 6px; font-size: 11px; }
 .engine-card-body span { color: var(--sx-text-3); }
 .engine-card-body b { overflow: hidden; color: var(--sx-text-2); font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
-.show-all { display: inline-flex; align-items: center; gap: 6px; color: var(--sx-text-3); font-size: 10px; cursor: pointer; }
+.show-all { display: inline-flex; align-items: center; gap: 6px; color: var(--sx-text-3); font-size: 12px; cursor: pointer; }
 .engine-table { min-width: 1080px; }
-.error-cell { max-width: 180px; overflow: hidden; color: var(--sx-danger); font-size: 9px; text-overflow: ellipsis; }
+.error-cell { max-width: 180px; overflow: hidden; color: var(--sx-danger); font-size: 11px; text-overflow: ellipsis; }
 @media (max-width: 1200px) {
   .engine-card-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }

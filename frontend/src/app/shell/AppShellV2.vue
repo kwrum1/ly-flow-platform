@@ -232,7 +232,7 @@ onUnmounted(() => {
 .sx-brand-copy small {
   margin-top: 2px;
   color: #7e9cb8;
-  font-size: 8px;
+  font-size: 12px;
   font-weight: 650;
   letter-spacing: 0.13em;
 }
@@ -336,7 +336,7 @@ onUnmounted(() => {
   border-radius: 3px;
   color: #6f92b1;
   font: inherit;
-  font-size: 9px;
+  font-size: 11px;
   line-height: 1.2;
 }
 
@@ -357,7 +357,7 @@ onUnmounted(() => {
   border-radius: 5px;
   background: rgb(27 133 98 / 11%);
   color: #8fe6c3;
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -440,7 +440,7 @@ onUnmounted(() => {
 
 .sx-account-copy small {
   color: #7e9cb8;
-  font-size: 9px;
+  font-size: 11px;
 }
 
 .sx-logout {
@@ -451,7 +451,7 @@ onUnmounted(() => {
   background: transparent;
   color: #8fa9c1;
   font: inherit;
-  font-size: 10px;
+  font-size: 12px;
   cursor: pointer;
 }
 
@@ -480,7 +480,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 7px;
   color: var(--sx-text-3);
-  font-size: 10px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -538,7 +538,7 @@ onUnmounted(() => {
   align-items: center;
   gap: 12px;
   color: var(--sx-text-3);
-  font-size: 10px;
+  font-size: 12px;
   white-space: nowrap;
 }
 

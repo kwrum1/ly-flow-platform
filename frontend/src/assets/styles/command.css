@@ -10,16 +10,16 @@
   --sx-ink: #0a1f33;
   --sx-ink-2: #12314f;
   --sx-ink-3: #1d4468;
-  --sx-canvas: #eef3f8;
-  --sx-canvas-deep: #e7eef7;
+  --sx-canvas: #f1f5fa;
+  --sx-canvas-deep: #e8eff7;
   --sx-surface: #ffffff;
-  --sx-surface-2: #f7fafd;
-  --sx-surface-3: #eef5fc;
-  --sx-line: #d9e3ee;
-  --sx-line-soft: #e8eef6;
-  --sx-text: #17283d;
-  --sx-text-2: #50627a;
-  --sx-text-3: #8493a6;
+  --sx-surface-2: #f7fafc;
+  --sx-surface-3: #edf4fb;
+  --sx-line: #d4dfe9;
+  --sx-line-soft: #e6edf4;
+  --sx-text: #152538;
+  --sx-text-2: #46586e;
+  --sx-text-3: #65768a;
   --sx-accent: #0b6bcb;
   --sx-accent-2: #0a9dbb;
   --sx-accent-3: #6d5dfc;
@@ -33,7 +33,7 @@
   --sx-danger-soft: #fff0ef;
   --sx-critical: #b42318;
   --sx-high: #e26a00;
-  --sx-medium: #c58b00;
+  --sx-medium: #a66f00;
   --sx-low: #0f9f6e;
   --sx-shadow-sm: 0 1px 2px rgb(15 35 58 / 5%);
   --sx-shadow-md: 0 12px 30px -18px rgb(15 35 58 / 28%);
@@ -100,8 +100,8 @@
   --sx-line: #23445f;
   --sx-line-soft: #18344c;
   --sx-text: #e8f2ff;
-  --sx-text-2: #a9bfd4;
-  --sx-text-3: #7692ab;
+  --sx-text-2: #b4c8da;
+  --sx-text-3: #8da5ba;
   --sx-accent: #45a6ff;
   --sx-accent-2: #35d0e6;
   --sx-accent-3: #9b8cff;
@@ -158,6 +158,8 @@ body {
   background: var(--sx-canvas);
   color: var(--sx-text);
   font-family: "Inter", "Bahnschrift", "DIN Alternate", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
   font-variant-numeric: tabular-nums;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -171,7 +173,7 @@ body {
 /* Shared page language */
 .sx-page {
   display: grid;
-  gap: 16px;
+  gap: 18px;
   min-width: 0;
   animation: sx-rise 0.28s ease both;
 }
@@ -188,11 +190,11 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 0 0 4px;
+  margin: 0 0 5px;
   color: var(--sx-accent);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
 }
 
@@ -214,11 +216,11 @@ body {
 }
 
 .sx-subtitle {
-  margin: 6px 0 0;
-  max-width: 860px;
+  margin: 7px 0 0;
+  max-width: 900px;
   color: var(--sx-text-2);
-  font-size: 12px;
-  line-height: 1.65;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .sx-head-actions {
@@ -231,17 +233,17 @@ body {
 
 .sx-btn {
   display: inline-flex;
-  height: 34px;
+  height: 36px;
   align-items: center;
   justify-content: center;
   gap: 7px;
-  padding: 0 13px;
+  padding: 0 14px;
   border: 1px solid var(--sx-line);
   border-radius: var(--sx-radius-sm);
   background: var(--sx-surface);
   color: var(--sx-text-2);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 650;
   cursor: pointer;
   transition: border-color var(--transition-fast), color var(--transition-fast), background var(--transition-fast), transform var(--transition-fast);
@@ -281,8 +283,8 @@ body {
 
 .sx-icon-btn {
   display: grid;
-  width: 34px;
-  height: 34px;
+  width: 36px;
+  height: 36px;
   place-items: center;
   border: 1px solid var(--sx-line);
   border-radius: var(--sx-radius-sm);
@@ -307,7 +309,7 @@ body {
 
 .sx-panel-head {
   display: flex;
-  min-height: 48px;
+  min-height: 50px;
   align-items: center;
   justify-content: space-between;
   gap: 14px;
@@ -322,7 +324,7 @@ body {
   align-items: center;
   gap: 9px;
   color: var(--sx-text);
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 750;
 }
 
@@ -336,7 +338,7 @@ body {
 
 .sx-panel-meta {
   color: var(--sx-text-3);
-  font-size: 11px;
+  font-size: 12px;
   white-space: nowrap;
 }
 
@@ -390,13 +392,13 @@ body {
   align-items: center;
   gap: 7px;
   color: var(--sx-text-3);
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 650;
 }
 
 .sx-metric-label i {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--sx-accent);
 }
@@ -419,29 +421,29 @@ body {
   display: block;
   margin-top: 7px;
   color: var(--sx-text-3);
-  font-size: 11px;
+  font-size: 12px;
 }
 
 .sx-badge {
   display: inline-flex;
-  min-height: 21px;
+  min-height: 23px;
   align-items: center;
   gap: 5px;
-  padding: 1px 7px;
+  padding: 2px 8px;
   border: 1px solid var(--sx-line);
   border-radius: 5px;
   background: var(--sx-surface-2);
   color: var(--sx-text-2);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 750;
-  line-height: 1.5;
+  line-height: 1.4;
   white-space: nowrap;
 }
 
 .sx-badge::before {
   content: "";
-  width: 5px;
-  height: 5px;
+  width: 6px;
+  height: 6px;
   border-radius: 50%;
   background: currentColor;
 }
@@ -517,28 +519,29 @@ body {
 .sx-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 12px;
+  font-size: 13px;
 }
 
 .sx-table th {
-  height: 36px;
-  padding: 0 11px;
+  height: 40px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--sx-line);
   background: var(--sx-surface-2);
-  color: var(--sx-text-3);
-  font-size: 10px;
+  color: var(--sx-text-2);
+  font-size: 11px;
   font-weight: 750;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.05em;
   text-align: left;
   text-transform: uppercase;
   white-space: nowrap;
 }
 
 .sx-table td {
-  height: 42px;
-  padding: 0 11px;
+  height: 46px;
+  padding: 0 12px;
   border-bottom: 1px solid var(--sx-line-soft);
   color: var(--sx-text-2);
+  font-size: 13px;
   vertical-align: middle;
   white-space: nowrap;
 }
@@ -563,22 +566,22 @@ body {
 
 .sx-table td small {
   display: block;
-  margin-top: 1px;
+  margin-top: 2px;
   color: var(--sx-text-3);
-  font-size: 10px;
+  font-size: 11px;
 }
 
 .sx-input,
 .sx-select {
-  height: 32px;
+  height: 36px;
   min-width: 0;
-  padding: 0 9px;
+  padding: 0 10px;
   border: 1px solid var(--sx-line);
   border-radius: var(--sx-radius-sm);
   background: var(--sx-surface);
   color: var(--sx-text);
   font: inherit;
-  font-size: 12px;
+  font-size: 13px;
   outline: 0;
   transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
 }
@@ -611,7 +614,7 @@ body {
 
 .sx-filter label > span {
   color: var(--sx-text-3);
-  font-size: 10px;
+  font-size: 12px;
   font-weight: 650;
 }
 
@@ -642,7 +645,7 @@ body {
   display: block;
   overflow: hidden;
   color: var(--sx-text-3);
-  font-size: 9px;
+  font-size: 11px;
   font-weight: 650;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -691,14 +694,14 @@ body {
   align-items: center;
   gap: 6px;
   color: var(--sx-success);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 800;
   letter-spacing: 0.08em;
 }
 
 .sx-live i {
-  width: 6px;
-  height: 6px;
+  width: 7px;
+  height: 7px;
   border-radius: 50%;
   background: var(--sx-success);
   box-shadow: 0 0 0 3px rgb(15 159 110 / 14%);
