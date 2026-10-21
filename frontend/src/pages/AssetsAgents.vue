@@ -314,7 +314,9 @@ onMounted(loadAll)
 </script>
 
 <style scoped>
-.assets-page { gap: 14px; }
+.assets-page { min-height: 100%; grid-template-rows: auto auto auto minmax(0, 1fr); }
+.assets-page > .sx-panel { display: flex; min-height: 0; flex-direction: column; }
+.assets-page .sx-table-wrap { flex: 1; }
 .asset-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
 .sx-metric-value .online { color: var(--sx-success); }
 .sx-metric-value .offline { color: var(--sx-danger); }

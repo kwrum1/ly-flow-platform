@@ -142,7 +142,7 @@ ly-flow-platform/
 └── server/sql/asset_tables.sql
 ```
 
-安装器要求 root、Docker Engine 和 Compose Plugin，校验架构后安装到 `/opt/ly-flow-platform`，生成内部凭据并启动正式栈。首次登录固定为 `admin/password`，强制修改密码；80 自动跳转 443。
+安装器要求 root、Docker Engine 和 Compose Plugin，校验架构后安装到 `/opt/ly-flow-platform`，生成内部凭据并启动正式栈。首次登录账号为 `admin`，初始密码由 `DEFAULT_ADMIN_PASSWORD` 决定（默认 `password`），强制修改密码；80 自动跳转 443。平台仅支持 Linux 服务端和 Agent。
 
 ## 9. 当前限制
 

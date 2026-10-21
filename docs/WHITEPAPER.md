@@ -79,7 +79,7 @@ cd ly-flow-platform
 sudo bash scripts/install-docker-bundle.sh
 ```
 
-安装完成后，HTTP 80 跳转 HTTPS 443。首次登录为 `admin/password`，系统强制改密。
+安装完成后，HTTP 80 跳转 HTTPS 443。首次登录账号为 `admin`，初始密码由 `DEFAULT_ADMIN_PASSWORD` 决定（默认 `password`），系统强制改密。平台仅支持 Linux 服务端和 Agent，不提供 Windows/Npcap 支持。
 
 GitHub Actions 在每月 1 日和 16 日自动构建，也可手动触发。AMD64 与 ARM64 使用原生 runner；新版本成功后清理旧构建记录和旧 Release，只保留当前正式服务端。
 

@@ -4,17 +4,21 @@
 
 ## 生产验收状态
 
-- 最新生产验收：2026-10-20，功能/UI/Agent/lyprobe 验收通过（`PASS_WITH_EXCEPTIONS`）
-- 生产验收报告：[docs/dev/PRODUCTION-ACCEPTANCE-2026-10-20.md](docs/dev/PRODUCTION-ACCEPTANCE-2026-10-20.md)
-- 二次回归报告：[docs/dev/REGRESSION-2026-10-20.md](docs/dev/REGRESSION-2026-10-20.md)
-- CI：`.github/workflows/ci.yml` 已在 `feat/lyflow-v2` 通过
+- 最新真机专家验收：2026-10-21，生产 UI、真实 Agent、YARA、RASP 探针下载、Agent 二进制完整性和 Incident 闭环通过
+- 专家验收报告：[docs/dev/EXPERT-ACCEPTANCE-2026-10-21.md](docs/dev/EXPERT-ACCEPTANCE-2026-10-21.md)
+- 检测窗口/事件中心修正：[docs/dev/DETECTION-WINDOWS-2026-10-21.md](docs/dev/DETECTION-WINDOWS-2026-10-21.md)
+- CI：`.github/workflows/ci.yml` 已通过
 - 公网发布：GitHub Actions 继续生成 AMD64/ARM64 一键安装包，Release 固定为 `latest-server`
 
 ### 界面预览
 
-| 运营总览 | 攻击链处置 |
+| 运营总览 | 攻击链处置（闭环审计） |
 |---|---|
 | ![运营总览](docs/assets/screenshots/dashboard.png) | ![攻击链处置](docs/assets/screenshots/incidents.png) |
+
+| 事件中心 | 资产与 Agent |
+|---|---|
+| ![事件中心](docs/assets/screenshots/events.png) | ![资产与 Agent](docs/assets/screenshots/assets.png) |
 
 | 规则中心 | 流量观测 |
 |---|---|
@@ -24,19 +28,24 @@
 |---|---|
 | ![运行威胁](docs/assets/screenshots/runtime.png) | ![响应处置](docs/assets/screenshots/response.png) |
 
-| 平台设置 | 移动端 |
+| 平台设置 | 全球态势 |
 |---|---|
-| ![平台设置](docs/assets/screenshots/control-center.png) | ![移动端](docs/assets/screenshots/dashboard-mobile.png) |
+| ![平台设置](docs/assets/screenshots/control-center.png) | ![全球态势](docs/assets/screenshots/global-situation.png) |
+
+| 移动端 |
+|---|
+| ![移动端](docs/assets/screenshots/dashboard-mobile.png) |
 
 ## 当前能力
 
 - 本机镜像流量：AMD64 使用 PF_RING，Suricata 与统一安全引擎完成流量审计；lyprobe 通过 NetFlow v9 输出可追踪的流量证据。
-- 主机 Agent：Linux AMD64/ARM64；使用 AF_PACKET，可独立开关流量采集。
+- 主机 Agent：仅支持 Linux AMD64/ARM64；使用 AF_PACKET，可独立开关流量采集。不提供 Windows/Npcap Agent。
 - 主机审计：日志、Runtime、YARA 文件扫描、Python RASP；进程采集优先 eBPF，回退 auditd，最后回退 procfs；Java RASP 仍为实验能力。
 - 数据存储：PostgreSQL 保存账号、资产、规则、告警和处置状态；ClickHouse 保存长期会话与分析事件；Redis 只承担实时事件总线和短期缓冲。
-- XDR：多源事件按实体、时间和 ATT&CK 阶段关联，只有关联链生成 Incident。
-- 规则中心：在线发现版本、下载、编译、签名、热加载和回滚；不兼容规则会隔离并记录原因。
-- 控制台：资产、Agent、流量、运行威胁、应用威胁、会话、规则、攻击链、处置和全球态势。
+- XDR：多源事件按实体、时间和 ATT&CK 阶段关联，只有关联链生成 Incident；默认只展示未闭环 Incident，闭环后移出处置队列和态势计数。
+- 检测窗口：流量威胁、运行威胁、应用威胁和事件中心默认最近 10 分钟，历史至少保留 30 天；态势总览使用最近 10 分钟检测事件和未闭环 Incident。
+- 规则中心：在线发现版本、下载、编译、签名、热加载和回滚；不兼容规则会隔离并记录原因；GPL NETBIOS SMB NT Trans NT 默认关闭。
+- 控制台：资产、Agent、事件中心、流量、运行威胁、应用威胁、会话、规则、攻击链闭环、处置和全球态势。
 
 能力限制与尚未完成的现场认证见 [当前功能盘点与能力边界](docs/zh/当前功能盘点与能力边界.md)。
 
@@ -62,7 +71,14 @@ sudo bash scripts/install-docker-bundle.sh
 
 安装器会校验主机架构、导入镜像、生成本机 `.env` 并启动正式 Compose 栈。安装完成后访问 `https://<服务器IP>/`；HTTP 80 自动跳转到 HTTPS 443。
 
-首次登录账号为 `admin`，密码为 `password`。首次登录必须修改密码，修改后不会在服务重启时恢复默认密码。
+首次登录账号固定为 `admin`。初始密码由安装时的 `DEFAULT_ADMIN_PASSWORD` 决定，未显式设置时为 `password`；首次登录必须修改密码，修改后不会在服务重启时恢复默认密码。生产环境请在安装前设置强密码，不要把密码写入仓库或文档：
+
+```bash
+export DEFAULT_ADMIN_PASSWORD='请替换为强密码'
+sudo -E bash scripts/install-docker-bundle.sh
+```
+
+如果已有 `.env`，安装器不会覆盖已有管理员密码；需要管理员重置时，使用 `LYFLOW_RESET_ADMIN_PASSWORD=true` 配合 `DEFAULT_ADMIN_PASSWORD` 重启服务端。
 
 ### 曾部署过：彻底清理并全新安装
 
@@ -101,7 +117,7 @@ bash scripts/install-docker-bundle.sh
 LYFLOW_REINSTALL
 ```
 
-ARM64 服务器只需将第一行改为对应的 `lyflow-server-arm64.tar.gz`。重装完成后仍使用 `admin / password` 首次登录并强制修改密码；本机镜像接口初始不绑定，请登录后在“控制中心”选择管理口以外的实际镜像网口。
+ARM64 服务器只需将第一行改为对应的 `lyflow-server-arm64.tar.gz`。重装完成后仍使用 `admin` 账号和安装时设置的 `DEFAULT_ADMIN_PASSWORD` 首次登录，并强制修改密码；本机镜像接口初始不绑定，请登录后在“控制中心”选择管理口以外的实际镜像网口。
 
 ## 默认生产拓扑
 
@@ -131,8 +147,8 @@ ARM64 服务器只需将第一行改为对应的 `lyflow-server-arm64.tar.gz`。
 当前实现状态、已知限制和容量基线见：
 
 - [v2 进度](docs/dev/PROGRESS.md)
-- [生产验收报告](docs/dev/PRODUCTION-ACCEPTANCE-2026-10-20.md)
-- [二次回归报告](docs/dev/REGRESSION-2026-10-20.md)
+- [真机专家验收报告](docs/dev/EXPERT-ACCEPTANCE-2026-10-21.md)
+- [检测窗口与事件中心修正](docs/dev/DETECTION-WINDOWS-2026-10-21.md)
 - [T4.6 性能报告](docs/dev/T4.6-REPORT.md)
 - [T4.7 打包报告](docs/dev/T4.7-REPORT.md)
 - [T4.8 安全审计](docs/dev/T4.8-AUDIT.md)
@@ -141,7 +157,7 @@ ARM64 服务器只需将第一行改为对应的 `lyflow-server-arm64.tar.gz`。
 
 使用直接安装到宿主机的 Agent，不要求 Docker。Linux Agent 以静态二进制构建，面向现代 Linux（Ubuntu 22.04+/Debian 12+/RHEL 9+）；抓包使用 AF_PACKET/PF_RING，运行监控在旧内核回退到 auditd。容器 Agent 只用于自动化测试。
 
-Agent 安装、卸载和一键安装命令由控制台“安装配置”页面提供，当前仅支持 Linux AMD64/ARM64。
+Agent 安装、卸载和一键安装命令由控制台“安装配置”页面提供，当前仅支持 Linux AMD64/ARM64；服务端和 Agent 均不支持 Windows，平台不再提供 Windows/Npcap 安装入口。
 
 ## 正式发布
 

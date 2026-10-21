@@ -54,8 +54,10 @@ the generated LyFlow sample rules. For real ET/CRS rules, put source files in
 `runtime/rules/source`; the rule compiler watches them and updates
 `runtime/fp-patterns/threat.json` atomically.
 
-Open `https://<host>/` for the UI. The default admin password is generated into
-`lean.env`; change it before exposing the host.
+Open `https://<host>/` for the UI. First login is `admin`; the initial password
+comes from `DEFAULT_ADMIN_PASSWORD` in `lean.env` and must be changed at first
+login. Set a strong value there before exposing the host. Only Linux
+server/agent deployment is supported; Windows/Npcap is not part of this stack.
 
 ## Capture profile
 

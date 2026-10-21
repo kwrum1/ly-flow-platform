@@ -28,7 +28,7 @@
 
 目标机必须是 Linux AMD64 或 ARM64，并预先安装 Docker Engine 与 Compose Plugin。安装器拒绝主机与包架构不一致，导入包内镜像并启动 `/opt/ly-flow-platform` 正式栈。
 
-首次登录固定为 `admin/password`，必须立即改密。PostgreSQL、Redis、ClickHouse、JWT 和内部控制口令由安装器写入本机 `.env`，不应提交到源码仓库或复制到文档。
+首次登录账号固定为 `admin`；初始密码由 `DEFAULT_ADMIN_PASSWORD` 决定（默认 `password`），必须立即改密。PostgreSQL、Redis、ClickHouse、JWT 和内部控制口令由安装器写入本机 `.env`，不应提交到源码仓库或复制到文档。平台仅支持 Linux 服务端和 Agent。
 
 ## 历史脚本
 

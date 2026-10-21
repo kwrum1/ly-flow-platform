@@ -299,7 +299,9 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.events-page { gap: 14px; }
+.events-page { min-height: 100%; grid-template-rows: auto auto auto minmax(0, 1fr); }
+.events-page > .sx-panel { display: flex; min-height: 0; flex-direction: column; }
+.events-page .sx-table-wrap { flex: 1; }
 
 .event-stats {
   display: grid;
