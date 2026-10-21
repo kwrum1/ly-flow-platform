@@ -93,8 +93,9 @@
       </div>
     </section>
 
-    <div v-if="selectedAsset" class="sx-drawer-scrim" @click.self="selectedAsset = null">
-      <aside class="sx-drawer">
+    <Teleport to="body">
+      <div v-if="selectedAsset" class="sx-drawer-scrim" @click.self="selectedAsset = null">
+        <aside class="sx-drawer">
         <header class="sx-drawer-head">
           <div>
             <p class="sx-kicker">ASSET DETAIL</p>
@@ -156,8 +157,9 @@
             </div>
           </section>
         </div>
-      </aside>
-    </div>
+        </aside>
+      </div>
+    </Teleport>
   </section>
 </template>
 

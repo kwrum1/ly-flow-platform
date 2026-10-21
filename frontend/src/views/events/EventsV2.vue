@@ -118,8 +118,9 @@
       </div>
     </section>
 
-    <div v-if="selected" class="sx-drawer-scrim" @click.self="closeDetail">
-      <aside class="sx-drawer" aria-label="事件详情">
+    <Teleport to="body">
+      <div v-if="selected" class="sx-drawer-scrim" @click.self="closeDetail">
+        <aside class="sx-drawer" aria-label="事件详情">
         <header class="sx-drawer-head">
           <div>
             <p class="sx-kicker">EVENT DETAIL</p>
@@ -185,9 +186,10 @@
               </div>
             </section>
           </template>
-        </div>
-      </aside>
-    </div>
+          </div>
+        </aside>
+      </div>
+    </Teleport>
   </section>
 </template>
 
