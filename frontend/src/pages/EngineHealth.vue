@@ -4,7 +4,7 @@
       <div>
         <p class="sx-kicker">DETECTION ENGINE HEALTH</p>
         <h2 class="sx-title">引擎健康</h2>
-        <p class="sx-subtitle">按 Agent 查看 Suricata、Wazuh、YARA、RASP 的安装、运行、规则包和最后一次事件；LyFlow DPI 引擎来自平台运行时状态，所有状态均以后端心跳为准。</p>
+        <p class="sx-subtitle">按 Agent 查看 Suricata、Wazuh、YARA、RASP 的安装、运行、规则包和最后一次事件；LyFlow 安全引擎和 LyFlow 探针来自平台运行时状态，所有状态均以后端心跳为准。</p>
       </div>
       <div class="sx-head-actions">
         <span class="sx-live"><i />LIVE</span>
@@ -76,7 +76,7 @@ const ruleTotal = ref(0)
 const showUninstalled = ref(false)
 
 const engineDefinitions = [
-  { key: 'security-engine', label: 'LyFlow DPI 引擎', short: 'LY' },
+  { key: 'security-engine', label: 'LyFlow 安全引擎', short: 'LY' },
   { key: 'suricata', label: 'Suricata', short: 'SU' },
   { key: 'lyprobe', label: 'LyFlow 探针', short: 'LP' },
   { key: 'wazuh', label: 'Wazuh', short: 'WA' },
@@ -148,7 +148,7 @@ const engineCards = computed(() => {
 function unwrap(response) { return response?.data?.data ?? response?.data ?? response ?? {} }
 function formatNumber(value) { return Number(value || 0).toLocaleString('zh-CN') }
 function formatTime(value) { if (!value) return '-'; const date = new Date(value); return Number.isNaN(date.getTime()) || date.getFullYear() < 2000 ? '-' : date.toLocaleString('zh-CN', { hour12: false }) }
-function engineLabel(value) { return ({ 'security-engine': 'LyFlow DPI 引擎', suricata: 'Suricata', lyprobe: 'LyFlow 探针', wazuh: 'Wazuh', yara: 'YARA', rasp: 'OpenRASP' })[value] || value || '-' }
+function engineLabel(value) { return ({ 'security-engine': 'LyFlow 安全引擎', suricata: 'Suricata', lyprobe: 'LyFlow 探针', wazuh: 'Wazuh', yara: 'YARA', rasp: 'OpenRASP' })[value] || value || '-' }
 function isRunning(item) { return Boolean(item.running) && String(item.agent_status || '').toLowerCase() !== 'offline' }
 function statusLabel(item) {
   if (!item.installed) return '未安装'

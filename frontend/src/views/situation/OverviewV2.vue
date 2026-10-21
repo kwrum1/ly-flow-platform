@@ -32,7 +32,7 @@
           <div class="score-ring" :style="scoreRingStyle">
             <div>
               <strong>{{ ready.posture ? riskScore : '—' }}</strong>
-              <span>态势评分</span>
+              <span>安全评分</span>
             </div>
           </div>
           <div class="posture-facts">
@@ -64,7 +64,7 @@
         <article class="sx-metric">
           <span class="sx-metric-label"><i />处置队列</span>
           <strong class="sx-metric-value warning">{{ incidentsReady ? formatNumber(openIncidentCount) : '…' }}</strong>
-          <span class="sx-metric-note">{{ incidentsReady ? `最近 ${normalizedIncidents.length} 条样本中的待处置` : '正在加载 Incident' }}</span>
+          <span class="sx-metric-note">{{ incidentsReady ? (openIncidentCount ? `最近 ${normalizedIncidents.length} 条未闭环 Incident 中的待处置` : '当前没有待处置 Incident') : '正在加载 Incident' }}</span>
         </article>
         <article class="sx-metric">
           <span class="sx-metric-label"><i />资产覆盖</span>
@@ -251,6 +251,7 @@ const incidents = ref({ items: [], total: 0 })
 const assetStats = ref({})
 const assets = ref({ items: [] })
 const engines = ref({ items: [] })
+const runtimeStatus = ref({ engines: {} })
 const events = ref({ items: [], total: 0 })
 const responseActions = ref({ items: [], total: 0 })
 const ruleStats = ref({})
@@ -305,12 +306,16 @@ const onlineAgents = computed(() => Number(assetStats.value.online ?? stats.valu
 const offlineAgents = computed(() => Number(assetStats.value.offline ?? 0))
 const totalAssets = computed(() => Number(assetStats.value.total ?? stats.value.total_assets ?? 0))
 const ruleTotal = computed(() => Number(ruleStats.value.totalRules || ruleStats.value.total_rules || 0))
-const pendingApprovalCount = computed(() => (responseActions.value.items || []).filter((item) => ['pending_approval', 'approved'].includes(item.status)).length)
+const pendingApprovalCount = computed(() => (responseActions.value.items || []).filter((item) => item.status === 'pending_approval').length)
 const riskScore = computed(() => {
+  if (!activeIncidentList.value.length) return 100
   const weights = { critical: 35, high: 18, medium: 8, low: 2 }
   return Math.min(100, activeIncidentList.value.reduce((sum, item) => sum + (weights[item.severity] || 0), 0))
 })
-const riskTone = computed(() => riskScore.value >= 70 ? 'critical' : riskScore.value >= 40 ? 'high' : riskScore.value > 0 ? 'medium' : 'low')
+const riskTone = computed(() => {
+  if (!activeIncidentList.value.length) return 'low'
+  return riskScore.value >= 70 ? 'critical' : riskScore.value >= 40 ? 'high' : 'medium'
+})
 const riskToneLabel = computed(() => severityLabel(riskTone.value))
 const riskLabel = computed(() => ({ critical: '严重风险', high: '高风险', medium: '中风险', low: '低风险' })[riskTone.value] || '低风险')
 const postureNote = computed(() => {
@@ -332,15 +337,31 @@ const engineRows = computed(() => {
     if (!groups.has(key)) groups.set(key, [])
     groups.get(key).push(item)
   }
+  // Platform-managed engines (security engine and lyprobe) are not Agent
+  // capabilities, but they are still detection engines. Merge the runtime
+  // status so the overview count matches the engine health page.
+  for (const [key, runtime] of Object.entries(runtimeStatus.value.engines || {})) {
+    if (groups.has(key)) continue
+    const status = String(runtime?.status || '').toLowerCase()
+    const ruleCount = Number(runtime?.signature_count || runtime?.rule_count || 0)
+    groups.set(key, [{
+      engine: key,
+      running: status === 'running' || runtime?.running === true || (key === 'suricata' && ruleCount > 0),
+      installed: runtime?.installed !== false,
+      agent_status: 'online',
+      hostname: runtime?.service || '',
+      rule_pack_version: runtime?.bundle_version || runtime?.rule_pack_version || '',
+    }])
+  }
   return [...groups.entries()].map(([key, items]) => {
     const item = items[0] || {}
     const offline = String(item.agent_status || '').toLowerCase() === 'offline'
-    const running = item.running && !offline
+    const running = Boolean(item.running) && !offline
     const installed = item.installed !== false
     return {
       key,
-      short: ({ suricata: 'SU', wazuh: 'WA', yara: 'YA', rasp: 'RA' })[key] || key.slice(0, 2).toUpperCase(),
-      label: ({ suricata: 'Suricata', wazuh: 'Wazuh', yara: 'YARA', rasp: 'OpenRASP' })[key] || key,
+      short: ({ 'security-engine': 'LY', lyprobe: 'LP', suricata: 'SU', wazuh: 'WA', yara: 'YA', rasp: 'RA' })[key] || key.slice(0, 2).toUpperCase(),
+      label: ({ 'security-engine': 'LyFlow 安全引擎', lyprobe: 'LyFlow 探针', suricata: 'Suricata', wazuh: 'Wazuh', yara: 'YARA', rasp: 'OpenRASP' })[key] || key,
       status: !installed ? '未安装' : running ? '运行中' : offline ? 'Agent 离线' : '待连接',
       tone: !installed ? 'muted' : running ? 'low' : 'medium',
       note: [item.rule_pack_version || '', items.length > 1 ? `${items.length} 个探针` : item.hostname || ''].filter(Boolean).join(' · ') || '无心跳详情',
@@ -560,6 +581,7 @@ async function load() {
     assetAgentClient.assetStats().then((value) => { assetStats.value = unwrap(value); ready.assetStats = true; succeeded++ }),
     assetAgentClient.assets({ limit: 8 }).then((value) => { assets.value = normalizePage(value); ready.assets = true; succeeded++ }),
     assetAgentClient.engineHealth().then((value) => { engines.value = normalizePage(value); ready.engines = true; succeeded++ }),
+    ruleClient.engineRuntimeStatus().then((value) => { runtimeStatus.value = unwrap(value) || { engines: {} }; succeeded++ }),
     ruleClient.responseActions({ limit: 100 }).then((value) => { responseActions.value = normalizePage(value); ready.actions = true; succeeded++ }),
     ruleClient.stats().then((value) => { ruleStats.value = unwrap(value); ready.rules = true; succeeded++ }),
   ]

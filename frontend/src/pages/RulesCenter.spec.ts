@@ -56,7 +56,7 @@ describe('RulesCenter source semantics', () => {
     await flushPromises()
 
     const text = wrapper.text()
-    expect(text).toContain('LyFlow DPI 引擎')
+    expect(text).toContain('LyFlow 安全引擎')
     expect(text).toContain('Suricata')
     expect(text).toContain('Emerging Threats Open Connector')
     expect(text).toContain('rules.emergingthreats.net')
