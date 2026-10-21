@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -137,6 +139,10 @@ func incidentMutationHandler(cfg *Config, id, actionName string) http.HandlerFun
 			SuppressedUntil string `json:"suppressed_until"`
 			IdempotencyKey  string `json:"idempotency_key"`
 			ExpectedVersion int64  `json:"expected_version"`
+			Disposition     string `json:"disposition"`
+			SuppressScope   string `json:"suppress_scope"`
+			SuppressValue   string `json:"suppress_value"`
+			SuppressDays    int    `json:"suppress_days"`
 		}
 		if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 			writeJSONError(w, http.StatusBadRequest, "invalid_json", "Invalid request")
@@ -151,6 +157,51 @@ func incidentMutationHandler(cfg *Config, id, actionName string) http.HandlerFun
 			request.ExpectedVersion = current.Version
 		}
 		actor := incidentActor(r.Context())
+		if actionName == "status" && strings.EqualFold(strings.TrimSpace(request.Status), string(incidentlifecycle.StatusClosed)) {
+			disposition := strings.ToLower(strings.TrimSpace(request.Disposition))
+			if disposition == "" {
+				disposition = "resolved"
+			}
+			reason := strings.TrimSpace(request.Reason)
+			if reason == "" {
+				writeJSONError(w, http.StatusBadRequest, "closure_reason_required", "closure reason is required")
+				return
+			}
+			updated, err := closeIncidentWithDisposition(r.Context(), cfg, current, actor, disposition, reason)
+			if err != nil {
+				writeIncidentLifecycleError(w, err)
+				return
+			}
+			if refreshed, getErr := cfg.Incidents.Get(r.Context(), id); getErr == nil {
+				updated = refreshed
+			}
+			response := incidentJSONRow(updated)
+			if scope := strings.ToLower(strings.TrimSpace(request.SuppressScope)); scope != "" && scope != "none" {
+				days := request.SuppressDays
+				if days <= 0 {
+					days = 30
+				}
+				if days > 365 {
+					days = 365
+				}
+				entry := xdrSuppressionEntry{
+					Scope: scope, Value: strings.TrimSpace(request.SuppressValue),
+					Reason: reason, IncidentID: id, CreatedBy: actor.ID,
+					CreatedAt: time.Now().UTC(), ExpiresAt: time.Now().UTC().Add(time.Duration(days) * 24 * time.Hour),
+				}
+				if entry.Value == "" {
+					writeJSONError(w, http.StatusBadRequest, "suppression_value_required", "suppression value is required")
+					return
+				}
+				if err := addXDRSuppression(cfg, entry); err != nil {
+					writeJSONError(w, http.StatusInternalServerError, "suppression_save_failed", err.Error())
+					return
+				}
+				response["suppression"] = entry
+			}
+			_ = json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": response})
+			return
+		}
 		command := incidentlifecycle.Command{IncidentID: id, IdempotencyKey: strings.TrimSpace(request.IdempotencyKey), Actor: actor, ExpectedVersion: request.ExpectedVersion, Reason: strings.TrimSpace(request.Reason)}
 		switch actionName {
 		case "status":
@@ -180,6 +231,45 @@ func incidentMutationHandler(cfg *Config, id, actionName string) http.HandlerFun
 		}
 		_ = json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": incidentJSONRow(updated)})
 	}
+}
+
+func closeIncidentWithDisposition(ctx context.Context, cfg *Config, current incidentlifecycle.Incident, actor incidentlifecycle.Actor, disposition, reason string) (incidentlifecycle.Incident, error) {
+	if cfg == nil || cfg.Incidents == nil {
+		return incidentlifecycle.Incident{}, incidentlifecycle.ErrNotFound
+	}
+	path := make([]incidentlifecycle.Status, 0, 4)
+	switch current.Status {
+	case incidentlifecycle.StatusOpen:
+		path = append(path, incidentlifecycle.StatusTriaged, incidentlifecycle.StatusProcessing, incidentlifecycle.StatusResolved, incidentlifecycle.StatusClosed)
+	case incidentlifecycle.StatusTriaged:
+		path = append(path, incidentlifecycle.StatusProcessing, incidentlifecycle.StatusResolved, incidentlifecycle.StatusClosed)
+	case incidentlifecycle.StatusProcessing:
+		path = append(path, incidentlifecycle.StatusResolved, incidentlifecycle.StatusClosed)
+	case incidentlifecycle.StatusResolved:
+		path = append(path, incidentlifecycle.StatusClosed)
+	case incidentlifecycle.StatusClosed:
+		return current, nil
+	default:
+		return incidentlifecycle.Incident{}, incidentlifecycle.ErrIllegalTransition
+	}
+	auditReason := "[" + disposition + "] " + reason
+	updated := current
+	for _, next := range path {
+		command := incidentlifecycle.Command{
+			IncidentID:     current.ID,
+			IdempotencyKey: "disposition:" + current.ID + ":" + disposition + ":" + strconv.FormatInt(current.Version, 10) + ":" + string(next),
+			Actor:          actor,
+			Action:         incidentlifecycle.ActionTransition,
+			To:             next,
+			Reason:         auditReason,
+		}
+		var err error
+		updated, err = cfg.Incidents.Apply(ctx, command)
+		if err != nil {
+			return incidentlifecycle.Incident{}, err
+		}
+	}
+	return updated, nil
 }
 
 func incidentCommandIdempotencyKey(command incidentlifecycle.Command) string {

@@ -400,6 +400,7 @@ func main() {
 	mux.HandleFunc("/api/v1/response/actions", responseActionsHandler(cfg))
 	mux.HandleFunc("/api/v1/response/actions/", responseActionHandler(cfg))
 	mux.HandleFunc("/api/v1/response/automation", responseAutomationHandler(cfg))
+	mux.HandleFunc("/api/v1/response/policy", responsePolicyHandler(cfg))
 	mux.HandleFunc("/api/v1/evidence/bundles", evidenceHandler(cfg))
 	mux.HandleFunc("/api/v1/evidence/bundles/", evidenceHandler(cfg))
 	mux.HandleFunc("/api/v1/evidence/artifacts", evidenceHandler(cfg))
@@ -2016,6 +2017,31 @@ func responsePolicyHandler(cfg *Config) http.HandlerFunc {
 				writeJSONError(w, http.StatusBadRequest, "invalid_response_policy", "Invalid request body")
 				return
 			}
+			if scope := strings.ToLower(strings.TrimSpace(asString(req["suppress_scope"]))); scope != "" && scope != "none" {
+				days := int(asFloat(req["suppress_days"]))
+				if days <= 0 {
+					days = 30
+				}
+				if days > 365 {
+					days = 365
+				}
+				entry := xdrSuppressionEntry{
+					Scope: scope, Value: strings.TrimSpace(asString(req["suppress_value"])),
+					Reason: strings.TrimSpace(asString(req["reason"])), IncidentID: strings.TrimSpace(asString(req["incident_id"])),
+					CreatedBy: fmt.Sprintf("user:%d", auth.GetUserIDFromContext(r.Context())),
+					CreatedAt: time.Now().UTC(), ExpiresAt: time.Now().UTC().Add(time.Duration(days) * 24 * time.Hour),
+				}
+				if entry.Value == "" {
+					writeJSONError(w, http.StatusBadRequest, "suppression_value_required", "suppression value is required")
+					return
+				}
+				if err := addXDRSuppression(cfg, entry); err != nil {
+					writeJSONError(w, http.StatusInternalServerError, "suppression_save_failed", err.Error())
+					return
+				}
+				json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": loadXDRResponsePolicy(cfg).PublicSummary()})
+				return
+			}
 			policy := xdrResponsePolicyFromMap(req)
 			if err := saveXDRResponsePolicy(cfg, policy); err != nil {
 				writeJSONError(w, http.StatusInternalServerError, "response_policy_save_failed", err.Error())
@@ -3567,15 +3593,27 @@ type xdrChainAgg struct {
 	Standalone bool
 }
 
+type xdrSuppressionEntry struct {
+	ID         string    `json:"id"`
+	Scope      string    `json:"scope"`
+	Value      string    `json:"value"`
+	Reason     string    `json:"reason"`
+	IncidentID string    `json:"incident_id,omitempty"`
+	CreatedBy  string    `json:"created_by,omitempty"`
+	CreatedAt  time.Time `json:"created_at"`
+	ExpiresAt  time.Time `json:"expires_at"`
+}
+
 type xdrResponsePolicy struct {
-	WhitelistRules    []string      `json:"whitelist_rules"`
-	WhitelistSources  []string      `json:"whitelist_sources"`
-	WhitelistVictims  []string      `json:"whitelist_victims"`
-	BlacklistRules    []string      `json:"blacklist_rules"`
-	BlacklistSources  []string      `json:"blacklist_sources"`
-	BlacklistVictims  []string      `json:"blacklist_victims"`
-	SuppressionWindow time.Duration `json:"-"`
-	DedupWindow       time.Duration `json:"-"`
+	WhitelistRules    []string              `json:"whitelist_rules"`
+	WhitelistSources  []string              `json:"whitelist_sources"`
+	WhitelistVictims  []string              `json:"whitelist_victims"`
+	BlacklistRules    []string              `json:"blacklist_rules"`
+	BlacklistSources  []string              `json:"blacklist_sources"`
+	BlacklistVictims  []string              `json:"blacklist_victims"`
+	Suppressions      []xdrSuppressionEntry `json:"suppressions"`
+	SuppressionWindow time.Duration         `json:"-"`
+	DedupWindow       time.Duration         `json:"-"`
 }
 
 type xdrPolicyDecision struct {
@@ -3626,6 +3664,7 @@ func xdrResponsePolicyFromMap(raw map[string]interface{}) xdrResponsePolicy {
 	policy.BlacklistRules = stringListFromValue(raw["blacklist_rules"])
 	policy.BlacklistSources = stringListFromValue(raw["blacklist_sources"])
 	policy.BlacklistVictims = stringListFromValue(raw["blacklist_victims"])
+	policy.Suppressions = suppressionsFromValue(raw["suppressions"])
 	policy.SuppressionWindow = durationFromPolicy(raw["suppression_window"], policy.SuppressionWindow)
 	policy.DedupWindow = durationFromPolicy(raw["dedup_window"], policy.DedupWindow)
 	return policy
@@ -3647,6 +3686,66 @@ func stringListFromValue(value interface{}) []string {
 		out = append(out, text)
 	}
 	return out
+}
+
+func suppressionsFromValue(value interface{}) []xdrSuppressionEntry {
+	entries := make([]xdrSuppressionEntry, 0)
+	for _, item := range asSlice(value) {
+		raw := asMap(item)
+		entry := xdrSuppressionEntry{
+			ID:         strings.TrimSpace(asString(raw["id"])),
+			Scope:      strings.ToLower(strings.TrimSpace(asString(raw["scope"]))),
+			Value:      strings.TrimSpace(asString(raw["value"])),
+			Reason:     strings.TrimSpace(asString(raw["reason"])),
+			IncidentID: strings.TrimSpace(asString(raw["incident_id"])),
+			CreatedBy:  strings.TrimSpace(asString(raw["created_by"])),
+			CreatedAt:  parsePolicyTime(raw["created_at"]),
+			ExpiresAt:  parsePolicyTime(raw["expires_at"]),
+		}
+		if entry.Scope == "" || entry.Value == "" || entry.ExpiresAt.IsZero() {
+			continue
+		}
+		entries = append(entries, entry)
+	}
+	return entries
+}
+
+func parsePolicyTime(value interface{}) time.Time {
+	text := strings.TrimSpace(asString(value))
+	if text == "" {
+		return time.Time{}
+	}
+	parsed, err := time.Parse(time.RFC3339, text)
+	if err != nil {
+		return time.Time{}
+	}
+	return parsed.UTC()
+}
+
+func addXDRSuppression(cfg *Config, entry xdrSuppressionEntry) error {
+	if entry.Scope != "rule" && entry.Scope != "source" && entry.Scope != "victim" && entry.Scope != "agent" {
+		return fmt.Errorf("unsupported suppression scope: %s", entry.Scope)
+	}
+	if strings.TrimSpace(entry.Value) == "" || entry.ExpiresAt.IsZero() {
+		return fmt.Errorf("suppression scope/value/expiry required")
+	}
+	policy := loadXDRResponsePolicy(cfg)
+	now := time.Now().UTC()
+	active := make([]xdrSuppressionEntry, 0, len(policy.Suppressions)+1)
+	for _, existing := range policy.Suppressions {
+		if existing.ExpiresAt.After(now) {
+			active = append(active, existing)
+		}
+	}
+	if entry.ID == "" {
+		entry.ID = fmt.Sprintf("sup-%d", time.Now().UTC().UnixNano())
+	}
+	if entry.CreatedAt.IsZero() {
+		entry.CreatedAt = now
+	}
+	active = append(active, entry)
+	policy.Suppressions = active
+	return saveXDRResponsePolicy(cfg, policy)
 }
 
 func durationFromPolicy(value interface{}, fallback time.Duration) time.Duration {
@@ -3675,6 +3774,7 @@ func (p xdrResponsePolicy) PublicSummary() map[string]interface{} {
 		"blacklist_rules":    p.BlacklistRules,
 		"blacklist_sources":  p.BlacklistSources,
 		"blacklist_victims":  p.BlacklistVictims,
+		"suppressions":       p.Suppressions,
 		"suppression_window": p.SuppressionWindow.String(),
 		"dedup_window":       p.DedupWindow.String(),
 		"enforcement":        "candidate_only",
@@ -3684,8 +3784,20 @@ func (p xdrResponsePolicy) PublicSummary() map[string]interface{} {
 func applyXDRResponsePolicy(event map[string]interface{}, policy xdrResponsePolicy) xdrPolicyDecision {
 	decision := xdrPolicyDecision{Effects: []string{"candidate_only_enforced"}}
 	ruleID := firstNonEmpty(xdrPickString(event, "component_rule_id"), xdrPickString(event, "rule_id"))
+	ruleName := firstNonEmpty(xdrPickString(event, "rule_name"), xdrPickString(event, "native_rule.name"), xdrThreatDisplayName(event))
 	source := xdrSourceIP(event)
 	victim := xdrVictimEntity(event)
+	if matched := matchingXDRSuppression(policy.Suppressions, ruleID, ruleName, source, victim, time.Now().UTC()); matched != nil {
+		decision.Suppress = true
+		decision.Reason = "incident_suppression_match"
+		decision.Effects = append(decision.Effects, "suppressed")
+		event["policy_decision"] = map[string]interface{}{
+			"suppressed": true, "reason": decision.Reason, "effects": decision.Effects,
+			"suppression_id": matched.ID, "suppression_scope": matched.Scope, "suppression_value": matched.Value,
+			"suppression_expires_at": matched.ExpiresAt,
+		}
+		return decision
+	}
 	if policyListMatches(policy.WhitelistRules, ruleID) || policyListMatches(policy.WhitelistSources, source) || policyListMatches(policy.WhitelistVictims, victim) {
 		decision.Suppress = true
 		decision.Reason = "whitelist_match"
@@ -3709,6 +3821,30 @@ func applyXDRResponsePolicy(event map[string]interface{}, policy xdrResponsePoli
 	event["candidate_only"] = true
 	event["policy_decision"] = map[string]interface{}{"suppressed": false, "reason": decision.Reason, "effects": decision.Effects}
 	return decision
+}
+
+func matchingXDRSuppression(entries []xdrSuppressionEntry, ruleID, ruleName, source, victim string, now time.Time) *xdrSuppressionEntry {
+	for index := range entries {
+		entry := &entries[index]
+		if !entry.ExpiresAt.After(now) {
+			continue
+		}
+		switch entry.Scope {
+		case "rule":
+			if policyListMatches([]string{entry.Value}, ruleID) || policyListMatches([]string{entry.Value}, ruleName) {
+				return entry
+			}
+		case "source":
+			if policyListMatches([]string{entry.Value}, source) {
+				return entry
+			}
+		case "victim", "agent":
+			if policyListMatches([]string{entry.Value}, victim) {
+				return entry
+			}
+		}
+	}
+	return nil
 }
 
 func policyListMatches(patterns []string, value string) bool {
@@ -5974,6 +6110,7 @@ func loadComponentAlerts(cfg *Config, category string, limit, offset int) ([]map
 	}
 	all := make([]map[string]interface{}, 0, fetchCount*len(streams))
 	agentNames := activeAgentDisplayNames(ctx, cfg)
+	policy := loadXDRResponsePolicy(cfg)
 	for _, stream := range streams {
 		msgs, err := cfg.Redis.XRevRangeN(ctx, stream, "+", "-", int64(fetchCount)).Result()
 		if err != nil {
@@ -6012,6 +6149,12 @@ func loadComponentAlerts(cfg *Config, category string, limit, offset int) ([]map
 				payload["application"] = firstNonEmpty(xdrPickString(payload, "application", "service"), xdrPickString(asMap(payload["fields"]), "application"))
 			}
 			applyMirrorCaptureLabel(payload)
+			if matchingXDRSuppression(policy.Suppressions,
+				firstNonEmpty(xdrPickString(payload, "component_rule_id"), xdrPickString(payload, "rule_id")),
+				firstNonEmpty(xdrPickString(payload, "rule_name"), xdrPickString(payload, "native_rule.name")),
+				xdrSourceIP(payload), xdrVictimEntity(payload), time.Now().UTC()) != nil {
+				continue
+			}
 			all = append(all, payload)
 		}
 	}
@@ -6560,6 +6703,21 @@ func threatCategoryHTTPHandler(cfg *Config, category string) http.HandlerFunc {
 					all = append(all, threat)
 				}
 			}
+		}
+		policy := loadXDRResponsePolicy(cfg)
+		if len(policy.Suppressions) > 0 {
+			filtered := make([]map[string]interface{}, 0, len(all))
+			for _, threat := range all {
+				if matchingXDRSuppression(policy.Suppressions,
+					firstNonEmpty(xdrPickString(threat, "component_rule_id"), xdrPickString(threat, "rule_id")),
+					firstNonEmpty(xdrPickString(threat, "rule_name"), xdrPickString(threat, "native_rule.name")),
+					xdrSourceIP(threat), xdrVictimEntity(threat), time.Now().UTC()) != nil {
+					continue
+				}
+				filtered = append(filtered, threat)
+			}
+			all = filtered
+			total = len(all)
 		}
 		if len(all) > limit {
 			all = all[:limit]

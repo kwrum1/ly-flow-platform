@@ -220,7 +220,7 @@ Incident 只来自关联链。详情中的 `stage_groups` 按攻击阶段挂载�
 
 路由、方法、认证、角色、请求夹具、失败夹具、变更读回和持久化预期的权威清单位于
 `contracts/product-acceptance/v1/route-api-contract.json`，结构约束位于同目录的
-`route-api-contract.schema.json`。清单必须与服务端生成的 116 条挂载路径逐条一致；同一路径只出现一次，
+`route-api-contract.schema.json`。清单必须与服务端生成的 122 条挂载路径逐条一致；同一路径只出现一次，
 不同 HTTP 方法记录在该路径的 `operations` 中。
 
 | 认证模式 | 角色或凭据 |

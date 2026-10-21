@@ -1156,7 +1156,7 @@ th, td { border-color: #e6ebf2; }
   font-weight: 700;
 }
 .control-live i { width: 7px; height: 7px; border-radius: 50%; background: #20a66a; box-shadow: 0 0 0 3px #d9f2e5; }
-.settings-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: start; }
+.settings-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; align-items: stretch; }
 .panel {
   min-width: 0;
   overflow: visible;
@@ -1165,7 +1165,7 @@ th, td { border-color: #e6ebf2; }
   background: #fff;
   box-shadow: 0 5px 18px rgba(36, 58, 88, 0.055);
 }
-.mirror-panel { display: flex; flex-direction: column; min-width: 0; }
+.mirror-panel { display: flex; flex-direction: column; min-width: 0; height: 100%; }
 .panel-title {
   height: auto;
   min-height: 62px;

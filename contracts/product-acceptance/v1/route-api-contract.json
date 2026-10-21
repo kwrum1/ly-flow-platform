@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "registry": {
-    "mounted_path_count": 121,
-    "sorted_path_sha256": "a7ec6c575c73a3adb3fb4bddbcdfc3be4bc522d4a0b125c60da32419a8b1b084"
+    "mounted_path_count": 122,
+    "sorted_path_sha256": "9401f2a86d6c98d4714fca22a3fd8c82ccbdd75f2dd1a05d102ab9acc1b7955f"
   },
   "roles": [
     "admin",
@@ -3362,6 +3362,98 @@
             "body": null,
             "expected_statuses": [
               405
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/response/policy",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/response/policy",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/response/policy",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/response/policy",
+            "body": {
+              "allow_actions": [
+                "isolate"
+              ],
+              "maintenance_windows": []
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/response/policy",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        },
+        {
+          "method": "PUT",
+          "allowed_roles": [
+            "admin"
+          ],
+          "valid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/response/policy",
+            "body": {
+              "allow_actions": [
+                "isolate"
+              ],
+              "maintenance_windows": []
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "PUT",
+            "path": "/api/v1/response/policy",
+            "body": {},
+            "expected_statuses": [
+              400
             ]
           },
           "mutation": true,

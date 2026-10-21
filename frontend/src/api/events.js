@@ -5,7 +5,7 @@ export const incidentsAPI = {
   list: async (params) => normalizeIncidentList(await api.get('/incidents', { params })),
   detail: async (id) => normalizeIncidentDetail(await api.get(`/incidents/${id}`)),
   timeline: async (id, params) => normalizeEventList(await api.get(`/timeline/${id}`, { params })),
-  updateStatus: async (id, status) => unwrapAPIEnvelope(await api.put(`/incidents/${id}/status`, { status }))
+  updateStatus: async (id, status, options = {}) => unwrapAPIEnvelope(await api.put(`/incidents/${id}/status`, { status, ...options }))
 }
 
 export const timelineAPI = {

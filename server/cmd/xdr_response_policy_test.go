@@ -1,6 +1,9 @@
 package main
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 func TestXDRResponsePolicySuppressesWhitelist(t *testing.T) {
 	event := xdrPolicyTestEvent("evt-1", "203.0.113.10", "victim-1")
@@ -25,6 +28,29 @@ func TestXDRResponsePolicyElevatesBlacklistButKeepsCandidateOnly(t *testing.T) {
 	}
 	if event["candidate_only"] != true {
 		t.Fatalf("expected candidate_only to remain true, got %#v", event["candidate_only"])
+	}
+}
+
+func TestXDRResponsePolicySuppressesActiveIncidentRuleButNotExpired(t *testing.T) {
+	now := time.Now().UTC()
+	event := xdrPolicyTestEvent("evt-1", "203.0.113.10", "victim-1")
+	enrichXDREvaluation(event)
+	policy := xdrResponsePolicy{
+		Suppressions: []xdrSuppressionEntry{
+			{ID: "active", Scope: "rule", Value: "rasp.sql_injection", Reason: "confirmed false positive", ExpiresAt: now.Add(time.Hour)},
+			{ID: "expired", Scope: "rule", Value: "rasp.sql_injection", Reason: "expired", ExpiresAt: now.Add(-time.Hour)},
+		},
+	}
+	decision := applyXDRResponsePolicy(event, policy)
+	if !decision.Suppress || decision.Reason != "incident_suppression_match" {
+		t.Fatalf("expected active rule suppression, got %#v", decision)
+	}
+	policy.Suppressions = policy.Suppressions[1:]
+	event = xdrPolicyTestEvent("evt-2", "203.0.113.10", "victim-1")
+	enrichXDREvaluation(event)
+	decision = applyXDRResponsePolicy(event, policy)
+	if decision.Suppress {
+		t.Fatalf("expired suppression must not suppress: %#v", decision)
 	}
 }
 

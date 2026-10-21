@@ -121,6 +121,7 @@ services:
       POLICY_TRUST_DIR: /var/lib/lyflow/policy/trust
       POLICY_KEY_DIR: /var/lib/lyflow/policy/keys
       RESPONSE_ACTIONS_PATH: /var/lib/lyflow/response/actions.json
+      XDR_RESPONSE_POLICY_PATH: /var/lib/lyflow/response/xdr-response-policy.json
       RESPONSE_AUTO_WINDOW_ENABLED: ${RESPONSE_AUTO_WINDOW_ENABLED:-false}
       RESPONSE_WINDOW_START_HOUR: ${RESPONSE_WINDOW_START_HOUR:-0}
       RESPONSE_WINDOW_END_HOUR: ${RESPONSE_WINDOW_END_HOUR:-6}

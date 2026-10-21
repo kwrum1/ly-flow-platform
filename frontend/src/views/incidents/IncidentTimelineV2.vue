@@ -141,6 +141,60 @@
                   <span class="sx-panel-meta">{{ actionsForIncident.length }} 条记录</span>
                 </div>
                 <div class="sx-panel-body">
+                  <div class="closure-box">
+                    <div class="closure-head">
+                      <div><b>闭环结论</b><small>确认告警性质后关闭 Incident；关闭动作会写入审计记录</small></div>
+                      <span class="sx-badge" :class="closureBadgeTone">{{ statusLabel(selected.status) }}</span>
+                    </div>
+                    <div v-if="selected.status === 'closed'" class="closure-closed">
+                      <b>该 Incident 已关闭</b>
+                      <small>{{ latestClosureReason || '可在阶段时间线中查看审计记录' }}</small>
+                    </div>
+                    <template v-else>
+                      <div class="closure-grid">
+                        <label><span>结论</span>
+                          <select v-model="closureForm.disposition" class="sx-select">
+                            <option value="observe">继续观察（不关闭）</option>
+                            <option value="false_positive">确认误报并关闭</option>
+                            <option value="expected_activity">授权/预期操作并关闭</option>
+                            <option value="resolved">确认已处置并关闭</option>
+                          </select>
+                        </label>
+                        <label><span>原因（必填）</span>
+                          <input v-model.trim="closureForm.reason" class="sx-input" placeholder="例如：GPL NETBIOS 为误报 / 本人 SSH 登录" />
+                        </label>
+                      </div>
+                      <div v-if="closureForm.disposition !== 'observe'" class="closure-grid closure-suppress-grid">
+                        <label><span>减少重复告警</span>
+                          <select v-model="closureForm.suppress_scope" class="sx-select" @change="syncSuppressionValue">
+                            <option value="none">不抑制，仅关闭本次</option>
+                            <option value="rule">抑制同规则（当前证据）</option>
+                            <option value="source">抑制同来源 IP</option>
+                            <option value="victim">抑制同资产/受害实体</option>
+                          </select>
+                        </label>
+                        <label><span>抑制时长</span>
+                          <select v-model.number="closureForm.suppress_days" class="sx-select" :disabled="closureForm.suppress_scope === 'none'">
+                            <option :value="7">7 天</option>
+                            <option :value="30">30 天</option>
+                            <option :value="90">90 天</option>
+                          </select>
+                        </label>
+                      </div>
+                      <div v-if="closureForm.suppress_scope !== 'none'" class="closure-value-line">
+                        <span>匹配值</span><input v-model.trim="closureForm.suppress_value" class="sx-input" :placeholder="suppressionValuePlaceholder" />
+                      </div>
+                      <div class="closure-hint">误报建议抑制“同规则”；本人登录等预期操作建议抑制“同来源”或“同资产”，避免永久屏蔽真实风险。</div>
+                      <div v-if="evidenceRules.length" class="rule-hints">
+                        <span>当前证据规则</span>
+                        <button v-for="rule in evidenceRules" :key="rule.value" type="button" class="sx-btn ghost" @click="presetRuleSuppression(rule)">误报？抑制 {{ rule.label }}</button>
+                      </div>
+                      <div class="closure-actions">
+                        <span v-if="closureMessage" :class="['response-message', closureMessageType]">{{ closureMessage }}</span>
+                        <button class="sx-btn primary" type="button" :disabled="closingIncident || !closureForm.reason" @click="submitClosure">{{ closingIncident ? '提交中…' : '确认闭环' }}</button>
+                      </div>
+                    </template>
+                  </div>
                   <div class="response-form">
                     <div class="response-agent"><span>处置 Agent</span><b>{{ agentIdentity }}</b><small>来自当前 Incident 证据</small></div>
                     <div class="response-form-row">
@@ -248,6 +302,10 @@ const statusTransitions = {
   closed: ['closed', 'open'],
 }
 const actionForm = reactive({ action: 'observe', target: '', agent_id: '', reason: '' })
+const closureForm = reactive({ disposition: 'observe', reason: '', suppress_scope: 'none', suppress_value: '', suppress_days: 30 })
+const closingIncident = ref(false)
+const closureMessage = ref('')
+const closureMessageType = ref('success')
 
 const stageDefinitions = [
   ['detection', '检测命中'], ['recon', '侦察'], ['initial_access', '初始访问'], ['execution', '执行'],
@@ -286,6 +344,32 @@ const bundlesForIncident = computed(() => bundles.value.filter((item) => item.in
 const actionRequiresTarget = computed(() => ['block_ip', 'process_kill', 'file_delete', 'account_disable', 'namespace_isolate'].includes(actionForm.action))
 const actionTargetPlaceholder = computed(() => ({ block_ip: 'IP 地址（必须在 RESPONSE_ALLOWED_CIDRS 内）', process_kill: 'PID', file_delete: '绝对文件路径', account_disable: '用户名', namespace_isolate: '容器 ID' })[actionForm.action] || '目标')
 const canCreateAction = computed(() => Boolean(actionForm.agent_id && (!actionRequiresTarget.value || actionForm.target)))
+const evidenceRules = computed(() => {
+  const seen = new Set()
+  return (selected.value?.evidence || []).map((item) => {
+    const value = item.ruleId || item.ruleName
+    const label = item.ruleId || item.ruleName
+    return value && !seen.has(value) && seen.add(value) ? { value, label } : null
+  }).filter(Boolean)
+})
+const closureBadgeTone = computed(() => selected.value?.status === 'closed' ? 'low' : selected.value?.status === 'resolved' ? 'info' : 'medium')
+const latestClosureReason = computed(() => {
+  const audit = [...(selected.value?.audit || [])].reverse()
+  return audit.find((item) => item.reason)?.reason || ''
+})
+const suppressionValuePlaceholder = computed(() => ({ rule: '规则 ID 或名称', source: '来源 IP', victim: 'Agent / 资产名' })[closureForm.suppress_scope] || '')
+function syncSuppressionValue() {
+  if (closureForm.suppress_scope === 'rule') closureForm.suppress_value = evidenceRules.value[0]?.value || ''
+  else if (closureForm.suppress_scope === 'source') closureForm.suppress_value = selected.value?.sourceIPs?.[0] || ''
+  else if (closureForm.suppress_scope === 'victim') closureForm.suppress_value = agentIdentity.value !== '-' ? agentIdentity.value : selected.value?.victimIPs?.[0] || selected.value?.affectedAsset || ''
+  else closureForm.suppress_value = ''
+}
+function presetRuleSuppression(rule) {
+  closureForm.disposition = 'false_positive'
+  closureForm.suppress_scope = 'rule'
+  closureForm.suppress_value = rule.value
+  if (!closureForm.reason) closureForm.reason = `确认 ${rule.label} 为误报`
+}
 
 function unwrap(response) { return response?.data?.data ?? response?.data ?? response ?? {} }
 function formatNumber(value) { return Number(value || 0).toLocaleString('zh-CN') }
@@ -341,6 +425,12 @@ function applyIncidentFilters() {
 async function selectIncident(item) {
   if (!item) return
   selected.value = item
+  closureMessage.value = ''
+  closureForm.disposition = 'observe'
+  closureForm.reason = ''
+  closureForm.suppress_scope = 'none'
+  closureForm.suppress_value = ''
+  closureForm.suppress_days = 30
   actionForm.agent_id = incidentAgent(item) === '-' ? '' : incidentAgent(item)
   try {
     const detail = unwrap(await attackWorkbenchClient.incident(item.id))
@@ -374,6 +464,47 @@ async function updateStatus(status) {
     error.value = cause?.message || 'Incident 状态更新失败。'
   } finally {
     updatingStatus.value = false
+  }
+}
+
+async function submitClosure() {
+  if (!selected.value || !closureForm.reason.trim()) return
+  closingIncident.value = true
+  closureMessage.value = ''
+  try {
+    if (closureForm.disposition === 'observe') {
+      await incidentsAPI.updateStatus(selected.value.id, selected.value.status, {
+        reason: `[observe] ${closureForm.reason.trim()}`,
+      })
+      closureMessage.value = '已记录观察结论，Incident 保持当前状态。'
+      closureMessageType.value = 'success'
+    } else {
+      const options = {
+        disposition: closureForm.disposition,
+        reason: closureForm.reason.trim(),
+      }
+      if (closureForm.suppress_scope !== 'none') {
+        options.suppress_scope = closureForm.suppress_scope
+        options.suppress_value = closureForm.suppress_value
+        options.suppress_days = closureForm.suppress_days
+      }
+      const result = unwrap(await incidentsAPI.updateStatus(selected.value.id, 'closed', options))
+      selected.value = normalizeIncident(Object.keys(result).length ? result : { ...selected.value, status: 'closed' })
+      closureMessage.value = result.suppression
+        ? `已关闭，并抑制 ${result.suppression.scope}:${result.suppression.value} 至 ${formatTime(result.suppression.expires_at)}。`
+        : '已关闭并写入审计记录。'
+      closureMessageType.value = 'success'
+    }
+    const pendingMessage = closureMessage.value
+    const pendingType = closureMessageType.value
+    await loadIncidents()
+    closureMessage.value = pendingMessage
+    closureMessageType.value = pendingType
+  } catch (cause) {
+    closureMessage.value = cause?.message || 'Incident 闭环失败。'
+    closureMessageType.value = 'error'
+  } finally {
+    closingIncident.value = false
   }
 }
 
@@ -522,6 +653,24 @@ onMounted(() => {
 .evidence-raw { max-height: 220px; margin: 4px 0 0; padding: 9px; overflow: auto; border-radius: 5px; background: #071a2d; color: #c7e7ff; font-family: var(--sx-font-mono); font-size: 9px; line-height: 1.5; }
 .timeline-empty { padding: 8px 0; color: var(--sx-text-3); font-size: 10px; }
 .incident-side-stack { display: grid; gap: 12px; }
+.closure-box { display: grid; gap: 9px; margin-bottom: 12px; padding: 10px; border: 1px solid #cfe3f6; border-radius: 7px; background: linear-gradient(180deg, #f5faff, #fff); }
+.closure-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.closure-head b { display: block; color: var(--sx-text); font-size: 11px; }
+.closure-head small { display: block; margin-top: 2px; color: var(--sx-text-3); font-size: 9px; line-height: 1.5; }
+.closure-grid { display: grid; grid-template-columns: 1fr 1.25fr; gap: 7px; }
+.closure-suppress-grid { grid-template-columns: 1.4fr 0.8fr; }
+.closure-grid label { display: grid; gap: 3px; }
+.closure-grid label > span { color: var(--sx-text-3); font-size: 9px; }
+.closure-value-line { display: grid; grid-template-columns: 42px minmax(0, 1fr); align-items: center; gap: 6px; }
+.closure-value-line > span { color: var(--sx-text-3); font-size: 9px; }
+.closure-hint { color: var(--sx-text-3); font-size: 9px; line-height: 1.5; }
+.closure-actions { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.closure-closed { display: grid; gap: 3px; padding: 8px 9px; border-radius: 5px; background: #edf8f1; color: #1c6b43; }
+.closure-closed b { font-size: 10px; }
+.closure-closed small { font-size: 9px; line-height: 1.5; }
+.rule-hints { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; padding-top: 2px; }
+.rule-hints > span { color: var(--sx-text-3); font-size: 9px; }
+.rule-hints .sx-btn { height: 24px; padding: 0 7px; font-size: 9px; }
 .response-form { display: grid; gap: 7px; }
 .response-agent { display: flex; align-items: center; gap: 7px; padding: 7px 9px; border: 1px solid var(--sx-line-soft); border-radius: 5px; background: var(--sx-surface-2); }
 .response-agent span { color: var(--sx-text-3); font-size: 9px; }
