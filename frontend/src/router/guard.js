@@ -11,7 +11,7 @@ export function evaluateAuthGuard({
   const hasSession = Boolean(isAuthenticated || token)
 
   if (toPath === '/login') {
-    if (hasSession && !needsPasswordChange) return '/xdr'
+    if (hasSession && !needsPasswordChange) return '/dashboard'
     return true
   }
 

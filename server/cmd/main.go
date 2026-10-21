@@ -4594,7 +4594,13 @@ func xdrEventFromComponentAlert(event map[string]interface{}) bool {
 }
 
 func componentCategoryFromEvent(event map[string]interface{}) string {
-	return firstNonEmpty(normalizeComponentCategory(xdrPickString(event, "component_category")), componentCategoryFromStream(xdrPickString(event, "metadata.source_stream")), normalizeComponentCategory(xdrPickString(event, "source_module")), normalizeComponentCategory(xdrPickString(event, "module")))
+	return firstNonEmpty(
+		normalizeComponentCategory(xdrPickString(event, "component_category")),
+		normalizeComponentCategory(xdrPickString(event, "category")),
+		componentCategoryFromStream(xdrPickString(event, "metadata.source_stream")),
+		normalizeComponentCategory(xdrPickString(event, "source_module")),
+		normalizeComponentCategory(xdrPickString(event, "module")),
+	)
 }
 
 func componentCategoryFromStream(stream string) string {
@@ -6007,39 +6013,64 @@ func unifiedEventsHandler(cfg *Config) http.HandlerFunc {
 
 		limit := parseQueryInt(r.URL.Query().Get("limit"), 50)
 		offset := parseQueryInt(r.URL.Query().Get("offset"), 0)
-		if limit <= 0 {
+		if limit <= 0 || limit > 500 {
 			limit = 50
 		}
 		if offset < 0 {
 			offset = 0
 		}
 
-		events, _, err := loadXDREvents(cfg, offset+limit+200, 0)
-		if err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]interface{}{"code": 1, "message": err.Error()})
-			return
+		now := time.Now().UTC()
+		to := parseOptionalTime(r.URL.Query().Get("to"))
+		if to == nil {
+			to = &now
+		}
+		from := parseOptionalTime(r.URL.Query().Get("from"))
+		if from == nil {
+			defaultFrom := to.Add(-10 * time.Minute)
+			from = &defaultFrom
+		}
+		if to.Before(*from) {
+			from = to
+		}
+		if to.Sub(*from) > analytics.MaxEventV2QueryRange {
+			trimmed := to.Add(-analytics.MaxEventV2QueryRange)
+			from = &trimmed
 		}
 
-		items := make([]map[string]interface{}, 0, len(events))
-		for _, e := range events {
-			if shouldHideOperationalAgentEvent(e) {
-				continue
-			}
-			item := mapUnifiedEventFromXDR(e)
-			if module := r.URL.Query().Get("module"); module != "" && !strings.EqualFold(xdrPickString(item, "module"), module) {
-				continue
-			}
-			if sev := r.URL.Query().Get("severity"); sev != "" && !strings.EqualFold(xdrPickString(item, "severity"), sev) {
-				continue
-			}
-			if status := r.URL.Query().Get("status"); status != "" && !strings.EqualFold(xdrPickString(item, "status"), status) {
-				continue
-			}
-			items = append(items, item)
+		query := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("q")))
+		severity := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("severity")))
+		agentID := strings.TrimSpace(r.URL.Query().Get("agent_id"))
+		stageFilter := strings.ToLower(strings.TrimSpace(r.URL.Query().Get("stage")))
+		category := normalizeComponentCategory(r.URL.Query().Get("category"))
+		categories := []string{"traffic", "runtime", "rasp", "log_audit"}
+		if category != "" && category != "all" {
+			categories = []string{category}
 		}
 
-		total := len(items)
+		// The v2 ClickHouse event table is empty on installations that only
+		// ingest component alerts. Read the durable threat materialization
+		// instead, which is written from the same detection streams and is
+		// retained for the configured log retention period.
+		scheduleThreatBackfill(cfg)
+		all := make([]map[string]interface{}, 0, limit+offset)
+		for _, currentCategory := range categories {
+			threats, _, err := loadPersistentThreatEvents(r.Context(), cfg, currentCategory, limit+offset, 0, query, agentID, "", "", severity, from, to)
+			if err != nil {
+				continue
+			}
+			for _, threat := range threats {
+				item := unifiedEventFromThreat(threat, currentCategory)
+				if stageFilter != "" && !strings.EqualFold(xdrPickString(item, "stage"), stageFilter) {
+					continue
+				}
+				all = append(all, item)
+			}
+		}
+		sort.Slice(all, func(i, j int) bool {
+			return xdrPickString(all[i], "event_at") > xdrPickString(all[j], "event_at")
+		})
+		total := len(all)
 		if offset > total {
 			offset = total
 		}
@@ -6047,17 +6078,37 @@ func unifiedEventsHandler(cfg *Config) http.HandlerFunc {
 		if end > total {
 			end = total
 		}
-
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"code":    0,
 			"message": "success",
 			"data": map[string]interface{}{
-				"items":  items[offset:end],
-				"total":  total,
-				"limit":  limit,
-				"offset": offset,
+				"items": all[offset:end], "total": total, "limit": limit, "offset": offset,
+				"window": map[string]interface{}{"from": from.Format(time.RFC3339), "to": to.Format(time.RFC3339), "minutes": int(to.Sub(*from).Minutes())},
 			},
 		})
+	}
+}
+
+func unifiedEventFromThreat(threat map[string]interface{}, category string) map[string]interface{} {
+	ts := firstNonEmpty(xdrPickString(threat, "timestamp"), xdrPickString(threat, "last_seen"), xdrPickString(threat, "first_seen"))
+	ruleID := firstNonEmpty(xdrPickString(threat, "component_rule_id"), xdrPickString(threat, "rule_id"))
+	eventType := firstNonEmpty(xdrPickString(threat, "rule_name"), xdrPickString(threat, "event_type"), "检测告警")
+	uid := firstNonEmpty(xdrPickString(threat, "id"), xdrPickString(threat, "message_id"), xdrPickString(threat, "aggregate_key"))
+	if uid == "" {
+		uid = category + ":" + ts + ":" + ruleID
+	}
+	nativeRule := asMap(threat["native_rule"])
+	return map[string]interface{}{
+		"event_uid": uid, "event_at": ts, "timestamp": ts,
+		"source": firstNonEmpty(xdrPickString(threat, "source_engine"), xdrPickString(threat, "source"), category),
+		"category": category, "event_type": eventType, "severity": xdrPickString(threat, "severity"),
+		"stage": xdrPickString(threat, "stage"), "asset_id": firstNonEmpty(xdrPickString(threat, "agent_display_name"), xdrPickString(threat, "display_name"), xdrPickString(threat, "hostname"), xdrPickString(threat, "agent_id")),
+		"rule_id": ruleID, "rule_source": xdrPickString(nativeRule, "source"), "confidence": threat["confidence"],
+		"count": xdrPickNumber(threat, "occurrence_count", 1), "first_seen": xdrPickString(threat, "first_seen"), "last_seen": xdrPickString(threat, "last_seen"),
+		"src_ip": xdrPickString(threat, "src_ip"), "dst_ip": xdrPickString(threat, "dst_ip"),
+		"src_port": threat["src_port"], "dst_port": threat["dst_port"], "protocol": xdrPickString(threat, "protocol"),
+		"summary": xdrPickString(threat, "summary", "rule_name"), "payload": threat,
+		"raw": map[string]interface{}{"native_schema": xdrPickString(nativeRule, "schema"), "native_event_id": xdrPickString(nativeRule, "id")},
 	}
 }
 
@@ -6149,6 +6200,9 @@ func loadComponentAlerts(cfg *Config, category string, limit, offset int) ([]map
 				payload["application"] = firstNonEmpty(xdrPickString(payload, "application", "service"), xdrPickString(asMap(payload["fields"]), "application"))
 			}
 			applyMirrorCaptureLabel(payload)
+			if shouldSuppressTrafficNoiseEvent(payload) {
+				continue
+			}
 			if matchingXDRSuppression(policy.Suppressions,
 				firstNonEmpty(xdrPickString(payload, "component_rule_id"), xdrPickString(payload, "rule_id")),
 				firstNonEmpty(xdrPickString(payload, "rule_name"), xdrPickString(payload, "native_rule.name")),
@@ -6832,6 +6886,9 @@ func shouldSuppressTrafficNoiseEvent(event map[string]interface{}) bool {
 			"snort-community-25949", "snort-community-46785", "snort-community-46786", "snort-community-48764", "snort-community-48765", "snort-community-48766", "snort-community-48767", "snort-community-48844", "snort-community-48904", "snort-community-49396", "snort-community-49397", "snort-community-49398",
 			"oisf-trafficid-300000010", "oisf-trafficid-300000011", "oisf-trafficid-300000012", "oisf-trafficid-300000013", "oisf-trafficid-300000014", "oisf-trafficid-300000015",
 			"et-open-1000001", "et-open-1000050", "suricata-etopen-1000050",
+			// GPL NETBIOS SMB NT Trans NT creates a false positive on
+			// several SMB stacks and is disabled from first install.
+			"et-open-2103018",
 		},
 		[]string{
 			"SURICATA TRAFFIC-ID: Ubuntu APT-GET",
@@ -6839,6 +6896,7 @@ func shouldSuppressTrafficNoiseEvent(event map[string]interface{}) bool {
 			"FILE-IDENTIFY PNG file download request",
 			"MALWARE-CNC Win.Backdoor.Chopper web shell connection",
 			"NETBIOS SMB Trans2 QUERY_FILE_INFO attempt",
+			"GPL NETBIOS SMB NT Trans NT",
 			"FILE-IDENTIFY Portable Executable binary file magic detected",
 			"INDICATOR-COMPROMISE Potential Redirect from Compromised WordPress site to Fedex",
 			"SURICATA TRAFFIC-ID: google",
@@ -8153,7 +8211,8 @@ func cleanupRedisStreams(cfg *Config, cutoff time.Time) {
 	}
 	ctx := context.Background()
 	minID := fmt.Sprintf("%d-0", cutoff.UnixMilli())
-	for _, stream := range []string{"flows:raw", "sessions:semantic", "alerts:dpi", "alerts:xdr", "events:xdr"} {
+	for _, stream := range []string{"flows:raw", "sessions:semantic", "alerts:dpi", "alerts:xdr", "events:xdr",
+		"component_alerts:v2", "alerts:runtime", "alerts:rasp", "alerts:log_audit", "telemetry:rasp"} {
 		if err := cfg.Redis.Do(ctx, "XTRIM", stream, "MINID", minID).Err(); err != nil && err != redis.Nil {
 			log.Printf("Redis日志流清理失败: stream=%s err=%v", stream, err)
 		}

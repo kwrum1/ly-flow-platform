@@ -97,10 +97,23 @@ const capabilityAgents = ref({ traffic: 0, runtime: 0, rasp: 0 })
 const filters = ref({ query: '', src_ip: '', dst_ip: '', severity: '', start_time: '', end_time: '' })
 let resizeObserver = null
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
+
+function pad(value) { return String(value).padStart(2, '0') }
+function toLocalInput(date) { return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}` }
+function toRFC3339(value) { if (!value) return ''; const date = new Date(value); return Number.isNaN(date.getTime()) ? '' : date.toISOString() }
+function applyDefaultWindow() {
+  const to = new Date()
+  const from = new Date(to.getTime() - 10 * 60 * 1000)
+  filters.value.start_time = toLocalInput(from)
+  filters.value.end_time = toLocalInput(to)
+}
 const highSeverityCount = computed(() => threats.value.filter((item) => ['high', 'critical'].includes(item.severity)).length)
 const sourceCount = computed(() => new Set(threats.value.map((item) => item.source_engine || item.source).filter(Boolean)).size)
 
-function params() { return { ...filters.value, limit: pageSize.value, offset: (page.value - 1) * pageSize.value } }
+function params() {
+  const { start_time, end_time, ...rest } = filters.value
+  return { ...rest, start_time: toRFC3339(start_time), end_time: toRFC3339(end_time), limit: pageSize.value, offset: (page.value - 1) * pageSize.value }
+}
 function apiCategory() { return { application: 'rasp', log: 'log_audit', system: 'runtime' }[props.category] || props.category }
 function formatTime(value) { return value ? formatChinaDateTime(value) : '-' }
 function occurrenceCount(item) { return Number(item?.occurrence_count || item?.count || 1) || 1 }
@@ -178,17 +191,14 @@ async function loadAll() {
   error.value = ''
   try {
     const category = apiCategory()
-    let data
+    let data = normalizeItems(await trafficClient.threatCategory(category, params()))
     if (category === 'traffic') {
-      const primary = normalizeItems(await trafficClient.threatCategory(category, params()))
       const component = normalizeItems(await trafficClient.componentAlerts(category, params()))
-      const seen = new Set(primary.items.map((item) => item.id || item.message_id))
+      const seen = new Set(data.items.map((item) => item.id || item.message_id))
       const extra = component.items.filter((item) => !isProtectionHeartbeat(item) && !seen.has(item.id || item.message_id))
-      data = { items: [...primary.items, ...extra], total: Number(primary.total) + extra.length }
-    } else {
-      data = ['runtime', 'rasp', 'log_audit'].includes(category)
-        ? normalizeItems(await trafficClient.componentAlerts(category, params()))
-        : normalizeItems(await trafficClient.threatCategory(category, params()))
+      data = { items: [...data.items, ...extra], total: Number(data.total) + extra.length }
+    } else if (!data.items.length && Number(data.total || 0) === 0) {
+      data = normalizeItems(await trafficClient.componentAlerts(category, params()))
     }
     const visibleItems = data.items.filter((item) => !isProtectionHeartbeat(item))
     threats.value = visibleItems.map(normalizeAlert)
@@ -285,6 +295,7 @@ function updatePageSize({ reload = true } = {}) {
   if (nextSize !== pageSize.value) { pageSize.value = nextSize; if (reload) loadAll() }
 }
 onMounted(async () => {
+  applyDefaultWindow()
   await nextTick()
   updatePageSize({ reload: false })
   if (tableWrap.value && typeof ResizeObserver !== 'undefined') {

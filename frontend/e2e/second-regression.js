@@ -133,7 +133,7 @@ async function main() {
     approverPage.on('pageerror', (error) => approverErrors.push(`pageerror: ${String(error)}`))
     const approverLoginURL = await login(approverPage, approverUser, approverPass)
     const approverAfterLogin = (await approverPage.locator('body').innerText()).slice(0, 800)
-    await approverPage.goto(`${baseURL}/xdr`, { waitUntil: 'domcontentloaded' })
+    await approverPage.goto(`${baseURL}/incidents`, { waitUntil: 'domcontentloaded' })
     await approverPage.waitForTimeout(2500)
     result.checks.approver = {
       loginURL: approverLoginURL,

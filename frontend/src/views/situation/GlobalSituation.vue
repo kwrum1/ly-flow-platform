@@ -44,7 +44,7 @@
       </main>
 
       <aside class="side-panel chain-panel">
-        <div class="panel-title"><strong>活跃攻击链</strong><span>{{ attackChains.length }} 条</span></div>
+        <div class="panel-title"><strong>未闭环 Incident</strong><span>{{ attackChains.length }} 条</span></div>
         <div v-if="attackChains.length" class="chain-list">
           <button v-for="chain in attackChains.slice(0, 6)" :key="chain.id" type="button" @click="goToIncident(chain)">
             <div><span :class="['severity-dot', chain.severity]" /><strong>{{ chain.title }}</strong></div>
@@ -157,13 +157,14 @@ async function refreshData() {
   try {
     const [situationResult, incidentResult] = await Promise.allSettled([
       api.get('/public/situation/global'),
-      attackWorkbenchClient.incidents({ limit: 20, live: 0 }),
+      attackWorkbenchClient.incidents({ limit: 20, live: 0, status: 'active' }),
     ])
     const body = situationResult.status === 'fulfilled' ? (situationResult.value?.data ?? situationResult.value ?? {}) : {}
     let chains = list(body.attacks)
-    if (!chains.length && incidentResult.status === 'fulfilled') {
+    if (incidentResult.status === 'fulfilled') {
       const incidentBody = incidentResult.value?.data ?? incidentResult.value ?? {}
-      chains = list(incidentBody.items)
+      const activeIncidents = list(incidentBody.items)
+      if (activeIncidents.length) chains = activeIncidents
     }
     attackChains.value = chains.map(normalizeChain)
     geoRoutes.value = list(body.geo_routes).length ? list(body.geo_routes) : chains.flatMap((chain) => list(chain.geo_routes))
@@ -215,7 +216,7 @@ onMounted(async () => {
   updateClock()
   await refreshData()
   clockTimer = setInterval(updateClock, 1000)
-  pollTimer = setInterval(refreshData, 30000)
+  pollTimer = setInterval(refreshData, 60000)
   window.addEventListener('resize', resizeChart)
 })
 

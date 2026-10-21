@@ -4,7 +4,7 @@
       <div>
         <p class="sx-kicker">LIVE SECURITY OPERATIONS</p>
         <h2 class="sx-title">态势总览</h2>
-        <p class="sx-subtitle">从真实事件、攻击链与资产心跳中聚合当前安全态势；每个数字都可以下钻到对应事件或 Incident。</p>
+        <p class="sx-subtitle">从最近 10 分钟检测事件、未闭环 Incident 与资产心跳中聚合当前安全态势；闭环 Incident 不再计入。</p>
       </div>
       <div class="sx-head-actions">
         <span class="sx-live"><i />LIVE</span>
@@ -21,9 +21,9 @@
       <article class="posture-card" :class="`risk-${riskTone}`">
         <div class="posture-card-top">
           <div>
-            <span class="posture-eyebrow"><i />XDR POSTURE</span>
+            <span class="posture-eyebrow"><i />ACTIVE INCIDENT POSTURE</span>
             <h3>{{ ready.posture ? riskLabel : '态势计算中' }}</h3>
-            <p>{{ ready.posture ? postureNote : '正在读取 XDR 态势、攻击链与处置队列…' }}</p>
+            <p>{{ ready.posture ? postureNote : '正在读取未闭环 Incident 与最近 10 分钟事件…' }}</p>
           </div>
           <span class="sx-badge" :class="ready.posture ? riskTone : 'muted'">{{ ready.posture ? riskToneLabel : '加载中' }}</span>
         </div>
@@ -36,8 +36,8 @@
             </div>
           </div>
           <div class="posture-facts">
-            <div><span>活跃攻击链</span><b>{{ ready.chains ? postureActiveChains : '…' }}</b></div>
-            <div><span>Incident 总量</span><b>{{ incidentsReady ? formatNumber(incidentTotal) : '…' }}</b></div>
+            <div><span>未闭环 Incident</span><b>{{ incidentsReady ? formatNumber(incidentTotal) : '…' }}</b></div>
+            <div><span>其中高/严重</span><b class="warning">{{ incidentsReady ? formatNumber(activeHighRiskCount) : '…' }}</b></div>
             <div><span>在线 Agent</span><b>{{ ready.assetStats ? formatNumber(onlineAgents) : '…' }}<em v-if="ready.assetStats">/{{ formatNumber(totalAssets) }}</em></b></div>
             <div><span>待审批处置</span><b class="warning">{{ ready.actions ? formatNumber(pendingApprovalCount) : '…' }}</b></div>
           </div>
@@ -52,14 +52,14 @@
 
       <div class="hero-metrics">
         <article class="sx-metric metric-live">
-          <span class="sx-metric-label"><i />24h 检测事件</span>
+          <span class="sx-metric-label"><i />近 10 分钟检测事件</span>
           <strong class="sx-metric-value">{{ ready.unified || ready.stats ? formatNumber(todayEvents) : '—' }}</strong>
-          <span class="sx-metric-note">{{ ready.unified || ready.stats ? `累计 ${formatNumber(totalEvents)} 条 · 样本 ${ready.events ? eventItems.length : '…'} 条` : '正在汇总 24h 事件' }}</span>
+          <span class="sx-metric-note">{{ ready.unified || ready.stats ? `最近 10 分钟 · 当前样本 ${ready.events ? eventItems.length : '…'} 条` : '正在汇总最近 10 分钟事件' }}</span>
         </article>
         <article class="sx-metric">
           <span class="sx-metric-label"><i />高危 / 严重</span>
-          <strong class="sx-metric-value danger">{{ ready.unified ? formatNumber(highRiskCount) : '—' }}</strong>
-          <span class="sx-metric-note">{{ ready.unified ? highRiskNote : '正在汇总告警等级' }}</span>
+          <strong class="sx-metric-value danger">{{ incidentsReady ? formatNumber(highRiskCount) : '—' }}</strong>
+          <span class="sx-metric-note">{{ incidentsReady ? highRiskNote : '正在汇总未闭环 Incident' }}</span>
         </article>
         <article class="sx-metric">
           <span class="sx-metric-label"><i />处置队列</span>
@@ -77,7 +77,7 @@
     <section class="sx-panel stage-panel">
       <div class="sx-panel-head">
         <div class="sx-panel-title">ATT&CK 攻击阶段</div>
-        <div class="sx-panel-meta">{{ incidentsReady ? `来自 ${incidentSampleLabel} Incident` : 'Incident 加载中' }} + {{ ready.chains ? `${chains.items.length} 条活跃链` : '活跃链加载中' }} · 点击阶段筛选事件</div>
+        <div class="sx-panel-meta">{{ incidentsReady ? `来自 ${incidentSampleLabel} 未闭环 Incident` : 'Incident 加载中' }} · 点击阶段筛选事件</div>
       </div>
       <div class="sx-panel-body">
         <div class="sx-stage-ribbon">
@@ -237,7 +237,6 @@ import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import * as echarts from 'echarts'
 import { attackWorkbenchClient, assetAgentClient, overviewClient, ruleClient } from '../../api/domain'
-import { eventsV2Client } from '../../api/v2'
 import { normalizeIncidents } from '../../domain/incidents'
 import { severityLabel } from '../../domain/attack-labels'
 import { formatChinaDateTime, formatChinaTime } from '../../shared/time'
@@ -248,8 +247,6 @@ const error = ref('')
 const lastUpdated = ref('-')
 const stats = ref({})
 const unified = ref({})
-const posture = ref({})
-const chains = ref({ items: [], total: 0 })
 const incidents = ref({ items: [], total: 0 })
 const assetStats = ref({})
 const assets = ref({ items: [] })
@@ -263,7 +260,6 @@ const ready = reactive({
   stats: false,
   unified: false,
   posture: false,
-  chains: false,
   assetStats: false,
   assets: false,
   engines: false,
@@ -299,34 +295,36 @@ const severityDefinitions = [
 ]
 
 const normalizedIncidents = computed(() => normalizeIncidents(incidents.value.items || []))
-const incidentTotal = computed(() => Number(incidents.value.total || normalizedIncidents.value.length || 0))
+const activeIncidentList = computed(() => normalizedIncidents.value.filter((item) => ['new', 'open', 'triaged', 'processing', 'resolved'].includes(item.status)))
+const incidentTotal = computed(() => Number(incidents.value.total || activeIncidentList.value.length || 0))
 const eventItems = computed(() => (Array.isArray(events.value.items) ? events.value.items : []))
-const totalEvents = computed(() => Number(unified.value.total_events || stats.value.total_events || 0))
-const todayEvents = computed(() => Number(unified.value.today_events || stats.value.recent_events_24h || 0))
-const highRiskCount = computed(() => Number(unified.value.by_severity?.critical || 0) + Number(unified.value.by_severity?.high || 0) || Number(stats.value.critical_events || 0) + Number(stats.value.high_events || 0))
+const todayEvents = computed(() => Number(unified.value.total_events || 0))
+const activeHighRiskCount = computed(() => activeIncidentList.value.filter((item) => ['critical', 'high'].includes(item.severity)).length)
+const highRiskCount = computed(() => activeHighRiskCount.value)
 const onlineAgents = computed(() => Number(assetStats.value.online ?? stats.value.online_agents ?? 0))
 const offlineAgents = computed(() => Number(assetStats.value.offline ?? 0))
 const totalAssets = computed(() => Number(assetStats.value.total ?? stats.value.total_assets ?? 0))
 const ruleTotal = computed(() => Number(ruleStats.value.totalRules || ruleStats.value.total_rules || 0))
 const pendingApprovalCount = computed(() => (responseActions.value.items || []).filter((item) => ['pending_approval', 'approved'].includes(item.status)).length)
-const postureActiveChains = computed(() => Number(posture.value.active_chains ?? posture.value.active_v2_chains ?? 0))
-const riskScore = computed(() => Math.max(0, Math.min(100, Number(posture.value.risk_score || 0))))
-const riskTone = computed(() => ['critical', 'high', 'medium', 'low'].includes(posture.value.risk_level) ? posture.value.risk_level : 'low')
+const riskScore = computed(() => {
+  const weights = { critical: 35, high: 18, medium: 8, low: 2 }
+  return Math.min(100, activeIncidentList.value.reduce((sum, item) => sum + (weights[item.severity] || 0), 0))
+})
+const riskTone = computed(() => riskScore.value >= 70 ? 'critical' : riskScore.value >= 40 ? 'high' : riskScore.value > 0 ? 'medium' : 'low')
 const riskToneLabel = computed(() => severityLabel(riskTone.value))
 const riskLabel = computed(() => ({ critical: '严重风险', high: '高风险', medium: '中风险', low: '低风险' })[riskTone.value] || '低风险')
 const postureNote = computed(() => {
-  if (riskTone.value === 'low') return '当前未发现需要立即升级的活跃攻击链，保持持续监测。'
-  if (riskTone.value === 'medium') return '存在需要关注的关联活动，建议优先核查高严重度事件。'
-  return '检测到高风险关联活动，请进入攻击链处置队列。'
+  if (!incidentTotal.value) return '当前没有未闭环 Incident，历史告警保留在事件中心，不参与态势计数。'
+  if (riskTone.value === 'low') return '当前未闭环 Incident 风险较低，保持持续监测。'
+  if (riskTone.value === 'medium') return '存在未闭环 Incident，建议优先核查高严重度证据。'
+  return '存在高危未闭环 Incident，请进入攻击链处置队列。'
 })
 const highRiskNote = computed(() => {
-  const total = Number(unified.value.total_alerts || unified.value.total_events || 0)
-  if (!total) return '等待统一告警聚合'
-  const ratio = (highRiskCount.value / total) * 100
-  return `占全部告警 ${ratio > 0 && ratio < 0.1 ? '<0.1' : ratio.toFixed(1)}% · 建议优先研判`
+  if (!incidentTotal.value) return '没有未闭环 Incident'
+  return `未闭环 Incident 中 ${activeHighRiskCount.value} 条高/严重 · 闭环后立即移出`
 })
-const openIncidentCount = computed(() => normalizedIncidents.value.filter((item) => ['new', 'open', 'triaged', 'processing'].includes(item.status)).length)
-const incidentSampleLabel = computed(() => `${normalizedIncidents.value.length} 条样本`)
+const openIncidentCount = computed(() => activeIncidentList.value.filter((item) => ['new', 'open', 'triaged', 'processing'].includes(item.status)).length)
+const incidentSampleLabel = computed(() => `${activeIncidentList.value.length} 条`)
 const engineRows = computed(() => {
   const groups = new Map()
   for (const item of engines.value.items || []) {
@@ -375,12 +373,6 @@ const stageRows = computed(() => {
   for (const incident of normalizedIncidents.value) {
     for (const stage of incident.stages || []) {
       const key = normalizeStageKey(stage.stageKey || stage.name || stage.tactic)
-      if (key && counts[key] !== undefined) counts[key] += 1
-    }
-  }
-  for (const chain of chains.value.items || []) {
-    for (const stage of chain.stages || []) {
-      const key = normalizeStageKey(typeof stage === 'string' ? stage : stage?.stage || stage?.name || stage?.stage_hint)
       if (key && counts[key] !== undefined) counts[key] += 1
     }
   }
@@ -434,7 +426,7 @@ function statusLabel(value) {
 }
 
 function sourceLabel(value) {
-  return ({ 'g5-real-agent': 'Agent 采集', wazuh: 'Wazuh', suricata: 'Suricata', 'ly-security-engine': '安全引擎', sshd: 'SSH 日志', rasp: 'RASP', yara: 'YARA', dpi_engine: '历史流量', lyprobe: 'LyFlow 探针' })[value] || value || '未知'
+  return ({ 'g5-real-agent': 'Agent 采集', wazuh: 'Wazuh', suricata: 'Suricata', 'ly-security-engine': '安全引擎', sshd: 'SSH 日志', rasp: 'RASP', runtime: '主机运行时', log_audit: '日志审计', traffic: '流量检测', yara: 'YARA', dpi_engine: '历史流量', lyprobe: 'LyFlow 探针' })[value] || value || '未知'
 }
 
 function normalizeStageKey(value) {
@@ -542,17 +534,32 @@ async function load() {
   error.value = ''
   let succeeded = 0
   const refreshCharts = () => nextTick(renderCharts)
+  const to = new Date()
+  const from = new Date(to.getTime() - 10 * 60 * 1000)
   const jobs = [
     overviewClient.health().then(() => { platformOnline.value = true; succeeded++ }).catch(() => { platformOnline.value = false }),
-    overviewClient.stats().then((value) => { stats.value = unwrap(value); ready.stats = true; succeeded++ }),
-    attackWorkbenchClient.stats().then((value) => { unified.value = unwrap(value); ready.unified = true; succeeded++; refreshCharts() }),
-    attackWorkbenchClient.xdrPosture().then((value) => { posture.value = unwrap(value); ready.posture = true; succeeded++ }),
-    attackWorkbenchClient.xdrChains({ limit: 30 }).then((value) => { chains.value = normalizePage(value); ready.chains = true; succeeded++ }),
-    attackWorkbenchClient.incidents({ limit: 10, live: 0 }).then((value) => { incidents.value = normalizePage(value); incidentsReady.value = true; succeeded++ }),
+    attackWorkbenchClient.events({ from: from.toISOString(), to: to.toISOString(), limit: 500 }).then((value) => {
+      events.value = normalizePage(value)
+      const items = events.value.items
+      const severity = { critical: 0, high: 0, medium: 0, low: 0 }
+      const sources = {}
+      for (const item of items) {
+        const key = String(item.severity || 'low').toLowerCase()
+        severity[key] = (severity[key] || 0) + 1
+        const source = item.source || item.category || 'unknown'
+        sources[source] = (sources[source] || 0) + 1
+      }
+      unified.value = { total_events: items.length, total_alerts: items.length, by_severity: severity, by_source: sources, window_minutes: 10 }
+      ready.unified = true
+      ready.events = true
+      ready.posture = true
+      succeeded++
+      refreshCharts()
+    }),
+    attackWorkbenchClient.incidents({ limit: 100, live: 0, status: 'active' }).then((value) => { incidents.value = normalizePage(value); incidentsReady.value = true; succeeded++ }),
     assetAgentClient.assetStats().then((value) => { assetStats.value = unwrap(value); ready.assetStats = true; succeeded++ }),
     assetAgentClient.assets({ limit: 8 }).then((value) => { assets.value = normalizePage(value); ready.assets = true; succeeded++ }),
     assetAgentClient.engineHealth().then((value) => { engines.value = normalizePage(value); ready.engines = true; succeeded++ }),
-    eventsV2Client.list({ limit: 160 }).then((value) => { events.value = normalizePage(value); ready.events = true; succeeded++; refreshCharts() }),
     ruleClient.responseActions({ limit: 100 }).then((value) => { responseActions.value = normalizePage(value); ready.actions = true; succeeded++ }),
     ruleClient.stats().then((value) => { ruleStats.value = unwrap(value); ready.rules = true; succeeded++ }),
   ]
@@ -593,7 +600,7 @@ function onThemeChange() {
 
 onMounted(async () => {
   await load()
-  pollTimer = setInterval(load, 30000)
+  pollTimer = setInterval(load, 60000)
   window.addEventListener('resize', onResize)
   window.addEventListener('lyflow-theme-changed', onThemeChange)
 })

@@ -28,7 +28,7 @@ describe('流影访问守卫', () => {
     expect(result).toBe('/login')
   })
 
-  it('已完成认证且无需改密时登录页跳转攻击链工作台', () => {
+  it('已完成认证且无需改密时登录页跳转运营总览', () => {
     const result = evaluateAuthGuard({
       toPath: '/login',
       requiresAuth: false,
@@ -38,7 +38,7 @@ describe('流影访问守卫', () => {
       passwordChanged: false,
     })
 
-    expect(result).toBe('/xdr')
+    expect(result).toBe('/dashboard')
   })
 
   it('首次登录必须先进入改密页面', () => {

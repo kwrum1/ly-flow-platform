@@ -20,6 +20,7 @@
           <div><b>Incident</b><span>{{ formatNumber(incidentTotal) }} 条</span></div>
           <div class="sidebar-filters">
             <select v-model="statusFilter" class="sx-select" @change="applyIncidentFilters">
+              <option value="active">未闭环</option>
               <option value="">全部状态</option>
               <option value="open">新发</option>
               <option value="triaged">已分诊</option>
@@ -289,7 +290,7 @@ const actionMessageType = ref('success')
 const bundleMessage = ref('')
 const bundleMessageType = ref('success')
 const expandedEvidence = ref('')
-const statusFilter = ref('')
+const statusFilter = ref('active')
 const severityFilter = ref('')
 const actions = ref([])
 const bundles = ref([])

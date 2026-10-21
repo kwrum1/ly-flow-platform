@@ -11,7 +11,6 @@ export const productNavigation = Object.freeze([
     title: '检测面',
     items: [
       { path: '/traffic-threats', label: '流量威胁', description: 'Suricata / DPI / 流量会话', roles: ['admin'] },
-      { path: '/xdr', label: 'XDR 调查', description: '跨源关联与攻击时间线', roles: ['admin'] },
       { path: '/runtime', label: '运行威胁', description: 'Wazuh / 主机运行时告警', roles: ['admin'] },
       { path: '/rasp', label: '应用威胁', description: 'RASP 运行时攻击与阻断', roles: ['admin'] },
       { path: '/situation/global', label: '全球态势', description: '公网攻击来源与目标', roles: ['admin'] },

@@ -892,3 +892,12 @@
 - 生产已将 `test8-final3` 的 SSH 授权登录按预期操作关闭，旧 `test8-fresh` 重复链按历史测试数据关闭；`et-open-2103018`（GPL NETBIOS）已抑制 30 天。
 - 平台设置卡片改为等高；验证：前端 117 项测试、typecheck、build，`server/cmd` 测试，Playwright 闭环提交全部通过。
 - 详细记录：`docs/dev/INCIDENT-CLOSURE-2026-10-21.md`。
+
+## 2026-10-21 检测窗口、态势与事件中心修正
+
+- 攻击链处置默认只显示未闭环 Incident；闭环后立即从默认列表、处置队列和高危计数中移出。
+- 态势总览改为最近 10 分钟检测事件 + 未闭环 Incident；移除 XDR 全量统计和 XDR 调查入口，评分与高危只由未闭环 Incident 计算。
+- 事件中心从空的 ClickHouse v2 表切换为持久化 threat_events，默认最近 10 分钟，支持 1 小时/24 小时/30 天分类检索。
+- 流量/运行/应用威胁默认最近 10 分钟；Redis 清理覆盖组件告警流，PostgreSQL 保留 180 天、ClickHouse v2 保留 30 天。
+- `et-open-2103018`（GPL NETBIOS SMB NT Trans NT）加入默认噪声策略，首次安装即不进入检测面、XDR 和事件中心，并补单元测试。
+- 生产验证：18 页 HTTP 200/0 错误，事件中心有数据，态势总览闭环为 0，GPL 规则不再返回。详细记录见 `docs/dev/DETECTION-WINDOWS-2026-10-21.md`。

@@ -47,8 +47,12 @@ func (store *PostgresStore) ListFiltered(ctx context.Context, limit, offset int,
 	}
 	conditions := []string{"1=1"}
 	args := make([]interface{}, 0, 4)
-	if Status(strings.TrimSpace(status)).Valid() {
-		args = append(args, strings.TrimSpace(status))
+	status = strings.TrimSpace(status)
+	switch {
+	case strings.EqualFold(status, "active"):
+		conditions = append(conditions, "status <> 'closed'")
+	case Status(status).Valid():
+		args = append(args, status)
 		conditions = append(conditions, fmt.Sprintf("status=$%d", len(args)))
 	}
 	if severity = strings.ToLower(strings.TrimSpace(severity)); severity == "critical" || severity == "high" || severity == "medium" || severity == "low" {

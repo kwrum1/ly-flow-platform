@@ -12,7 +12,6 @@ if (!baseURL || !username || !password || !evidenceDir) throw new Error('Missing
 const pages = [
   ['dashboard', '/dashboard'],
   ['global-situation', '/situation/global'],
-  ['xdr', '/xdr'],
   ['incidents', '/incidents'],
   ['timeline', '/timeline'],
   ['assets', '/assets'],
@@ -35,7 +34,7 @@ const legacyRedirects = {
   '/application-threats': '/rasp',
   '/system-security-audit': '/runtime',
   '/host-ops': '/assets',
-  '/real-time-posture': '/xdr',
+  '/real-time-posture': '/incidents',
   '/rule-visibility': '/rules',
   '/rule-updates': '/rules',
 }
@@ -163,8 +162,9 @@ async function main() {
     })
     await page.goto(`${baseURL}/incidents`, { waitUntil: 'domcontentloaded' })
     await page.waitForTimeout(2500)
-    const incidentLink = page.locator('a[href*="/incidents/"], [data-incident-id], tbody tr').first()
-    if (await incidentLink.count()) {
+    const incidentLink = page.locator('a[href*="/incidents/"], [data-incident-id], tbody tr, .incident-list-row').first()
+    const hasIncidentRow = await incidentLink.count() > 0
+    if (hasIncidentRow) {
       await incidentLink.click()
       await page.waitForTimeout(1800)
     }
@@ -173,6 +173,7 @@ async function main() {
       requests: detailRequests.length,
       hasTimeline: incidentText.includes('阶段时间线'),
       hasEvidence: incidentText.includes('证据包'),
+      empty: !hasIncidentRow && (incidentText.includes('暂无匹配') || incidentText.includes('没有匹配')),
     }
 
     await page.goto(`${baseURL}/events/does-not-exist`, { waitUntil: 'domcontentloaded' })
@@ -203,7 +204,7 @@ async function main() {
     if (!result.checks.rules.hasLyprobe || result.checks.rules.hasLoading || !result.checks.rules.totalsAligned) failures.push('rules acceptance failed')
     if (!result.checks.trafficObserve.hasLyprobe) failures.push('traffic observe missing lyprobe')
     if (!result.checks.runtime.hasEBPF || !result.checks.runtime.hasProcessEvents) failures.push('runtime eBPF evidence missing')
-    if (result.checks.incident.requests > 1 || !result.checks.incident.hasTimeline) failures.push('incident detail failed')
+    if (result.checks.incident.requests > 1 || (!result.checks.incident.empty && !result.checks.incident.hasTimeline)) failures.push('incident detail failed')
     if (!result.checks.missingEvent.hasNotFound) failures.push('missing event empty state failed')
     for (const [legacy, value] of Object.entries(result.legacy)) {
       if (value.finalPath !== value.target) failures.push(`${legacy} redirected to ${value.finalPath}, want ${value.target}`)

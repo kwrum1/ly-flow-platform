@@ -37,10 +37,11 @@ describe('current route characterization', () => {
     )
 
     expect(redirects).toEqual({
+      'xdr': '/incidents',
       'application-threats': '/rasp',
       'system-security-audit': '/runtime',
       'host-ops': '/assets',
-      'real-time-posture': '/xdr',
+      'real-time-posture': '/incidents',
       'rule-visibility': '/rules',
       'rule-updates': '/rules',
     })

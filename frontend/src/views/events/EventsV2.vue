@@ -4,7 +4,7 @@
       <div>
         <p class="sx-kicker">UNIFIED EVENT EXPLORER</p>
         <h2 class="sx-title">事件中心</h2>
-        <p class="sx-subtitle">统一查询 Event v2 事件；点击任意事件查看阶段、证据、原始载荷和来源链路。</p>
+        <p class="sx-subtitle">统一检索流量、运行时、应用防护与日志审计告警；默认最近 10 分钟，历史保留至少 30 天。</p>
       </div>
       <div class="sx-head-actions">
         <span class="sx-live"><i />LIVE</span>
@@ -16,7 +16,7 @@
       <article class="event-stat">
         <span>当前结果</span>
         <strong>{{ formatNumber(items.length) }}</strong>
-        <small>{{ nextCursor ? '可继续加载' : '已到末页' }}</small>
+        <small>{{ total > items.length ? `共 ${formatNumber(total)} 条 · 可继续加载` : '当前时间窗已加载完' }}</small>
       </article>
       <article class="event-stat">
         <span>高危 / 严重</span>
@@ -37,18 +37,23 @@
 
     <form class="sx-filter" @submit.prevent="load(true)">
       <label class="wide"><span>关键字</span><input v-model="filters.q" class="sx-input" type="search" placeholder="IP、域名、哈希、进程、用户" /></label>
+      <label><span>时间范围</span>
+        <select v-model="windowPreset" class="sx-select" @change="applyWindowPreset()">
+          <option value="10m">最近 10 分钟</option>
+          <option value="1h">最近 1 小时</option>
+          <option value="24h">最近 24 小时</option>
+          <option value="30d">最近 30 天</option>
+        </select>
+      </label>
       <label><span>开始</span><input v-model="filters.from" class="sx-input" type="datetime-local" /></label>
       <label><span>结束</span><input v-model="filters.to" class="sx-input" type="datetime-local" /></label>
-      <label><span>来源</span>
+      <label><span>分类</span>
         <select v-model="filters.source" class="sx-select">
-          <option value="">全部</option>
-          <option value="adapter.suricata">Suricata</option>
-          <option value="lyprobe">LyFlow 探针</option>
-          <option value="agent.runtime">主机运行时</option>
-          <option value="agent.log_audit">日志审计</option>
-          <option value="agent.rasp">RASP</option>
-          <option value="adapter.wazuh">Wazuh</option>
-          <option value="adapter.yara">YARA</option>
+          <option value="">全部分类</option>
+          <option value="traffic">流量检测</option>
+          <option value="runtime">主机运行时</option>
+          <option value="rasp">应用防护</option>
+          <option value="log_audit">日志审计</option>
         </select>
       </label>
       <label><span>严重度</span>
@@ -75,7 +80,7 @@
     <section class="sx-panel">
       <div class="sx-panel-head">
         <div class="sx-panel-title">事件列表</div>
-        <span class="sx-panel-meta">{{ items.length }} 条{{ nextCursor ? ' / 可继续加载' : '' }}</span>
+        <span class="sx-panel-meta">{{ items.length }}{{ total > items.length ? ` / 共 ${total}` : '' }} 条 · 最近 10 分钟起</span>
       </div>
       <div class="sx-table-wrap sx-scroll">
         <table class="sx-table event-table">
@@ -93,7 +98,7 @@
           </thead>
           <tbody>
             <tr v-if="loading && items.length === 0"><td colspan="8" class="sx-empty">正在加载事件…</td></tr>
-            <tr v-else-if="items.length === 0"><td colspan="8" class="sx-empty"><div><strong>当前时间窗没有事件</strong>调整筛选条件或扩大时间范围。</div></td></tr>
+            <tr v-else-if="items.length === 0"><td colspan="8" class="sx-empty"><div><strong>当前时间窗没有检测事件</strong>默认查看最近 10 分钟；可切换 1 小时、24 小时或 30 天。</div></td></tr>
             <tr v-for="event in items" :key="event.event_uid" class="event-row" @click="openDetail(event)">
               <td class="sx-mono">{{ formatTime(event.event_at) }}</td>
               <td><span class="sx-badge" :class="event.severity">{{ severityLabel(event.severity) }}</span></td>
@@ -189,7 +194,7 @@
 <script setup>
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRoute } from 'vue-router'
-import { eventsV2Client } from '../../api/v2'
+import { attackWorkbenchClient } from '../../api/domain'
 import { severityLabel, stageLabel, stageLabels } from '../../domain/attack-labels'
 
 const PAGE_SIZE = 50
@@ -197,10 +202,12 @@ const route = useRoute()
 const loading = ref(false)
 const error = ref('')
 const items = ref([])
+const total = ref(0)
 const nextCursor = ref('')
 const selected = ref(null)
 const detailLoading = ref(false)
 const detailError = ref('')
+const windowPreset = ref('10m')
 const filters = reactive({ q: '', from: '', to: '', source: '', severity: '', stage: '' })
 const highRiskCount = computed(() => items.value.filter((item) => ['critical', 'high'].includes(String(item.severity || '').toLowerCase())).length)
 const sourceCount = computed(() => new Set(items.value.map((item) => item.source).filter(Boolean)).size)
@@ -221,20 +228,20 @@ function unwrap(response) { return response?.data?.data ?? response?.data ?? res
 async function load(reset) {
   loading.value = true
   error.value = ''
-  if (reset) { items.value = []; nextCursor.value = '' }
-  const params = { limit: PAGE_SIZE }
+  if (reset) { items.value = []; total.value = 0; nextCursor.value = '' }
+  const params = { limit: PAGE_SIZE, offset: reset ? 0 : items.value.length }
   if (filters.q) params.q = filters.q
   if (filters.from) params.from = toRFC3339(filters.from)
   if (filters.to) params.to = toRFC3339(filters.to)
-  if (filters.source) params.source = filters.source
+  if (filters.source) params.category = filters.source
   if (filters.severity) params.severity = filters.severity
   if (filters.stage) params.stage = filters.stage
-  if (!reset && nextCursor.value) params.cursor = nextCursor.value
   try {
-    const page = unwrap(await eventsV2Client.list(params))
+    const page = unwrap(await attackWorkbenchClient.events(params))
     const batch = Array.isArray(page.items) ? page.items : []
     items.value = reset ? batch : [...items.value, ...batch]
-    nextCursor.value = page.next_cursor || ''
+    total.value = Number(page.total ?? items.value.length) || items.value.length
+    nextCursor.value = items.value.length < total.value ? 'more' : ''
   } catch {
     error.value = '事件查询失败，请检查时间范围和后端连接。'
   } finally {
@@ -244,28 +251,28 @@ async function load(reset) {
 
 async function openDetail(event) {
   selected.value = { ...event }
-  detailLoading.value = true
+  detailLoading.value = false
   detailError.value = ''
-  try {
-    selected.value = unwrap(await eventsV2Client.detail(event.event_uid))
-  } catch {
-    detailError.value = '事件详情加载失败。'
-  } finally {
-    detailLoading.value = false
-  }
 }
 
 function closeDetail() { selected.value = null; detailError.value = '' }
 
 function resetFilters() {
   Object.assign(filters, { q: '', from: '', to: '', source: '', severity: '', stage: '' })
+  windowPreset.value = '10m'
   applyDefaultWindow()
   load(true)
 }
 
 function applyDefaultWindow() {
+  applyWindowPreset('10m')
+}
+
+function applyWindowPreset(value = windowPreset.value) {
+  const minutes = { '10m': 10, '1h': 60, '24h': 24 * 60, '30d': 30 * 24 * 60 }[value] || 10
   const to = new Date()
-  const from = new Date(to.getTime() - 24 * 60 * 60 * 1000)
+  const from = new Date(to.getTime() - minutes * 60 * 1000)
+  windowPreset.value = ['10m', '1h', '24h', '30d'].includes(value) ? value : '10m'
   filters.to = toLocalInput(to)
   filters.from = toLocalInput(from)
 }
@@ -277,11 +284,14 @@ onMounted(async () => {
   await load(true)
   const uid = String(route.params.uid || route.query.uid || '')
   if (uid) {
-    const match = items.value.find((item) => item.event_uid === uid)
-    if (match) openDetail(match)
-    else {
-      try { selected.value = unwrap(await eventsV2Client.detail(uid)) } catch { error.value = `未找到事件 ${uid}，链接可能已归档或失效。` }
+    let match = items.value.find((item) => item.event_uid === uid)
+    if (!match) {
+      filters.q = uid
+      await load(true)
+      match = items.value.find((item) => item.event_uid === uid)
     }
+    if (match) openDetail(match)
+    else error.value = `未找到事件 ${uid}，链接可能已归档或超出保留期。`
   }
 })
 </script>

@@ -14,7 +14,6 @@ if (!baseURL || !username || !password || !evidenceDir) {
 const routes = [
   ['dashboard', '/dashboard'],
   ['global-situation', '/situation/global'],
-  ['xdr', '/xdr'],
   ['incidents', '/incidents'],
   ['agents', '/assets'],
   ['events', '/events'],
