@@ -92,6 +92,7 @@ export const responseClient = Object.freeze({
   automation: () => api.get('/response/automation'),
   updateAutomation: (payload) => api.put('/response/automation', payload),
   policy: () => api.get('/response/policy'),
+  updatePolicy: (payload) => api.put('/response/policy', payload),
   suppress: (payload) => api.post('/response/policy', payload),
 })
 

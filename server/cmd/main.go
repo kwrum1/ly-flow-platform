@@ -3504,7 +3504,12 @@ func normalizeComponentAlertStreamEvent(stream, msgID string, payload map[string
 	severity := strings.ToLower(firstNonEmpty(xdrPickString(flat, "severity"), "low"))
 	createdAt := firstNonEmpty(xdrPickString(flat, "occurred_at", "created_at", "timestamp"), time.Now().UTC().Format(time.RFC3339Nano))
 	message := firstNonEmpty(xdrPickString(flat, "summary", "message", "evidence", "event_type", "rule_name"), "component alert")
-	ruleID := firstNonEmpty(xdrPickString(flat, "rule_id", "component_rule_id", "native_rule.id"), xdrPickString(asMap(flat["native_rule"]), "id"))
+	ruleID := firstNonEmpty(
+		validRuleID(xdrPickString(flat, "component_rule_id")),
+		validRuleID(xdrPickString(asMap(flat["native_rule"]), "id")),
+		validRuleID(xdrPickString(flat, "rule_id")),
+		validRuleID(xdrPickString(flat, "native_rule.id")),
+	)
 	sourceEngine := firstNonEmpty(xdrPickString(flat, "source_engine", "source"), componentSourceEngineFromStream(stream))
 	entities := firstNonNil(payload["entities"], flat["entities"])
 	event := enrichEventRuleDisplay(map[string]interface{}{
@@ -4021,10 +4026,51 @@ func xdrEventBelongsToLocalSurface(event map[string]interface{}) bool {
 }
 
 func xdrChainIsCorrelated(row *xdrChainAgg) bool {
-	if row == nil || len(row.Events) < 2 {
+	if row == nil || len(row.Events) == 0 {
 		return false
 	}
+	if len(row.Events) == 1 {
+		// A single medium+ internal exploit attempt is still actionable:
+		// waiting for a second telemetry source hides the initial lateral
+		// movement on hosts without a runtime agent.
+		return xdrInternalLateralCandidate(row.Events[0])
+	}
 	return len(row.Categories) >= 2 || len(row.Stages) >= 2 || len(row.Sessions) > 0
+}
+
+func xdrInternalLateralCandidate(event map[string]interface{}) bool {
+	if normalizeComponentCategory(componentCategoryFromEvent(event)) != "traffic" {
+		return false
+	}
+	if !isPrivateAddress(xdrSourceIP(event)) || !isPrivateAddress(xdrVictimIP(event)) {
+		return false
+	}
+	switch strings.ToLower(xdrPickString(event, "severity")) {
+	case "critical", "high", "medium":
+	default:
+		return false
+	}
+	haystack := strings.ToLower(strings.Join([]string{
+		xdrPickString(event, "rule_name"),
+		xdrPickString(event, "message"),
+		xdrPickString(event, "event_type"),
+		xdrPickString(event, "summary"),
+	}, " "))
+	for _, keyword := range []string{
+		"exploit", "xss", "web_specific_apps", "web application", "proxy",
+		"smb", "ntlm", "lateral", "psexec", "wmi", "winrm", "rdp", "ssh",
+		"sql injection", "command execution", "shell", "c2", "trojan",
+	} {
+		if strings.Contains(haystack, keyword) {
+			return true
+		}
+	}
+	return false
+}
+
+func isPrivateAddress(value string) bool {
+	ip := net.ParseIP(strings.TrimSpace(value))
+	return ip != nil && (ip.IsPrivate() || ip.IsLoopback())
 }
 
 func buildXDRPosture(events []map[string]interface{}) map[string]interface{} {
@@ -4265,7 +4311,11 @@ func xdrSourceIP(event map[string]interface{}) string {
 }
 
 func xdrVictimEntity(event map[string]interface{}) string {
-	return firstNonEmpty(xdrPickString(event, "agent_display_name", "display_name"), xdrPickString(event, "hostname"), xdrPickString(event, "agent_id"), xdrPickString(event, "dst_ip"), xdrPickString(event, "entities.hostname"), xdrPickString(event, "entities.target_ip"))
+	displayName := firstNonEmpty(xdrPickString(event, "agent_display_name", "display_name"), xdrPickString(event, "probe_name"))
+	if strings.Contains(displayName, "流量镜像分析") || strings.Contains(strings.ToLower(displayName), "mirror") {
+		displayName = ""
+	}
+	return firstNonEmpty(displayName, xdrPickString(event, "hostname"), xdrPickString(event, "agent_id"), xdrPickString(event, "dst_ip"), xdrPickString(event, "entities.hostname"), xdrPickString(event, "entities.target_ip"))
 }
 
 func xdrVictimIP(event map[string]interface{}) string {
@@ -4452,6 +4502,14 @@ func trimXDREvidence(events []map[string]interface{}, limit int) []map[string]in
 		out = append(out, map[string]interface{}{"id": firstNonEmpty(xdrPickString(event, "id"), xdrPickString(event, "message_id")), "timestamp": xdrPickString(event, "created_at", "timestamp"), "category": componentCategoryFromEvent(event), "stage": firstNonEmpty(xdrPickString(event, "stage_hint"), inferXDRStage(event)), "rule_id": firstNonEmpty(xdrPickString(event, "component_rule_id"), xdrPickString(event, "rule_id")), "rule_name": xdrThreatDisplayName(event), "severity": xdrPickString(event, "severity"), "score": xdrPickNumber(event, "score_hint", severityBaseScore(xdrPickString(event, "severity"))), "summary": xdrPickString(event, "message", "summary", "rule_name"), "entities": event["entities"], "src_ip": xdrAttackerIP(event), "dst_ip": xdrPickString(event, "dst_ip", "entities.target_ip"), "dst_port": xdrPickNumber(event, "dst_port", 0), "protocol": firstNonEmpty(xdrPickString(event, "protocol"), xdrPickString(event, "app_protocol")), "evidence_type": firstNonEmpty(xdrPickString(event, "evidence_type"), "alert")})
 	}
 	return out
+}
+
+func validRuleID(value string) string {
+	value = strings.TrimSpace(value)
+	if value == "" || value == "0" {
+		return ""
+	}
+	return value
 }
 
 func xdrThreatDisplayName(event map[string]interface{}) string {
@@ -7149,7 +7207,7 @@ func threatFromXDREvent(event map[string]interface{}, category string) map[strin
 		"component_category": componentCategoryFromEvent(event),
 		"score":              xdrPickNumber(event, "score_hint", severityBaseScore(severity)),
 		"stage":              firstNonEmpty(xdrPickString(event, "stage_hint"), inferXDRStage(event)),
-		"component_rule_id":  firstNonEmpty(xdrPickString(event, "component_rule_id"), xdrPickString(event, "rule_id")),
+		"component_rule_id":  firstNonEmpty(validRuleID(xdrPickString(event, "component_rule_id")), validRuleID(xdrPickString(event, "rule_id")), validRuleID(xdrPickString(asMap(event["native_rule"]), "id"))),
 		"rule_hit_detail":    xdrPickString(event, "rule_hit_detail"),
 		"rule_pack":          xdrPickString(event, "rule_pack"),
 		"source_engine":      xdrPickString(event, "source_engine"),

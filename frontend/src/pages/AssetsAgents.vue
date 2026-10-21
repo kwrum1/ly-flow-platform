@@ -101,9 +101,20 @@
             <p class="sx-kicker">ASSET DETAIL</p>
             <h3 class="asset-drawer-title">{{ assetDisplayName(selectedAsset) }}</h3>
           </div>
-          <button class="sx-icon-btn" type="button" aria-label="关闭资产详情" @click="selectedAsset = null">×</button>
+          <div class="asset-drawer-actions">
+            <button class="sx-btn" type="button" :disabled="!assetIdentity(selectedAsset)" @click="startRename(selectedAsset)">重命名</button>
+            <button class="sx-icon-btn" type="button" aria-label="关闭资产详情" @click="selectedAsset = null">×</button>
+          </div>
         </header>
         <div class="sx-drawer-body">
+          <form v-if="renamingAsset" class="asset-rename-form" @submit.prevent="saveRename">
+            <label><span>显示名称</span><input v-model.trim="renameValue" maxlength="64" placeholder="例如：财务服务器 / 生产数据库" /></label>
+            <div>
+              <button class="sx-btn primary" type="submit" :disabled="savingRename || !renameValue">{{ savingRename ? '保存中…' : '保存名称' }}</button>
+              <button class="sx-btn ghost" type="button" :disabled="savingRename" @click="cancelRename">取消</button>
+            </div>
+            <small v-if="renameError" class="rename-error">{{ renameError }}</small>
+          </form>
           <div class="asset-detail-top">
             <div class="asset-avatar">{{ assetInitial(selectedAsset) }}</div>
             <div>
@@ -189,6 +200,10 @@ const assetsPayload = ref({ items: [], total: 0 })
 const assetStats = ref({})
 const agentDisplayNames = ref(new Map())
 const selectedAsset = ref(null)
+const renamingAsset = ref(false)
+const renameValue = ref('')
+const renameError = ref('')
+const savingRename = ref(false)
 
 const assets = computed(() => assetsPayload.value.items)
 
@@ -241,6 +256,44 @@ function assetDisplayName(asset) {
 
 function assetInitial(asset) {
   return String(assetDisplayName(asset) || 'A').slice(0, 1).toUpperCase()
+}
+
+function startRename(asset) {
+  if (!asset || !assetIdentity(asset)) return
+  selectedAsset.value = asset
+  renamingAsset.value = true
+  renameValue.value = assetDisplayName(asset)
+  renameError.value = ''
+}
+
+function cancelRename() {
+  renamingAsset.value = false
+  renameValue.value = ''
+  renameError.value = ''
+}
+
+async function saveRename() {
+  const asset = selectedAsset.value
+  const id = assetIdentity(asset)
+  const name = renameValue.value.trim()
+  if (!asset || !id || !name) return
+  savingRename.value = true
+  renameError.value = ''
+  try {
+    const result = await assetAgentClient.renameAgent(id, name)
+    const savedName = result?.display_name || name
+    agentDisplayNames.value.set(id, savedName)
+    asset.display_name = savedName
+    const row = assetsPayload.value.items.find((item) => assetIdentity(item) === id)
+    if (row) row.display_name = savedName
+    renamingAsset.value = false
+    renameValue.value = ''
+    await loadAll()
+  } catch (cause) {
+    renameError.value = cause?.message || '重命名失败，请检查名称是否重复或包含非法字符。'
+  } finally {
+    savingRename.value = false
+  }
 }
 
 function memoryText(asset) {
@@ -329,6 +382,12 @@ onMounted(loadAll)
 .asset-pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 9px 14px; border-top: 1px solid var(--sx-line-soft); color: var(--sx-text-3); font-size: 12px; }
 .asset-pager > div { display: flex; gap: 6px; }
 .asset-drawer-title { margin: 3px 0 0; color: var(--sx-text); font-size: 18px; font-weight: 720; }
+.asset-drawer-actions { display: flex; align-items: center; gap: 7px; }
+.asset-rename-form { display: grid; gap: 7px; margin-bottom: 12px; padding: 10px; border: 1px solid #cfe3f6; border-radius: 7px; background: #f6faff; }
+.asset-rename-form label { display: grid; gap: 4px; }
+.asset-rename-form label > span { color: var(--sx-text-3); font-size: 12px; }
+.asset-rename-form > div { display: flex; gap: 7px; }
+.asset-rename-form .rename-error { color: var(--sx-danger); font-size: 12px; }
 .asset-detail-top { display: flex; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--sx-line-soft); border-radius: var(--sx-radius); background: var(--sx-surface-2); }
 .asset-avatar { display: grid; width: 46px; height: 46px; place-items: center; border-radius: 11px; background: linear-gradient(145deg, var(--sx-accent-soft), var(--sx-surface-3)); color: var(--sx-accent); font-size: 20px; font-weight: 780; }
 .asset-detail-badges { display: flex; flex-wrap: wrap; gap: 4px; }

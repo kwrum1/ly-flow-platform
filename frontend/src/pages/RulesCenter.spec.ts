@@ -14,6 +14,11 @@ const platformActiveBundle = vi.fn()
 
 vi.mock('../api/domain', () => ({
   assetAgentClient: { engineHealth },
+  responseClient: {
+    policy: vi.fn(async () => ({ suppressions: [] })),
+    suppress: vi.fn(),
+    updatePolicy: vi.fn(),
+  },
   ruleClient: {
     engineRules,
     engineRuntimeStatus,

@@ -113,6 +113,55 @@
       </div>
     </article>
 
+    <article class="surface-card whitelist-card">
+      <div class="panel-heading">
+        <div class="source-heading-copy">
+          <strong>告警白名单</strong>
+          <small>按规则、来源 IP 或资产临时抑制告警；到期自动恢复，避免永久盲区</small>
+        </div>
+        <span>{{ whitelistLoading ? '读取中…' : `${whitelistItems.length} 条生效中` }}</span>
+      </div>
+      <div class="whitelist-body">
+        <form class="whitelist-form" @submit.prevent="addWhitelist">
+          <label><span>范围</span>
+            <select v-model="whitelistForm.scope">
+              <option value="rule">规则</option>
+              <option value="source">来源 IP</option>
+              <option value="victim">资产 / 实体</option>
+            </select>
+          </label>
+          <label class="whitelist-value"><span>匹配值</span>
+            <input v-model.trim="whitelistForm.value" placeholder="规则 ID / 名称、来源 IP、Agent 或主机名" />
+          </label>
+          <label><span>有效期</span>
+            <select v-model.number="whitelistForm.days">
+              <option :value="7">7 天</option>
+              <option :value="30">30 天</option>
+              <option :value="90">90 天</option>
+            </select>
+          </label>
+          <label class="whitelist-reason"><span>原因</span>
+            <input v-model.trim="whitelistForm.reason" placeholder="例如：业务授权扫描 / 已知误报" />
+          </label>
+          <button class="confirm-btn" type="submit" :disabled="whitelistSaving || !whitelistForm.value || !whitelistForm.reason">
+            {{ whitelistSaving ? '保存中…' : '加入白名单' }}
+          </button>
+        </form>
+        <p v-if="whitelistMessage" class="row-message">{{ whitelistMessage }}</p>
+        <div v-if="whitelistItems.length" class="whitelist-list">
+          <div v-for="entry in whitelistItems" :key="entry.id" class="whitelist-item">
+            <span class="sx-badge info">{{ whitelistScopeLabel(entry.scope) }}</span>
+            <b>{{ entry.value }}</b>
+            <small>{{ entry.reason || '未填写原因' }} · {{ formatWhitelistTime(entry.expires_at) }} 到期</small>
+            <button type="button" :disabled="whitelistRemoving === entry.id" @click="removeWhitelist(entry)">
+              {{ whitelistRemoving === entry.id ? '移除中…' : '移除' }}
+            </button>
+          </div>
+        </div>
+        <div v-else-if="!whitelistLoading" class="whitelist-empty">当前没有告警白名单。</div>
+      </div>
+    </article>
+
     <article class="surface-card rules-panel">
       <div class="panel-title filters">
         <div class="panel-copy">
@@ -175,7 +224,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { assetAgentClient, ruleClient } from '../api/domain'
+import { assetAgentClient, responseClient, ruleClient } from '../api/domain'
 import { normalizeItems, pickText } from '../shared/api-normalize'
 
 const loading = ref(false)
@@ -201,6 +250,12 @@ const ruleDrafts = reactive({})
 const savingRules = reactive({})
 const ruleMessages = reactive({})
 const sourceMessages = reactive({})
+const whitelistPolicy = ref<any>({ suppressions: [] })
+const whitelistLoading = ref(false)
+const whitelistSaving = ref(false)
+const whitelistRemoving = ref('')
+const whitelistMessage = ref('')
+const whitelistForm = reactive({ scope: 'rule', value: '', days: 30, reason: '' })
 
 const severityOptions = [
   { value: 'info', label: '信息', score: 20 },
@@ -211,6 +266,7 @@ const severityOptions = [
 ]
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
+const whitelistItems = computed<any[]>(() => Array.isArray(whitelistPolicy.value?.suppressions) ? whitelistPolicy.value.suppressions : [])
 const totalNativeCount = computed(() => total.value)
 const engineDefinitions = {
   'security-engine': { label: 'LyFlow 安全引擎', short: 'LY', order: 0 },
@@ -416,6 +472,64 @@ function formatSourceTime(value) {
   if (!value) return '未记录'
   const date = new Date(value)
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('zh-CN', { hour12: false })
+}
+
+function whitelistScopeLabel(scope: string) {
+  return ({ rule: '规则', source: '来源 IP', victim: '资产 / 实体', agent: '资产 / 实体' } as Record<string, string>)[scope] || scope || '-'
+}
+
+function formatWhitelistTime(value: string) {
+  return value ? formatSourceTime(value) : '未设置'
+}
+
+async function loadWhitelist() {
+  whitelistLoading.value = true
+  whitelistMessage.value = ''
+  try {
+    whitelistPolicy.value = unwrap(await responseClient.policy())
+  } catch (err: any) {
+    whitelistMessage.value = err?.message || '白名单读取失败。'
+  } finally {
+    whitelistLoading.value = false
+  }
+}
+
+async function addWhitelist() {
+  if (!whitelistForm.value.trim() || !whitelistForm.reason.trim()) return
+  whitelistSaving.value = true
+  whitelistMessage.value = ''
+  try {
+    await responseClient.suppress({
+      suppress_scope: whitelistForm.scope,
+      suppress_value: whitelistForm.value.trim(),
+      suppress_days: whitelistForm.days,
+      reason: whitelistForm.reason.trim(),
+    })
+    whitelistForm.value = ''
+    whitelistForm.reason = ''
+    whitelistMessage.value = '已加入白名单，到期后自动恢复检测。'
+    await loadWhitelist()
+  } catch (err: any) {
+    whitelistMessage.value = err?.message || '白名单保存失败。'
+  } finally {
+    whitelistSaving.value = false
+  }
+}
+
+async function removeWhitelist(entry: any) {
+  whitelistRemoving.value = entry.id
+  whitelistMessage.value = ''
+  try {
+    const policy = unwrap(await responseClient.policy())
+    const suppressions = (policy.suppressions || []).filter((item: any) => item.id !== entry.id)
+    await responseClient.updatePolicy({ ...policy, suppressions })
+    whitelistMessage.value = '白名单已移除，该范围立即恢复检测。'
+    await loadWhitelist()
+  } catch (err: any) {
+    whitelistMessage.value = err?.message || '白名单移除失败。'
+  } finally {
+    whitelistRemoving.value = ''
+  }
 }
 
 function shortUrl(value) {
@@ -627,6 +741,7 @@ function nextPage() {
 onMounted(() => {
   loadAll()
   loadSourceData()
+  loadWhitelist()
 })
 </script>
 
@@ -688,6 +803,22 @@ onMounted(() => {
 .geo-data-note b{color:#475569;font-size:12px}
 .geo-source-ref{color:#8793a5}
 .geo-source-ref a{color:#1769d2;text-decoration:none}
+.whitelist-card{border-color:#cfe3f6}
+.whitelist-body{display:grid;gap:10px;padding:12px 14px}
+.whitelist-form{display:grid;grid-template-columns:110px minmax(220px,1.5fr) 100px minmax(200px,1fr) auto;align-items:end;gap:9px}
+.whitelist-form label{display:grid;gap:4px;min-width:0}
+.whitelist-form label>span{color:var(--sx-text-3);font-size:12px}
+.whitelist-form input,.whitelist-form select{height:34px;min-width:0;border:1px solid var(--sx-line);border-radius:6px;background:#fff;color:var(--sx-text);padding:0 9px;font:inherit;font-size:13px}
+.whitelist-form button{height:34px;white-space:nowrap}
+.whitelist-list{display:grid;gap:6px}
+.whitelist-item{display:grid;grid-template-columns:86px minmax(180px,1.2fr) minmax(220px,2fr) auto;align-items:center;gap:9px;padding:8px 10px;border:1px solid #e1e9f2;border-radius:6px;background:#f8fbff}
+.whitelist-item b{overflow:hidden;color:#22364f;font-size:13px;text-overflow:ellipsis;white-space:nowrap}
+.whitelist-item small{overflow:hidden;color:#65768a;font-size:12px;text-overflow:ellipsis;white-space:nowrap}
+.whitelist-item button{height:28px;padding:0 10px;border:1px solid #d4dfe9;border-radius:5px;background:#fff;color:#b42318;cursor:pointer;font-size:12px}
+.whitelist-item button:disabled{opacity:.5;cursor:not-allowed}
+.whitelist-empty{padding:12px;border:1px dashed #d4dfe9;border-radius:6px;color:#758195;font-size:12px;text-align:center}
+@media(max-width:1100px){.whitelist-form{grid-template-columns:1fr 1fr}.whitelist-form .whitelist-value,.whitelist-form .whitelist-reason{grid-column:span 1}.whitelist-item{grid-template-columns:80px minmax(0,1fr) auto}.whitelist-item small{grid-column:2/3}}
+@media(max-width:700px){.whitelist-form{grid-template-columns:1fr}.whitelist-item{grid-template-columns:1fr}.whitelist-item small{grid-column:auto}}
 .geo-source-ref a:hover{text-decoration:underline}
 @media(max-width:1300px){.engine-source-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:1000px){.engine-source-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}

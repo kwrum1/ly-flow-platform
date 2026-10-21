@@ -577,7 +577,7 @@ async function load() {
       succeeded++
       refreshCharts()
     }),
-    attackWorkbenchClient.incidents({ limit: 100, live: 0, status: 'active' }).then((value) => { incidents.value = normalizePage(value); incidentsReady.value = true; succeeded++ }),
+    attackWorkbenchClient.incidents({ limit: 100, live: 1, status: 'active' }).then((value) => { incidents.value = normalizePage(value); incidentsReady.value = true; succeeded++ }),
     assetAgentClient.assetStats().then((value) => { assetStats.value = unwrap(value); ready.assetStats = true; succeeded++ }),
     assetAgentClient.assets({ limit: 8 }).then((value) => { assets.value = normalizePage(value); ready.assets = true; succeeded++ }),
     assetAgentClient.engineHealth().then((value) => { engines.value = normalizePage(value); ready.engines = true; succeeded++ }),

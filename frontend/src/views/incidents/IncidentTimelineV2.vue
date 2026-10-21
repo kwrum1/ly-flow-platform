@@ -315,7 +315,11 @@ const stageDefinitions = [
 ]
 
 const filteredIncidents = computed(() => incidents.value.filter((item) => {
-  if (statusFilter.value && item.status !== statusFilter.value) return false
+  if (statusFilter.value === 'active') {
+    if (item.status === 'closed') return false
+  } else if (statusFilter.value && item.status !== statusFilter.value) {
+    return false
+  }
   if (severityFilter.value && item.severity !== severityFilter.value) return false
   return true
 }))

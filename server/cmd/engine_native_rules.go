@@ -97,31 +97,31 @@ func nativeEngineStatusHandler(cfg *Config) http.HandlerFunc {
 			return
 		}
 		healthURL := firstNonEmpty(os.Getenv("SECURITY_ENGINE_HEALTH_URL"), "http://ly-security-engine:8080/health")
+		health := map[string]interface{}{}
+		degraded := make([]string, 0, 2)
 		request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, healthURL, nil)
 		if err != nil {
-			writeJSONError(w, http.StatusServiceUnavailable, "engine_health_unavailable", err.Error())
-			return
+			degraded = append(degraded, "engine_health_unavailable: "+err.Error())
+		} else if response, requestErr := (&http.Client{Timeout: 5 * time.Second}).Do(request); requestErr != nil {
+			degraded = append(degraded, "engine_health_unavailable: "+requestErr.Error())
+		} else {
+			defer response.Body.Close()
+			if response.StatusCode != http.StatusOK {
+				degraded = append(degraded, "engine_health_unavailable: "+response.Status)
+			} else if decodeErr := json.NewDecoder(response.Body).Decode(&health); decodeErr != nil {
+				degraded = append(degraded, "engine_health_invalid: "+decodeErr.Error())
+			}
 		}
-		response, err := (&http.Client{Timeout: 5 * time.Second}).Do(request)
-		if err != nil {
-			writeJSONError(w, http.StatusServiceUnavailable, "engine_health_unavailable", err.Error())
-			return
-		}
-		defer response.Body.Close()
-		if response.StatusCode != http.StatusOK {
-			writeJSONError(w, http.StatusServiceUnavailable, "engine_health_unavailable", response.Status)
-			return
-		}
-		var health map[string]interface{}
-		if err := json.NewDecoder(response.Body).Decode(&health); err != nil {
-			writeJSONError(w, http.StatusServiceUnavailable, "engine_health_invalid", err.Error())
-			return
+		if len(health) == 0 {
+			health["status"] = "unavailable"
+			health["running"] = false
+			health["last_error"] = strings.Join(degraded, "; ")
 		}
 		status := map[string]interface{}{"source": "ly-security-engine", "engines": map[string]interface{}{"security-engine": health}}
 		trafficCount, err := activeLifecycleTrafficCount(r.Context(), cfg.RuleLifecycle, 0, countRuleFiles("rules/suricata"))
 		if err != nil {
-			writeJSONError(w, http.StatusServiceUnavailable, "traffic_count_unverified", err.Error())
-			return
+			degraded = append(degraded, "traffic_count_unverified: "+err.Error())
+			trafficCount = trafficCountMetric{Source: "unavailable"}
 		}
 		engines, ok := status["engines"].(map[string]interface{})
 		if !ok {
@@ -156,6 +156,8 @@ func nativeEngineStatusHandler(cfg *Config) http.HandlerFunc {
 			lyprobeRuntime["last_export"] = lastExport.UTC().Format(time.RFC3339)
 		}
 		engines["lyprobe"] = lyprobeRuntime
+		status["degraded"] = len(degraded) > 0
+		status["errors"] = degraded
 		json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": status})
 	}
 }

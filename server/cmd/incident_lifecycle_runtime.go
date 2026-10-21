@@ -62,6 +62,8 @@ func initializeIncidentLifecycleRuntime(ctx context.Context, cfg *Config) error 
 			log.Printf("incident lifecycle startup active sync unavailable: %v", activeErr)
 		} else if syncErr := syncActiveIncidentStore(ctx, store, active); syncErr != nil {
 			log.Printf("incident lifecycle startup active sync failed: %v", syncErr)
+		} else if syncErr := syncTrafficIncidentCandidatesWithStore(ctx, cfg, store); syncErr != nil {
+			log.Printf("incident lifecycle startup traffic sync failed: %v", syncErr)
 		}
 	}
 	if cutoverComplete {
@@ -83,7 +85,13 @@ func syncActiveIncidentLifecycle(ctx context.Context, cfg *Config, input xdrInci
 	if cfg == nil || cfg.Incidents == nil {
 		return fmt.Errorf("persistent incident lifecycle unavailable")
 	}
-	return syncActiveIncidentStore(ctx, cfg.Incidents, input)
+	if err := syncActiveIncidentStore(ctx, cfg.Incidents, input); err != nil {
+		return err
+	}
+	if err := syncTrafficIncidentCandidates(ctx, cfg); err != nil {
+		log.Printf("traffic incident candidate sync failed: %v", err)
+	}
+	return nil
 }
 
 func syncActiveIncidentStore(ctx context.Context, store *incidentlifecycle.PostgresStore, input xdrIncidentInput) error {
@@ -137,6 +145,94 @@ func syncActiveIncidentStore(ctx context.Context, store *incidentlifecycle.Postg
 	}
 	if _, err := store.SyncActive(ctx, snapshot); err != nil {
 		return fmt.Errorf("sync v2-active incidents: %w", err)
+	}
+	return nil
+}
+
+// syncTrafficIncidentCandidates materializes strong internal traffic
+// detections even when the XDR graph has not produced a multi-stage
+// hypothesis yet. A mirror sensor can see an internal exploit attempt while
+// the victim has no runtime Agent, so waiting for a second telemetry source
+// would hide the most important lateral movement evidence.
+func syncTrafficIncidentCandidates(ctx context.Context, cfg *Config) error {
+	if cfg == nil {
+		return nil
+	}
+	return syncTrafficIncidentCandidatesWithStore(ctx, cfg, cfg.Incidents)
+}
+
+func syncTrafficIncidentCandidatesWithStore(ctx context.Context, cfg *Config, store *incidentlifecycle.PostgresStore) error {
+	if cfg == nil || cfg.DBPool == nil || store == nil {
+		return nil
+	}
+	rows, err := cfg.DBPool.Query(ctx, `
+		SELECT event_uid, observed_at, raw_event::text
+		FROM threat_events
+		WHERE category = 'traffic' AND observed_at >= $1
+		ORDER BY observed_at DESC
+		LIMIT 100`, time.Now().Add(-30*time.Minute))
+	if err != nil {
+		return fmt.Errorf("query internal traffic candidates: %w", err)
+	}
+	defer rows.Close()
+	candidates := make([]incidentlifecycle.Candidate, 0)
+	seen := map[string]struct{}{}
+	policy := loadXDRResponsePolicy(cfg)
+	for rows.Next() {
+		var eventUID, raw string
+		var observedAt time.Time
+		if err := rows.Scan(&eventUID, &observedAt, &raw); err != nil {
+			continue
+		}
+		var event map[string]interface{}
+		if json.Unmarshal([]byte(raw), &event) != nil || !xdrInternalLateralCandidate(event) {
+			continue
+		}
+		if matchingXDRSuppression(policy.Suppressions,
+			firstNonEmpty(validRuleID(xdrPickString(event, "component_rule_id")), validRuleID(xdrPickString(event, "rule_id"))),
+			firstNonEmpty(xdrPickString(event, "rule_name"), xdrPickString(asMap(event["native_rule"]), "name")),
+			xdrSourceIP(event), xdrVictimEntity(event), time.Now().UTC()) != nil {
+			continue
+		}
+		if _, exists := seen[eventUID]; exists {
+			continue
+		}
+		seen[eventUID] = struct{}{}
+		victim := firstNonEmpty(xdrVictimIP(event), xdrVictimEntity(event), "目标资产")
+		source := firstNonEmpty(xdrSourceIP(event), "未知来源")
+		ruleName := firstNonEmpty(xdrPickString(event, "rule_name"), xdrPickString(event, "message"), "内网流量告警")
+		title := victim + " 内网横向可疑流量"
+		summary := fmt.Sprintf("%s · %s → %s", ruleName, source, victim)
+		candidates = append(candidates, incidentlifecycle.Candidate{
+			IncidentID:     "inc-traffic-" + safeID(eventUID),
+			SourceChainID:  "chain-traffic-" + safeID(eventUID),
+			CorrelationKey: "traffic:" + source + "->" + victim,
+			Title:          title,
+			Summary:        summary,
+			Severity:       xdrPickString(event, "severity"),
+			FirstSeen:      observedAt.UTC(),
+			LastSeen:       observedAt.UTC(),
+			Evidence: []incidentlifecycle.Evidence{{
+				EventUID:      eventUID,
+				SourceNodeUID: "traffic-node-" + eventUID,
+				Stage:         firstNonEmpty(incidentStage(event), "lateral_movement"),
+				ObservedAt:    observedAt.UTC(),
+				Raw:           []byte(raw),
+			}},
+		})
+	}
+	if err := rows.Err(); err != nil {
+		return fmt.Errorf("iterate internal traffic candidates: %w", err)
+	}
+	if len(candidates) == 0 {
+		return nil
+	}
+	snapshot, err := incidentlifecycle.NewActiveSnapshot(incidentlifecycle.ActiveAlgorithm, candidates)
+	if err != nil {
+		return fmt.Errorf("build traffic incident snapshot: %w", err)
+	}
+	if _, err := store.SyncActive(ctx, snapshot); err != nil {
+		return fmt.Errorf("sync traffic incidents: %w", err)
 	}
 	return nil
 }
