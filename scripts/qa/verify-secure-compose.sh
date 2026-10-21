@@ -257,7 +257,7 @@ done <"$inventory"
 
 if [[ "$inventory" == "$default_inventory" ]]; then
   required_ids=(
-    server-main server-xdr agent-center security-engine legacy-dpi
+    server-main server-xdr agent-center security-engine
     agent-main-publishers agent-local-mirror agent-afpacket-linux
     python-rasp java-rasp redis-healthcheck script-test-e2e script-test-perf
     script-validate-stream-bus agent-spool-integration-test engine-lab-adapters

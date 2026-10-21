@@ -10,6 +10,7 @@ COPY server/dist/linux/${TARGETARCH}/ly-agent-center /app/ly-agent-center
 COPY agent/dist/linux/${TARGETARCH}/ly-agent /app/ly-agent
 COPY agent/dist/ /app/agents/
 COPY rules/ /etc/ly/rules/
+COPY probe/rasp/ /app/probe/rasp/
 COPY agent/rasp/python/ /app/agent/rasp/python/
 
 RUN chmod +x /app/ly-server /app/ly-agent-center /app/ly-agent \

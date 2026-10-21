@@ -235,7 +235,7 @@ RASP (OpenRASP/Elkeid) ────────┘                              
 agent/                当前 Go Agent（不成熟，逐步演进为 ly-agent supervisor）
 server/               ly-server（API、XDR、Incident、规则生命周期）
 security-engine/      规范化事件上的二次检测引擎
-dpi-engine/           现有 Go DPI（保留为可选，不扩展）
+（原 dpi-engine 已移除；统一检测由 security-engine 与 lyprobe 承担）
 frontend/             Vue 3 + Vite + Element Plus
 rules/                规则与规则生命周期产物
 contracts/            机器可读契约
@@ -645,7 +645,6 @@ cd /opt/lyflow/src
 (cd agent && go test ./...)
 (cd pkg && go test ./...)
 (cd security-engine && go test ./...)
-(cd dpi-engine && go test ./...)
 
 # 前端
 (cd frontend && npm ci && npm run typecheck && npm run lint && npm test)

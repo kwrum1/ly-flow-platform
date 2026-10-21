@@ -28,6 +28,8 @@
 
 **验证**：引擎健康显示 YARA「未安装」；规则中心显示 YARA「未安装」，不再显示虚假运行状态。
 
+**补齐能力**：Agent 安装器新增 YARA CLI 自动安装（apt/dnf/yum/apk）和 `/api/v1/agent/yara/rules` 规则包下载；测试机已安装 YARA 4.5.5，规则包 6,996,814 字节，重启 Agent 后引擎健康显示 YARA `installed=true`、`running=true`。
+
 ### 1.3 规则源文案与更新逻辑
 
 **现象**：所有规则源都显示「可更新」，无更新时按钮仍可点击且点击无变化；部分来源显示未上报/无心跳。
@@ -49,11 +51,21 @@
 - 三块设置内容完整展开，不再被旧 Agent 表格行高压缩。
 - 时间设置改为两列，服务器时间/平台时间只读，修改时间与 NTP 对齐。
 
-### 1.5 真实 Agent 安装
+### 1.5 真实 Agent 安装与完整性
 
 - 在 `10.1.18.8` 完成全新安装，服务 `active`。
 - 验证 Agent 在线、心跳、资产入库、`flows:raw` 真实流量上报。
-- 修复公开一键包缺少签名摘要文件导致 Agent 启动失败的问题：当前公开包默认关闭 fail-closed integrity，后续应在发布包中补齐签名摘要与 trust root 后再启用。
+- 修复公开一键包缺少签名摘要文件导致 Agent 启动失败的问题：服务端使用平台 policy signer 为 `/app/agents/linux/<arch>/ly-agent` 动态签发 `lyflow.signed_digest.v1` 摘要，安装器下载摘要与 policy root 后启用 `AGENT_REQUIRE_BINARY_INTEGRITY=true`；配置摘要仍保持关闭（`AGENT_REQUIRE_CONFIG_INTEGRITY=false`），因为按主机生成的配置尚无稳定签名流程。
+- 测试机使用新的摘要与 trust root 重启后仍在线，binary fail-closed 校验通过。
+
+## 1.6 Java RASP probe 与 DPI 遗留设计
+
+- 服务端镜像补齐 `probe/rasp/` 资产；Python/PHP/Java/Node.js/.NET 五个 probe 下载接口均返回 200，Java jar 为 13,074 字节。
+- `DPI Engine` 是早期 legacy 设计，仅用于旧 `flows:raw` 迁移，不属于默认生产栈；已从源码和 UI 删除：
+  - 删除 `dpi-engine/` 模块、legacy compose profile、构建/QA/覆盖脚本引用；
+  - 删除旧 DPI 规则数据和编译预览；
+  - 删除引擎健康、规则中心、事件筛选和态势中的 `DPI Engine` 卡片/入口；
+  - 新 LyFlow 探针告警统一标记为 `lyprobe`，历史 `dpi_engine` 事件源仅保留契约兼容。
 
 ## 2. 测试结果
 
@@ -61,14 +73,17 @@
 - API 烟测：30 个接口全部 200，`FAILURES=[]`
 - Agent：`test8-fresh` 在线，心跳正常，资产统计在线 1
 - 流量：可按 Agent 查询真实 TLS/DNS/TCP 流
-- 引擎健康：7 张卡片，LyFlow DPI / Suricata / LyFlow 探针 / Wazuh / OpenRASP 运行中；YARA、DPI Engine 未安装
+- 引擎健康：6 张卡片，LyFlow DPI / Suricata / LyFlow 探针 / Wazuh / OpenRASP / YARA；测试机 YARA 安装后运行中
 - 规则中心：11 个上游，0 个可更新；Falco 更新实测成功
 - 平台设置：抓包接口、设备地点保存接口均返回成功
+- Agent 资产：`/api/v1/agent/rasp/probe/{python,php,java,nodejs,dotnet}` 全部 200
+- Agent 完整性：签名摘要接口 200，policy root 200，测试机 binary integrity 开启并保持在线
+- DPI 遗留：源码、legacy profile、旧规则和 UI 入口已删除
+- Go：`pkg`、`server/cmd`、`server/cmd/netflow-collector`、`security-engine` 测试通过
+- 前端：117 个测试通过，typecheck 通过，build 通过
 
 ## 3. 保留问题
 
-1. 测试机没有原生 YARA executable，YARA 显示未安装；这是真实能力缺失，不是 UI 假数据。
-2. 公开一键包尚未携带 Agent 签名摘要/trust root，安装器暂时关闭 fail-closed integrity。
-3. Java RASP probe 安装下载返回 401，其他 Python/PHP/Node/.NET probe 可下载；需单独修复安装资产鉴权。
-4. 生产镜像采集 PF_RING 内核模块不可用，当前自动回退 AF_PACKET。
-5. 宿主机内存存在超配，需关注高并发时的内存压力。
+1. Agent 配置摘要（`AGENT_REQUIRE_CONFIG_INTEGRITY`）仍关闭；当前只对 Agent 二进制做 fail-closed 签名校验，按主机生成的配置签名流程待补齐。
+2. 生产镜像采集 PF_RING 内核模块不可用，当前自动回退 AF_PACKET。
+3. 宿主机内存存在超配，需关注高并发时的内存压力。

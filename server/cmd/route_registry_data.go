@@ -18,6 +18,7 @@ func buildRouteRegistry() []RouteSpec {
 		"/api/v1/agent/rasp/probe/java/source/": true,
 		"/api/v1/agent/rasp/probe/nodejs":       true,
 		"/api/v1/agent/rasp/probe/dotnet":       true,
+		"/api/v1/agent/yara/rules":              true,
 	}
 	adminOnly := map[string]bool{
 		"/api/v1/admin/incident-lifecycle/checkpoint": true,
@@ -91,7 +92,7 @@ func buildRouteRegistry() []RouteSpec {
 		"/api/v1/agent/task-result", "/api/v1/agent/component-alert", "/api/v1/agent/runtime-event", "/api/v1/agent/realtime", "/api/v1/agent/install-config",
 		"/api/v1/agent/install.sh", "/api/v1/agent/uninstall.sh", "/api/v1/agent/download", "/api/v1/agent/rasp/policy-root", "/api/v1/agent/rasp/probe/python",
 		"/api/v1/agent/rasp/probe/php", "/api/v1/agent/rasp/probe/java", "/api/v1/agent/rasp/probe/java/source/",
-		"/api/v1/agent/rasp/probe/nodejs", "/api/v1/agent/rasp/probe/dotnet", "/api/v1/agent/snapshot", "/api/v1/realtime",
+		"/api/v1/agent/rasp/probe/nodejs", "/api/v1/agent/rasp/probe/dotnet", "/api/v1/agent/yara/rules", "/api/v1/agent/snapshot", "/api/v1/realtime",
 		"/api/v2/ingest/events",
 		"/api/v2/events",
 		"/api/v2/events/",

@@ -28,7 +28,7 @@ docker compose ps
 
 ## QA 与兼容 Profile
 
-`compose.qa.yml`、`compose.legacy-dpi.yml`、`fixtures/` 和 `scripts/qa/` 只用于测试和兼容性验证，不应加入默认生产启动命令。容器化 Agent 仅用于 QA；政企现场使用无容器静态 Agent。
+`compose.qa.yml`、`fixtures/` 和 `scripts/qa/` 只用于测试和兼容性验证，不应加入默认生产启动命令。容器化 Agent 仅用于 QA；政企现场使用无容器静态 Agent。
 
 ## 发布前检查
 

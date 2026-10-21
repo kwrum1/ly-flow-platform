@@ -49,7 +49,7 @@ func TestGeneratedInventoryIncludesAllRequiredKindsAndActiveBlockers(t *testing.
 			t.Fatalf("inventory missing scanned kind %s", kind)
 		}
 	}
-	for _, path := range []string{"dpi-engine/core/output/output.go", "server/cmd/ingestion_auth.go", "server/cmd/event_migration_reader.go"} {
+	for _, path := range []string{"server/cmd/ingestion_auth.go", "server/cmd/event_migration_reader.go"} {
 		if !paths[path] {
 			t.Fatalf("inventory missing active blocker path %s", path)
 		}

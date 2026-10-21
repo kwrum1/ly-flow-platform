@@ -97,7 +97,6 @@ run_in "$ROOT_DIR/agent" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENABLED=0 GOWO
 cp "$ROOT_DIR/agent/ly-agent" "$ROOT_DIR/agent/ly-agent-linux-$TARGET_ARCH"
 cp "$ROOT_DIR/agent/ly-agent" "$ROOT_DIR/agent/dist/linux/$TARGET_ARCH/ly-agent"
 run env RELEASE_SIGNING_KEY="$RELEASE_SIGNING_KEY" "$ROOT_DIR/scripts/prepare-agent-release.sh"
-run_in "$ROOT_DIR/dpi-engine" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENABLED=0 GOWORK=off go build -trimpath -buildvcs=false -o ly-dpi-engine ./cmd
 run_in "$ROOT_DIR/security-engine" env GOOS=linux GOARCH="$TARGET_ARCH" CGO_ENABLED=0 GOWORK=off go build -trimpath -buildvcs=false -o ly-security-engine ./cmd
 
 log "building frontend"
@@ -129,7 +128,6 @@ BUILD_SURICATA_BASE=$(build_alias "$SURICATA_BUILD_IMAGE" "lyflow-release/surica
 log "rebuilding application images from pinned local bases without network access"
 run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$BUILD_SERVER_BASE" -f server/Dockerfile -t "ly-flow/server:$APP_TAG" .
 run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$BUILD_FRONTEND_BASE" -f frontend/Dockerfile -t "ly-flow/frontend:$APP_TAG" .
-run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$BUILD_REDIS_BASE" -f dpi-engine/Dockerfile -t "ly-flow/dpi-engine:$APP_TAG" .
 run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$BUILD_REDIS_BASE" -f security-engine/Dockerfile -t "ly-flow/security-engine:$APP_TAG" .
 run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "SURICATA_PROFILE_IMAGE=$BUILD_SURICATA_BASE" --target suricata-profile -f containers/security-engines/Dockerfile -t "ly-flow/suricata-profile:$APP_TAG" .
 run docker buildx build --platform "$PLATFORM" --load --no-cache --network=none --provenance=false --build-arg "RUNTIME_IMAGE=$BUILD_SERVER_BASE" -f agent/Dockerfile -t "ly-flow/agent:$APP_TAG" .
@@ -149,9 +147,8 @@ SERVER_IMAGE=$(image_digest_ref "ly-flow/server:$APP_TAG" ly-flow/server)
 FRONTEND_IMAGE=$(image_digest_ref "ly-flow/frontend:$APP_TAG" ly-flow/frontend)
 SECURITY_ENGINE_IMAGE=$(image_digest_ref "ly-flow/security-engine:$APP_TAG" ly-flow/security-engine)
 AGENT_IMAGE=$(image_digest_ref "ly-flow/agent:$APP_TAG" ly-flow/agent)
-DPI_IMAGE=$(image_digest_ref "ly-flow/dpi-engine:$APP_TAG" ly-flow/dpi-engine)
 SURICATA_SENSOR_IMAGE=$(image_digest_ref "ly-flow/suricata-profile:$APP_TAG" ly-flow/suricata-profile)
-IMAGES=("$DB_POSTGRES_IMAGE" "$DB_REDIS_IMAGE" "$DB_CLICKHOUSE_IMAGE" "$SERVER_IMAGE" "$FRONTEND_IMAGE" "$SECURITY_ENGINE_IMAGE" "$AGENT_IMAGE" "$DPI_IMAGE" "$SURICATA_SENSOR_IMAGE" "$SEAWEEDFS_IMAGE")
+IMAGES=("$DB_POSTGRES_IMAGE" "$DB_REDIS_IMAGE" "$DB_CLICKHOUSE_IMAGE" "$SERVER_IMAGE" "$FRONTEND_IMAGE" "$SECURITY_ENGINE_IMAGE" "$AGENT_IMAGE" "$SURICATA_SENSOR_IMAGE" "$SEAWEEDFS_IMAGE")
 
 rm -rf "$RELEASE_DIR/.task22-evidence-$RELEASE_ID"
 TODO22_IMAGE_REFS=$(printf '%s\n' "${IMAGES[@]}" | paste -sd, -)

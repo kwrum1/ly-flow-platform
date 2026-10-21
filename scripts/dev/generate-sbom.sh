@@ -9,7 +9,7 @@ mkdir -p "$OUT"
 export GOTOOLCHAIN="${GOTOOLCHAIN:-auto}"
 export GOSUMDB="${GOSUMDB:-sum.golang.org}"
 
-for module in pkg server agent security-engine dpi-engine; do
+for module in pkg server agent security-engine; do
   (cd "$ROOT/$module" && go list -m -json all >"$OUT/go-$module.json")
 done
 

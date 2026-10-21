@@ -497,6 +497,7 @@ func main() {
 	mux.HandleFunc("/api/v1/agent/rasp/probe/java/source/", agentRASPJavaSourceHandler())
 	mux.HandleFunc("/api/v1/agent/rasp/probe/nodejs", agentRASPProbeHandler("nodejs"))
 	mux.HandleFunc("/api/v1/agent/rasp/probe/dotnet", agentRASPProbeHandler("dotnet"))
+	mux.HandleFunc("/api/v1/agent/yara/rules", agentYARARulesHandler())
 	mux.HandleFunc("/api/v1/agent/snapshot", agentSnapshotHandler(cfg))
 
 	// Realtime low-volume dashboard gateway
@@ -1604,7 +1605,7 @@ func applyComponentAlertUnifiedOverrides(event *unified.UnifiedEvent, payload ma
 
 func moduleFromComponentAlert(sourceEngine, category string) unified.ModuleType {
 	switch strings.ToLower(firstNonEmpty(sourceEngine, category)) {
-	case "suricata", "network", "traffic", "dpi_engine":
+	case "suricata", "network", "traffic", "dpi_engine", "lyprobe":
 		return unified.ModuleDPI
 	case "wazuh", "host", "runtime":
 		return unified.ModuleRuntime
@@ -2764,13 +2765,13 @@ func rulesStatsHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		xdrRules, _ := loadXDRRulePack()
-		categories := map[string]int{"xdr": len(xdrRules), "runtime": countRuleFiles("rules/hids"), "rasp": countRuleFiles("rules/rasp"), "dpi": countRuleFiles("dpi-engine/rules") + countRuleFiles("rules/domain")}
-		trafficCount, err := activeLifecycleTrafficCount(r.Context(), cfg.RuleLifecycle, categories["dpi"], categories["dpi"])
+		categories := map[string]int{"xdr": len(xdrRules), "runtime": countRuleFiles("rules/hids"), "rasp": countRuleFiles("rules/rasp"), "traffic": countRuleFiles("rules/domain")}
+		trafficCount, err := activeLifecycleTrafficCount(r.Context(), cfg.RuleLifecycle, categories["traffic"], countRuleFiles("rules/suricata"))
 		if err != nil {
 			writeJSONError(w, http.StatusServiceUnavailable, "traffic_count_unverified", err.Error())
 			return
 		}
-		categories["dpi"] = trafficCount.SignatureCount
+		categories["traffic"] = trafficCount.SignatureCount
 		enabled := 0
 		for _, rule := range xdrRules {
 			if enabledValue, ok := rule["enabled"].(bool); ok && enabledValue {
@@ -2781,10 +2782,10 @@ func rulesStatsHandler(cfg *Config) http.HandlerFunc {
 			"code":    0,
 			"message": "success",
 			"data": map[string]interface{}{
-				"total_rules":     categories["xdr"] + categories["runtime"] + categories["rasp"] + categories["dpi"],
+				"total_rules":     categories["xdr"] + categories["runtime"] + categories["rasp"] + categories["traffic"],
 				"enabled_rules":   enabled,
 				"categories":      categories,
-				"totalRules":      categories["xdr"] + categories["runtime"] + categories["rasp"] + categories["dpi"],
+				"totalRules":      categories["xdr"] + categories["runtime"] + categories["rasp"] + categories["traffic"],
 				"enabledRules":    enabled,
 				"lastUpdate":      nil,
 				"updateStatus":    "never",
@@ -3533,7 +3534,7 @@ func normalizeComponentAlertStreamEvent(stream, msgID string, payload map[string
 func componentSourceEngineFromStream(stream string) string {
 	switch stream {
 	case "alerts:dpi":
-		return "dpi_engine"
+		return "lyprobe"
 	case "alerts:runtime":
 		return "runtime"
 	case "alerts:rasp", "telemetry:rasp":
@@ -10272,7 +10273,6 @@ func agentInstallConfigHandler(cfg *Config) http.HandlerFunc {
 					"rasp":      "telemetry:rasp",
 					"log_audit": "telemetry:log_audit",
 				},
-				"legacy_dpi":   map[string]interface{}{"enabled_by_default": false, "compose_profile": "legacy-dpi"},
 				"rule_bundle":  ruleBundle,
 				"rule_sources": currentAgentRuleSourceSummary(r.Context(), cfg),
 				"rasp": map[string]interface{}{
@@ -10445,6 +10445,37 @@ func agentRASPJavaSourceHandler() http.HandlerFunc {
 	}
 }
 
+func agentYARARulesHandler() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+		for _, directory := range []string{"/etc/ly/rules/yara", "/app/rules/yara", "rules/yara", "../rules/yara"} {
+			files, err := filepath.Glob(filepath.Join(directory, "*.yar"))
+			if err != nil || len(files) == 0 {
+				continue
+			}
+			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+			for _, file := range files {
+				content, err := os.ReadFile(file)
+				if err != nil {
+					http.Error(w, "YARA rule asset unreadable", http.StatusInternalServerError)
+					return
+				}
+				if _, err := w.Write(content); err != nil {
+					return
+				}
+				if _, err := w.Write([]byte("\n")); err != nil {
+					return
+				}
+			}
+			return
+		}
+		http.Error(w, "YARA rules not found", http.StatusNotFound)
+	}
+}
+
 func agentInstallScriptHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
@@ -10496,7 +10527,8 @@ mkdir -p \
   "$INSTALL_DIR/rasp/python" \
   "$INSTALL_DIR/rasp/php" \
   "$INSTALL_DIR/rasp/ebpf" \
-  "$INSTALL_DIR/rasp/rules"
+  "$INSTALL_DIR/rasp/rules" \
+  "$INSTALL_DIR/yara"
 rm -f "$AGENT_TMP"
 ARCH=$(uname -m 2>/dev/null || printf 'unknown')
 case "$ARCH" in
@@ -10509,6 +10541,34 @@ chmod +x "$AGENT_TMP"
 mkdir -p /etc/lyflow/trust
 curl -kfsSL "$API_SERVER/api/v1/agent/rasp/policy-root" -o /etc/lyflow/trust/policy-root.pem 2>/dev/null || true
 chmod 0644 /etc/lyflow/trust/policy-root.pem 2>/dev/null || true
+AGENT_INTEGRITY_FLAG=false
+if curl -kfsSL "$API_SERVER/api/v1/agent/download?os=linux&arch=$AGENT_ARCH&asset=digest" -o /etc/lyflow/trust/agent-binary.digest.json 2>/dev/null \
+  && [ -s /etc/lyflow/trust/agent-binary.digest.json ] \
+  && [ -s /etc/lyflow/trust/policy-root.pem ]; then
+  AGENT_INTEGRITY_FLAG=true
+else
+  rm -f /etc/lyflow/trust/agent-binary.digest.json
+fi
+mkdir -p /opt/ly-agent/etc
+cat > /opt/ly-agent/etc/agent.env <<AGENT_ENV_EOF
+AGENT_REQUIRE_BINARY_INTEGRITY=$AGENT_INTEGRITY_FLAG
+AGENT_REQUIRE_CONFIG_INTEGRITY=false
+AGENT_BINARY_DIGEST=/etc/lyflow/trust/agent-binary.digest.json
+AGENT_BINARY_ROOT=/etc/lyflow/trust/policy-root.pem
+AGENT_ENV_EOF
+chmod 600 /opt/ly-agent/etc/agent.env
+curl -kfsSL "$API_SERVER/api/v1/agent/yara/rules" -o "$INSTALL_DIR/yara/rules.yar" 2>/dev/null || true
+if [ "${LYFLOW_INSTALL_YARA:-true}" = "true" ] && ! command -v yara >/dev/null 2>&1; then
+  if command -v apt-get >/dev/null 2>&1; then
+    DEBIAN_FRONTEND=noninteractive apt-get update >/dev/null 2>&1 && DEBIAN_FRONTEND=noninteractive apt-get install -y yara >/dev/null 2>&1 || true
+  elif command -v dnf >/dev/null 2>&1; then
+    dnf install -y yara >/dev/null 2>&1 || true
+  elif command -v yum >/dev/null 2>&1; then
+    yum install -y yara >/dev/null 2>&1 || true
+  elif command -v apk >/dev/null 2>&1; then
+    apk add --no-cache yara >/dev/null 2>&1 || true
+  fi
+fi
 if command -v systemctl >/dev/null 2>&1; then
   systemctl stop ly-agent 2>/dev/null || true
 fi
@@ -10619,11 +10679,6 @@ Wants=network-online.target
 Type=simple
 User=root
 EnvironmentFile=-/opt/ly-agent/etc/agent.env
-# The public one-click bundle does not ship signed agent digest assets yet.
-# Keep the agent installable; operators can re-enable fail-closed integrity
-# after provisioning signed artifacts in /etc/lyflow/trust.
-Environment=AGENT_REQUIRE_BINARY_INTEGRITY=false
-Environment=AGENT_REQUIRE_CONFIG_INTEGRITY=false
 ExecStart=/opt/ly-agent/bin/ly-agent --config /opt/ly-agent/etc/agent.yaml
 Restart=always
 RestartSec=5
@@ -10676,6 +10731,10 @@ func agentDownloadHandler(cfg *Config) http.HandlerFunc {
 		}
 		if targetArch != "amd64" && targetArch != "arm64" {
 			http.Error(w, fmt.Sprintf("unsupported agent arch: %s", targetArch), http.StatusBadRequest)
+			return
+		}
+		if strings.EqualFold(strings.TrimSpace(r.URL.Query().Get("asset")), "digest") {
+			serveAgentBinaryDigest(w, targetArch)
 			return
 		}
 

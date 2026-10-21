@@ -116,3 +116,9 @@
 - 决策：停止构建/下载/安装 Windows Agent，删除 Windows 专用 Agent 文件；仅保留 Linux amd64/arm64。
 - 原因：用户明确要求砍掉 Windows 端；当前测试与采集面全部为 Linux。
 - 后果：安装页、离线包、服务端下载和文档均不再提供 Windows。
+## D-014 删除 legacy DPI Engine
+- 日期：2026-10-21
+- 决策：删除 dpi-engine/ legacy 模块、legacy compose profile、旧 DPI 规则/编译预览、构建/QA 引用和 UI 中的 DPI Engine 卡片/筛选；新流量告警统一由 lyprobe/统一安全引擎处理。
+- 原因：该模块仅用于旧 flows:raw 迁移对账，不属于默认生产栈，且已与 LyFlow DPI/探针职责重叠；用户明确要求从源码和 UI 删除过期设计。
+- 兼容：pkg/contracts 保留历史 dpi_engine 事件源枚举与 fixture，避免旧事件读取失败；新事件不再产生 dpi_engine 源。
+- 后果：不再构建 ly-flow/dpi-engine 镜像；旧 DPI 规则目录和迁移 profile 不再随仓库发布。

@@ -17,7 +17,7 @@ const ProducerProtocolVersion = "todo7.v2"
 const ProducerLeaseTTL = 5 * time.Minute
 
 var requiredProducers = []string{
-	"agent-traffic", "server-consumer", "server-unified", "server-xdr", "security-engine", "dpi-engine",
+	"agent-traffic", "server-consumer", "server-unified", "server-xdr", "security-engine",
 }
 
 type HorizonRecord struct {

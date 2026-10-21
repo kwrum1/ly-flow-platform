@@ -43,7 +43,7 @@
         <select v-model="filters.source" class="sx-select">
           <option value="">全部</option>
           <option value="adapter.suricata">Suricata</option>
-          <option value="dpi_engine">DPI</option>
+          <option value="lyprobe">LyFlow 探针</option>
           <option value="agent.runtime">主机运行时</option>
           <option value="agent.log_audit">日志审计</option>
           <option value="agent.rasp">RASP</option>

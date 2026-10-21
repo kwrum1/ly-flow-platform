@@ -114,7 +114,7 @@ expect_accepted() {
 
 test_default_service_set_characterization() {
   local actual expected
-  expected=$'agent-center\nclickhouse\nly-agent\nly-dpi-engine\nly-engine-lab\nly-local-mirror\nly-security-engine\nly-server\nly-suricata-sensor\nly-vis\npostgres\nredis'
+  expected=$'agent-center\nclickhouse\nly-agent\nly-engine-lab\nly-local-mirror\nly-security-engine\nly-server\nly-suricata-sensor\nly-vis\npostgres\nredis'
   actual=$(REDIS_ACL_USERNAME=lyflow \
     REDIS_ACL_PASSWORD="$strong_new" \
     SECURITY_ENGINE_CONTROL_TOKEN="$strong_new" \

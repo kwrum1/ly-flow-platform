@@ -1,14 +1,4 @@
 signals:
-  dpi:
-    fixture: fixtures/architecture/scenarios.json
-    analyzer: dpi-engine/core/rules/engine.go
-    output_stream: alerts:dpi
-    xdr_correlation: true
-  semantic_flow:
-    fixture: fixtures/architecture/scenarios.json
-    analyzer: dpi-engine/core/engine/engine.go
-    output_stream: flows:semantic
-    xdr_correlation: true
   runtime:
     fixture: fixtures/architecture/scenarios.json
     analyzer: agent/cmd/main.go

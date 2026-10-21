@@ -28,7 +28,7 @@ case "$MODE" in
     run_go agent ./...
     ;;
   full)
-    for module in pkg server agent security-engine dpi-engine; do
+    for module in pkg server agent security-engine; do
       run_go "$module" ./...
     done
     ;;

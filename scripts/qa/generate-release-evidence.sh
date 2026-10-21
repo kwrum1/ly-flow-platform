@@ -78,7 +78,7 @@ jq -e '[.. | objects | .max_severity? // empty | tonumber? // empty | select(. >
 jq -e '[.dependencies[]? | .vulnerabilities[]? | (.cvssv4.score // .cvssv3.baseScore // .cvssv2.score // 0) | select(. >= 7)] | length == 0' "$java_report" >/dev/null \
   || fail 'Dependency-Check reported high or critical Java vulnerabilities'
 
-for module in agent dpi-engine pkg security-engine server; do
+for module in agent pkg security-engine server; do
   report="$go_reports/$module-final.json"
   require_file "$report"
   jq -s -e '[.[] | .finding? | select(.trace != null and (.trace | length) > 1)] | length == 0' "$report" >/dev/null \

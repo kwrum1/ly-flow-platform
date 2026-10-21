@@ -72,7 +72,7 @@ ly-server :8080 ───────── PostgreSQL（账号、资产、规�
 | `clickhouse` | 长期会话与分析数据 | 内网 8123/9000 |
 | `redis` | 实时流与短期缓冲 | 内网 6379 |
 
-`ly-engine-lab` 已退出默认生产栈。容器 Agent 和 legacy DPI 只通过 QA/兼容 profile 启用。
+`ly-engine-lab` 已退出默认生产栈。容器 Agent 只通过 QA/兼容 profile 启用。
 
 ## 4. 数据职责
 
@@ -122,7 +122,7 @@ Python RASP 已具备 monitor/protect 策略、签名配置、健康状态和事
 - Linux 抓包：AF_PACKET/TPACKET，适合 Agent 小流量采集，可在控制中心关闭。
 - 本机镜像：AMD64 生产路径使用 PF_RING，承担高流量旁路镜像。
 - 容器 Agent：仅用于 QA，不是现场安装方式。
-- legacy DPI：仅用于旧 `flows:raw` 迁移对账，不与统一安全引擎长期并行。
+- 原 legacy DPI 已移除；旧 `flows:raw` 事件仅由统一安全引擎与 LyFlow 探针处理。
 
 ## 8. 正式部署包
 

@@ -82,7 +82,6 @@ const engineDefinitions = [
   { key: 'wazuh', label: 'Wazuh', short: 'WA' },
   { key: 'yara', label: 'YARA', short: 'YA' },
   { key: 'rasp', label: 'OpenRASP', short: 'RA' },
-  { key: 'dpi', label: 'DPI Engine', short: 'DP' },
 ]
 
 const runtimeItems = computed(() => {
@@ -149,7 +148,7 @@ const engineCards = computed(() => {
 function unwrap(response) { return response?.data?.data ?? response?.data ?? response ?? {} }
 function formatNumber(value) { return Number(value || 0).toLocaleString('zh-CN') }
 function formatTime(value) { if (!value) return '-'; const date = new Date(value); return Number.isNaN(date.getTime()) || date.getFullYear() < 2000 ? '-' : date.toLocaleString('zh-CN', { hour12: false }) }
-function engineLabel(value) { return ({ 'security-engine': 'LyFlow DPI 引擎', suricata: 'Suricata', lyprobe: 'LyFlow 探针', wazuh: 'Wazuh', yara: 'YARA', rasp: 'OpenRASP', dpi: 'DPI Engine' })[value] || value || '-' }
+function engineLabel(value) { return ({ 'security-engine': 'LyFlow DPI 引擎', suricata: 'Suricata', lyprobe: 'LyFlow 探针', wazuh: 'Wazuh', yara: 'YARA', rasp: 'OpenRASP' })[value] || value || '-' }
 function isRunning(item) { return Boolean(item.running) && String(item.agent_status || '').toLowerCase() !== 'offline' }
 function statusLabel(item) {
   if (!item.installed) return '未安装'

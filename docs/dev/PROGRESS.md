@@ -875,3 +875,11 @@
 - 规则中心改为「已是最新 / 有新版本 / 未上报」，无更新时不再显示可点击更新按钮；Falco 实测同步 3 条规则成功。
 - 重做平台设置布局，三块设置完整展开；生产 19 页面巡检 0 错误，30 个 API 烟测全部 200。
 - 详细记录：docs/dev/EXPERT-ACCEPTANCE-2026-10-21.md。
+
+## 2026-10-21 保留问题修复与 legacy DPI 清理
+
+- YARA：Agent 安装器自动安装 YARA CLI 并下载规则包；测试机安装 YARA 4.5.5、规则 6,996,814 字节后，引擎健康显示 `installed=true`、`running=true`。
+- Java RASP probe：服务端镜像补齐 `probe/rasp/` 资产，五个 probe 下载接口全部 200。
+- Agent 完整性：服务端用平台 policy signer 动态签发 Agent 二进制摘要，安装器下载摘要与 trust root 后启用 binary fail-closed；配置摘要继续关闭。
+- legacy DPI：确认 `DPI Engine` 仅用于旧 `flows:raw` 迁移，已删除源码模块、legacy compose、旧规则/编译预览和 UI 卡片/筛选；新的 LyFlow 探针告警统一标记 `lyprobe`，历史 `dpi_engine` 仅保留契约兼容。
+- 验证：`pkg`、`server/cmd`、`server/cmd/netflow-collector`、`security-engine` 测试通过；前端 117 项测试、typecheck、build 通过。

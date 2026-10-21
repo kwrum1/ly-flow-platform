@@ -341,8 +341,8 @@ const engineRows = computed(() => {
     const installed = item.installed !== false
     return {
       key,
-      short: ({ suricata: 'SU', wazuh: 'WA', yara: 'YA', rasp: 'RA', dpi: 'DP' })[key] || key.slice(0, 2).toUpperCase(),
-      label: ({ suricata: 'Suricata', wazuh: 'Wazuh', yara: 'YARA', rasp: 'OpenRASP', dpi: 'DPI Engine' })[key] || key,
+      short: ({ suricata: 'SU', wazuh: 'WA', yara: 'YA', rasp: 'RA' })[key] || key.slice(0, 2).toUpperCase(),
+      label: ({ suricata: 'Suricata', wazuh: 'Wazuh', yara: 'YARA', rasp: 'OpenRASP' })[key] || key,
       status: !installed ? '未安装' : running ? '运行中' : offline ? 'Agent 离线' : '待连接',
       tone: !installed ? 'muted' : running ? 'low' : 'medium',
       note: [item.rule_pack_version || '', items.length > 1 ? `${items.length} 个探针` : item.hostname || ''].filter(Boolean).join(' · ') || '无心跳详情',
@@ -434,7 +434,7 @@ function statusLabel(value) {
 }
 
 function sourceLabel(value) {
-  return ({ 'g5-real-agent': 'Agent 采集', wazuh: 'Wazuh', suricata: 'Suricata', 'ly-security-engine': '安全引擎', sshd: 'SSH 日志', rasp: 'RASP', yara: 'YARA', dpi_engine: 'DPI' })[value] || value || '未知'
+  return ({ 'g5-real-agent': 'Agent 采集', wazuh: 'Wazuh', suricata: 'Suricata', 'ly-security-engine': '安全引擎', sshd: 'SSH 日志', rasp: 'RASP', yara: 'YARA', dpi_engine: '历史流量', lyprobe: 'LyFlow 探针' })[value] || value || '未知'
 }
 
 function normalizeStageKey(value) {

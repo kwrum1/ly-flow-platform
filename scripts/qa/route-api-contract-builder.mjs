@@ -72,7 +72,7 @@ function disposition(record, apiOnly) {
 }
 
 export function requireRegistry(value) {
-  if (!Array.isArray(value) || value.length !== 116) throw new Error('generated registry must contain exactly 116 records')
+  if (!Array.isArray(value) || value.length !== 121) throw new Error('generated registry must contain exactly 121 records')
   const seen = new Set()
   for (const record of value) {
     if (!record || typeof record !== 'object' || typeof record.path !== 'string' || typeof record.auth_mode !== 'string') {

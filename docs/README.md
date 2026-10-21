@@ -11,7 +11,6 @@
 | [`API.md`](API.md) | 人工阅读的 API 摘要；机器契约优先级更高 |
 | [`zh/当前功能盘点与能力边界.md`](zh/当前功能盘点与能力边界.md) | 已实现能力、限制和未承诺能力 |
 | [`zh/后续工作计划.md`](zh/后续工作计划.md) | 接盘后的唯一执行计划 |
-| [`zh/AGENT与LEGACY-DPI兼容边界.md`](zh/AGENT与LEGACY-DPI兼容边界.md) | 现场 Agent、容器 Agent、local-mirror 和 legacy DPI 的角色边界 |
 | [`CLICKHOUSE_EVENT_MIGRATION.md`](CLICKHOUSE_EVENT_MIGRATION.md) | 事件存储迁移和读切换约束 |
 | [`RELEASE_PROVENANCE.md`](RELEASE_PROVENANCE.md) | 当前服务端包来源、构建校验和交付边界 |
 | [`GITHUB-CI.md`](GITHUB-CI.md) | 当前正式服务端构建、周期、产物与历史清理 |

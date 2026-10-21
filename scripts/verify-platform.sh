@@ -66,7 +66,6 @@ main() {
   run_go_module pkg
   run_go_module security-engine
   run_go_module server
-  run_go_module dpi-engine
   run_go_module probe
   run_rasp_python
 }

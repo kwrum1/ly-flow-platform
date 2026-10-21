@@ -24,7 +24,6 @@ root_packages=()
 server_packages=()
 agent_packages=()
 security_engine_packages=()
-dpi_engine_packages=()
 clickhouse_packages=()
 
 case "$category" in
@@ -89,7 +88,6 @@ case "$category" in
 		server_packages=(./materialization ./models ./ops ./cmd ./consumer ./xdr)
 		agent_packages=(./cmd)
 		security_engine_packages=(./engine)
-		dpi_engine_packages=(./core/output ./core/redis ./core/engine)
 		clickhouse_packages=(./analytics)
 		;;
 	runtime-health)
@@ -159,12 +157,6 @@ esac
 	if [[ ${#security_engine_packages[@]} -gt 0 ]]; then
 		cd "$root/security-engine"
 		"$root/scripts/qa/with-disposable-redis.sh" env GOWORK=off go test -json -race -shuffle=on -count=1 "${security_engine_packages[@]}"
-	fi
-	if [[ ${#dpi_engine_packages[@]} -gt 0 ]]; then
-		cd "$root/dpi-engine"
-		for package in "${dpi_engine_packages[@]}"; do
-			"$root/scripts/qa/with-disposable-redis.sh" env GOWORK=off go test -json -race -shuffle=on -count=1 "$package"
-		done
 	fi
 	if [[ ${#clickhouse_packages[@]} -gt 0 ]]; then
 		cd "$root/server"

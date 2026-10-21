@@ -257,11 +257,11 @@ func threatPayload(record Record, agentID string) map[string]interface{} {
 		"schema_version": "lyflow.component_alert.v1",
 		"id":             "lyprobe-" + stringValue(record["id"]),
 		"category":       "traffic",
-		"source_engine":  "dpi_engine",
+		"source_engine":  "lyprobe",
 		"rule_id":        ruleID,
 		"rule_name":      ruleName,
 		"native_rule": map[string]interface{}{
-			"engine": "dpi_engine", "id": ruleID, "name": ruleName,
+			"engine": "lyprobe", "id": ruleID, "name": ruleName,
 			"category": ruleType, "source": "lyprobe",
 		},
 		"severity":    severity,

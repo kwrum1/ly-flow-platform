@@ -47,7 +47,7 @@ const (
 func (e *Event) FromAlert(alert *Alert) {
 	e.Timestamp = alert.Timestamp
 	e.EventType = alert.Type
-	e.Source = "dpi-engine"
+	e.Source = "lyflow"
 	e.Severity = SeverityFromUint8(alert.Severity)
 	e.SrcIP = alert.SrcIP
 	e.DstIP = alert.DstIP

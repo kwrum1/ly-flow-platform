@@ -24,7 +24,7 @@ PASS outer-artifact: builder emits archive .sha256 and raw Ed25519 .sha256.sig.
 PASS shell-gates: release provenance, Go harness, RASP conformance harness, secure Compose, and Suricata profile self-tests passed.
 PASS frontend-gates: npm ci --offline, TypeScript typecheck, 84 Vitest tests, and Vite production build passed.
 PASS frontend-lint: all 9 errors were corrected without suppressions; ESLint exits zero with 0 errors (1314 pre-existing warnings remain non-blocking and were not redesigned).
-PASS go-gates: server, security-engine, and dpi-engine full race/shuffle suites passed.
+PASS go-gates: server and security-engine full race/shuffle suites passed.
 PASS agent-go-gate: full race/shuffle suite passed; affected RASP bridge tests passed with race and count=10 after setup provisioned a signed, selector-assigned, acknowledged active policy without weakening the inactive-policy gate.
 PASS pkg-go-gate: full race/shuffle suite passed; deterministic 153-entry event inventory regeneration is byte-stable and generated/no-diff active-producer native-fixture coverage passed.
 

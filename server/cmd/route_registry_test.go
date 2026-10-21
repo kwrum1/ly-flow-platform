@@ -50,11 +50,11 @@ func TestArchitectureRouteSnapshot_characterizesCurrentCountAndRoles(t *testing.
 	}
 
 	// Then
-	if len(ArchitectureRouteSnapshot) != 120 {
-		t.Fatalf("route snapshot count=%d, want 120", len(ArchitectureRouteSnapshot))
+	if len(ArchitectureRouteSnapshot) != 121 {
+		t.Fatalf("route snapshot count=%d, want 121", len(ArchitectureRouteSnapshot))
 	}
 	want := map[string]int{
-		"public":           12,
+		"public":           13,
 		"agent_credential": 11,
 		"loopback":         1,
 		"admin_only":       26,
@@ -151,6 +151,7 @@ func TestArchitectureRouteSnapshotMarksPublicAndProtectedRoutes(t *testing.T) {
 		"/api/v1/agent/rasp/probe/php": true, "/api/v1/agent/rasp/probe/java": true,
 		"/api/v1/agent/rasp/probe/java/source/": true,
 		"/api/v1/agent/rasp/probe/nodejs":       true, "/api/v1/agent/rasp/probe/dotnet": true,
+		"/api/v1/agent/yara/rules":              true,
 	}
 	publicCount := 0
 	agentCredentialPaths := map[string]bool{
@@ -200,8 +201,8 @@ func TestArchitectureRouteSnapshotMarksPublicAndProtectedRoutes(t *testing.T) {
 			t.Fatalf("protected route has no roles: %s", route.Path)
 		}
 	}
-	if publicCount != 12 {
-		t.Fatalf("public route count=%d, want 12", publicCount)
+	if publicCount != 13 {
+		t.Fatalf("public route count=%d, want 13", publicCount)
 	}
 }
 

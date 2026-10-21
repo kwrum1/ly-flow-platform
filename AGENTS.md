@@ -55,7 +55,6 @@ cd /opt/lyflow/src
 (cd agent && go test ./...)
 (cd pkg && go test ./...)
 (cd security-engine && go test ./...)
-(cd dpi-engine && go test ./...)
 
 # 前端
 (cd frontend && npm ci && npm run typecheck && npm run lint && npm test)

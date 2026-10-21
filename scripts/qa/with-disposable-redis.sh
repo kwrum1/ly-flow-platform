@@ -16,7 +16,7 @@ loaded=false
 loaded_tags=(
   postgres:16-alpine redis:7-alpine clickhouse/clickhouse-server:24.8-alpine
   ly-flow/server:latest ly-flow/frontend:latest ly-flow/security-engine:latest
-  ly-flow/security-engines:latest ly-flow/agent:latest ly-flow/dpi-engine:latest
+  ly-flow/security-engines:latest ly-flow/agent:latest
 )
 if ! docker image inspect "$image" >/dev/null 2>&1; then
   if [[ ! -r $archive ]]; then

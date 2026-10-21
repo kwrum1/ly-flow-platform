@@ -126,7 +126,7 @@ ARM64 服务器只需将第一行改为对应的 `lyflow-server-arm64.tar.gz`。
 
 `full-private.yml` 是私有 overlay，仅用于 Elkeid HUB/Console/AgentCenter/Manager/ServiceDiscovery，不进入公开构建产物。
 
-`ly-engine-lab`、容器化 Agent 和 legacy DPI 不属于默认生产组件，只保留为 QA/兼容 profile。
+`ly-engine-lab` 和容器化 Agent 不属于默认生产组件，只保留为 QA/兼容 profile；legacy DPI 已从源码和 UI 移除。
 
 当前实现状态、已知限制和容量基线见：
 
@@ -156,7 +156,6 @@ GitHub Actions 工作流为 `.github/workflows/release.yml`，名称为“正式
 - [软件架构](ARCHITECTURE.md)
 - [白皮书](docs/WHITEPAPER.md)
 - [当前功能盘点与能力边界](docs/zh/当前功能盘点与能力边界.md)
-- [Agent 与 legacy DPI 兼容边界](docs/zh/AGENT与LEGACY-DPI兼容边界.md)
 - [GitHub 正式发布](docs/GITHUB-CI.md)
 - [发布来源与交付边界](docs/RELEASE_PROVENANCE.md)
 - [API 摘要](docs/API.md)

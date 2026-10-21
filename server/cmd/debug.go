@@ -196,8 +196,6 @@ func checkMigrationFlags(cfg *Config) componentStatus {
 		"legacy_xdr_component_matching":     cfg.LegacyXDROperatorMatching,
 		"legacy_xdr_default_enabled":        false,
 		"legacy_xdr_status":                 legacyStatus(cfg.LegacyXDROperatorMatching),
-		"legacy_dpi_compose_profile":        "legacy-dpi",
-		"legacy_dpi_default_enabled":        false,
 		"rasp_automatic_injection":          cfg.RASPAutomaticInjection,
 		"rasp_block_by_default":             cfg.RASPBlockDefault,
 		"rule_source_show_restricted":       cfg.RuleDownloadRestrictedShown,

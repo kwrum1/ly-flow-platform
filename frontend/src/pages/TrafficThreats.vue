@@ -5,7 +5,7 @@
         <div>
           <p class="threat-kicker">DETECTION SURFACE</p>
           <h2>{{ title }}</h2>
-          <p class="threat-subtitle">{{ category === 'rasp' ? '应用运行时攻击、检测与阻断证据；数据来自 RASP 组件告警。' : category === 'runtime' ? '主机运行时与日志审计告警；数据来自 eBPF/auditd/ps 进程采集、认证日志与 Wazuh 组件告警。' : '流量检测与攻击会话；数据来自 Suricata / DPI 与流量组件告警。' }}</p>
+          <p class="threat-subtitle">{{ category === 'rasp' ? '应用运行时攻击、检测与阻断证据；数据来自 RASP 组件告警。' : category === 'runtime' ? '主机运行时与日志审计告警；数据来自 eBPF/auditd/ps 进程采集、认证日志与 Wazuh 组件告警。' : '流量检测与攻击会话；数据来自 Suricata / LyFlow 与流量组件告警。' }}</p>
         </div>
         <div class="threat-summary">
           <span><b>{{ total }}</b> 条结果</span>
@@ -118,7 +118,7 @@ function eventTypeLabel(value) {
   return { tcp_flow: 'TCP会话流', http_access: 'HTTP访问', dns_query: 'DNS查询', tls_connection: 'TLS连接', admin_access: '管理访问', login: '登录行为', upload: '上传行为', traffic_flow: '流量会话', 'rasp.sql': 'RASP SQL注入', 'rasp.command': 'RASP命令执行', 'rasp.exec': 'RASP命令执行', 'rasp.file': 'RASP文件访问', 'rasp.deserialization': 'RASP反序列化', 'rasp.http': 'RASP SSRF', 'rasp.ssrf': 'RASP SSRF', 'runtime.auth.privilege': '运行时权限活动', 'runtime.process': '进程行为', 'runtime.file': '文件行为', 'log_audit.auth': '认证日志审计' }[value] || value || '安全告警'
 }
 function categoryLabel(value) { return { traffic: '流量检测', network: '网络检测', host: '主机检测', artifact: '文件检测', log: '日志检测', rasp: '应用防护', log_audit: '日志审计', runtime: '系统安全' }[value] || value || '-' }
-function sourceEngineLabel(value) { return { suricata: 'Suricata', wazuh: 'Wazuh', sigma: 'Sigma', yara: 'YARA', rasp: 'RASP', lyflow: 'LyFlow', 'ly-security-engine': '安全引擎', agent: 'Agent', runtime: 'Runtime', log_audit: 'LogAudit', dpi_engine: 'DPI', ebpf: 'eBPF', auditd: 'auditd', procfs: 'procfs', 'auth-log-signal': '日志审计' }[value] || value || '-' }
+function sourceEngineLabel(value) { return { suricata: 'Suricata', wazuh: 'Wazuh', sigma: 'Sigma', yara: 'YARA', rasp: 'RASP', lyflow: 'LyFlow', 'ly-security-engine': '安全引擎', agent: 'Agent', runtime: 'Runtime', log_audit: 'LogAudit', dpi_engine: '历史流量', lyprobe: 'LyFlow 探针', ebpf: 'eBPF', auditd: 'auditd', procfs: 'procfs', 'auth-log-signal': '日志审计' }[value] || value || '-' }
 function stageLabel(value) { return { recon: '侦察探测', initial_access: '初始入侵', execution: '执行载荷', persistence: '持久化', privilege_escalation: '权限提升', lateral_movement: '横向移动', c2_exfiltration: '外联/泄露', detection: '检测命中' }[value] || value || '-' }
 function contentSummary(item) { return item.summary || item.message || threatTypeLabel(item) || item.http_host || item.dns_query || item.tls_sni || [item.http_method, item.http_path].filter(Boolean).join(' ') || eventTypeLabel(item.event_type || item.type) }
 function detailRows(item) {

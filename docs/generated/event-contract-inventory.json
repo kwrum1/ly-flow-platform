@@ -483,47 +483,6 @@
       ]
     },
     {
-      "id": "adapter:dpi-engine/core/rules/engine.go",
-      "kind": "adapter",
-      "path": "dpi-engine/core/rules/engine.go",
-      "symbols": [
-        "AddRule",
-        "GetStats",
-        "LoadDatabaseRules",
-        "LoadRulesFile",
-        "Match",
-        "MatchWithIndex",
-        "New",
-        "RuleCount",
-        "buildDatabaseMatchFunc",
-        "buildMatchFunc",
-        "cleanOptionValue",
-        "databaseSearchText",
-        "getCandidates",
-        "normalizeSuricataContent",
-        "parseCategory",
-        "parseDatabaseRule",
-        "parseDbCategory",
-        "parseOptions",
-        "parseRule",
-        "parseSeverity"
-      ],
-      "roles": [
-        "adapter"
-      ],
-      "schemas": [
-        "lyflow.security_event.v1"
-      ],
-      "owner": "dpi-engine",
-      "phases": [
-        "reader_first",
-        "dual_write",
-        "reconcile",
-        "read_switch",
-        "observe"
-      ]
-    },
-    {
       "id": "adapter:pkg/attack/mapping.go",
       "kind": "adapter",
       "path": "pkg/attack/mapping.go",
@@ -1249,6 +1208,7 @@
         "agentTaskResultHandler",
         "agentTrafficEventHandler",
         "agentUninstallScriptHandler",
+        "agentYARARulesHandler",
         "agentsListHandler",
         "appendTrafficEvidence",
         "applyComponentAlertUnifiedOverrides",
@@ -3165,160 +3125,6 @@
       ]
     },
     {
-      "id": "consumer:dpi-engine/config/config.go",
-      "kind": "consumer",
-      "path": "dpi-engine/config/config.go",
-      "symbols": [
-        "Load",
-        "getEnv",
-        "getEnvAny",
-        "getEnvBoolAny",
-        "getEnvInt",
-        "getEnvIntAny"
-      ],
-      "roles": [
-        "consumer"
-      ],
-      "streams": [
-        "alerts:dpi",
-        "flows:raw",
-        "flows:semantic",
-        "sessions:semantic"
-      ],
-      "schemas": [
-        "lyflow.security_event.v1"
-      ],
-      "owner": "dpi-engine",
-      "phases": [
-        "reader_first",
-        "dual_write",
-        "reconcile",
-        "read_switch",
-        "observe"
-      ]
-    },
-    {
-      "id": "consumer:dpi-engine/core/engine/engine.go",
-      "kind": "consumer",
-      "path": "dpi-engine/core/engine/engine.go",
-      "symbols": [
-        "ConsumerStats",
-        "New",
-        "OutputStats",
-        "Start",
-        "Stats",
-        "Stop",
-        "TransportAccounting",
-        "buildSemanticFlow",
-        "deterministicAlertID",
-        "emitDomainAlert",
-        "emitRuleAlerts",
-        "generateID",
-        "parseFlow",
-        "parsePort",
-        "parseUint64",
-        "parseUint64WithBase",
-        "riskLevelFromScore",
-        "scoreFromRule",
-        "sessionID",
-        "severityFromScore",
-        "stringPort",
-        "unwrapFlowValues"
-      ],
-      "roles": [
-        "consumer"
-      ],
-      "streams": [
-        "flows:raw"
-      ],
-      "schemas": [
-        "lyflow.security_event.v1",
-        "lyflow.semantic.v1"
-      ],
-      "owner": "dpi-engine",
-      "phases": [
-        "reader_first",
-        "dual_write",
-        "reconcile",
-        "read_switch",
-        "observe"
-      ]
-    },
-    {
-      "id": "consumer:dpi-engine/core/redis/consumer.go",
-      "kind": "consumer",
-      "path": "dpi-engine/core/redis/consumer.go",
-      "symbols": [
-        "GetClient",
-        "GetContext",
-        "GetOutStream",
-        "NewConsumer",
-        "OnFlow",
-        "OnFlowReliable",
-        "Start",
-        "Stats",
-        "Stop",
-        "TransportAccounting",
-        "handleDelivery",
-        "worker"
-      ],
-      "roles": [
-        "consumer"
-      ],
-      "schemas": [
-        "lyflow.security_event.v1"
-      ],
-      "owner": "dpi-engine",
-      "phases": [
-        "reader_first",
-        "dual_write",
-        "reconcile",
-        "read_switch",
-        "observe"
-      ]
-    },
-    {
-      "id": "consumer:dpi-engine/core/rules/engine.go",
-      "kind": "consumer",
-      "path": "dpi-engine/core/rules/engine.go",
-      "symbols": [
-        "AddRule",
-        "GetStats",
-        "LoadDatabaseRules",
-        "LoadRulesFile",
-        "Match",
-        "MatchWithIndex",
-        "New",
-        "RuleCount",
-        "buildDatabaseMatchFunc",
-        "buildMatchFunc",
-        "cleanOptionValue",
-        "databaseSearchText",
-        "getCandidates",
-        "normalizeSuricataContent",
-        "parseCategory",
-        "parseDatabaseRule",
-        "parseDbCategory",
-        "parseOptions",
-        "parseRule",
-        "parseSeverity"
-      ],
-      "roles": [
-        "consumer"
-      ],
-      "schemas": [
-        "lyflow.security_event.v1"
-      ],
-      "owner": "dpi-engine",
-      "phases": [
-        "reader_first",
-        "dual_write",
-        "reconcile",
-        "read_switch",
-        "observe"
-      ]
-    },
-    {
       "id": "consumer:pkg/contracts/event_migration.go",
       "kind": "consumer",
       "path": "pkg/contracts/event_migration.go",
@@ -3691,6 +3497,7 @@
         "agentTaskResultHandler",
         "agentTrafficEventHandler",
         "agentUninstallScriptHandler",
+        "agentYARARulesHandler",
         "agentsListHandler",
         "appendTrafficEvidence",
         "applyComponentAlertUnifiedOverrides",
@@ -5212,6 +5019,7 @@
         "agentTaskResultHandler",
         "agentTrafficEventHandler",
         "agentUninstallScriptHandler",
+        "agentYARARulesHandler",
         "agentsListHandler",
         "appendTrafficEvidence",
         "applyComponentAlertUnifiedOverrides",
@@ -6130,91 +5938,6 @@
       ]
     },
     {
-      "id": "producer:dpi-engine/core/engine/engine.go",
-      "kind": "producer",
-      "path": "dpi-engine/core/engine/engine.go",
-      "symbols": [
-        "ConsumerStats",
-        "New",
-        "OutputStats",
-        "Start",
-        "Stats",
-        "Stop",
-        "TransportAccounting",
-        "buildSemanticFlow",
-        "deterministicAlertID",
-        "emitDomainAlert",
-        "emitRuleAlerts",
-        "generateID",
-        "parseFlow",
-        "parsePort",
-        "parseUint64",
-        "parseUint64WithBase",
-        "riskLevelFromScore",
-        "scoreFromRule",
-        "sessionID",
-        "severityFromScore",
-        "stringPort",
-        "unwrapFlowValues"
-      ],
-      "roles": [
-        "producer"
-      ],
-      "streams": [
-        "flows:raw"
-      ],
-      "schemas": [
-        "lyflow.security_event.v1",
-        "lyflow.semantic.v1"
-      ],
-      "owner": "dpi-engine",
-      "phases": [
-        "reader_first",
-        "dual_write",
-        "reconcile",
-        "read_switch",
-        "observe"
-      ]
-    },
-    {
-      "id": "producer:dpi-engine/core/output/output.go",
-      "kind": "producer",
-      "path": "dpi-engine/core/output/output.go",
-      "symbols": [
-        "New",
-        "NewWithStreams",
-        "Send",
-        "SendAlert",
-        "SendDirect",
-        "SendSemanticFlow",
-        "SendSemanticSession",
-        "Start",
-        "Stats",
-        "Stop",
-        "flush",
-        "sendJSONToStream",
-        "worker"
-      ],
-      "roles": [
-        "producer"
-      ],
-      "streams": [
-        "flows:semantic",
-        "sessions:semantic"
-      ],
-      "schemas": [
-        "lyflow.security_event.v1"
-      ],
-      "owner": "dpi-engine",
-      "phases": [
-        "reader_first",
-        "dual_write",
-        "reconcile",
-        "read_switch",
-        "observe"
-      ]
-    },
-    {
       "id": "producer:pkg/contracts/event_migration.go",
       "kind": "producer",
       "path": "pkg/contracts/event_migration.go",
@@ -6545,6 +6268,7 @@
         "agentTaskResultHandler",
         "agentTrafficEventHandler",
         "agentUninstallScriptHandler",
+        "agentYARARulesHandler",
         "agentsListHandler",
         "appendTrafficEvidence",
         "applyComponentAlertUnifiedOverrides",
@@ -7967,184 +7691,6 @@
       ]
     },
     {
-      "id": "stream:dpi-engine/config/config.go",
-      "kind": "stream",
-      "path": "dpi-engine/config/config.go",
-      "symbols": [
-        "Load",
-        "getEnv",
-        "getEnvAny",
-        "getEnvBoolAny",
-        "getEnvInt",
-        "getEnvIntAny"
-      ],
-      "roles": [
-        "stream"
-      ],
-      "streams": [
-        "alerts:dpi",
-        "flows:raw",
-        "flows:semantic",
-        "sessions:semantic"
-      ],
-      "schemas": [
-        "lyflow.security_event.v1"
-      ],
-      "owner": "dpi-engine",
-      "phases": [
-        "reader_first",
-        "dual_write",
-        "reconcile",
-        "read_switch",
-        "observe"
-      ]
-    },
-    {
-      "id": "stream:dpi-engine/core/engine/engine.go",
-      "kind": "stream",
-      "path": "dpi-engine/core/engine/engine.go",
-      "symbols": [
-        "ConsumerStats",
-        "New",
-        "OutputStats",
-        "Start",
-        "Stats",
-        "Stop",
-        "TransportAccounting",
-        "buildSemanticFlow",
-        "deterministicAlertID",
-        "emitDomainAlert",
-        "emitRuleAlerts",
-        "generateID",
-        "parseFlow",
-        "parsePort",
-        "parseUint64",
-        "parseUint64WithBase",
-        "riskLevelFromScore",
-        "scoreFromRule",
-        "sessionID",
-        "severityFromScore",
-        "stringPort",
-        "unwrapFlowValues"
-      ],
-      "roles": [
-        "stream"
-      ],
-      "streams": [
-        "flows:raw"
-      ],
-      "schemas": [
-        "lyflow.security_event.v1",
-        "lyflow.semantic.v1"
-      ],
-      "owner": "dpi-engine",
-      "phases": [
-        "reader_first",
-        "dual_write",
-        "reconcile",
-        "read_switch",
-        "observe"
-      ]
-    },
-    {
-      "id": "stream:dpi-engine/core/output/output.go",
-      "kind": "stream",
-      "path": "dpi-engine/core/output/output.go",
-      "symbols": [
-        "New",
-        "NewWithStreams",
-        "Send",
-        "SendAlert",
-        "SendDirect",
-        "SendSemanticFlow",
-        "SendSemanticSession",
-        "Start",
-        "Stats",
-        "Stop",
-        "flush",
-        "sendJSONToStream",
-        "worker"
-      ],
-      "roles": [
-        "stream"
-      ],
-      "streams": [
-        "flows:semantic",
-        "sessions:semantic"
-      ],
-      "schemas": [
-        "lyflow.security_event.v1"
-      ],
-      "owner": "dpi-engine",
-      "phases": [
-        "reader_first",
-        "dual_write",
-        "reconcile",
-        "read_switch",
-        "observe"
-      ]
-    },
-    {
-      "id": "stream:dpi-engine/model/flow.go",
-      "kind": "stream",
-      "path": "dpi-engine/model/flow.go",
-      "symbols": [
-        "GetDomain",
-        "Time",
-        "ToSemanticFlow",
-        "ToSemanticSession",
-        "deriveBehavior"
-      ],
-      "roles": [
-        "stream"
-      ],
-      "streams": [
-        "flows:raw",
-        "flows:semantic"
-      ],
-      "schemas": [
-        "lyflow.security_event.v1"
-      ],
-      "owner": "dpi-engine",
-      "phases": [
-        "reader_first",
-        "dual_write",
-        "reconcile",
-        "read_switch",
-        "observe"
-      ]
-    },
-    {
-      "id": "stream:dpi-engine/pkg/model/flow.go",
-      "kind": "stream",
-      "path": "dpi-engine/pkg/model/flow.go",
-      "symbols": [
-        "GetDomain",
-        "Time",
-        "ToSemanticFlow",
-        "ToSemanticSession",
-        "deriveBehavior"
-      ],
-      "roles": [
-        "stream"
-      ],
-      "streams": [
-        "flows:raw",
-        "flows:semantic"
-      ],
-      "schemas": [
-        "lyflow.security_event.v1"
-      ],
-      "owner": "dpi-engine",
-      "phases": [
-        "reader_first",
-        "dual_write",
-        "reconcile",
-        "read_switch",
-        "observe"
-      ]
-    },
-    {
       "id": "stream:security-engine/config/config.go",
       "kind": "stream",
       "path": "security-engine/config/config.go",
@@ -8445,6 +7991,7 @@
         "agentTaskResultHandler",
         "agentTrafficEventHandler",
         "agentUninstallScriptHandler",
+        "agentYARARulesHandler",
         "agentsListHandler",
         "appendTrafficEvidence",
         "applyComponentAlertUnifiedOverrides",

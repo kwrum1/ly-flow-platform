@@ -6,7 +6,6 @@ server-main|active|server/cmd/main.go|ly-server|REDIS_ADDR|REDIS_ACL_USERNAME|RE
 server-xdr|active|server/xdr/xdr.go|ly-server|REDIS_ADDR|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
 agent-center|active|server/agentcenter/server.go|agent-center|REDIS_ADDR|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
 security-engine|active|security-engine/config/config.go|ly-security-engine|REDIS_ADDR|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
-legacy-dpi|active|dpi-engine/config/config.go|ly-dpi-engine|REDIS_ADDR|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
 agent-main-publishers|active|agent/cmd/main.go|ly-agent|REDIS_SERVER|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
 agent-local-mirror|active|agent/cmd/main.go|ly-local-mirror|REDIS_SERVER|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD
 agent-afpacket-linux|active|agent/cmd/afpacket_linux.go|ly-agent|REDIS_SERVER|REDIS_ACL_USERNAME|REDIS_ACL_PASSWORD|REDIS_PASSWORD

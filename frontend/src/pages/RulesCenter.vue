@@ -219,7 +219,6 @@ const engineDefinitions = {
   yara: { label: 'YARA', short: 'YA', order: 3 },
   rasp: { label: 'OpenRASP', short: 'RA', order: 4 },
   lyprobe: { label: 'LyFlow 探针规则', short: 'LP', order: 5 },
-  dpi: { label: 'DPI Engine', short: 'DP', order: 6 },
 }
 const sourceAliases = {
   'suricata-et-open': 'et-open-connector',
@@ -398,7 +397,7 @@ function engineForSource(source) {
   if (text.includes('yara')) return 'yara'
   if (text.includes('lyprobe') || text.includes('ly_probe')) return 'lyprobe'
   if (text.includes('openrasp') || text.includes('rasp') || text.includes('coreruleset') || text.includes('owasp')) return 'rasp'
-  if (category === 'traffic' || category === 'dpi') return 'suricata'
+  if (category === 'traffic') return 'suricata'
   if (category === 'rasp') return 'rasp'
   if (category === 'runtime' || category === 'log_audit' || category === 'hids') return 'wazuh'
   if (text.includes('wazuh') || text.includes('auditd') || text.includes('falco') || text.includes('sigma') || text.includes('elastic')) return 'wazuh'
@@ -439,7 +438,7 @@ function unwrap(response) {
 }
 
 function engineLabel(value) {
-  return engineDefinitions[value]?.label || ({ suricata: 'Suricata', wazuh: 'Wazuh', yara: 'YARA', rasp: 'OpenRASP', dpi: 'DPI Engine' })[value] || value
+  return engineDefinitions[value]?.label || ({ suricata: 'Suricata', wazuh: 'Wazuh', yara: 'YARA', rasp: 'OpenRASP' })[value] || value
 }
 
 function displayRulePath(path) {
@@ -652,7 +651,6 @@ onMounted(() => {
 .engine-source-card.engine-wazuh{border-top-color:#7c5cff}
 .engine-source-card.engine-yara{border-top-color:#d99a14}
 .engine-source-card.engine-rasp{border-top-color:#16a36a}
-.engine-source-card.engine-dpi{border-top-color:#0f9bb5}
 .engine-source-head{display:flex;align-items:center;gap:7px;min-width:0}
 .engine-monogram{display:grid;width:26px;height:26px;flex:0 0 26px;place-items:center;border-radius:5px;background:#e8f3ff;color:#1769d2;font-size:8px;font-weight:900;letter-spacing:.02em}
 .engine-monogram.low{background:#e9f7ef;color:#178653}

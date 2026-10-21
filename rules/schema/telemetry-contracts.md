@@ -80,7 +80,7 @@ Required fields for rule matching:
 
 ## DPI raw flow contract
 
-Source: `dpi-engine/pkg/model/flow.go` `FlowData`, stream `flows:raw`.
+Source: historical `flows:raw` schema (legacy DPI producer removed); new traffic events use the unified engine and LyFlow probe.
 
 Required fields:
 
