@@ -186,28 +186,30 @@ async function suppressSelected() {
   }
 }
 
+let loadSequence = 0
+
 async function loadAll() {
+  const sequence = ++loadSequence
   loading.value = true
   error.value = ''
   try {
     const category = apiCategory()
     let data = normalizeItems(await trafficClient.threatCategory(category, params()))
-    if (category === 'traffic') {
-      const component = normalizeItems(await trafficClient.componentAlerts(category, params()))
-      const seen = new Set(data.items.map((item) => item.id || item.message_id))
-      const extra = component.items.filter((item) => !isProtectionHeartbeat(item) && !seen.has(item.id || item.message_id))
-      data = { items: [...data.items, ...extra], total: Number(data.total) + extra.length }
-    } else if (!data.items.length && Number(data.total || 0) === 0) {
+    // Traffic threats are materialized in PostgreSQL. Only use the Redis
+    // component stream as a first-load fallback while the backfill catches
+    // up; merging it on every query makes items appear and disappear.
+    if (!data.items.length && Number(data.total || 0) === 0) {
       data = normalizeItems(await trafficClient.componentAlerts(category, params()))
     }
+    if (sequence !== loadSequence) return
     const visibleItems = data.items.filter((item) => !isProtectionHeartbeat(item))
     threats.value = visibleItems.map(normalizeAlert)
     total.value = Math.max(0, Number(data.total) - (data.items.length - visibleItems.length))
     hasLoaded.value = true
   } catch (e) {
-    error.value = e?.message || '无法读取威胁告警'
+    if (sequence === loadSequence) error.value = e?.message || '无法读取威胁告警'
   } finally {
-    loading.value = false
+    if (sequence === loadSequence) loading.value = false
   }
 }
 function isProtectionHeartbeat(item) {

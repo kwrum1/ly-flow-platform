@@ -6942,9 +6942,6 @@ func persistThreatEvent(ctx context.Context, cfg *Config, event map[string]inter
 	if shouldSuppressTrafficNoiseEvent(event) {
 		return nil
 	}
-	if trafficThreatHasNoFlowContext(event) {
-		return nil
-	}
 	applyTrafficNoisePolicy(event)
 	severity := strings.ToLower(xdrPickString(event, "severity"))
 	if severity == "" || severity == "info" || xdrEventIsSyntheticNoise(event) || xdrEventIsInformationalTelemetry(event) {
@@ -7122,9 +7119,6 @@ func trafficThreatFromXDREvent(event map[string]interface{}) map[string]interfac
 
 func threatFromXDREvent(event map[string]interface{}, category string) map[string]interface{} {
 	if shouldSuppressTrafficNoiseEvent(event) {
-		return nil
-	}
-	if trafficThreatHasNoFlowContext(event) {
 		return nil
 	}
 	applyTrafficNoisePolicy(event)
