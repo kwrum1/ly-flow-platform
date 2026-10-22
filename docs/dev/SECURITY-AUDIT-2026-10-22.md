@@ -36,6 +36,20 @@
 - 总览 Incident 查询使用实时同步，活动 Incident 数量与攻击链页面一致。
 - Agent 重命名、白名单操作均从当前页面即时刷新。
 
+## 5.1 LyFlow 安全引擎 / LyFlow 探针异常
+
+根因有两个：
+
+- Redis 的 `flows:semantic` 和 `telemetry:traffic` 长期未清理，占用约 5.4 GB；Redis 达到 8 GB `maxmemory/noeviction` 后，安全引擎无法创建 `telemetry:traffic` consumer group，持续重启并显示异常。
+- LyFlow 探针的活跃判断优先使用 payload 内的时间戳；镜像流的 payload 时间可能落后于 Redis 投递时间，导致探针被误判为未运行。
+
+修复：
+
+- Redis 流保留与业务历史解耦，默认 `REDIS_STREAM_RETENTION_HOURS=2`；历史审计仍由 PostgreSQL/ClickHouse 保存。
+- 清理列表补齐 `flows:semantic`、`telemetry:traffic`、`telemetry:runtime`、`telemetry:rasp`、`telemetry:log_audit`、`logs:raw`、`events:dead-letter`。
+- 探针活跃判断使用 payload 时间与 Redis message ID 中较新的时间。
+- 验证：Redis 从约 5.2 GB 降至约 1 GB；安全引擎 `healthy/running`，`degraded=false`；LyFlow 探针 `running=true`。
+
 ## 6. 验证
 
 - `server/cmd`、`server/incidentlifecycle` 测试通过。

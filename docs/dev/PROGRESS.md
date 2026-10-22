@@ -911,3 +911,9 @@
 - 引擎运行时接口健康超时改为 degraded 200，避免 503 导致页面数据缺失。
 - 修复攻击链默认 active 筛选在前后端重复过滤导致活动 Incident 显示为空的问题。
 - 验证：活动 Incident 可见，Agent 重命名成功，白名单增删成功，页面无 API/console 错误。详细记录见 `docs/dev/SECURITY-AUDIT-2026-10-22.md`。
+
+## 2026-10-22 Redis OOM 导致安全引擎/探针异常
+
+- 根因：Redis `flows:semantic` 与 `telemetry:traffic` 未纳入清理，达到 8GB maxmemory 后安全引擎无法创建 consumer group，持续重启；探针因 payload 时间落后被误判。
+- 修复：Redis 流保留默认 2 小时（`REDIS_STREAM_RETENTION_HOURS=2`），清理全部实时流；探针活跃判断改用 payload 时间与 Redis message ID 的较新值。
+- 生产：Redis 降至约 1GB；安全引擎 healthy/running、degraded=false；LyFlow 探针 running=true。

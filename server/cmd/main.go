@@ -8252,9 +8252,18 @@ func runLogRetention(cfg *Config) {
 		log.Printf("日志磁盘清理触发: usage=%.1f%% threshold=%d%% cleanup_before_days=%d", usage, threshold, cleanupDays)
 	}
 	cutoff := time.Now().AddDate(0, 0, -cleanupDays)
-	cleanupRedisStreams(cfg, cutoff)
+	// Redis is a real-time bus, not the 30-day audit store. Keeping 180 days
+	// of flows/sessions there exhausts maxmemory and makes the security engine
+	// unable to create consumer groups. Historical events live in PostgreSQL
+	// and ClickHouse, so trim the bus independently.
+	redisRetentionHours := toInt(getEnv("REDIS_STREAM_RETENTION_HOURS", "2"))
+	if redisRetentionHours <= 0 {
+		redisRetentionHours = 2
+	}
+	redisCutoff := time.Now().Add(-time.Duration(redisRetentionHours) * time.Hour)
+	cleanupRedisStreams(cfg, redisCutoff)
 	cleanupPostgresEvents(cfg, cutoff)
-	log.Printf("日志保留策略完成: retention_days=%d effective_cleanup_days=%d cutoff=%s disk_usage=%.1f%%", retentionDays, cleanupDays, cutoff.Format(time.RFC3339), usage)
+	log.Printf("日志保留策略完成: retention_days=%d redis_stream_retention_hours=%d effective_cleanup_days=%d cutoff=%s disk_usage=%.1f%%", retentionDays, redisRetentionHours, cleanupDays, cutoff.Format(time.RFC3339), usage)
 }
 
 func cleanupRedisStreams(cfg *Config, cutoff time.Time) {
@@ -8263,8 +8272,12 @@ func cleanupRedisStreams(cfg *Config, cutoff time.Time) {
 	}
 	ctx := context.Background()
 	minID := fmt.Sprintf("%d-0", cutoff.UnixMilli())
-	for _, stream := range []string{"flows:raw", "sessions:semantic", "alerts:dpi", "alerts:xdr", "events:xdr",
-		"component_alerts:v2", "alerts:runtime", "alerts:rasp", "alerts:log_audit", "telemetry:rasp"} {
+	for _, stream := range []string{
+		"flows:raw", "flows:semantic", "sessions:semantic", "logs:raw",
+		"alerts:dpi", "alerts:xdr", "events:xdr", "events:dead-letter",
+		"component_alerts:v2", "alerts:runtime", "alerts:rasp", "alerts:log_audit",
+		"telemetry:traffic", "telemetry:runtime", "telemetry:rasp", "telemetry:log_audit",
+	} {
 		if err := cfg.Redis.Do(ctx, "XTRIM", stream, "MINID", minID).Err(); err != nil && err != redis.Nil {
 			log.Printf("Redis日志流清理失败: stream=%s err=%v", stream, err)
 		}

@@ -203,9 +203,13 @@ func lyprobeRecentFlowFromMessages(msgs []redis.XMessage, now time.Time, window 
 			continue
 		}
 		at := parseEventTime(payload)
-		if at.IsZero() {
-			if millis, err := strconv.ParseInt(strings.Split(msg.ID, "-")[0], 10, 64); err == nil {
-				at = time.UnixMilli(millis)
+		// The payload timestamp can lag stream delivery (or come from an
+		// upstream clock). For liveness, the Redis message ID is the time the
+		// probe actually published the record; use the newer of the two.
+		if millis, err := strconv.ParseInt(strings.Split(msg.ID, "-")[0], 10, 64); err == nil {
+			streamAt := time.UnixMilli(millis)
+			if at.IsZero() || streamAt.After(at) {
+				at = streamAt
 			}
 		}
 		if at.IsZero() || at.Before(now.Add(-window)) {

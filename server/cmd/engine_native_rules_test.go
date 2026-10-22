@@ -48,6 +48,11 @@ func TestLyprobeRecentFlowFromMessages(t *testing.T) {
 			wantOK: true,
 		},
 		{
+			name:   "fresh stream delivery wins over stale payload clock",
+			msgs:   []redis.XMessage{lyprobeFlowMessage(fmt.Sprintf("%d-0", now.Add(-time.Minute).UnixMilli()), fmt.Sprintf(`{"source":"local-mirror-capture","capture_source":"mirror","timestamp":%q}`, old))},
+			wantOK: true,
+		},
+		{
 			name:   "invalid payload is ignored",
 			msgs:   []redis.XMessage{lyprobeFlowMessage("1-0", `{invalid`)},
 			wantOK: false,
