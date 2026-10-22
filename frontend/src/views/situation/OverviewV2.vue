@@ -101,7 +101,7 @@
       <article class="sx-panel trend-panel">
         <div class="sx-panel-head">
           <div class="sx-panel-title">检测活动趋势</div>
-          <div class="sx-panel-meta">{{ ready.events ? `按严重度堆叠 · 最近 ${eventItems.length} 条事件` : '正在读取检测样本' }}</div>
+          <div class="sx-panel-meta">{{ ready.events ? `最近 10 分钟原始检测事件 · 最近 ${eventItems.length} 条（不等同 Incident）` : '正在读取检测样本' }}</div>
         </div>
         <div class="sx-panel-body trend-body">
           <div v-if="ready.events && trendRows.length" ref="trendElement" class="chart-box trend-chart" />
