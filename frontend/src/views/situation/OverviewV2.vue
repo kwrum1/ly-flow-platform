@@ -57,7 +57,7 @@
           <span class="sx-metric-note">{{ ready.unified || ready.stats ? `最近 10 分钟 · 当前样本 ${ready.events ? eventItems.length : '…'} 条` : '正在汇总最近 10 分钟事件' }}</span>
         </article>
         <article class="sx-metric">
-          <span class="sx-metric-label"><i />高危 / 严重</span>
+          <span class="sx-metric-label"><i />未闭环高危 / 严重</span>
           <strong class="sx-metric-value danger">{{ incidentsReady ? formatNumber(highRiskCount) : '—' }}</strong>
           <span class="sx-metric-note">{{ incidentsReady ? highRiskNote : '正在汇总未闭环 Incident' }}</span>
         </article>
@@ -115,13 +115,13 @@
       <div class="overview-side">
         <article class="sx-panel severity-panel">
           <div class="sx-panel-head">
-            <div class="sx-panel-title">告警等级构成</div>
-            <span class="sx-panel-meta">{{ ready.unified ? '有等级告警' : '加载中' }}</span>
+            <div class="sx-panel-title">未闭环 Incident 等级</div>
+            <span class="sx-panel-meta">{{ incidentsReady ? '与上方高风险口径一致' : '加载中' }}</span>
           </div>
           <div class="sx-panel-body severity-body">
-            <div v-if="ready.unified && severityTotal" ref="severityElement" class="chart-box severity-chart" />
-            <div v-else class="sx-empty"><div><strong>{{ ready.unified ? '暂无告警等级数据' : '正在读取告警构成' }}</strong>{{ ready.unified ? '等待检测引擎上报。' : '统一告警聚合返回后展示。' }}</div></div>
-            <div v-if="ready.unified" class="severity-list">
+            <div v-if="incidentsReady && severityTotal" ref="severityElement" class="chart-box severity-chart" />
+            <div v-else class="sx-empty"><div><strong>{{ incidentsReady ? '暂无未闭环 Incident' : '正在读取 Incident 等级' }}</strong>{{ incidentsReady ? '闭环 Incident 不再计入。' : 'Incident 返回后展示。' }}</div></div>
+            <div v-if="incidentsReady" class="severity-list">
               <div v-for="item in severityRows" :key="item.key">
                 <span><i :style="{ background: item.color }" />{{ item.label }}</span>
                 <b>{{ formatNumber(item.count) }}</b>
@@ -310,11 +310,15 @@ const pendingApprovalCount = computed(() => (responseActions.value.items || []).
 const riskScore = computed(() => {
   if (!activeIncidentList.value.length) return 100
   const weights = { critical: 35, high: 18, medium: 8, low: 2 }
-  return Math.min(100, activeIncidentList.value.reduce((sum, item) => sum + (weights[item.severity] || 0), 0))
+  const penalty = activeIncidentList.value.reduce((sum, item) => sum + (weights[item.severity] || 0), 0)
+  return Math.max(0, 100 - penalty)
 })
 const riskTone = computed(() => {
   if (!activeIncidentList.value.length) return 'low'
-  return riskScore.value >= 70 ? 'critical' : riskScore.value >= 40 ? 'high' : 'medium'
+  if (activeIncidentList.value.some((item) => item.severity === 'critical')) return 'critical'
+  if (activeIncidentList.value.some((item) => item.severity === 'high')) return 'high'
+  if (activeIncidentList.value.some((item) => item.severity === 'medium')) return 'medium'
+  return 'low'
 })
 const riskToneLabel = computed(() => severityLabel(riskTone.value))
 const riskLabel = computed(() => ({ critical: '严重风险', high: '高风险', medium: '中风险', low: '低风险' })[riskTone.value] || '低风险')
@@ -376,8 +380,12 @@ const activeIncidents = computed(() => normalizedIncidents.value.filter((item) =
 const topAssets = computed(() => (assets.value.items || []).slice(0, 4))
 const recentEvents = computed(() => [...eventItems.value].sort((a, b) => timestampMs(b) - timestampMs(a)).slice(0, 7))
 const severityRows = computed(() => {
-  const source = unified.value.by_severity || {}
-  return severityDefinitions.map((item) => ({ ...item, count: Number(source[item.key] || 0) })).filter((item) => item.count > 0)
+  const counts = { critical: 0, high: 0, medium: 0, low: 0 }
+  for (const incident of activeIncidentList.value) {
+    const key = String(incident.severity || 'low').toLowerCase()
+    if (counts[key] !== undefined) counts[key] += 1
+  }
+  return severityDefinitions.map((item) => ({ ...item, count: counts[item.key] || 0 })).filter((item) => item.count > 0)
 })
 const severityTotal = computed(() => severityRows.value.reduce((sum, item) => sum + item.count, 0))
 const sourceRows = computed(() => {
