@@ -167,6 +167,7 @@ services:
       SECURITY_ENGINE_RULE_TRUST_ROOT: /var/lib/lyflow/policy/trust/rule-root.pem
       SECURITY_ENGINE_BUNDLE_ROOT: /app/rules
       SECURITY_ENGINE_CONTROL_TOKEN: ${SECURITY_ENGINE_CONTROL_TOKEN:?SECURITY_ENGINE_CONTROL_TOKEN must be set}
+      SECURITY_ENGINE_CPU_BUDGET_MS: "1000"
       SECURITY_ENGINE_RELOAD_AUDIT_PATH: /var/lib/lyflow/audit/reload.jsonl
     volumes:
       - security_engine_data:/data

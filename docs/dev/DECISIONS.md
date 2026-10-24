@@ -145,3 +145,11 @@
 - 原因：受害主机可能没有运行时 Agent，等待多阶段关联会漏掉镜像侧看到的横向利用；永久屏蔽规则又会制造盲区。
 - 实现：持久化 threat_events 作为候选源，Incident 使用确定性 ID；白名单继承 xdr-response-policy suppression，可查看、添加和移除。
 - 后果：单事件 Incident 可能增加处置量，但比漏报更安全；白名单到期自动恢复检测。
+
+## D-018 内网横向 Incident 聚合与实时流短保留
+
+- 日期：2026-10-24
+- 决策：同一来源 IP、受害 IP、规则 ID 的流量告警聚合为一个 Incident；Redis 实时流默认保留 2 小时，历史由 PostgreSQL/ClickHouse 承担；安全引擎 CPU 预算生产默认 1000ms。
+- 原因：逐事件 Incident 在扫描流量下产生数百条重复队列；Redis 保存 180 天实时流导致 maxmemory OOM；100ms CPU 预算无法处理正常镜像流量。
+- 实现：候选按三维键聚合，事件作为证据时间线；Redis 清理覆盖全部流并 15 分钟执行；生产 compose 设置 CPU 预算。
+- 后果：活动 Incident 数量可解释；Redis 不再因历史流撑满；引擎可在正常负载下稳定运行。

@@ -309,9 +309,14 @@ const ruleTotal = computed(() => Number(ruleStats.value.totalRules || ruleStats.
 const pendingApprovalCount = computed(() => (responseActions.value.items || []).filter((item) => item.status === 'pending_approval').length)
 const riskScore = computed(() => {
   if (!activeIncidentList.value.length) return 100
-  const weights = { critical: 35, high: 18, medium: 8, low: 2 }
-  const penalty = activeIncidentList.value.reduce((sum, item) => sum + (weights[item.severity] || 0), 0)
-  return Math.max(0, 100 - penalty)
+  const severityBase = { critical: 20, high: 50, medium: 75, low: 90 }
+  const tone = activeIncidentList.value.some((item) => item.severity === 'critical')
+    ? 'critical'
+    : activeIncidentList.value.some((item) => item.severity === 'high')
+      ? 'high'
+      : activeIncidentList.value.some((item) => item.severity === 'medium') ? 'medium' : 'low'
+  const volumePenalty = Math.min(15, Math.max(0, activeIncidentList.value.length - 1) * 2)
+  return Math.max(10, (severityBase[tone] || 90) - volumePenalty)
 })
 const riskTone = computed(() => {
   if (!activeIncidentList.value.length) return 'low'

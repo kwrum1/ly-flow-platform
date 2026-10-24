@@ -917,3 +917,12 @@
 - 根因：Redis `flows:semantic` 与 `telemetry:traffic` 未纳入清理，达到 8GB maxmemory 后安全引擎无法创建 consumer group，持续重启；探针因 payload 时间落后被误判。
 - 修复：Redis 流保留默认 2 小时（`REDIS_STREAM_RETENTION_HOURS=2`），清理全部实时流；探针活跃判断改用 payload 时间与 Redis message ID 的较新值。
 - 生产：Redis 降至约 1GB；安全引擎 healthy/running、degraded=false；LyFlow 探针 running=true。
+
+## 2026-10-24 生产运行优化与误报治理
+
+- Redis 实时流保留默认 2 小时、清理周期 15 分钟，覆盖 flows:semantic/telemetry:traffic 等全部实时流；Redis 从约 5.2GB 降至约 1GB。
+- 安全引擎生产 CPU 预算调整为 1000ms，重启计数归零；LyFlow 探针恢复 running。
+- 内网横向候选按来源/受害/规则聚合；历史 240 个逐事件重复 Incident 已闭环，当前活动 Incident 13 条。
+- GPL POLICY PCAnywhere 默认加入噪声策略；高频 XSS 不再逐事件生成 Incident。
+- 总览安全评分与未闭环 Incident 等级使用同一口径；原始事件趋势明确标注不等同 Incident。
+- 详细记录：`docs/dev/PRODUCTION-OPTIMIZATION-2026-10-24.md`。

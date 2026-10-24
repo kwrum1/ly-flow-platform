@@ -175,7 +175,17 @@ func syncTrafficIncidentCandidatesWithStore(ctx context.Context, cfg *Config, st
 		return fmt.Errorf("query internal traffic candidates: %w", err)
 	}
 	defer rows.Close()
-	candidates := make([]incidentlifecycle.Candidate, 0)
+	type trafficGroup struct {
+		source    string
+		victim    string
+		ruleID    string
+		ruleName  string
+		severity  string
+		firstSeen time.Time
+		lastSeen  time.Time
+		evidence  []incidentlifecycle.Evidence
+	}
+	groups := map[string]*trafficGroup{}
 	seen := map[string]struct{}{}
 	policy := loadXDRResponsePolicy(cfg)
 	for rows.Next() {
@@ -200,29 +210,49 @@ func syncTrafficIncidentCandidatesWithStore(ctx context.Context, cfg *Config, st
 		seen[eventUID] = struct{}{}
 		victim := firstNonEmpty(xdrVictimIP(event), xdrVictimEntity(event), "目标资产")
 		source := firstNonEmpty(xdrSourceIP(event), "未知来源")
+		ruleID := firstNonEmpty(validRuleID(xdrPickString(event, "component_rule_id")), validRuleID(xdrPickString(event, "rule_id")), validRuleID(xdrPickString(asMap(event["native_rule"]), "id")))
 		ruleName := firstNonEmpty(xdrPickString(event, "rule_name"), xdrPickString(event, "message"), "内网流量告警")
-		title := victim + " 内网横向可疑流量"
-		summary := fmt.Sprintf("%s · %s → %s", ruleName, source, victim)
-		candidates = append(candidates, incidentlifecycle.Candidate{
-			IncidentID:     "inc-traffic-" + safeID(eventUID),
-			SourceChainID:  "chain-traffic-" + safeID(eventUID),
-			CorrelationKey: "traffic:" + source + "->" + victim,
-			Title:          title,
-			Summary:        summary,
-			Severity:       xdrPickString(event, "severity"),
-			FirstSeen:      observedAt.UTC(),
-			LastSeen:       observedAt.UTC(),
-			Evidence: []incidentlifecycle.Evidence{{
-				EventUID:      eventUID,
-				SourceNodeUID: "traffic-node-" + eventUID,
-				Stage:         firstNonEmpty(incidentStage(event), "lateral_movement"),
-				ObservedAt:    observedAt.UTC(),
-				Raw:           []byte(raw),
-			}},
+		key := source + "|" + victim + "|" + firstNonEmpty(ruleID, ruleName)
+		group := groups[key]
+		if group == nil {
+			group = &trafficGroup{source: source, victim: victim, ruleID: ruleID, ruleName: ruleName, severity: xdrPickString(event, "severity")}
+			groups[key] = group
+		}
+		if group.firstSeen.IsZero() || observedAt.Before(group.firstSeen) {
+			group.firstSeen = observedAt.UTC()
+		}
+		if observedAt.After(group.lastSeen) {
+			group.lastSeen = observedAt.UTC()
+		}
+		if severityRank(xdrPickString(event, "severity")) > severityRank(group.severity) {
+			group.severity = xdrPickString(event, "severity")
+		}
+		group.evidence = append(group.evidence, incidentlifecycle.Evidence{
+			EventUID:      eventUID,
+			SourceNodeUID: "traffic-node-" + eventUID,
+			Stage:         firstNonEmpty(incidentStage(event), "lateral_movement"),
+			ObservedAt:    observedAt.UTC(),
+			Raw:           []byte(raw),
 		})
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("iterate internal traffic candidates: %w", err)
+	}
+	candidates := make([]incidentlifecycle.Candidate, 0, len(groups))
+	for key, group := range groups {
+		title := group.victim + " 内网横向可疑流量"
+		summary := fmt.Sprintf("%s · %s → %s · %d 条证据", group.ruleName, group.source, group.victim, len(group.evidence))
+		candidates = append(candidates, incidentlifecycle.Candidate{
+			IncidentID:     "inc-traffic-" + safeID(key),
+			SourceChainID:  "chain-traffic-" + safeID(key),
+			CorrelationKey: "traffic:" + group.source + "->" + group.victim,
+			Title:          title,
+			Summary:        summary,
+			Severity:       group.severity,
+			FirstSeen:      group.firstSeen,
+			LastSeen:       group.lastSeen,
+			Evidence:       group.evidence,
+		})
 	}
 	if len(candidates) == 0 {
 		return nil

@@ -6947,6 +6947,9 @@ func shouldSuppressTrafficNoiseEvent(event map[string]interface{}) bool {
 			// GPL NETBIOS SMB NT Trans NT creates a false positive on
 			// several SMB stacks and is disabled from first install.
 			"et-open-2103018",
+			// Policy rules for legacy PCAnywhere discovery are informational
+			// and otherwise dominate the traffic feed.
+			"et-open-2100566",
 		},
 		[]string{
 			"SURICATA TRAFFIC-ID: Ubuntu APT-GET",
@@ -6955,6 +6958,7 @@ func shouldSuppressTrafficNoiseEvent(event map[string]interface{}) bool {
 			"MALWARE-CNC Win.Backdoor.Chopper web shell connection",
 			"NETBIOS SMB Trans2 QUERY_FILE_INFO attempt",
 			"GPL NETBIOS SMB NT Trans NT",
+			"GPL POLICY PCAnywhere server response",
 			"FILE-IDENTIFY Portable Executable binary file magic detected",
 			"INDICATOR-COMPROMISE Potential Redirect from Compromised WordPress site to Fedex",
 			"SURICATA TRAFFIC-ID: google",
@@ -8229,7 +8233,7 @@ func eventInTimeRange(event map[string]interface{}, startTime, endTime *time.Tim
 
 func startLogRetentionWorker(cfg *Config) {
 	runLogRetention(cfg)
-	ticker := time.NewTicker(6 * time.Hour)
+	ticker := time.NewTicker(15 * time.Minute)
 	defer ticker.Stop()
 	for range ticker.C {
 		runLogRetention(cfg)
