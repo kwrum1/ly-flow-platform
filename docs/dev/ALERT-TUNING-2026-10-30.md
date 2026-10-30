@@ -345,41 +345,83 @@ threat_events: .125 = 0, .241 = 635
 - `runtime-suspicious-download-default` 会匹配管理员正常 `curl/wget` 下载；
 - 这两条尚未造成大规模噪声，等出现样本后再改。
 
-## Sigma ???????2026-10-30 ????
+## Sigma 转换失真修复（2026-10-30 第二轮）
 
-?????`???? ? ??????` ?? `Successful IIS Shortname Fuzzing Scan`?
-11 ???? 604 ??????? `10.1.18.8` ? auth.log ?????
-?`agetty: failed to get terminal attributes`??
+现场表现：态势总览的“检测活动趋势”只剩 `Successful IIS Shortname Fuzzing Scan`，
+11 分钟聚合 604 次命中；对应的原始日志是 `10.1.18.8` 上正常的
+`agetty: failed to get terminal attributes`。
 
-??????? Sigma ? selection ?????????????
+根因：转换器把 Sigma 的 selection 条件拍平成单个“或”正则：
 
 ```json
 {"field":"message","operator":"regex","value":"(?i)(a\\.aspx|GET|OPTIONS|~1)"}
 ```
 
-???????? + URI + ?????**?**?????? `GET` ???????
-???? ?get? ????????????????
+上游规则是“方法 + URI + 状态码”的**与**关系，转换后 `GET` 单独即可命中，
+任何包含 “get” 的日志行都会被判成成功短名爆破。
 
-???
-- `sigmaConditions` ?? Sigma ?????
-  - ? selection ???????????????? AND ????
-  - `1 of` / ?? `or` ???????????? selection ???????
-  - `all of` / `and` ????????
-  - ??????????????????????
-- ?? `sigmaConditionValueIsSpecific` / `sigmaConditionHasWeakAlternation` /
-  `compiledRuleIsOverBroad`?
-  - ???????? `GET/POST/OPTIONS/HEAD/HTTP/true` ????????
-  - ?????????????????????????
-  - ??? bundle ?????????????????????
-- Sigma ?????? `cs-method`?`cs-uri-query`?`c-ip` ????????????
-  ????????? message?
-- `rulePlatformParserVersion` ?? `2026-10-30.7`???????? bundle?
+修复：
 
-?????10.1.18.125 ?? bundle??
-- ??? 476 ? 428?log_audit 130 ? 98?runtime 100 ? 84?traffic 185 ????
-- ?????? / ??????? / ????????????? **0**?
-- ?? 5 ??????? 1721 ????????? `threat_events_fp_sigma_backup_20261030`??
-  ?? 5 ?????????
+- `sigmaConditions` 保留 Sigma 布尔结构：
+  - 单个 selection 的多个字段保持为多个条件（引擎按 AND 求值）；
+  - `1 of` / 显式 `or` 才合并为正则，且要求每个 selection 只有一个字段；
+  - `all of` / `and` 展开为全部条件；
+  - 无法忠实表达的形态直接丢弃，不再降级成通配。
+- 新增 `sigmaConditionValueIsSpecific`、`sigmaConditionHasWeakAlternation`、
+  `compiledRuleIsOverBroad`：
+  - 正则分支出现裸 `GET/POST/OPTIONS/HEAD/HTTP/true` 等通用词即丢弃；
+  - 全部分支都弱、或规则没有任何有区分度的条件时丢弃；
+  - 门禁在 bundle 构建和同步合并两处执行，历史库里的坏规则和本次新转换的规则同样受限。
+- Sigma 字段映射补齐 `cs-method`、`cs-uri-query`、`c-ip` 等，避免因为“未知字段”
+  丢规则或误落成 message。
+- `rulePlatformParserVersion` 升到 `2026-10-30.9`，强制重建运行时 bundle。
 
-?????`oisf-trafficid` ?????????`sigma-connector` ?????????
-`falco-connector`/`owasp-crs-connector` ??????????????????? bundle?
+### 同批自查发现的另外两类误报
+
+1. `[LY-CS-003] CobaltStrike DNS Beacon Long Subdomain`
+   命中 `ff1d117353cdf3d9e3cc5f9f0a1da34c.afd.footprintdns.com`（华为云 CDN 调度域名）。
+   规则只校验“24 位以上带数字的标签”，没有区分 CDN 哈希，属误报。
+   处理：`rules/ly-custom/c2.rules` 增加 `content:!"footprintdns.com"`，`rev` 升到 3，
+   已在 `10.1.18.125` 热加载（58 条规则全部成功加载）。
+
+2. `snort-community-51542 / 51544 / 51546`
+   转换后只剩 `http_path contains /upload_files`（等）三个 URL 片段条件，
+   实际命中 `GET /statics/admin/js/upload/upload_Files.js` 这种静态资源。
+   处理：加入 `retiredConvertedRuleIDs` 永久退役；同时 `mergeCompiledRuntimeRules`
+   对本次同步新转换的规则套用同一套门禁，避免“库里没有、同步又带回来”。
+
+### 清理与结果
+
+删除误报事件 1721（Sigma 5 条规则）+ 4（LY-CS-003）+ 1（snort）+ 14（YARA 自测），
+分别备份在 `threat_events_fp_sigma_backup_20261030`、`threat_events_fp_cdn_backup_20261030`、
+`threat_events_fp_snort_backup_20261030`、`threat_events_fp_yara_selftest_backup_20261030`。
+
+运行时 bundle 最终 425 条（traffic 182 / log_audit 98 / runtime 84 / rasp 59 / artifact 2），
+按“通用分支 / 无有区分度条件 / 单条件过弱”审计为 0；`threat_events` 只剩 3 条真实的 sudo 提权信号。
+
+已知边界：`oisf-trafficid` 无运行时兼容规则、`sigma-connector` 无可严格解析规则、
+`falco-connector`/`owasp-crs-connector` 本次拉取超时，均按失败上报，不进入激活 bundle。
+
+## 引擎健康：不再伪造 adapter 状态（2026-10-30 第三轮）
+
+Agent 的引擎健康曾出现矛盾行：Suricata 显示“未启用”，却带
+`版本 ly-agent-adapter`、`规则包 et-open-active`。
+
+- 根因一：`Apply` 在“已启用但二进制不存在”时，把除 YARA 外的引擎直接写成
+  `installed=true / running=true / version=ly-agent-adapter`。
+- 根因二：禁用后没有清空旧版本和规则包，历史值残留。
+- 根因三：真正运行的 Suricata 在镜像容器里，Agent 看不到，页面因此没有任何“运行中”的 Suricata。
+
+修复：
+
+- 引擎状态每次 `Apply` 重建；缺失二进制就是 `installed=false / running=false`，
+  没有版本和规则包，并写 `last_error`；只有进程内 RASP 桥保留 `ly-agent-adapter`。
+- 禁用引擎清空版本和规则包。
+- 端点 Agent 不承载的引擎不再出现在“引擎健康”表里。
+- 服务端直接读取镜像传感器的 EVE 输出（`suricataRuntimeStatus`），
+  以“流量镜像分析”主机名上报 Suricata 的运行状态、最后事件和活动规则包名；
+  同一份状态也合并进 `/api/v1/engine-runtime/status`。
+
+实测（`10.1.18.125`）：`engine-health` 返回 rasp/yara（ubuntu 主机）和
+suricata（流量镜像分析，running=true，规则包 `stamus-lateral-sync-20261030t094143z`），
+不再出现“未启用 + adapter”矛盾行。

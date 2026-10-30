@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"io"
 	"maps"
 	"net/http"
 	"os"
@@ -137,6 +138,9 @@ func nativeEngineStatusHandler(cfg *Config) http.HandlerFunc {
 		trafficRuntime["rule_file_count"] = trafficCount.RuleFileCount
 		trafficRuntime["count_source"] = trafficCount.Source
 		trafficRuntime["ledger_digest"] = trafficCount.LedgerDigest
+		for key, value := range suricataRuntimeStatus(time.Now()) {
+			trafficRuntime[key] = value
+		}
 		ruleRoot := firstNonEmpty(os.Getenv("ENGINE_RULE_ROOT"), "rules")
 		lyprobeRules := loadLyprobeRules(filepath.Join(ruleRoot, "lyprobe", "threat.json"))
 		lyprobeRuntime := map[string]interface{}{
@@ -463,4 +467,87 @@ func lyprobeManifestVersion(path string) string {
 		return "lyprobe-local"
 	}
 	return manifest.GeneratedAt
+}
+
+// suricataRuntimeStatus reports the mirror sensor from its EVE output. The
+// agent supervisors cannot see this engine because it runs in the capture
+// container, not on an endpoint.
+func suricataRuntimeStatus(now time.Time) map[string]interface{} {
+	path := firstNonEmpty(os.Getenv("SURICATA_EVE_PATH"), ".sisyphus/runtime/engine-outputs/suricata-profile/eve.json")
+	info, err := os.Stat(path)
+	if err != nil {
+		return map[string]interface{}{
+			"installed": false, "running": false, "status": "unavailable",
+			"last_error": "suricata eve output not found", "output_path": path,
+		}
+	}
+	running := now.Sub(info.ModTime()) <= 3*time.Minute
+	state := "stalled"
+	if running {
+		state = "running"
+	}
+	status := map[string]interface{}{
+		"installed":     true,
+		"running":       running,
+		"status":        state,
+		"output_path":   path,
+		"last_event_at": info.ModTime().UTC().Format(time.RFC3339Nano),
+	}
+	if version := suricataVersionFromEVE(path); version != "" {
+		status["version"] = version
+	}
+	return status
+}
+
+// suricataVersionFromEVE reads the last stats record instead of shelling out to
+// the binary, which lives in a different container.
+func suricataVersionFromEVE(path string) string {
+	handle, err := os.Open(path)
+	if err != nil {
+		return ""
+	}
+	defer handle.Close()
+	info, err := handle.Stat()
+	if err != nil {
+		return ""
+	}
+	const window = 2 << 20
+	offset := info.Size() - window
+	if offset < 0 {
+		offset = 0
+	}
+	if _, err := handle.Seek(offset, io.SeekStart); err != nil {
+		return ""
+	}
+	data, err := io.ReadAll(io.LimitReader(handle, window))
+	if err != nil {
+		return ""
+	}
+	lines := strings.Split(string(data), "\n")
+	for index := len(lines) - 1; index >= 0; index-- {
+		line := strings.TrimSpace(lines[index])
+		if !strings.Contains(line, `"event_type":"stats"`) {
+			continue
+		}
+		var record struct {
+			Suricata struct {
+				Version string `json:"version"`
+			} `json:"suricata"`
+		}
+		if json.Unmarshal([]byte(line), &record) == nil && record.Suricata.Version != "" {
+			return record.Suricata.Version
+		}
+	}
+	return ""
+}
+
+func activeBundleVersion(ctx context.Context, cfg *Config) string {
+	if cfg == nil || cfg.DBPool == nil {
+		return ""
+	}
+	var version string
+	if err := cfg.DBPool.QueryRow(ctx, `SELECT version FROM rule_bundles WHERE status='active' ORDER BY activated_at DESC LIMIT 1`).Scan(&version); err != nil {
+		return ""
+	}
+	return version
 }

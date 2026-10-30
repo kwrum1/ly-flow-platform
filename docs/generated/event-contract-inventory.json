@@ -3621,6 +3621,7 @@
       "kind": "consumer",
       "path": "server/cmd/engine_native_rules.go",
       "symbols": [
+        "activeBundleVersion",
         "applyNativeRuleOverride",
         "between",
         "hasExt",
@@ -3639,7 +3640,9 @@
         "parseWazuhRule",
         "parseYARARule",
         "scanNativeEngineRules",
-        "scanRuleFiles"
+        "scanRuleFiles",
+        "suricataRuntimeStatus",
+        "suricataVersionFromEVE"
       ],
       "roles": [
         "consumer"
@@ -8322,6 +8325,7 @@
       "kind": "stream",
       "path": "server/cmd/engine_native_rules.go",
       "symbols": [
+        "activeBundleVersion",
         "applyNativeRuleOverride",
         "between",
         "hasExt",
@@ -8340,7 +8344,9 @@
         "parseWazuhRule",
         "parseYARARule",
         "scanNativeEngineRules",
-        "scanRuleFiles"
+        "scanRuleFiles",
+        "suricataRuntimeStatus",
+        "suricataVersionFromEVE"
       ],
       "roles": [
         "stream"

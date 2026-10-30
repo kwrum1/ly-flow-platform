@@ -68,3 +68,6 @@ outputs:
         - stats:
             totals: yes
             threads: no
+
+stats:
+  interval: 60

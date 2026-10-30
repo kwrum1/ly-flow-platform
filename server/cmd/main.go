@@ -6893,6 +6893,11 @@ func loadEngineHealth(ctx context.Context, cfg *Config) ([]map[string]interface{
 			if state == "adapter_active" && !running {
 				running = true
 			}
+			if !installed && !running {
+				// The endpoint agent simply does not host this engine. Listing it
+				// as "???" made a running mirror sensor look switched off.
+				continue
+			}
 			var lastEvent interface{}
 			if raw := asString(engine["last_event_at"]); raw != "" {
 				if parsed, err := time.Parse(time.RFC3339Nano, raw); err == nil && !parsed.IsZero() {
@@ -6918,7 +6923,33 @@ func loadEngineHealth(ctx context.Context, cfg *Config) ([]map[string]interface{
 			})
 		}
 	}
-	return items, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if runtime := suricataRuntimeStatus(time.Now()); asBool(runtime["running"]) {
+		var lastEvent interface{}
+		if raw := asString(runtime["last_event_at"]); raw != "" {
+			lastEvent = raw
+		}
+		items = append(items, map[string]interface{}{
+			"agent_id":          "local-mirror-sensor",
+			"hostname":          "流量镜像分析",
+			"ip":                "",
+			"agent_status":      "online",
+			"last_heartbeat":    time.Now().UTC().Format(time.RFC3339Nano),
+			"engine":            "suricata",
+			"installed":         true,
+			"running":           true,
+			"state":             "running",
+			"version":           asString(runtime["version"]),
+			"config_hash":       "",
+			"rule_pack_version": activeBundleVersion(ctx, cfg),
+			"output_path":       asString(runtime["output_path"]),
+			"last_error":        "",
+			"last_event_at":     lastEvent,
+		})
+	}
+	return items, nil
 }
 
 func engineCapabilityStateFromMetadata(name string, capabilities map[string]interface{}) (bool, bool) {

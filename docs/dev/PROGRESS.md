@@ -1592,16 +1592,27 @@
   `.8` 仍注册在 `.241`；EVE copytruncate 可能丢少量原始行。
 - 结论：数据链路闭环，可进入生产测试。
 - 文档：`docs/dev/DETECTION-ACCEPTANCE-2026-10-30.md`
-## 2026-10-30 ?????????? CI ??
 
-- README ??????????
-  - 9 ?????AF_PACKET ??????????????EVE ??/????????
-  - ??? PF_RING?????????????
-- ?????????
-  - overview / incidents / events / threats / assets / health / rules / settings / mobile?
-  - ?? dashboard?runtime?response?global-situation?traffic-observe ????
-- ?? `docs/zh/???????????.md`?`docs/README.md`?`docs/GITHUB-CI.md`?
-- CI ???
-  - ?? security-engine ???
-  - server/cmd ????????????EVE ????????
-  - ?? Python RASP ??????????
+## 2026-10-30 仓库文案、截图、CI 与规则转换修复
+
+### 仓库与发布
+- README 重写为当前产品状态：9 容器拓扑、AF_PACKET 镜像抓包、双引擎、
+  主动防御、EVE 入库与轮转、分级保留；删除旧 PF_RING、旧验收报告链接。
+- 界面截图全部重拍：overview / incidents / events / threats / assets / health /
+  rules / settings / mobile；删除 dashboard、runtime、response、global-situation 等旧图。
+- 更新 `docs/zh/当前功能盘点与能力边界.md`、`docs/README.md`、`docs/GITHUB-CI.md`。
+- CI 增加 security-engine 测试、server/cmd 定向用例、Python RASP 测试与前端生产构建；
+  release 清理只删除自身历史运行，不再删除 CI 记录。
+
+### 规则转换保真（server）
+- Sigma selection 保留 AND 语义，`1 of` / 显式 `or` 才合成正则，无法忠实表达的形态丢弃。
+- 新增特异性门禁：通用分支（GET/POST/OPTIONS/root/...）、无区分度条件、
+  单条件过弱，在转换、bundle 构建、同步合并三处统一拦截。
+- 补齐 `cs-method`、`cs-uri-query`、`c-ip` 等字段映射；`rulePlatformParserVersion` 升到 `2026-10-30.9`。
+- 退役 `snort-community-51542/51544/51546`；`LY-CS-003` 排除 `footprintdns.com`。
+- 运行时 bundle 476 → 425 条，审计问题 0；清理 1740 条误报事件（均有备份表）。
+
+### 引擎健康
+- Agent 不再伪造 `ly-agent-adapter` 的 installed/running；禁用引擎清空版本与规则包。
+- 服务端读取镜像传感器 EVE 输出，以“流量镜像分析”主机上报 Suricata 运行状态与最后事件，
+  并合并进 `/api/v1/engine-runtime/status`。
