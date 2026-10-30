@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import tempfile
 from pathlib import Path
 from typing import Final
 from unittest import TestCase
@@ -68,7 +69,11 @@ class MockRuntimeAPIs:
         return "mock-sql-ok"
 
 
-def make_reporter(exporter: InMemoryExporter | UnavailableExporter, policy_version: int = POLICY_VERSION) -> Reporter:
+def make_reporter(
+    exporter: InMemoryExporter | UnavailableExporter,
+    policy_version: int = POLICY_VERSION,
+    fallback_path: str | None = None,
+) -> Reporter:
     reporter = Reporter.__new__(Reporter)
     reporter.config = RASPConfig(
         agent_id="conformance-agent",
@@ -76,6 +81,8 @@ def make_reporter(exporter: InMemoryExporter | UnavailableExporter, policy_versi
         mode="monitor",
         policy_version=policy_version,
         fail_behavior="monitor" if policy_version else "disable",
+        fallback_path=fallback_path
+        or str(Path(tempfile.mkdtemp(prefix="lyflow-rasp-conformance-")) / "fallback.jsonl"),
     )
     reporter.bridge_client = None
     reporter.redis_client = exporter
@@ -168,3 +175,16 @@ class TestPythonRASPConformance(TestCase):
                 "restart_count": 0,
             },
         )
+
+    def test_unwritable_fallback_does_not_break_reporting(self) -> None:
+        # Given: a spool path whose parent can never become a directory.
+        blocker = Path(tempfile.mkdtemp(prefix="lyflow-rasp-blocker-")) / "not-a-dir"
+        blocker.write_text("x", encoding="utf-8")
+        reporter = make_reporter(UnavailableExporter(), fallback_path=str(blocker / "fallback.jsonl"))
+
+        # When
+        delivered = reporter.report({"type": "sql_injection"})
+
+        # Then: the protected application still gets a normal return path.
+        self.assertFalse(delivered)
+        self.assertEqual(reporter.delivery_health()["reason"], "exporter_unavailable")

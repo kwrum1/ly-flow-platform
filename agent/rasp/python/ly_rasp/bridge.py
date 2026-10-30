@@ -98,6 +98,7 @@ class BridgeClient:
         self._publication_retry_count = 0
         self._publication_last_error = ""
         self.last_publication_error: ControlHealthPublicationError | None = None
+        self.last_fallback_error = ""
         self._validate_local_url()
 
     def report(self, event: Dict[str, Any]) -> bool:
@@ -371,12 +372,20 @@ class BridgeClient:
             record_hash = hashlib.sha256(canonical).hexdigest()
             record["record_sha256"] = record_hash
             path = Path(self.config.fallback_path)
-            path.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
-            descriptor = os.open(path, os.O_CREAT | os.O_APPEND | os.O_WRONLY, 0o640)
-            with os.fdopen(descriptor, "ab") as fallback:
-                fallback.write(json.dumps(record, separators=(",", ":")).encode("utf-8") + b"\n")
-                fallback.flush()
-                os.fsync(fallback.fileno())
+            try:
+                path.parent.mkdir(mode=0o750, parents=True, exist_ok=True)
+                descriptor = os.open(path, os.O_CREAT | os.O_APPEND | os.O_WRONLY, 0o640)
+                with os.fdopen(descriptor, "ab") as fallback:
+                    fallback.write(json.dumps(record, separators=(",", ":")).encode("utf-8") + b"\n")
+                    fallback.flush()
+                    os.fsync(fallback.fileno())
+            except OSError as error:
+                # The protected application must never fail because the local
+                # fallback spool is unavailable (read-only root, full disk,
+                # missing /var/lib). Keep the failure visible for health.
+                self.last_fallback_error = f"{type(error).__name__}: {error}"
+                return
+            self.last_fallback_error = ""
             self._previous_fallback_hash = record_hash
 
     def _load_fallback_hash(self) -> str:
