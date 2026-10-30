@@ -165,6 +165,7 @@ const stats = ref({})
 const sources = ref([])
 const quarantine = ref([])
 const engineRules = ref([])
+const engineRuntime = ref({})
 const detailRules = ref([])
 const artifactEvents = ref([])
 const togglingRule = ref('')
@@ -254,7 +255,7 @@ function buildEngineRows(payload) {
     { key: 'traffic', label: '流量聚合引擎', engines: ['suricata', 'lyprobe'] },
     { key: 'virus', label: '病毒扫描引擎', engines: ['yara', 'artifact'] },
   ]
-  return groups.map((group) => {
+  const rows = groups.map((group) => {
     const present = group.engines.filter((engine) => engine in counts)
     const count = present.reduce((sum, engine) => sum + (Number(counts[engine]) || 0), 0)
     const suricata = semantics.suricata || {}
@@ -265,6 +266,18 @@ function buildEngineRows(payload) {
       version: group.key === 'traffic' && suricata.ledger_digest ? `ledger-${String(suricata.ledger_digest).slice(0, 12)}` : '',
     }
   })
+  // The sensor loads ET Open directly; the converted flow rules above are a
+  // much smaller set and must not be presented as the signature inventory.
+  const sensor = engineRuntime.value?.engines?.suricata || {}
+  if (sensor.signature_count) {
+    rows.push({
+      engine: 'Suricata 传感器',
+      engines: 'et-open + 自写规则',
+      count: sensor.signature_count,
+      version: sensor.ruleset_updated_at ? String(sensor.ruleset_updated_at).slice(0, 10) : '',
+    })
+  }
+  return rows
 }
 
 function onYARAFile(event) {
@@ -304,12 +317,13 @@ async function clearYARA() {
 async function load() {
   loading.value = true
   error.value = ''
-  const [s, src, q, er, yp] = await Promise.allSettled([
+  const [s, src, q, er, yp, rt] = await Promise.allSettled([
     ruleClient.stats(),
     ruleClient.platformSources(),
     ruleClient.quarantine(),
     ruleClient.engineRules({ limit: 200 }),
     yaraClient.status(),
+    opsClient.engineRuntimeStatus(),
   ])
   if (s.status === 'fulfilled') stats.value = unwrap(s.value)
   if (src.status === 'fulfilled') {
@@ -327,6 +341,9 @@ async function load() {
   }
   if (yp.status === 'fulfilled') {
     yaraPack.value = unwrap(yp.value) || {}
+  }
+  if (rt.status === 'fulfilled') {
+    engineRuntime.value = unwrap(rt.value) || {}
   }
   const detailSources = await Promise.allSettled([
     ruleClient.engineRules({ engine: 'log_audit', limit: 200 }),

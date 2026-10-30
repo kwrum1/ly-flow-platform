@@ -164,7 +164,7 @@ func ingestSuricataEVELine(ctx context.Context, cfg *Config, line string) error 
 	if signature == "" {
 		signature = "Suricata alert"
 	}
-	severity := suricataSeverity(asInt(alert["severity"]))
+	severity := suricataSignatureSeverity(signature, suricataSeverity(asInt(alert["severity"])))
 	observed := parseSuricataTimestamp(asString(event["timestamp"]))
 	uid := suricataAlertUID(event)
 	raw, err := json.Marshal(sanitizeSuricataAlert(event, signature, severity))
@@ -246,4 +246,22 @@ func parseSuricataTimestamp(value string) time.Time {
 		}
 	}
 	return time.Now().UTC()
+}
+
+// lowValueSignaturePrefixes are ET Open families that describe policy drift or
+// hunting hypotheses rather than an attack. They remain useful as context, but
+// must never outrank web-attack signatures in the alert queue.
+var lowValueSignaturePrefixes = []string{
+	"ET INFO ", "ET POLICY ", "ET HUNTING ", "ET USER_AGENTS ",
+	"ET CURRENT_EVENTS ", "ET GAMES ", "ET P2P ", "ET CHAT ", "ET SNMP ",
+	"ET DNS Query for ",
+}
+
+func suricataSignatureSeverity(signature, severity string) string {
+	for _, prefix := range lowValueSignaturePrefixes {
+		if strings.HasPrefix(signature, prefix) {
+			return "low"
+		}
+	}
+	return severity
 }

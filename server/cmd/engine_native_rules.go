@@ -141,6 +141,13 @@ func nativeEngineStatusHandler(cfg *Config) http.HandlerFunc {
 		for key, value := range suricataRuntimeStatus(time.Now()) {
 			trafficRuntime[key] = value
 		}
+		if manifest, ok := loadSuricataRulesetManifest(); ok {
+			trafficRuntime["signature_count"] = manifest.TotalRules
+			trafficRuntime["et_open_signature_count"] = manifest.EtOpenRules
+			trafficRuntime["custom_signature_count"] = manifest.CustomRules
+			trafficRuntime["ruleset_updated_at"] = manifest.UpdatedAt
+			trafficRuntime["signature_source"] = manifest.Source
+		}
 		ruleRoot := firstNonEmpty(os.Getenv("ENGINE_RULE_ROOT"), "rules")
 		lyprobeRules := loadLyprobeRules(filepath.Join(ruleRoot, "lyprobe", "threat.json"))
 		lyprobeRuntime := map[string]interface{}{
@@ -550,4 +557,28 @@ func activeBundleVersion(ctx context.Context, cfg *Config) string {
 		return ""
 	}
 	return version
+}
+
+// suricataRulesetManifest is written by deploy/suricata/et-open-refresh.sh so
+// the API can report the sensor's real signature count instead of the smaller
+// set of flow-engine conversions.
+type suricataRulesetManifest struct {
+	EtOpenRules int    `json:"et_open_rules"`
+	CustomRules int    `json:"custom_rules"`
+	TotalRules  int    `json:"total_rules"`
+	UpdatedAt   string `json:"updated_at"`
+	Source      string `json:"source"`
+}
+
+func loadSuricataRulesetManifest() (suricataRulesetManifest, bool) {
+	path := firstNonEmpty(os.Getenv("SURICATA_RULESET_MANIFEST"), ".sisyphus/runtime/engine-outputs/suricata-profile/ruleset.json")
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return suricataRulesetManifest{}, false
+	}
+	var manifest suricataRulesetManifest
+	if json.Unmarshal(data, &manifest) != nil || manifest.TotalRules <= 0 {
+		return suricataRulesetManifest{}, false
+	}
+	return manifest, true
 }

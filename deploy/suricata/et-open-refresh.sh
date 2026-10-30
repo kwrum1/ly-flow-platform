@@ -49,6 +49,22 @@ else
     fi
 fi
 
+# Drop low-value rule families before validation. ET INFO/POLICY/HUNTING
+# fire on ordinary traffic and drown the attack signatures.
+DROP_PREFIXES="${ET_OPEN_DROP_PREFIXES:-ET INFO,ET POLICY,ET HUNTING,ET USER_AGENTS,ET CURRENT_EVENTS,ET GAMES,ET P2P,ET CHAT,ET SNMP}"
+old_ifs=$IFS
+IFS=','
+for prefix in $DROP_PREFIXES; do
+    [ -n "$prefix" ] || continue
+    dropped=$(grep -c "msg:\"$prefix" "$STAGE" || true)
+    if [ "$dropped" -gt 0 ]; then
+        grep -v "msg:\"$prefix" "$STAGE" >"$STAGE.filtered"
+        cat "$STAGE.filtered" >"$STAGE"
+        rm -f "$STAGE.filtered"
+        log "dropped $dropped rules from family '$prefix'"
+    fi
+done
+IFS=$old_ifs
 SIZE=$(wc -c <"$STAGE")
 COUNT=$(grep -c '^alert' "$STAGE" || true)
 log "staged size=$SIZE alert_rules=$COUNT"
@@ -89,7 +105,13 @@ mv "$STAGE" "$TARGET"
 trap - EXIT
 chmod 0644 "$TARGET"
 docker exec "$CONTAINER" rm -f /var/lib/suricata/rules/et-open/et-open.rules.new >/dev/null 2>&1 || true
-log "installed $TARGET ($(grep -c '^alert' "$TARGET" || true) rules)"
+CUSTOM=$(grep -c '^alert' /opt/ly-flow-platform/rules/compiled/server-zone/suricata.rules 2>/dev/null || echo 0)
+TOTAL=$(grep -c '^alert' "$TARGET" || true)
+MANIFEST=/opt/ly-flow-platform/.sisyphus/runtime/engine-outputs/suricata-profile/ruleset.json
+mkdir -p "$(dirname "$MANIFEST")"
+printf '{"et_open_rules":%s,"custom_rules":%s,"total_rules":%s,"updated_at":"%s","source":"et-open"}\n' \
+    "$TOTAL" "$CUSTOM" "$((TOTAL + CUSTOM))" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" >"$MANIFEST"
+log "installed $TARGET ($TOTAL rules), manifest $MANIFEST"
 
 if ! docker exec "$CONTAINER" suricatasc -c reload-rules >/dev/null 2>&1; then
     log "reload socket unavailable, restarting sensor"

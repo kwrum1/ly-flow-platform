@@ -44,3 +44,19 @@ func TestSanitizeSuricataAlert(t *testing.T) {
 		t.Fatal("dns payload should be retained")
 	}
 }
+
+func TestSuricataSignatureSeverity(t *testing.T) {
+	cases := map[string]string{
+		"ET POLICY Vulnerable Java Version 1.8.x Detected": "low",
+		"ET INFO TLS Handshake Failure":                     "low",
+		"ET HUNTING ZIP file exfiltration over raw TCP":     "low",
+		"ET DNS Query for .cc TLD":                          "low",
+		"ET WEB_SERVER Possible SQL Injection (exec)":       "high",
+		"ET EXPLOIT Apache Struts OGNL":                     "high",
+	}
+	for signature, want := range cases {
+		if got := suricataSignatureSeverity(signature, "high"); got != want {
+			t.Fatalf("suricataSignatureSeverity(%q)=%q, want %q", signature, got, want)
+		}
+	}
+}
