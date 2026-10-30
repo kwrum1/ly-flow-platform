@@ -1,0 +1,6 @@
+# Byte-exact fixtures: keep repository line endings so recorded checksums stay valid.
+fixtures/detection-replay/** -text
+fixtures/real-detections/** -text
+server/xdr/features/testdata/** -text
+pkg/contracts/testdata/** -text
+agent/cmd/testdata/** -text

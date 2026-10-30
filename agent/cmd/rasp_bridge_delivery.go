@@ -174,5 +174,27 @@ func (bridge *raspBridgeRuntime) Health() raspBridgeHealth {
 type agentRASPBridgePublisher struct{ agent *Agent }
 
 func (publisher agentRASPBridgePublisher) Publish(ctx context.Context, event contracts.TelemetryEnvelope) error {
-	return publisher.agent.publishAgentStream(ctx, publisher.agent.cfg.RASPTelemetryStream, structToMap(event), "telemetry_rasp")
+	if err := publisher.agent.publishAgentStream(ctx, publisher.agent.cfg.RASPTelemetryStream, structToMap(event), "telemetry_rasp"); err != nil {
+		return err
+	}
+	if strings.HasPrefix(event.EventType, "rasp.protection") {
+		return nil
+	}
+	// Also emit a normalized component alert so XDR/incident correlation sees
+	// RASP detections, not only the telemetry stream.
+	alert, err := componentAlertFromRASP(raspEventInput{
+		RuleID:      firstNonEmpty(jsonString(event.Fields, "rule_id"), event.EventType),
+		RuleName:    firstNonEmpty(jsonString(event.Fields, "rule_name"), event.EventType),
+		HookType:    firstNonEmpty(jsonString(event.Fields, "phase"), "request"),
+		Language:    jsonString(event.Fields, "language"),
+		Runtime:     jsonString(event.Fields, "runtime"),
+		Application: firstNonEmpty(jsonString(event.Fields, "application"), jsonString(event.Fields, "app")),
+		Action:      jsonString(event.Fields, "action"),
+		Evidence:    firstNonEmpty(jsonString(event.Fields, "evidence"), event.Excerpt),
+		OccurredAt:  event.ObservedAt,
+	}, publisher.agent, contracts.RawReference{Path: "rasp-bridge"})
+	if err != nil {
+		return nil
+	}
+	return publisher.agent.publishComponentAlert(alert)
 }

@@ -11,6 +11,7 @@ import (
 	"os"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 )
 
@@ -46,9 +47,12 @@ func main() {
 		agentKey:           *agentKey,
 		attributionAgentID: strings.TrimSpace(*attributionAgentID),
 		templates:          map[string]Template{},
-		queue:              make(chan Record, 4096),
+		queue:              make(chan Record, 32768),
+		threats:            map[string]threatEntry{},
 	}
-	collector.startWorkers(context.Background(), 8)
+	// Per-packet threat caching happens before publish, so concurrent workers
+	// can be used without losing the forward/reverse threat association.
+	collector.startWorkers(context.Background(), 16)
 	log.Printf("netflow collector listening on UDP/%d, forwarding to %s as %s", port, *serverURL, *agentID)
 	if err := listenRaw(context.Background(), port, collector); err != nil {
 		log.Fatalf("netflow collector: raw UDP listener: %v", err)
@@ -82,6 +86,14 @@ type Collector struct {
 	attributionAgentID string
 	templates          map[string]Template
 	queue              chan Record
+	threats            map[string]threatEntry
+	threatsMu          sync.Mutex
+}
+
+type threatEntry struct {
+	Type string
+	Name string
+	At   time.Time
 }
 
 func (c *Collector) startWorkers(ctx context.Context, count int) {
@@ -107,6 +119,11 @@ func (c *Collector) handle(ctx context.Context, packet []byte, remote *net.UDPAd
 	if len(records) > 0 {
 		log.Printf("netflow collector: received %d records from %s", len(records), remote)
 	}
+	// Remember threat matches for the whole export batch before publishing so a
+	// reverse-direction record in the same packet also carries THREAT_*.
+	for _, record := range records {
+		c.rememberThreat(record)
+	}
 	for _, record := range records {
 		select {
 		case c.queue <- record:
@@ -116,7 +133,65 @@ func (c *Collector) handle(ctx context.Context, packet []byte, remote *net.UDPAd
 	}
 }
 
+func (c *Collector) rememberThreat(record Record) {
+	key := threatFlowKey(record)
+	if key == "" {
+		return
+	}
+	threatType := stringValue(record["threat_type"])
+	threatName := stringValue(record["threat_name"])
+	if threatType == "" && threatName == "" {
+		return
+	}
+	c.threatsMu.Lock()
+	c.threats[key] = threatEntry{Type: threatType, Name: threatName, At: time.Now()}
+	c.threatsMu.Unlock()
+}
+
+// applyCachedThreat carries a threat match from the direction that matched onto
+// the reverse flow record. lyprobe exports both directions as separate records
+// and only the matching direction carries THREAT_*; without this the session
+// materializer can persist the reverse record with empty threat fields.
+func (c *Collector) applyCachedThreat(record Record) {
+	key := threatFlowKey(record)
+	if key == "" {
+		return
+	}
+	threatType := stringValue(record["threat_type"])
+	threatName := stringValue(record["threat_name"])
+	c.threatsMu.Lock()
+	defer c.threatsMu.Unlock()
+	if threatType != "" || threatName != "" {
+		c.threats[key] = threatEntry{Type: threatType, Name: threatName, At: time.Now()}
+		return
+	}
+	entry, ok := c.threats[key]
+	if !ok {
+		return
+	}
+	if time.Since(entry.At) > 10*time.Minute {
+		delete(c.threats, key)
+		return
+	}
+	record["threat_type"] = entry.Type
+	record["threat_name"] = entry.Name
+	record["threat_cached"] = true
+}
+
+func threatFlowKey(record Record) string {
+	first := fmt.Sprintf("%s:%d", stringValue(record["src_ip"]), intValue(record["src_port"]))
+	second := fmt.Sprintf("%s:%d", stringValue(record["dst_ip"]), intValue(record["dst_port"]))
+	if first > second {
+		first, second = second, first
+	}
+	if first == ":" || second == ":" {
+		return ""
+	}
+	return first + "|" + second + "|" + fmt.Sprint(intValue(record["protocol"]))
+}
+
 func (c *Collector) publish(ctx context.Context, record Record) {
+	c.applyCachedThreat(record)
 	// Every flow goes to the semantic session stream so the traffic page has
 	// real NetFlow evidence. Matched threat records additionally become
 	// component alerts, which feed XDR/Incident.
@@ -150,9 +225,15 @@ func (c *Collector) publish(ctx context.Context, record Record) {
 			log.Printf("netflow collector: publish flow: %v", err)
 		}
 	}
-	if alert := threatPayload(record, c.agentID); alert != nil {
-		if err := c.postWithRetry(ctx, "/api/v1/agent/component-alert", alert); err != nil {
-			log.Printf("netflow collector: publish alert: %v", err)
+	if record["threat_cached"] != true {
+		if alert := threatPayload(record, c.agentID); alert != nil {
+			log.Printf("netflow collector: threat matched rule=%s name=%s %s:%d -> %s:%d",
+				stringValue(record["threat_type"]), stringValue(record["threat_name"]),
+				stringValue(record["src_ip"]), intValue(record["src_port"]),
+				stringValue(record["dst_ip"]), intValue(record["dst_port"]))
+			if err := c.postWithRetry(ctx, "/api/v1/agent/component-alert", alert); err != nil {
+				log.Printf("netflow collector: publish alert: %v", err)
+			}
 		}
 	}
 }
@@ -208,22 +289,22 @@ func flowPayload(record Record) map[string]interface{} {
 	dstPort := intValue(record["dst_port"])
 	protocol := protocolName(intValue(record["protocol"]))
 	return map[string]interface{}{
-		"id":         stringValue(record["id"]),
-		"event_type": "flows:semantic.event",
-		"timestamp":  stringValue(record["timestamp"]),
-		"agent_id":   "",
-		"src_ip":     src,
-		"dst_ip":     dst,
-		"src_port":   srcPort,
-		"dst_port":   dstPort,
-		"protocol":   protocol,
-		"bytes":      intValue(record["bytes"]),
+		"id":          stringValue(record["id"]),
+		"event_type":  "flows:semantic.event",
+		"timestamp":   stringValue(record["timestamp"]),
+		"agent_id":    "",
+		"src_ip":      src,
+		"dst_ip":      dst,
+		"src_port":    srcPort,
+		"dst_port":    dstPort,
+		"protocol":    protocol,
+		"bytes":       intValue(record["bytes"]),
 		"bytes_total": intValue(record["bytes"]),
-		"bytes_in":   intValue(record["bytes"]),
-		"bytes_out":  0,
-		"packets":    intValue(record["packets"]),
-		"source":     "lyprobe",
-		"engine":     "lyprobe",
+		"bytes_in":    intValue(record["bytes"]),
+		"bytes_out":   0,
+		"packets":     intValue(record["packets"]),
+		"source":      "lyprobe",
+		"engine":      "lyprobe",
 		"threat_type": stringValue(record["threat_type"]),
 		"threat_name": stringValue(record["threat_name"]),
 	}
@@ -257,7 +338,7 @@ func threatPayload(record Record, agentID string) map[string]interface{} {
 		"schema_version": "lyflow.component_alert.v1",
 		"id":             "lyprobe-" + stringValue(record["id"]),
 		"category":       "traffic",
-		"source_engine":  "lyprobe",
+		"source_engine":  "dpi_engine",
 		"rule_id":        ruleID,
 		"rule_name":      ruleName,
 		"native_rule": map[string]interface{}{
@@ -277,8 +358,8 @@ func threatPayload(record Record, agentID string) map[string]interface{} {
 			"bytes":    intValue(record["bytes"]), "packets": intValue(record["packets"]),
 			"threat_type": ruleType, "threat_version": stringValue(record["threat_version"]),
 		},
-		"action":        "audit",
-		"policy_state":  "audit_only",
+		"action":         "audit",
+		"policy_state":   "audit_only",
 		"candidate_only": false,
 	}
 }

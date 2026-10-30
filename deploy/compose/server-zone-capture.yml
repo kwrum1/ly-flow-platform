@@ -1,0 +1,153 @@
+# LyFlow server-zone capture profile (P2 traffic engine)
+# ---------------------------------------------------------------------------
+# Overlay on top of lean.yml. It does not edit any base service.
+#
+#   docker compose -f lean.yml -f server-zone-capture.yml \
+#     --profile core --profile capture up -d
+#
+# Services in this profile:
+#   lyprobe-sensor           轻量 L7/指纹引擎（threat.json 高置信子集）
+#   lyflow-netflow-collector lyprobe NetFlow v9 -> /api/v1/agent/traffic-event
+#   lyflow-vector            Suricata EVE alert -> /api/v1/agent/component-alert
+#   lyflow-rulecompiler      lyprobe-source.rules -> fp-patterns/threat.json
+#
+# Rule ownership is produced by:
+#   POST /api/v1/traffic/rule-profile/export
+# into:
+#   rules/compiled/server-zone/suricata.rules
+#   rules/compiled/server-zone/lyprobe-source.rules
+#   rules/compiled/server-zone/profile-manifest.json
+#
+# suricata-sensor stays in lean.yml (capture profile). After the first export,
+# point its rule mount at ../../rules/compiled/server-zone/suricata.rules:
+#   - ../suricata/lyflow-suricata.rules:/var/lib/suricata/rules/lyflow-suricata.rules:ro
+#   + ../../rules/compiled/server-zone/suricata.rules:/var/lib/suricata/rules/lyflow-suricata.rules:ro
+# This overlay intentionally does not override the base sensor definition.
+#
+# Prerequisites in lean.env:
+#   LYPROBE_TEMPLATE=%PROTOCOL %IN_BYTES %IN_PKTS %IPV4_SRC_ADDR %IPV4_DST_ADDR \
+#     %L4_SRC_PORT %L4_DST_PORT %THREAT_TYPE %THREAT_NAME %THREAT_VERS
+#   LYPROBE_INTERFACE=<server-zone mirror interface>
+#   VECTOR_AGENT_ID / VECTOR_AGENT_KEY (ingestion credentials)
+#
+# The collector keeps a raw UDP socket because lyprobe's NetFlow v9 checksum is
+# rejected by the normal UDP stack. It therefore needs NET_RAW and a published
+# loopback UDP port that the host-network lyprobe can reach.
+
+name: lyflow-lean
+
+x-service-defaults: &service-defaults
+  restart: unless-stopped
+  init: true
+  stop_grace_period: 30s
+  logging:
+    driver: json-file
+    options:
+      max-size: 20m
+      max-file: "5"
+
+services:
+  lyprobe-sensor:
+    <<: *service-defaults
+    profiles: ["capture"]
+    image: ${LYPROBE_IMAGE:-ly-flow/lyprobe:latest}
+    network_mode: host
+    pid: host
+    cap_add: [NET_RAW, NET_ADMIN]
+    working_dir: /opt/lyflow
+    command:
+      - -i
+      - ${LYPROBE_INTERFACE:-ens160}
+      - -n
+      - ${LYPROBE_COLLECTOR:-127.0.0.1:9995}
+      - -T
+      - ${LYPROBE_TEMPLATE:?LYPROBE_TEMPLATE must be set}
+      - -b
+      - "1"
+    volumes:
+      - ${LYFLOW_FP_PATTERNS_DIR:-./runtime/fp-patterns}:/opt/lyflow/fp-patterns:ro
+    depends_on:
+      lyflow-rulecompiler: {condition: service_started}
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+      test: [CMD-SHELL, "pgrep -x lyprobe >/dev/null || exit 1"]
+
+  lyflow-netflow-collector:
+    <<: *service-defaults
+    profiles: ["capture"]
+    image: ${LY_SERVER_IMAGE:-ly-flow/server:latest}
+    command: [/app/lyflow-netflow-collector]
+    cap_add: [NET_RAW]
+    environment:
+      NETFLOW_LISTEN: 0.0.0.0:9995
+      LYFLOW_INGEST_URL: ${NETFLOW_INGEST_URL:-http://ly-server:8080}
+      VECTOR_AGENT_ID: ${VECTOR_AGENT_ID:?VECTOR_AGENT_ID must be set}
+      VECTOR_AGENT_KEY: ${VECTOR_AGENT_KEY:?VECTOR_AGENT_KEY must be set}
+      NETFLOW_ATTRIBUTION_AGENT_ID: ${NETFLOW_ATTRIBUTION_AGENT_ID:-}
+    ports:
+      - ${NETFLOW_BIND_ADDRESS:-127.0.0.1}:${NETFLOW_PORT:-9995}:9995/udp
+    depends_on:
+      ly-server: {condition: service_healthy}
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+      test: [CMD-SHELL, "kill -0 1"]
+    networks: [core]
+
+  lyflow-vector:
+    <<: *service-defaults
+    profiles: ["capture"]
+    image: ${LYFLOW_VECTOR_IMAGE:-docker.1ms.run/timberio/vector:0.49.0-alpine}
+    command: ["--config", "/etc/vector/vector.toml"]
+    environment:
+      VECTOR_SURICATA_EVE: ${VECTOR_SURICATA_EVE:-/var/log/suricata/eve.json}
+      VECTOR_READ_FROM: ${VECTOR_READ_FROM:-end}
+      LYFLOW_INGEST_URL: ${LYFLOW_INGEST_URL:-http://ly-server:8080/api/v1/agent/component-alert}
+      VECTOR_AGENT_ID: ${VECTOR_AGENT_ID:?VECTOR_AGENT_ID must be set}
+      VECTOR_AGENT_KEY: ${VECTOR_AGENT_KEY:?VECTOR_AGENT_KEY must be set}
+    volumes:
+      - ../vector/vector.toml:/etc/vector/vector.toml:ro
+      - ./runtime/suricata:/var/log/suricata:ro
+      - vector_data:/var/lib/vector
+    depends_on:
+      ly-server: {condition: service_healthy}
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+      test: [CMD-SHELL, "vector --version >/dev/null"]
+    networks: [core]
+
+  lyflow-rulecompiler:
+    <<: *service-defaults
+    profiles: ["capture"]
+    image: ${LYFLOW_RULECOMPILER_IMAGE:-ly-flow/rulecompiler:latest}
+    command:
+      - -source
+      - /app/rules/compiled/server-zone/lyprobe-source.rules
+      - -output
+      - /opt/lyflow/fp-patterns/threat.json
+      - -manifest
+      - /opt/lyflow/fp-patterns/manifest.json
+      - -interval
+      - ${LYFLOW_RULE_INTERVAL:-2s}
+    volumes:
+      # Read-only rule corpus + the generated lyprobe source export.
+      - ../../rules:/app/rules:ro
+      # Shared with lyprobe-sensor; only this service writes it.
+      - ${LYFLOW_FP_PATTERNS_DIR:-./runtime/fp-patterns}:/opt/lyflow/fp-patterns
+    healthcheck:
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+      test: [CMD-SHELL, "kill -0 1"]
+
+volumes:
+  vector_data:

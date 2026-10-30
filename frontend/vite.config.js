@@ -12,11 +12,14 @@ export default defineConfig({
     proxy: {
       '/api': {
         target: process.env.VITE_API_TARGET || 'http://localhost:8080',
-        changeOrigin: true
+        changeOrigin: true,
+        // LyFlow is normally deployed with a self-signed certificate.
+        secure: false
       },
       '/ws': {
         target: process.env.VITE_WS_TARGET || 'ws://localhost:8080',
-        ws: true
+        ws: true,
+        secure: false
       }
     }
   },

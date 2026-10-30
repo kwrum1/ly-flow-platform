@@ -14,15 +14,9 @@ logger = logging.getLogger(__name__)
 _original_functions = {}
 
 
-def _report_detection(event_type: str, result: dict, func_name: str, args: Any) -> None:
-    """上报检测结果"""
-    result['hooked_function'] = func_name
-    result['args_preview'] = str(args)[:200]
-    logger.warning(f"Command injection detected in {func_name}: {result}")
-    from ..reporter import get_reporter
-    reporter = get_reporter()
-    if reporter:
-        reporter.report({'type': event_type, 'details': result})
+def _report_detection(event_type: str, result: dict, func_name: str, args: Any, enforce: bool = True) -> None:
+    from ..blocking import handle_detection
+    handle_detection(event_type, result, func_name, args, enforce=enforce)
 
 
 def _patch_os_system() -> None:

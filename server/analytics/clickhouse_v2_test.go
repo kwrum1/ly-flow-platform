@@ -54,6 +54,9 @@ func TestClickHouseEventV2RowFrom(t *testing.T) {
 	if row.SrcPort != 65535 || row.DstPort != 443 || row.Proto != "tcp" {
 		t.Fatalf("network mapping failed: %+v", row)
 	}
+	if row.SrcPortKnown != 0 || row.DstPortKnown != 1 {
+		t.Fatalf("port known flags wrong: src=%d dst=%d", row.SrcPortKnown, row.DstPortKnown)
+	}
 	if row.EvidenceCount != 1 || row.EvidenceJSON == "" {
 		t.Fatalf("evidence mapping failed: %+v", row)
 	}

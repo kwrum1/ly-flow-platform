@@ -28,5 +28,13 @@ jobs:
         with:
           node-version: "lts/*"
 
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python test dependencies
+        run: python -m pip install --upgrade pip pytest
+
       - name: Run fast checks
         run: bash scripts/dev/test-all.sh fast

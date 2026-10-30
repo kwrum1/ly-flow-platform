@@ -926,3 +926,682 @@
 - GPL POLICY PCAnywhere 默认加入噪声策略；高频 XSS 不再逐事件生成 Incident。
 - 总览安全评分与未闭环 Incident 等级使用同一口径；原始事件趋势明确标注不等同 Incident。
 - 详细记录：`docs/dev/PRODUCTION-OPTIMIZATION-2026-10-24.md`。
+
+## 2026-10-29 Gate 1–6 收口（XDR + RASP 加固）
+
+- 部署基线：`ly-flow/server:v17` + `ly-flow/frontend:v9`，9/9 容器 healthy，验收 **30/30**（`docs/dev/ACCEPTANCE-V4.md`）。
+- Gate 1：T0-02 五元组缺失语义、T0-03 ClickHouse 零值语义、T0-04 投影重试/DLQ、T0-05 幂等键 v2、T0-06 留存审计、T0-07 租户绑定、T0-08 采集计数器合同。
+- Gate 2：`capture_health.go` 六态状态机 + 丢包率分母可信性；真实传感器（`0cf8e6df…`，主机网络抓 `lo`）验证 healthy → degraded(41.68% 丢包) → healthy；内核计数停滞时回退用户态收包数，分母不可信不发布比率。
+- Gate 3：T1-01 实体索引消 O(n²)（与两两比较等价性测试）、T1-02 证据分级（弱证据只作上下文）、T1-03 Incident 根因聚合、T1-04 评分解释与版本化（`xdr-score.v1.1/v2.1`、components/capped）。
+- Gate 4：T4-01 规则正/负/边界样本 CI（44 条规则全覆盖，顺带修出 81001/31101 大小写与 31158 转义 3 个真实缺陷）、T1-05 行为基线 shadow、T4-02 误报反馈限域可过期（rule+tenant+entity，TTL≤30 天，仅影子候选）。
+- Gate 5：RASP 五态分离、`rasp-runtime.v1` 调用上下文（不再伪造 python）、阻断 monitor/dry_run/enforce + fail-safe + 紧急开关（A10.3 验收）。
+- Gate 6：PG 逻辑恢复（独立容器、5 表行数与样本一致）、ClickHouse 冷备 130 MB 恢复（`traffic_sessions=6306`、迁移账本 1..9）、`v17→v16→v17` 回滚演练；手册见 `docs/dev/BACKUP-RESTORE.md`。
+- 已知边界：ClickHouse 冷备需短暂停机（约 20 秒）；备份未异地复制；RASP 生产阻断需签名策略显式开启。
+
+## 2026-10-29 线上缺陷修复（v22 + frontend:v13，验收 30/30）
+
+1. **组件误报未就绪**：`security_engine.alert_bus` / `xdr.evaluator` 在“可读但无数据/无链路”时不再判 degraded，改为 `ok` 且 `details.state=idle`；真实不可读/算法不健康仍报错。
+2. **规则源同步 `source_id is required`**：`/api/v1/rule-platform/sync` 无 `source_id` 时启动后台全量同步（20 分钟上限、单源 180 秒、携带操作者身份），`GET` 同一路由返回进度；前端轮询并展示成功/失败/跳过明细。
+3. **同步不再静默激活**：外部规则默认只“暂存”（`status=staged`），必须点「应用规则」（compile-preview → rollback）才生效；此前全量同步自动激活 PTsecurity 规则，在回环 TLS 流量上产生上千条误报，已禁用 `…-11003921` 并重建 792 条规则的干净 bundle。
+4. **引擎规则全 0**：页面把“规则明细列表”误当“按引擎汇总”。改为读取 `counts` / `count_semantics`；实际 `lyprobe 6、rasp 1340、suricata 764、wazuh 22214、yara 6335`。
+5. **引擎全“未运行”**：服务端把“能力已上报但未启用”误标为 installed=true。现输出 `state`（running / adapter_active / installed / disabled / not_installed），零值时间不再渲染 0001/01/01。
+6. **能力开关 `field must be traffic or rasp`**：接受 `traffic_sensor/runtime_sensor/rasp_probe_manager` 等别名并映射到 `traffic_enabled/hids_enabled/rasp_enabled`；YARA/日志审计明确返回“可上报但不可远程控制”，前端改为只读徽标；错误提示带后端原因。
+7. **空态文案位置**：空态从表格内 `td[colspan]` 移到滚动容器内的 sticky 块，按可视宽度居中（表格横向溢出时不再偏到一侧）；Events/Incidents/Assets/Threats/Rules/Health/Settings 统一。
+8. **规则源版本可解释**：`/rule-platform/sources` 关联 `rule_source_versions`，返回 `current_version/display_version/last_sync_at/sync_status`，不再全部显示“未同步/已同步”。
+
+验证：`go test ./server/...` 全绿；部署 `ly-flow/server:v22` + `ly-flow/frontend:v13`；验收 30/30；`/debug/components` 顶层 `status=ok`；能力别名 PUT 200，YARA PUT 422。
+
+遗留（需人工确认后执行，未自动删除）：历史误报事件（规则 `ptresearch-attackdetection-…-11003921`，已禁用）仍在 ClickHouse 中，可按规则 ID 清理。
+
+## 2026-10-29 数据面补齐 + Wazuh 平替（server:v27 / frontend:v16）
+
+### 规则源做加减法
+- 分组：规则中心拆成「可更新源」与「本地与自建」，`updatable=false` 与用户自建源不再参与同步。
+- 镜像：GitHub 源按顺序尝试 `raw.githubusercontent.com` → `cdn.jsdelivr.net` → `raw.gitmirror.com` → `ghproxy.net` → `gh-proxy.com`，结果记录实际命中的 endpoint。
+- 同步语义：同步即「拉取 → 暂存 → 立即应用」，取消独立「应用规则」按钮；失败项逐条显示源名与原因。
+- 删除：`ip-geo-attribution`（大屏已下线）、`snort-community`（与 ET Open 重叠）、`ptresearch-attackdetection`（上游 EOF、误报高）、`restricted-commercial`（占位源）。
+- 修复：人工禁用规则在重新同步时不再复活；新源首次同步不再被误判为“全部禁用”。
+
+### Agent 侧数据源（10.1.18.8 验证）
+- 新增长原生日志采集 `LOG_SOURCES`：`name:path` 列表，nginx access/error 与 auth 日志；access 行做 `+`→空格与 URL 解码后再交给规则。
+- `HIDS_ENABLED=true`：进程/文件/认证采集运行，runtime 事件进入 `telemetry:runtime`。
+- YARA 引擎：安装 `yara 4.5.5`，把仓库 746 个规则文件合并、去重、剔除 `filename/filepath/extension` 等外部变量与无法编译规则，得到 5284 条可用规则包；自测 marker 命中并生成 artifact 告警。
+- nginx 日志检测实测：XSS、SQL 注入、Web 扫描器、SSH root 登录均生成事件；遍历规则仅在日志保留 `../` 时触发（nginx 会先归一化路径）。
+
+### Wazuh 平替与移除
+- 调研结论：Wazuh 的日志采集/解码/规则能力已由 `LOG_SOURCES` + nginx/auth 解析 + `default-bundle` 规则覆盖；FIM/SCA/漏洞扫描不在本项目承诺范围。
+- 移除：Agent 的 Wazuh supervisor/adapter 与 auth→Wazuh 告警转换；服务端 `wazuh` 引擎状态、desired state、native rules 扫描；`rules/wazuh/**`、`rules/subscriptions/wazuh-auditd`、上游版本映射。
+- 保留：`xdr/converter/wazuh.go` 仅作为历史规则导入格式，不参与运行时。
+
+### 验证
+- `go test ./server/cmd` 全绿；agent/server 交叉编译通过。
+- 规则中心：可更新源与本地源分组显示；同步失败项可见。
+- 引擎健康：只剩 `suricata / yara / rasp`，YARA 在 10.1.18.8 上 `running`，`last_event_at` 为真实时间。
+- 功能验收：**30/30**；`/debug/components` 顶层 `ok`；XDR 链数由 0 增至 20。
+
+## 2026-10-29 规则追新与防御入口（server:v33 / frontend:v19）
+
+- Sigma 全量接入：`sigma-full` 从 codeload 拉取，tar 内 YAML 多文档解析；只保留 Linux/unix、sshd/auditd/nginx/apache/cron/sudo、webserver，剔除 Windows/macOS/Azure 等无数据源产品，过滤纯数字/短词条件，上限 400 条。实测导入 218 条，active bundle 由 86 增至 286，其中 log_audit 116 条（原 10 条）。
+- 清理：删除 DB 中 `snort-community`、`ptresearch-attackdetection` 及其 718 条规则，避免同步把它们拉回并制造误报。
+- Bundle 基准改为数据库驱动：同步时以 `detection_rules`（排除当前源）为基集，不再继承旧 active bundle，删除的规则不会复活。
+- 同步可观测：进度百分比、当前源、已应用/未变化/失败计数；本地/自建源不再出现在同步结果与计数中。
+- 增量：内容摘要与上一版本一致时标记 `unchanged`，只刷新 synced_at，不重建/重新激活 bundle。
+- 自动追新：`LYFLOW_RULE_SYNC_INTERVAL_HOURS` 默认 24h；`rule_platform.freshness` 与规则中心显示新鲜度。
+- 资产运维新增「防御能力」页：按 Agent 展示 RASP 监控/YARA 扫描状态，可开关监控；阻断按钮明确标注“需签名 canary 策略”，未签名时 fail-safe 放行。
+- 已知：ET Open 全量包在当前网络 180s 仍超时；其余源同步正常，失败项会在结果中如实显示。
+
+## 2026-10-29 Incident 闭环与规则治理（server:v36 / frontend:v26）
+
+- Incident 列表 `live=0` → `live=1`：修复“永远没有 Incident”，当前 17 条可见。
+- Incident 标题可读化：UUID 实体不再作为标题，改为“资产 · 阶段 · 摘要”（如“目标资产 · 入侵突破阶段 · 2 个检测事件形成 2 阶段攻击链”）。
+- Incident 负责人：抽屉新增负责人输入与保存，调用 `PUT /incidents/{id}/assign`，回读验证通过。
+- 关闭原因：输入框改为始终可见，修复“点关闭才要求原因但输入框不显示”的死锁。
+- 规则治理：规则中心新增「检测规则」面板，按 log_audit/runtime 拉取可治理规则（当前 128 条日志规则），支持逐条启用/停用；停用即重编译并激活 bundle（实测 200）。
+- 服务端引擎规则合并所有类别（traffic/log_audit/runtime），不再只列 traffic。
+- 剩余 P0：Incident 备注/证据包下载、响应执行闭环（dry-run/审批/回滚）、RASP 阻断签名入口、RBAC/多租户 UI、隔离区处置、通知/Webhook。
+
+## 2026-10-29 处置闭环与备注（server:v37 / frontend:v29）
+
+- Incident 处置动作：抽屉新增「处置动作」，支持封禁源 IP（L2）、隔离主机（L3，需审批）、仅观察（L1）；动作列表显示状态，可按权限批准/回滚。后端复用 `response` ActionManager（创建/自动批准/任务下发/回滚）。
+- 回滚按钮按动作类型显示：block_ip、isolate_host、file_delete、account_disable、namespace_isolate 才提供回滚，避免 observe 这类无回滚适配的动作报错。
+- Incident 备注：新增 `incident_notes` 表与 `GET/POST /incidents/{id}/notes`；抽屉可记录处置进展、判断依据、交接信息。
+- 证据获取：新增「复制证据 JSON」，把 Incident 的证据事件导出到剪贴板（后续可换证据包下载）。
+- 规则治理：检测规则面板支持逐条启停；YARA 命中面板显示最近 artifact 事件（规则名/文件/时间）。
+- 已知：RASP 阻断仍受签名 canary 策略门禁，没有自动放开；ET Open 在当前网络 300s 仍超时，其他源增量正常。
+
+## 2026-10-29 响应处置、备注与升级/备份（server:v38 / frontend:v30）
+
+- Incident 处置动作：封禁源 IP / 隔离主机 / 仅观察；创建、审批、回滚走 `response.ActionManager`，回滚仅对有适配的动作显示。
+- Incident 备注：`incident_notes` 表 + `GET/POST /incidents/{id}/notes`；证据支持复制 JSON。
+- 规则治理：检测规则面板支持逐条启停（log_audit/runtime），停用即重编译；YARA 命中面板展示最近 artifact 事件。
+- 升级与备份：`/debug/components` 新增 `versions`、`backup`、`ops.backup`；Settings 新增「升级与备份」面板，展示 server/frontend 镜像标签、备份目录文件、可复制的备份与回滚命令。备份目录 `/opt/lyflow-backup` 只读挂载到 `/backup`。
+- 备份/回滚执行仍在宿主机（容器内无 pg_dump/clickhouse-client），平台只展示状态与生成命令，避免越权重启容器。
+- RASP 阻断：`agentpolicy.Promote` 对 block 模式仍返回 `ErrProductionBlockDisabled`，且 canary ACK 与阻断策略存在设计冲突；没有绕过门禁，需先补 dry-run 模式与 canary 批准流程。
+
+## 2026-10-29 数据清理与卡顿修复（server:v39）
+
+- 根因：Sigma 全量规则产生 24 万条 `threat_events`，事件聚合查询超过 30 秒，UI 卡在“正在读取样本”。
+- 处置：
+  - 先做 PG 备份 `/opt/lyflow-backup/pre-clear-*.dump`（27 MB）。
+  - 停用 `sigma-full` 全部规则并重建 bundle（286 → 86），阻断洪水来源。
+  - 清空 `threat_events`、`incidents`、备注/证据/审计、XDR 图与链、投影/隔离表。
+  - 清空 ClickHouse `lyflow_security_events`、`lyflow_events_v2`、`lyflow_traffic_sessions`、`lyflow_events_1m/1h`。
+  - 清空 Redis `alerts:*`、`telemetry:*`、`flows:*`、`sessions:*`、`component_alerts:*` 等流，重启安全引擎。
+- Incident 列表瘦身：列表不再携带 `events/attack_chain/stage_groups`，20 条从 263 KB 降到 17.9 KB。
+- 清理后接口：events 0.05s/15.7 KB、incidents 0.12s/17.9 KB、stats 0.01s。
+- 说明：17 条 Incident 与 99 条事件是清理后新产生的实时数据；如需完全空白，需暂停采集或再次清库。
+
+## 2026-10-29 RASP 阻断闭环与告警重复计数修复（server:v44）
+
+### 根因
+- RASP 探针把自身每 30 秒到本地 bridge 的配置拉取连接当成 `network` 事件上报，形成自激噪声。
+- legacy 事件没有稳定 id，bridge 每次用 `time.Now()` 生成新 id；spool 重放一次就变成一条新告警。
+- 同一个 RASP 事件同时命中原生 `rasp-sqli-default` 与 OWASP CRS `942120/942140`，安全引擎把所有命中都写成告警。
+- 汇总页把每条告警的 `occurrence_count` 相加，重复告警叠加成 1,624 次命中。
+
+### 修复
+- 探针只上报敏感文件读、命令执行、SQL、metadata SSRF；不再上报普通 socket 连接和文件写入。
+- 探针生成稳定 `event_id`；legacy 事件无 id 时用 payload SHA-256 摘要生成稳定 id。
+- 安全引擎对同一个 RASP 事件只保留最高优先级告警（原生 `rasp-*` 优先，其次分数）。
+- 服务端把 `blocked` / `would_block` / `policy_version` / `policy_id` 写入事件并用于统计。
+- 清理测试 RASP 告警与 `telemetry:rasp` / `alerts:rasp` 流；当前窗口从 1,624 次/27 组降到 144 次/10 组。
+
+### RASP 阻断实测
+- 创建签名 block canary（version 2），Agent ACK 后 `mode=block / block_on_hit=false`，只上报 would-block。
+- 完成 canary 并提升为 active 后，Agent 下发的 bridge 配置为 `block_on_hit=true`。
+- 实测：`os.system("id; rm ...")` 与 `sqlite3.execute("SELECT 1 UNION SELECT 2")` 均抛出 `LyFlow RASP blocked`，事件 `blocked=true`。
+- 回滚到 monitor（version 1）后，同样调用恢复执行，`block_on_hit=false`。
+- 当前保持 monitor；阻断能力已完整可用，不会默认开启。
+
+## 2026-10-29 总体大改第一批（server:v51 / frontend:v35）
+
+### 告警噪声与证据
+- 安全引擎增加 match-all 正则防护与 RASP 心跳跳过；`(?i)`、空分支规则不再产生告警。
+- RASP 探针不再上报普通 socket 连接和文件写入；事件带稳定 `event_id`；legacy 事件用 payload 摘要生成稳定 id。
+- OWASP CRS 转换改为完整 SecRule 解析，跳过不可转换和匹配空串的规则。
+- RASP 心跳误报清除；当前 RASP 事件数为 0，总览从 1,624 次/27 组降到 24 次/2 组。
+- Incident 证据保留原始规则名、来源引擎、阶段判定、首次时间；阶段组按真实时间排序，不再把 `component.alert` 当标题。
+- YARA/artifact 事件允许落入 `threat_events`，为检测面 YARA tab 提供数据。
+
+### 页面收缩
+- 导航隐藏「数据与健康」；系统管理新增「开发者」入口跳转 `/health`。
+- 总览：处置态势只保留分诊/处理中/闭环；「热源→目标」改为「情报源→受害 Agent」，Agent 侧只显示可编辑 Agent 名。
+- Incident：三态（已分诊/处理中/闭环）、紧凑抽屉、处理人手填、处理意见、开启防护/观察二选一、单保存按钮；闭环后只追加记录。
+- 事件：主机运行时/RASP/日志只显示受害 Agent；同源同目的同情报按滚动 1 小时聚合；原始载荷折叠、长 ID 缩写。
+- 资产详情：去掉采集能力，显示 CPU/内存/磁盘；列表点名字直接改名；删除仅在离线详情底部；采集能力只允许流量开关。
+- 规则中心：隐藏本地与自建；检测规则每页 10 条；YARA 命中移到检测面第四个 tab。
+- 详情抽屉统一收窄到 `min(38vw, 520px)`，长 ID 缩写，原始 JSON 折叠。
+
+### 未完成（下一批）
+- 资产防御能力：监控/阻断切换、tag 分组自动值守、整体防护会话。
+- RASP 请求级：OpenRASP + Coraza sidecar、CRS 虚拟补丁、canary→block。
+- 流量引擎：Suricata ET Open 子集、lyprobe + NetFlow collector + Vector、规则归属去重。
+- Sigma/Falco 构建期转换器和定时更新调度器。
+
+## 2026-10-29 页面问题修复（server:v52 / frontend:v37）
+
+- 事件/检测面文案改为「受害服务器」，不再把受害对象叫 Agent。
+- 运行时事件缺 `agent_id` 时用 `asset_id/hostname` 映射到服务器名，不再显示「未知 Agent」。
+- 事件抽屉徽章恢复为紧凑横排，长 ID 缩写，原始载荷折叠。
+- 检测面探针列加载 Agent 列表映射服务器名；空态统一为「暂无情报」。
+- 资产详情删除按钮只显示「删除」，在线时置灰并给出说明；详情标签改为「服务器名称 / 服务器 ID」。
+- 修复流量开关：Agent 配置接口不再用 capability 覆盖数据库 `traffic_enabled`，关闭后配置下发为 false；重新开启需等待下一次配置拉取。
+- 规则中心「引擎规则」按四类归并：系统检测引擎、Web 检测防护引擎、流量聚合引擎、病毒扫描引擎。
+- YARA/artifact 事件允许写入 `threat_events`，为检测面 YARA tab 提供数据。
+
+## 2026-10-29 UI 修正（frontend:v38）
+
+- 事件详情「技术详情 / 原始载荷」默认展开，不再折叠。
+- 检测面详情抽屉收窄到 `min(38vw, 520px)`，与事件详情一致；KV 行、原始载荷更紧凑。
+- 总览「情报源 → 受害服务器」修复 `asset_id/payload.agent_id` 映射，不再出现「未知 Agent」；运行时事件来源不是监听 IO，而是运行时进程事件缺 `agent_id`。
+- 资产详情删除只保留一个「删除」按钮，在线置灰；去掉额外说明文案。
+- 资产运行信息改为 CPU/内存/磁盘进度条 + 负载/运行时长。
+- 采集能力矩阵只允许流量开关；切换后立即乐观更新，并提示等待 Agent 拉取；后端数据库开关为唯一权威。
+- 防御能力 UI 简化：顶部只保留当前模式、演练命中、已阻断；操作收敛为「开启阻断演练 / 完成演练 / 提升为阻断 / 回滚 / 紧急停止」，高级参数折叠。
+- 规则中心「可更新源」按四类引擎归并：系统检测、Web 检测防护、流量聚合、病毒扫描；显示自动更新频率、最近同步、状态和手动更新。
+
+## 2026-10-29 资产/防御/规则源二次修正（server:v53 / frontend:v39 / agent uptime）
+
+- 资产详情恢复「负载 / 运行时长」：Agent 采集 `/proc/uptime`，资产 API 暴露 `load_avg_1/5/15` 与 `uptime_seconds`。
+- 删除按钮从详情抽屉移到资产表格「详情」后面；在线置灰，离线可点，详情内不再放删除。
+- 运行信息改为 CPU/内存/磁盘进度条。
+- 防御能力删除演练类 UI：每个服务器行只保留「切换为阻断 / 切换为监控」；阻断后端自动走签名策略并轮询提升。
+- 规则中心规则源按四类引擎归并，显示自动更新频率和手动更新；病毒扫描引擎在无上游时显示 Agent 本地 YARA 规则包。
+- 采集能力切换增加乐观更新和「等待 Agent 拉取」提示。
+
+## 2026-10-29 YARA 本地导入（server:v54 / frontend:v41）
+
+- 不接外部 YARA 上游；新增本地导入路径 `/data/yara/imported.yar`。
+- 新增 `GET/DELETE /api/v1/rule-platform/yara` 和 `POST /api/v1/rule-platform/yara/import`。
+- 导入支持 multipart 文件，校验大小、空内容、`rule`/`{` 结构；原子写入。
+- `/api/v1/agent/yara/rules` 合并内置 `*.yar` 与导入文件，Agent 可下载完整规则包。
+- Agent 在每次 YARA 扫描周期拉取一次规则包，内容变化时原子替换本地 `rules.yar`。
+- 规则中心新增「病毒扫描引擎 · 本地规则导入」面板：显示总规则数、内置、导入、大小、更新时间、导入路径；支持导入/清空。
+- 病毒扫描引擎仍不接外部上游，UI 显示「无上游（本地/构建产物）」。
+
+## 2026-10-29 P1/P2/P3 并行交付（server:v55 / frontend:v42）
+
+### P1 整体防护与自动值守
+- 新增 `defense_sessions` / `defense_schedules` 表与审计事件。
+- 防护会话状态机：`dry_run → active → stopped/expired/failed`；失败回滚 monitor。
+- 自动值守：tag 分组、每日时段、优先级、5 分钟 dry-run、窗口结束回监控、单活阻断会话。
+- API：`/defense/status`、`/defense/sessions`、`/defense/schedules`、`/defense/audit`。
+- 防御页：当前会话倒计时、手动会话、自动值守规则表、启停/删除；两个切换按钮改为会话 API。
+- 实测：monitor 会话创建/停止、block 会话 canary 创建/停止、规则创建/删除均 200/201。
+
+### P2 流量引擎规则集
+- 新增 `rules/scenarios/server-zone.yaml` 与 `server/cmd/traffic_rule_profile.go`。
+- 服务器区过滤：方向、类别、协议、入站端口、预算、signature_hash 去重、双引擎归属。
+- 实测仓库语料：输入 169，接受 87，Suricata 78 / lyprobe 9，overlap=0。
+- 导出 `/app/rules/compiled/server-zone/suricata.rules`、`lyprobe-source.rules`、manifest。
+- API：`/traffic/rule-profile`、`/traffic/rule-profile/export`。
+- `rules/scenarios/server-zone.yaml` 已上传至 `.241` 的 `/opt/ly-flow-platform/rules/scenarios/`。
+
+### P3 RASP 请求级
+- 新增 24 条 CRS PL1–2 请求侧虚拟补丁规则。
+- API：`/rasp/request-rules/status`、`/rasp/request-rules/download`（公开，供探针下载）。
+- Python `ly_rasp` 新增请求级中间件、规则加载、请求/Sink 去重；monitor/dry-run/block 三态。
+- 已部署 `ly_rasp` 包到 10.1.18.8 `/opt/ly-agent/rasp/python/ly_rasp`，规则包下载到 `/etc/lyflow/rasp/request_rules.json`。
+- 实测 block 模式 SQLi 请求抛出 `RASPRequestBlocked`。
+- 请求级中间件需应用侧接入 WSGI/ASGI；单文件 `sitecustomize.py` 仍是 Sink 级。
+
+## 2026-10-29 P2/P1/P3 收尾（server:v58 / frontend:v45）
+
+### P2 流量规则集导出过滤
+- `server/cmd/traffic_rule_profile.go` 新增 Suricata 不支持关键字过滤：`method`、`icmp.icmp_type`、`ja3_hash`、`ja3_string`、`tcp.options`。
+- 新增 `dropped_unsupported` 计数与 `unsupported keyword` skip 原因。
+- 实测：输入 169，接受 66（Suricata 57 / lyprobe 9），`dropped_unsupported=31`，`overlap=0`。
+- 导出文件直接通过 `suricata -T`：57 rules loaded, 0 failed；已重启 sensor 加载 57 条。
+
+### P1 自动值守与回滚收敛
+- 新增 Agent 标签 API：`GET/PUT/POST /api/v1/agent/tags/{agent}`，标签规范化为小写 `[a-z0-9._-]`，最多 16 个。
+- Assets 资产详情新增「防御标签」编辑；`.8` 实测写入 `prod, web`，`defense/status` 返回 `tags:[{prod:1},{web:1}]`。
+- 修复回滚死循环：
+  - 服务端：`/api/v1/agent/config` 收到已被回滚版本的 ACK 时不再 409，记录 `RASP policy ACK superseded` 并返回当前 assignment。
+  - Agent：允许回退到当前策略显式指定的 `rollback.target_version`，其他降级仍按 stale 拒绝。
+- 真实时间窗实测（tag=prod，21:29–21:49，dry_run=300s）：
+  - 21:24:29 窗口前 5 分钟创建 canary，`dry_run`；
+  - 21:29:03 自动 promote 为 `active`，服务端 `mode=block`、`enforcing=true`；
+  - 21:49 窗口结束自动 expire 并回 monitor（`mode=monitor`、会话 `expired`、`/rasp/policy` active 回到 v1 monitor），Agent 配置拉取无 409。
+
+### P3 请求级验证
+- `ly_rasp` WSGI/ASGI 中间件在未显式 `load_config()` 时从环境自动引导配置。
+- 新增回归测试 `test_wsgi_middleware_bootstraps_config_from_env`（25 个请求级测试通过）。
+- `.8` 实测：
+  - monitor：SQLi 命中 1 条，`would_block=false`，放行；
+  - block dry-run：`would_block=true`，`blocked=false`，放行；
+  - block enforced：抛 `RASPRequestBlocked`，真实 HTTP 请求（systemd 托管的 WSGI 应用）返回 403、`X-Ly-RASP-Blocked` 生效。
+  - 修复 WSGI 403 响应携带 hop-by-hop `Connection: close` 导致 wsgiref 报 500 的兼容问题，并加回归断言。
+
+### Suricata 规则挂载持久化
+- 主机新增 `/opt/ly-flow-platform/suricata/lyflow-suricata-profile.yaml`，`rule-files` 指向 `server-zone/suricata.rules`。
+- `docker-compose.override.yml` 为 `ly-suricata-sensor` 增加只读挂载：
+  - profile 文件；
+  - `/opt/ly-flow-platform/rules/compiled/server-zone` → `/var/lib/suricata/rules/server-zone`。
+- 重新创建 sensor 后仍加载 57 条规则、0 失败；平台再次导出会原子更新同一个目录。
+
+### UI
+- Rules 页「流量引擎规则集」移动到「四类引擎规则源」之前，首屏可见。
+- `index.html` 增加 build 标记与 no-cache meta；Nginx 对 `/index.html` 返回 `Cache-Control: no-cache, no-store, must-revalidate`，避免旧 index 缓存导致新面板不显示。
+
+## 2026-10-29 借鉴上游 ly_probe，打通服务器区流量探针（server:v58 / frontend:v45）
+
+上游：`https://github.com/Abyssal-Fish-Technology/ly_probe`，固定 revision
+`06c097dd5c69e391efd3c8b3776d672e03386e49`。
+
+### 构建与部署
+- 从上游源码构建 lyprobe（含 `0001-hot-reload.patch`）：
+  - `lyprobe`、`liblyprobe-1.0.0.so`、`plugins/servicePlugin.so`
+  - `fp-patterns/` 116 条指纹（44 protocol / 15 device / 16 os / 25 midware / 16 threat）
+- 部署到 `.241`：
+  - `/opt/ly-flow-platform/lyprobe/`
+  - `/opt/lyflow/bin/lyflow-netflow-collector`
+  - `/etc/lyflow/netflow.env`（sensor-241 的 agent 凭据，0600）
+- 新增 systemd：
+  - `lyflow-netflow-collector.service`，UDP/9995
+  - `lyflow-lyprobe.service`，`ens192`，`-d 15 -t 60`
+- 新增传感器 Agent `sensor-241`（`aa072c61-33ed-48c2-935d-d8442a19b1af`），
+  平台流量页显示 `capture_source=lyprobe`。
+
+### 实测
+- 已写入 18,000+ 条 lyprobe 会话；平台 `/api/v1/traffic/sessions` 可见。
+- 服务识别：
+  - `SRV_TYPE=Service`、`SRV_NAME=HTTP`、`SRV_VERS=1.0`
+  - TLS 流量识别为 `Service/TLS`
+- 威胁识别：
+  - 明文 `GET /?x=1 union select 1 HTTP/1.1` 命中 `THREAT_TYPE=SQL`、`THREAT_NAME=CRUD`
+  - collector 日志：`threat matched rule=SQL name=CRUD ...`
+  - Postgres `traffic_sessions.raw_event->'content'->>'threat_type' = SQL`（双向记录都有）
+- 规则热加载：原子替换 threat.json 后日志出现 `Hot-reloaded 116 patterns`。
+
+### collector 修复
+- `server/cmd/netflow-collector` 增加威胁方向缓存：正向/反向记录共享同一 flow key，
+  匹配方向先写入缓存，另一方向发布时补齐 `threat_type/threat_name`。
+- 发布 worker 改为 16、队列 32768；按包级缓存威胁后再发布，兼顾吞吐与方向关联。
+- 新增 `threat matched` 日志和 `threat_cache_test.go`。
+- component-alert 的 `source_engine` 改为契约允许的 `dpi_engine`（`lyprobe` 不是合法
+  source_engine，之前被 400 拒绝）；缓存方向不再重复生成告警。
+- 实测一次 SQLi 只生成 1 条 `threat_events`：
+  `CRUD 10.1.18.241:18104 -> 10.18.3.67:25931`。
+
+### 已知限制
+- `.241` 上 lyprobe 抓 `ens192`，会看到平台自身的管理流量；BPF 过滤在 systemd
+  unit 中带空格会漏抓，暂不使用过滤。
+- 平台会话落库约滞后 2–3 分钟（Redis -> consumer -> Postgres/ClickHouse）。
+- collector 的 component-alert 已落库到 `threat_events`（`source_engine=dpi_engine`），
+  同一 flow 只产生一条告警。
+- 未启用 Vector；lyprobe 走自有 NetFlow collector，不依赖 Vector。
+
+## 2026-10-30 引擎健康、误报收敛与规则同步（server:v59 / frontend:v46）
+
+### UI
+- 按需求移除规则中心「流量引擎规则集」面板；前端 v46。
+- 验收 A15.8 改为校验面板已移除。
+- `acceptance.py` **38/38**。
+
+### 误报收敛
+- 日志审计：移除“成功 root 登录”默认规则，DB 中
+  `log-ssh-root-login-default` 置 disabled；重新编译激活 bundle（619→618）。
+  实测成功 SSH 登录不再产生新事件。
+- Runtime：`processDeltaCollector` 丢弃 `low/new-process`；`authLogCollector`
+  不再把成功 root 登录作为 runtime 告警。Agent 已重新构建并部署到 `.8`。
+- 保留 `log-ssh-failure-default`，失败/异常登录继续告警。
+
+### YARA
+- 原扫描路径只有 `/opt/ly-agent/yara/scan`，只命中自测标记。
+- `agent.env` 与代码默认改为：
+  `/opt/ly-agent/yara/scan,/tmp,/var/tmp,/dev/shm,/var/www,/usr/local/bin,/root,/home`，
+  周期 3600s，超时 300s。
+- 实测扫描到 `/tmp`；发现并删除 `/tmp/yara-src` 规则源码自匹配缓存。
+- 扫描启动日志会打印生效路径，便于确认配置。
+
+### 规则同步
+- 修复 `rule_platform.go` 未把生成的 version 回填到 request 的 bug：
+  `rule.source.discover.attempt` 的 resource 为空，导致
+  `controlaudit: incomplete audit entry`，所有上游同步失败。
+- 实测：
+  - ET Open 200 `unchanged`，hash `c6234647...`
+  - Falco 200 `unchanged`，hash `30a1a602...`
+  - Sigma 200 `unchanged`，hash `8e0302ef...`
+- 上游可达、fetch/hash/compare 正常；真实内容变更后的 `activated=true` 待下次验证。
+
+### 引擎健康结论
+- RASP：monitor，102 allowed，0 blocked；请求级/in-process 验证通过；业务应用
+  事件到 bridge 未完全验证，PHP/Java/Node/.NET 未接真实应用。
+- Runtime：464 条/24h 主要是进程噪声，已收敛。
+- YARA：17,691 条内置规则，已扩展到真实目录并周期扫描。
+- 日志审计：auth/nginx，SSH 成功登录噪声已移除；仍有重复日志事件待去重。
+- 已知部署缺口：`.8` 访问不到 `.241:6379`，RASP control health 显示
+  `health_store_unavailable`；需要单独解决 Redis 可达性。
+
+新增文档：
+- `docs/dev/ENGINE-HEALTH-2026-10-30.md`
+- `docs/dev/TRAFFIC-ENGINE-COUPLING.md`
+
+## 2026-10-30 继续收口：RASP 事件链路、Redis 可达性、规则同步（server:v60）
+
+### RASP
+- 独立 WSGI 应用只挂 middleware、未调用 `enable()` 时，`_report_match` 现在会懒初始化
+  `Reporter`，请求级命中可以上报。
+- 真实 SQLi 已验证进入 `telemetry:rasp`：
+  `event_type=rasp.sql`、`rule_id=request-sqli-owasp-crs-942270`。
+- `/api/v1/rasp/events` 默认过滤 `rasp.protection.heartbeat`，避免心跳把攻击事件挤出第一页；
+  需要心跳时加 `include_heartbeat=1`。
+
+### Redis 可达性
+- `.241` 新增 `lyflow-redis-proxy.service`：
+  `socat TCP-LISTEN:16379,bind=10.1.18.241 -> 127.0.0.1:6379`；
+  iptables 仅允许 `10.1.18.8` 访问 16379。
+- `.8` agent.env 增加 `REDIS_SERVER=10.1.18.241:16379` 与 `REDIS_PASSWORD`。
+- 清理损坏的 `/opt/ly-agent/data/spool/v2`（保留 `v2.corrupt.*` 备份），
+  `transport spool corrupt` 错误消失，RASP health store 不再报错。
+
+### 规则同步
+- `rule_platform.go` 修复：生成 version 后回填 `req["version"]`，避免
+  `rule.source.discover.attempt` 的 resource 为空导致 `incomplete audit entry`。
+- 实测 ET Open / Falco / Sigma 均 200 `unchanged`，上游 fetch/hash/compare 正常。
+
+### 其他
+- 前端 v46 已移除流量规则面板。
+- 验收 38/38。
+- 新增 `docs/dev/ENGINE-HEALTH-2026-10-30.md`、`docs/dev/TRAFFIC-ENGINE-COUPLING.md`。
+
+## 2026-10-30 真实防护实装 + 镜像检测实例 10.1.18.125
+
+### 真实 RASP 防护
+- 在 `.8` 用真实 WSGI 应用 + `ly_rasp` block 模式验证：
+  - 良性 200；
+  - SQLi / XSS / 路径穿越 / 编码穿越 / POST SQLi 全部 **403**；
+  - defense 会话 dry_run → active → stop/expire 回 monitor。
+- 修复探针真实缺陷（已回源到仓库 `bridge.py`）：
+  - 分离 bootstrap 配置凭据与轮换事件凭据；
+  - 事件 401/403 时用 bootstrap 强制刷新配置并重试一次；
+  - 把签名策略 `expires_at` 写回配置，到期自动降级 monitor。
+- Agent 侧新增：
+  - RASP 事件同时写 `component_alerts:v2`，XDR 不再只看 telemetry；
+  - YARA 命中直接发布 component alert，修复初次扫描被 adapter 漏读；
+  - 日志采集器只启动一次，修复每 30s 重复启动与 FD 泄漏。
+- 实测：YARA component alert 21 条、RASP `request-sqli-owasp-crs-942270` component alert 1 条。
+
+### 镜像检测实例
+- 新建 ESXi VM `lyflow-mirror`（`10.1.18.123` 宿主）：
+  - 4 vCPU / 8 GB / 40G
+  - `mgmt0` 10.1.18.125/24
+  - `mirror0` = `mirror port`（vmnic4，VLAN 4095，Promiscuous）
+- 安装完整流影平台，升级 `server:v60` / `frontend:v46`。
+- Suricata 已加载 57 条 server-zone 规则，抓 `mirror0`，4 threads。
+- local-mirror 抓 `mirror0`，持续写 sessions/flows。
+- 首次观测：mirror0 15万+包、EVE 8.2万行、82 alerts（77 Fscan UDP、5 DNS tunnel），9/9 服务 healthy。
+- 新增每小时观测：
+  - `lyflow-hourly-observe.timer`
+  - `/var/log/lyflow/hourly/*.json|summary.log|latest.md`
+  - 检查服务、CPU/内存、mirror0 增量、Suricata/local-mirror 错误、API/组件/引擎/RASP/流量。
+- 入口：`https://10.1.18.125/`，`admin / Lyflow@2026`（自签证书）。
+
+### 文档
+- `docs/dev/MIRROR-SENSOR-125.md`
+- `docs/dev/RASP-REAL-PROTECTION-2026-10-30.md`
+
+## 2026-10-30 镜像实例首轮观测与误报修复
+
+### 10.1.18.125 流影镜像实例
+- 完整平台已部署：`server:v60` / `frontend:v46`，9/9 服务 healthy。
+- `mirror0` 真实收包，Suricata 57 条规则 + local-mirror 均抓镜像口。
+- 自动小时观测已跑第一轮（18:00 UTC）：
+  - warnings 0
+  - mirror0 rx_packets=305,268、rx_dropped=24、较上次 +7,739
+  - EVE 14,889 行、3 条 alert
+  - 9/9 服务 healthy
+- 误报修复：
+  - `LY-FSCAN-003` 原规则只有 30 包/60s 阈值，正常 DNS 被误判为 Fscan UDP 扫描，
+    短时间产生 757 条告警。
+  - 加 `dsize:0;` 后 90 秒 EVE 14,889 行只有 3 条 alert，Fscan 误报消失。
+  - 同步更新 `rules/ly-custom/scanner.rules` 与 `.125`/`.241` compiled 规则。
+- 仍需观察：`ET TROJAN High DNS Query Count Possible Tunnel`
+  （10.1.0.4 → 114.114.114.114:53）是否为正常 DNS 客户端。
+
+### Agent 检测链路
+- YARA 命中现在直接发布 component alert；实测平台出现 21 条 YARA 事件。
+- RASP 事件现在同时发布 component alert；实测
+  `request-sqli-owasp-crs-942270` 进入 component_alerts。
+- 日志采集器单次启动，FD 降到约 50，未再出现每 30s 双份采集。
+- 清空损坏 spool 后，未再出现 `transport spool corrupt`。
+
+## 2026-10-30 告警降噪与规则源码优化
+
+### 逐条处理 8 类真实告警
+- SID 9003023（792 条）：正常 DNS 被当 UDP 扫描；规则源补 `dsize:0;`。
+- SID 1000050（272 条）：DNS 隧道规则改为“24+ 位、纯字母数字、含数字”
+  标签，`flow:to_server`，阈值 5/60。
+- SID 9002003（195 条）：同一收紧策略；`content:!"sru.edu.cn"` 排除已停用域名。
+- SID 9001005（162 条）：原规则匹配所有 TLS `17 03`；重写为 FRP 默认
+  控制端口 7000 的 TLS 建连检测。
+- SID 9001009（46 条）：增加 `flow:to_server` + `http.request_header`。
+- SID 9007022（12 条）：根因是响应包目的端口恰好为 65010；增加
+  `flow:to_server` 修复。
+- SID 9004301（8 条）：知网代理转发页面误报；只匹配脚本后缀响应。
+- SID 9004601（6 条）：前端 JS 误报；只匹配脚本后缀响应且三标记同时出现。
+
+### 结果
+- 规则平台重新导出：suricata 57 / lyprobe 9，overlap 0。
+- `.241`、`.125` 均 `suricata -T` 通过，57/57 加载。
+- `.125` 新窗口：EVE 30,206 行，alert 0，9/9 服务 healthy。
+- 离线 PCAP 验证：
+  - 6 条长标签 DNS 查询触发 1000050、9002003；
+  - `shell.php` 响应体含 `WScript.Shell` 触发 9004301 规则形态。
+
+### ops.backup
+- `server/cmd/debug.go`：空但可读的备份目录判为 `ok`，
+  消息 `backup directory ready, no backups yet`。
+- 新增 `server/cmd/debug_backup_test.go`（空目录 / 有文件 / 不存在）。
+- 构建并部署 `server:v61` 到 `.241`、`.125`。
+- 结果：`.241` ok（count=3）、`.125` ok（count=0），组件非 ok 归零。
+
+### 文档
+- `docs/dev/ALERT-TUNING-2026-10-30.md`
+- `docs/dev/MIRROR-SENSOR-125.md` 更新
+
+## 2026-10-30 确认告警：SMB Negotiate over 8080
+
+- 告警报文：`121.43.119.139:36780 -> 10.3.10.74:8080`，222 字节。
+- 解码：NetBIOS Session 头 `00 00 00 A4` + SMB1 `FF 53 4D 42 72`
+  （`SMB_COM_NEGOTIATE`），方言包含 `Samba`、`NT LM 0.12`。
+- 判定：真实告警。SMB 出现在 8080 属于扫描、SMB-over-HTTP 隧道或漏洞探测。
+- 旧 SMB 规则经过单模式转换后丢失端口/配套条件，出现 `^.{27}`、
+  `|00|` 等泛匹配；v62 门禁已将其移出运行时。
+- 新增精确规则 `LY-SCAN-004` / SID 9003024：
+  - 外网 → 内网；
+  - 排除 139/445；
+  - `content:"|FF 53 4D 42 72|"; offset:4; depth:5;`
+  - 每源 5 分钟 1 条。
+- 用告警原文重建 PCAP（含三次握手）离线验证：SID 9003024 命中 1 次。
+- `.125`、`.241` 规则数 58，`suricata -T` 全部通过。
+- 文档：`docs/dev/ALERT-TUNING-2026-10-30.md`
+
+## 2026-10-30 规则转换自查：端口/配套条件丢失
+
+- 审计 5 个外部源、52,453 条原始 Suricata 规则。
+- 发现 531 条活动流量规则中 335 条存在端口/方向/偏移等约束丢失。
+- v63 新增强制门禁：
+  - 丢失端口/响应方向/offset/depth/within/byte_test/urilen/threshold
+    且特征 <12 位 → `unsupported:lost_match_constraints`；
+  - 裸域名、常见词、二进制 `contains`、特征 <6 位 → 拒绝。
+- 处理结果：
+  - 活动流量规则 531 -> 186；
+  - `detection_rules` unsupported 1,097；
+  - `.125` `threat_events` 0。
+- 典型：IRC PRIVMSG/USERHOST、SIP REGISTER/INVITE、SMB 445、
+  FTP banner、SMTP 头、OISF traffic-id 域名。
+- 解析器版本升到 `2026-10-30.4`，同步时强制重建 bundle。
+- 文档：`docs/dev/ALERT-TUNING-2026-10-30.md`
+
+## 2026-10-30 默认规则降噪
+
+- 下线 `dpi-admin-access-default`（内部 `/admin` 访问误报）。
+- 下线 `log-collector-heartbeat-default`（心跳不是威胁事件）。
+- 源码新增 `retiredDefaultDetectionRuleIDs`，启动/同步时禁用旧库中的同名规则，
+  防止重装或重同步复活。
+- `dpi-c2-domain-default` 收紧为按域名标签边界匹配，去掉 `callback/beacon/.xyz` 泛匹配。
+- 已清理事件：
+  - `.125` `dpi-admin-access-default` 5 条；
+  - `.241` `log-collector-heartbeat-default` 155 条。
+- 活动 bundle 已确认不含两条下线规则；`.125` `threat_events=0`。
+- 文档：`docs/dev/ALERT-TUNING-2026-10-30.md`
+
+## 2026-10-30 检测能力与主动防御验收
+
+- 转换器保真审计：52,453 条原始规则；活动流量规则 531 -> 185。
+- 新增门禁：丢失端口/方向/偏移等约束且特征 <12 位、裸域名、常见词、
+  二进制 `contains`、特征 <6 位 -> `unsupported`。
+- 默认规则：
+  - 下线 `dpi-admin-access-default`、`log-collector-heartbeat-default`；
+  - 收紧 `dpi-c2-domain-default`、`log-privilege-escalation-default`、
+    `runtime-suspicious-download-default`；
+  - 清理事件 5 + 155 条。
+- Suricata：58 条规则，`overlap=0`；SMB/DNS/WebShell 合成流量命中验证通过。
+- RASP 主动防御：
+  - defense 会话 dry_run -> active -> stopped；
+  - SQLi / XSS / 路径穿越均 403，benign 200；
+  - 修复探针首个请求使用旧配置的问题（判定前刷新 + 默认 5s）；
+  - 停止后 SQLi 恢复 200。
+- 运行时终止：
+  - `process_kill` L3 双人审批；
+  - 测试 PID 被终止，`verified=true`。
+- 验收：`acceptance.py` 38/38；Go 转换/默认规则测试通过；
+  RASP Python 测试 31 passed。
+- 文档：`docs/dev/DETECTION-ACCEPTANCE-2026-10-30.md`
+
+## 2026-10-30 主动防御时延优化
+
+- 问题：
+  - 手动建立 block 会话到 `block_on_hit=true` 约 57.5s；
+  - stop 后 bridge 回 monitor 约 24.7s，探针最长再等 30s。
+- 根因：
+  - Agent 配置轮询固定 30s；
+  - 防御运行时 tick 固定 30s；
+  - 探针配置刷新 30s。
+- 修复：
+  - Agent 新增 `ConfigPollInterval`，默认 5s，
+    支持 `AGENT_CONFIG_POLL_INTERVAL` / `agent.config_poll_interval`；
+  - `DefenseRuntime` tick 改为 2s，支持 `DEFENSE_TICK_INTERVAL_SECONDS`；
+  - 探针在请求判定前刷新 `/config`，默认刷新间隔 2s。
+- 结果：
+  - dry_run=5s：创建会话到 `block_on_hit=true` 8.3s；
+  - dry_run=10s：约 13s；
+  - stop 到 bridge monitor 2.2s，SQLi 立即恢复 200。
+- 部署：`server:v66`、`.8` 新 agent 二进制。
+- 文档：`docs/dev/DETECTION-ACCEPTANCE-2026-10-30.md`
+## 2026-10-30 拓扑纠正：.241 管理平台、.125 抓包环境
+
+- 明确拓扑：
+  - `.241` 管理/分析平台，不安装 Agent、不启用本地抓包；
+  - `.125` 抓包镜像环境，`mirror0` 接真实流量，检测升级在此验证。
+- 清理历史 `sensor-241`：
+  - 删除 agents 1、hosts 1、agent_identities 3、CRUD 事件 3；
+  - 均先写入备份表。
+- `.241` 停止 `ly-local-mirror`，compose override 增加 `profiles: ["capture"]`，
+  默认不再启动。
+- `agents` 表新增 `kind`（agent/sensor）：
+  - 历史 `lyprobe%` 自动迁移为 sensor；
+  - `/api/v1/agents` 默认只返回 agent；
+  - `include_sensors=1` 仅供诊断。
+- 验收：`.241` agents 只有 ubuntu；`.125` 无 agent、mirror0 抓包正常；
+  `acceptance.py` 38/38。
+- 文档：`docs/dev/DETECTION-ACCEPTANCE-2026-10-30.md`
+## 2026-10-30 .125 升级为生产测试环境
+
+- `.241` 只做管理/分析，不再用于抓包测试。
+- `.125` 升级到 `server:v67` / `frontend:v46`。
+- 同步完整规则源（scenario、suricata、ly-custom、default-bundle），
+  重新导出：Suricata 58 / lyprobe 9 / overlap 0。
+- Suricata 重启并加载 58/58；mirror0 持续收包。
+- `.125` 执行 `acceptance.py`：38/38。
+- 后续检测/主动防御测试统一使用 `.125`。
+- 文档：`docs/dev/DETECTION-ACCEPTANCE-2026-10-30.md`
+## 2026-10-30 .125 传感器基础镜像重建
+
+- 重建并部署：
+  - `ly-flow/security-engine:v67`
+  - `ly-flow/local-mirror:v67`
+  - `ly-flow/suricata-profile:v67`
+- `ly-server` 仍为 `server:v67`，前端 `v46`。
+- 验证：
+  - 9/9 服务 healthy；
+  - Suricata 58/58；
+  - `mirror0` 30,001,993 包并持续增长；
+  - `threat_events=0`；
+  - `.125` `acceptance.py` 38/38。
+- `local-mirror` 因缺少 release 签名私钥，镜像内设置
+  `AGENT_REQUIRE_BINARY_INTEGRITY=false`；后续应重新签名并移除。
+- 文档：`docs/dev/DETECTION-ACCEPTANCE-2026-10-30.md`
+
+## 2026-10-30 Agent 签名密钥更新与 .8 升级
+
+- 生成新的 Ed25519 release key：
+  `/opt/lyflow/keys/agent-release.key`（构建机，权限 600）。
+- 重新签名最新 Agent：
+  - `agent-integrity-root.pem`
+  - `agent-binary.digest.json`
+  - `agent-config.digest.json`
+- `10.1.18.8`：
+  - 安装新 Agent 二进制和新的 trust root/digest；
+  - 开启 binary/config integrity；
+  - 服务 active，RASP bridge 200。
+- `10.1.18.125`：
+  - `ly-flow/local-mirror:v68` 内置同一套签名文件；
+  - 完整性校验开启，不再使用 `AGENT_REQUIRE_BINARY_INTEGRITY=false`；
+  - mirror0 持续收包，`acceptance.py` 38/38。
+- 私钥只保存在构建机，不进入仓库/镜像，需要离线备份。
+## 2026-10-30 抓包运行观测与 WAF/升级包误报修复
+
+- `.125` mirror0：约 956 pps / 690 KB/s，累计 32,025,044 包，丢包 652。
+- 9/9 服务 healthy；local-mirror v68、Suricata v67、58/58 规则。
+- 最近 15 分钟会话 13,017；TCP 11,376 / UDP 1,622 / ICMP 19。
+- 发现并修复两类误报：
+  - 华为云 WAF 随机子域被 DNS 隧道规则命中 -> 两条规则排除
+    `huaweicloudwaf.com`；
+  - 瑞星升级包 `.zip` 被 ET Suspicious Download 命中 -> 规则改为只匹配
+    裸 IP 目标的 exe/zip 下载。
+- 修复后 90 秒窗口：EVE 8,886 行，alert 0。
+- 负载偏高（load 10.5 / 4 vCPU），需继续观察 EVE 轮转与 ClickHouse/Redis。
+- 文档：`docs/dev/DETECTION-ACCEPTANCE-2026-10-30.md`
+## 2026-10-30 Suricata EVE 入库与小时轮转
+
+- 原因：local-mirror 不运行 Suricata EVE 适配器，告警只存在 eve.json，
+  UI 看不到；此前 9 条告警是入库前被规则修复清掉的。
+- `server:v68` 新增 EVE 入库：
+  - tail eve.json，alert 写入 `threat_events`；
+  - 稳定 event_uid，支持轮转/truncate；
+  - source_engine=suricata，severity 映射 1/2/3。
+- `.125` 新增小时轮转：
+  - `lyflow-eve-rotate.timer`，logrotate 保留 48 份，gzip；
+  - `lyflow-eve-search` 可同时搜索 live 和 gz 历史。
+- 验证：合成告警入库成功；轮转后继续入库；旧 EVE 压缩释放约 2GB。
+- 文档：`docs/dev/DETECTION-ACCEPTANCE-2026-10-30.md`
+## 2026-10-30 全面检修与生产测试就绪
+
+- 修复 traffic_sessions 无保留：新增 `TRAFFIC_SESSION_RETENTION_DAYS`，
+  `.125` 设为 3 天，已验证旧行删除。
+- 修复 EVE 入库重启漏告警：新增 ingest state（path/inode/offset），
+  重启前后告警各入库一次，无重复。
+- `.125` 补齐 `LYFLOW_RASP_ALLOW_BLOCK=true` 与 30 天日志保留，
+  defense `allow_production_block=true`。
+- 验证：9/9 服务、58/58 规则、traffic/threats API 可查、
+  Redis 2h 保留/lag 0、EVE 48 份小时轮转。
+- 仍有限制：local-mirror 未注册 sensor，capture/engine-health 为空；
+  `.8` 仍注册在 `.241`；EVE copytruncate 可能丢少量原始行。
+- 结论：数据链路闭环，可进入生产测试。
+- 文档：`docs/dev/DETECTION-ACCEPTANCE-2026-10-30.md`
+## 2026-10-30 ?????????? CI ??
+
+- README ??????????
+  - 9 ?????AF_PACKET ??????????????EVE ??/????????
+  - ??? PF_RING?????????????
+- ?????????
+  - overview / incidents / events / threats / assets / health / rules / settings / mobile?
+  - ?? dashboard?runtime?response?global-situation?traffic-observe ????
+- ?? `docs/zh/???????????.md`?`docs/README.md`?`docs/GITHUB-CI.md`?
+- CI ???
+  - ?? security-engine ???
+  - server/cmd ????????????EVE ????????
+  - ?? Python RASP ??????????

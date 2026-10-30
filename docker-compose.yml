@@ -108,6 +108,10 @@ services:
       MANAGEMENT_INTERFACE: ${MANAGEMENT_INTERFACE:-ens33}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set}
       DEFAULT_ADMIN_PASSWORD: ${DEFAULT_ADMIN_PASSWORD:-password}
+      # Gate 1: network five-tuple validation mode (off|shadow|enforce).
+      LYFLOW_EVENTV2_FIELD_VALIDATION: ${LYFLOW_EVENTV2_FIELD_VALIDATION:-shadow}
+      # Gate 1: server-side tenant binding for ingested events.
+      LYFLOW_DEFAULT_TENANT: ${LYFLOW_DEFAULT_TENANT:-default}
       LYFLOW_RESET_ADMIN_PASSWORD: ${LYFLOW_RESET_ADMIN_PASSWORD:-false}
       LYFLOW_FORCE_FIRST_LOGIN_PASSWORD_CHANGE: ${LYFLOW_FORCE_FIRST_LOGIN_PASSWORD_CHANGE:-true}
       AGENT_SELF_ENROLL: ${AGENT_SELF_ENROLL:-false}

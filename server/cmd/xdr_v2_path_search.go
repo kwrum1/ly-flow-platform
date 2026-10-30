@@ -203,7 +203,7 @@ func pathToHypothesis(events []*models.CanonicalEventV2, cand *pathCandidate, co
 		ImpactScore:          scoreable.ImpactScore,
 		PathContinuityScore:  scoreable.PathContinuityScore,
 		ChainScore:           scoreable.ChainScore,
-		ScoreDetail:          scoreable.ScoreDetail(),
+		ScoreDetail:          scoreable.ScoreDetail,
 		Severity:             scoreable.Severity,
 		HypothesisStatus:     status,
 		RejectionReason:      reason,
@@ -216,7 +216,7 @@ func pathToHypothesis(events []*models.CanonicalEventV2, cand *pathCandidate, co
 	}
 }
 
-func (s *ScoreablePath) ScoreDetail() *models.ScoreDetailV2 {
+func (s *ScoreablePath) eventScoreDetail() *models.ScoreDetailV2 {
 	riskFactors := []models.ScoreFactor{}
 	confFactors := []models.ScoreFactor{}
 	impFactors := []models.ScoreFactor{}
@@ -236,11 +236,8 @@ func (s *ScoreablePath) ScoreDetail() *models.ScoreDetailV2 {
 		RiskFactors:       riskFactors,
 		ConfidenceFactors: confFactors,
 		ImpactFactors:     impFactors,
-		ContinuityFactors: []models.ScoreFactor{
-			{Name: "edge_strength_avg", Value: s.PathContinuityScore, Source: "graph", Weight: 1.0},
-		},
-		EventCount:      len(s.Events),
-		EventCountBonus: clampFloat(float64(len(s.Events))*0.5, 0, 5),
+		EventCount:        len(s.Events),
+		EventCountBonus:   clampFloat(float64(len(s.Events))*0.5, 0, 5),
 	}
 }
 

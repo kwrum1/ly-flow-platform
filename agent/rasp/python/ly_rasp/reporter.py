@@ -110,6 +110,22 @@ class Reporter(RuntimeHealthMixin):
             logger.warning(f"Failed to connect to Redis: {e}")
             self.redis_client = None
 
+    def refresh_config(self) -> None:
+        """Apply a pending policy change before inspecting the next request.
+
+        The bridge throttles /config pulls with config_refresh_seconds, so this
+        is cheap. Without it the first request after a policy change would use
+        the previous mode (a short bypass on activation, or a residual block
+        after a stop).
+        """
+        bridge = self.bridge_client
+        if bridge is None:
+            return
+        try:
+            bridge._refresh_config()
+        except Exception:
+            return
+
     def report(self, event: Dict[str, Any]) -> bool:
         """
         上报安全事件
@@ -219,6 +235,7 @@ class Reporter(RuntimeHealthMixin):
             attack_type = 'deserialization'
 
         blocked = bool(normalized.get('blocked', False))
+        would_block = bool(normalized.get('would_block', False))
         normalized.update({
             'type': 'rasp.attack',
             'agent_id': self.config.agent_id,
@@ -226,8 +243,9 @@ class Reporter(RuntimeHealthMixin):
             'app': normalized.get('app') or self.config.app,
             'attack_type': attack_type,
             'blocked': blocked,
+            'would_block': would_block,
             'action': normalized.get('action') or ('block' if blocked else 'log'),
-            'mode': normalized.get('mode') or ('protect' if blocked else 'monitor'),
+            'mode': normalized.get('mode') or ('protect' if blocked else ('dry_run' if would_block else 'monitor')),
             'severity': normalized.get('severity') or 'medium',
             'rule_id': normalized.get('rule_id') or f'python-{attack_type}',
             'policy_version': self.config.policy_version,

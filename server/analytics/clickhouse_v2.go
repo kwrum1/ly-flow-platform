@@ -49,6 +49,8 @@ type clickHouseEventV2Row struct {
 	DstIP         string  `json:"dst_ip"`
 	SrcPort       uint16  `json:"src_port"`
 	DstPort       uint16  `json:"dst_port"`
+	SrcPortKnown  uint8   `json:"src_port_known"`
+	DstPortKnown  uint8   `json:"dst_port_known"`
 	Proto         string  `json:"proto"`
 	RuleID        string  `json:"rule_id"`
 	RuleSource    string  `json:"rule_source"`
@@ -105,6 +107,8 @@ func clickHouseEventV2RowFrom(event contracts.EventV2) clickHouseEventV2Row {
 		row.DstIP = event.Entities.Network.DstIP
 		row.SrcPort = clampPort(event.Entities.Network.SrcPort)
 		row.DstPort = clampPort(event.Entities.Network.DstPort)
+		row.SrcPortKnown = portKnown(event, contracts.QualityMissingSrcPort, event.Entities.Network.SrcPort)
+		row.DstPortKnown = portKnown(event, contracts.QualityMissingDstPort, event.Entities.Network.DstPort)
 		row.Proto = event.Entities.Network.Proto
 	}
 	if len(event.Evidence) > 0 {
@@ -126,4 +130,18 @@ func clampPort(port int) uint16 {
 		return 65535
 	}
 	return uint16(port)
+}
+
+// portKnown decides whether the stored port is a real observation. A port is
+// unknown when the producer flagged it missing, or when the value is outside
+// 1..65535. A zero port is never a real observation: the legacy pipeline used 0
+// as the "missing" sentinel.
+func portKnown(event contracts.EventV2, missingFlag contracts.QualityFlag, port int) uint8 {
+	if event.HasQualityFlag(missingFlag) {
+		return 0
+	}
+	if port <= 0 || port > 65535 {
+		return 0
+	}
+	return 1
 }

@@ -6,7 +6,7 @@ rules:
     name: "LyFlow SSH Login Anomaly"
     level: 10
     source: sshd
-    match: "(invalid user|failed password|authentication failure|brute force)"
+    match: "(?i)(invalid user|failed password|authentication failure|brute force)"
     regex: true
     description: "Baseline detection for suspicious SSH login anomalies and brute-force activity."
     mitre:

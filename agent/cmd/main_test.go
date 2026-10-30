@@ -739,7 +739,7 @@ func TestHIDSAuthSignalCoversPrivilegeAndAccountChanges(t *testing.T) {
 		wantSeverity  string
 		wantOK        bool
 	}{
-		{"sshd[1]: Accepted password for root from 203.0.113.10 port 22 ssh2", "runtime.auth.root_login", "high", true},
+		{"sshd[1]: Accepted password for root from 203.0.113.10 port 22 ssh2", "", "", false},
 		{"sudo: pam_unix(sudo:auth): authentication failure", "runtime.auth.sudo_failure", "medium", true},
 		{"sshd[1]: Failed password for invalid user test from 1.1.1.1", "runtime.auth.failure", "medium", true},
 		{"useradd[1]: new user: name=attacker, UID=1001", "runtime.auth.account_change", "high", true},

@@ -117,13 +117,13 @@ func TestEngineDesiredStatesForAgentFollowToggles(t *testing.T) {
 			if enabled {
 				t.Fatalf("%s enabled=true, want false", name)
 			}
-		case "wazuh", "yara":
+		case "yara":
 			if !enabled {
 				t.Fatalf("%s enabled=false, want true", name)
 			}
 		}
 	}
-	for _, name := range []string{"suricata", "wazuh", "yara", "rasp"} {
+	for _, name := range []string{"suricata", "yara", "rasp"} {
 		if !seen[name] {
 			t.Fatalf("missing desired state %s", name)
 		}

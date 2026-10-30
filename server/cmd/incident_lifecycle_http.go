@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"log"
 	"net/http"
 	"strconv"
@@ -68,7 +69,13 @@ func incidentsHandler(cfg *Config) http.HandlerFunc {
 		}
 		items := make([]map[string]interface{}, 0, len(persisted))
 		for _, incident := range persisted {
-			items = append(items, incidentJSONRow(incident))
+			row := incidentJSONRow(incident)
+			// List rows must stay small: raw evidence belongs to the detail
+			// endpoint, otherwise 20 incidents ship megabytes to the browser.
+			delete(row, "events")
+			delete(row, "attack_chain")
+			delete(row, "stage_groups")
+			items = append(items, row)
 		}
 		data := map[string]interface{}{"items": items, "total": total, "limit": limit, "offset": offset}
 		if cfg.IncidentSnapshot != nil {
@@ -98,6 +105,10 @@ func incidentDetailHandler(cfg *Config) http.HandlerFunc {
 				return
 			}
 			writeJSONError(w, http.StatusServiceUnavailable, "incident_load_failed", "persistent incident lifecycle unavailable")
+			return
+		}
+		if len(parts) == 2 && parts[1] == "notes" {
+			incidentNotesHandler(cfg, id).ServeHTTP(w, r)
 			return
 		}
 		if r.Method == http.MethodPut && len(parts) == 2 {
@@ -290,5 +301,69 @@ func writeIncidentLifecycleError(w http.ResponseWriter, err error) {
 		writeJSONError(w, http.StatusBadRequest, "invalid_incident_action", "invalid incident action")
 	default:
 		writeJSONError(w, http.StatusServiceUnavailable, "incident_persistence_failed", err.Error())
+	}
+}
+
+func incidentNotesHandler(cfg *Config, incidentID string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		if cfg == nil || cfg.DBPool == nil {
+			writeJSONError(w, http.StatusServiceUnavailable, "incident_notes_unavailable", "database unavailable")
+			return
+		}
+		switch r.Method {
+		case http.MethodGet:
+			rows, err := cfg.DBPool.Query(r.Context(), `SELECT id, author, body, created_at FROM incident_notes WHERE incident_id=$1 ORDER BY created_at ASC`, incidentID)
+			if err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "incident_notes_failed", err.Error())
+				return
+			}
+			defer rows.Close()
+			items := []map[string]interface{}{}
+			for rows.Next() {
+				var id int64
+				var author, body string
+				var createdAt time.Time
+				if err := rows.Scan(&id, &author, &body, &createdAt); err != nil {
+					continue
+				}
+				items = append(items, map[string]interface{}{"id": id, "author": author, "body": body, "created_at": createdAt.UTC().Format(time.RFC3339)})
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": items}})
+		case http.MethodPost:
+			var req struct {
+				Body string `json:"body"`
+			}
+			if err := json.NewDecoder(r.Body).Decode(&req); err != nil || strings.TrimSpace(req.Body) == "" {
+				writeJSONError(w, http.StatusBadRequest, "note_body_required", "note body is required")
+				return
+			}
+			author := incidentActor(r.Context()).ID
+			if author == "" {
+				author = "unknown"
+			}
+			var id int64
+			var createdAt time.Time
+			if err := cfg.DBPool.QueryRow(r.Context(), `INSERT INTO incident_notes (incident_id, author, body) VALUES ($1,$2,$3) RETURNING id, created_at`, incidentID, author, strings.TrimSpace(req.Body)).Scan(&id, &createdAt); err != nil {
+				writeJSONError(w, http.StatusInternalServerError, "incident_note_failed", err.Error())
+				return
+			}
+			// Writing the first opinion is the triage→processing transition.
+			// Closed incidents keep their state; notes are append-only there.
+			if current, getErr := cfg.Incidents.Get(r.Context(), incidentID); getErr == nil {
+				if current.Status == incidentlifecycle.StatusOpen || current.Status == incidentlifecycle.StatusTriaged {
+					command := incidentlifecycle.Command{
+						IncidentID: incidentID, IdempotencyKey: fmt.Sprintf("note-processing-%d", id),
+						Actor: incidentActor(r.Context()), ExpectedVersion: current.Version,
+						Action: incidentlifecycle.ActionTransition, To: incidentlifecycle.StatusProcessing,
+						Reason: "first disposition note",
+					}
+					_, _ = cfg.Incidents.Apply(r.Context(), command)
+				}
+			}
+			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"id": id, "author": author, "body": strings.TrimSpace(req.Body), "created_at": createdAt.UTC().Format(time.RFC3339)}})
+		default:
+			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
+		}
 	}
 }

@@ -1,69 +1,124 @@
 <template>
-  <section class="events-page">
-    <section class="query-panel surface-card">
-      <header class="threat-head">
-        <div>
-          <p class="threat-kicker">DETECTION SURFACE</p>
-          <h2>{{ title }}</h2>
-          <p class="threat-subtitle">{{ category === 'rasp' ? '应用运行时攻击、检测与阻断证据；数据来自 RASP 组件告警。' : category === 'runtime' ? '主机运行时与日志审计告警；数据来自 eBPF/auditd/ps 进程采集、认证日志与 Wazuh 组件告警。' : '流量检测与攻击会话；数据来自 Suricata / LyFlow 与流量组件告警。' }}</p>
-        </div>
-        <div class="threat-summary">
-          <span><b>{{ total }}</b> 条结果</span>
-          <span><b>{{ highSeverityCount }}</b> 高/严重</span>
-          <span><b>{{ sourceCount }}</b> 来源</span>
-        </div>
-      </header>
-      <label><span>关键字</span><input v-model.trim="filters.query" placeholder="IP、域名、路径、探针"></label>
-      <label><span>源 IP</span><input v-model.trim="filters.src_ip"></label>
-      <label><span>目的 IP</span><input v-model.trim="filters.dst_ip"></label>
-      <label><span>威胁等级</span><select v-model="filters.severity"><option value="">全部</option><option value="low">低</option><option value="medium">中</option><option value="high">高</option><option value="critical">严重</option></select></label>
-      <label><span>开始时间</span><input v-model="filters.start_time" type="datetime-local"></label>
-      <label><span>结束时间</span><input v-model="filters.end_time" type="datetime-local"></label>
-      <button class="primary" @click="search" :disabled="loading">{{ loading ? '更新中' : '查询' }}</button>
+  <section class="sx-page">
+    <header class="sx-page-head">
+      <div>
+        <p class="sx-kicker">DETECTION SURFACE</p>
+        <h2 class="sx-title">{{ title }}</h2>
+        <p class="sx-subtitle">
+          {{ category === 'rasp'
+            ? '应用运行时攻击、检测与阻断证据；数据来自 RASP 组件告警，阻断状态以端侧证据为准。'
+            : category === 'runtime'
+              ? '主机运行时与日志审计告警；数据来自 eBPF / auditd / procfs 进程采集、认证日志与 Wazuh 组件告警。'
+              : '流量检测与攻击会话；数据来自 Suricata / LyFlow 与流量组件告警，按规则与实体聚合。' }}
+        </p>
+      </div>
+      <div class="sx-head-actions">
+        <span class="sx-live"><i />LIVE</span>
+        <button class="sx-btn" type="button" :disabled="loading" @click="search">{{ loading ? '更新中' : '刷新' }}</button>
+      </div>
+    </header>
+
+    <section class="tt-stats">
+      <article class="sx-metric">
+        <span class="sx-metric-label"><i />结果总数</span>
+        <strong class="sx-metric-value">{{ total }}</strong>
+        <span class="sx-metric-note">当前筛选条件下的聚合记录</span>
+      </article>
+      <article class="sx-metric">
+        <span class="sx-metric-label"><i />高 / 严重</span>
+        <strong class="sx-metric-value" :class="highSeverityCount ? 'danger' : ''">{{ highSeverityCount }}</strong>
+        <span class="sx-metric-note">当前页样本中的高危记录</span>
+      </article>
+      <article class="sx-metric">
+        <span class="sx-metric-label"><i />来源引擎</span>
+        <strong class="sx-metric-value">{{ sourceCount }}</strong>
+        <span class="sx-metric-note">当前页出现的数据来源</span>
+      </article>
+      <article class="sx-metric">
+        <span class="sx-metric-label"><i />当前页</span>
+        <strong class="sx-metric-value">{{ page }}<em class="tt-page-total">/{{ totalPages }}</em></strong>
+        <span class="sx-metric-note">每页 {{ pageSize }} 组，按最后一次发生时间排序</span>
+      </article>
     </section>
 
-    <div v-if="error" class="notice error">{{ error }}</div>
+    <section class="sx-filter tt-filter">
+      <label class="wide"><span>关键字</span><input v-model.trim="filters.query" placeholder="IP、域名、路径、探针" @keyup.enter="search"></label>
+      <label><span>源 IP</span><input v-model.trim="filters.src_ip" placeholder="10.0.0.1" @keyup.enter="search"></label>
+      <label><span>目的 IP</span><input v-model.trim="filters.dst_ip" placeholder="10.0.0.2" @keyup.enter="search"></label>
+      <label><span>威胁等级</span>
+        <select v-model="filters.severity">
+          <option value="">全部</option>
+          <option value="low">低</option>
+          <option value="medium">中</option>
+          <option value="high">高</option>
+          <option value="critical">严重</option>
+        </select>
+      </label>
+      <label><span>开始时间</span><input v-model="filters.start_time" type="datetime-local"></label>
+      <label><span>结束时间</span><input v-model="filters.end_time" type="datetime-local"></label>
+      <button class="sx-btn primary" type="button" :disabled="loading" @click="search">查询</button>
+    </section>
 
-    <article class="events-panel surface-card">
-      <div class="panel-title"><strong>{{ title }}</strong><span>{{ `${threats.length} 组 / 共 ${total} 组 / 当前页 ${pageSize} 组` }}</span></div>
-      <div ref="tableWrap" data-testid="traffic-threat-table" :class="['table-wrap', { updating: loading && hasLoaded }]">
-        <table>
-          <thead><tr><th>时间</th><th>等级</th><th>检测引擎</th><th>威胁类型</th><th>探针</th><th>威胁IP</th><th>威胁内容</th><th>次数</th><th>操作</th></tr></thead>
+    <div v-if="error" class="sx-error">{{ error }}</div>
+
+    <article class="sx-panel">
+      <div class="sx-panel-head">
+        <div class="sx-panel-title">{{ title }}记录</div>
+        <span class="sx-panel-meta">{{ `${threats.length} 组 / 共 ${total} 组 / 第 ${page} 页` }}</span>
+      </div>
+      <div ref="tableWrap" data-testid="traffic-threat-table" :class="['sx-table-wrap', 'tt-table', { updating: loading && hasLoaded }]">
+        <table class="sx-table">
+          <thead>
+            <tr>
+              <th>时间</th><th>等级</th><th>引擎 / 类别</th><th>威胁</th><th>探针</th><th>威胁 IP</th><th>内容</th><th>次数</th><th></th>
+            </tr>
+          </thead>
           <tbody>
-            <tr v-if="loading && !hasLoaded"><td colspan="9" class="empty-cell">{{ pageCopy().loading }}</td></tr>
-            <tr v-else-if="!threats.length"><td colspan="9" class="empty-cell">{{ pageCopy().empty }}</td></tr>
+            <tr v-if="loading && !hasLoaded"><td colspan="9" class="sx-empty">{{ pageCopy().loading }}</td></tr>
+            <tr v-else-if="!threats.length"><td colspan="9" class="sx-empty">{{ pageCopy().empty }}</td></tr>
             <tr v-for="item in threats" :key="item.aggregate_key || item.message_id || item.id" data-testid="traffic-threat-row">
-              <td>{{ formatTime(item.timestamp) }}</td>
-              <td><span :class="['severity', severityClass(item.severity)]">{{ severityLabel(item.severity) }}</span></td>
-              <td><span class="engine-chip">{{ sourceEngineLabel(item.source_engine || item.source) }}</span><small>{{ categoryLabel(item.category) }}</small></td>
-              <td><b>{{ threatTypeLabel(item) }}</b><small>{{ threatMetaText(item) }}</small></td>
+              <td class="tt-time">{{ formatTime(item.timestamp) }}</td>
+              <td><span class="sx-badge" :class="severityClass(item.severity)">{{ severityLabel(item.severity) }}</span></td>
+              <td><b>{{ sourceEngineLabel(item.source_engine || item.source) }}</b><small>{{ categoryLabel(item.category) }}</small></td>
+              <td class="tt-threat"><b>{{ threatTypeLabel(item) }}</b><small>{{ threatMetaText(item) }}</small></td>
               <td>{{ agentName(item) }}</td>
-              <td>{{ threatIP(item) || '-' }}</td>
-              <td>{{ contentSummary(item) }}</td>
-              <td><span class="count-chip">{{ occurrenceCount(item) }}</span></td>
-              <td><button data-testid="traffic-threat-detail-open" @click="selected = item">详情</button></td>
+              <td class="sx-mono">{{ threatIP(item) || '-' }}</td>
+              <td class="tt-content" :title="contentSummary(item)">{{ contentSummary(item) }}</td>
+              <td><span class="sx-badge info">{{ occurrenceCount(item) }}</span></td>
+              <td class="tt-action"><button class="sx-btn ghost" type="button" data-testid="traffic-threat-detail-open" @click="selected = item">详情</button></td>
             </tr>
           </tbody>
         </table>
       </div>
-      <div class="pager">
-        <button data-testid="traffic-threat-previous-page" @click="prevPage" :disabled="loading || page === 1">上一页</button>
-        <span data-testid="traffic-threat-page">第 {{ page }} 页 / {{ totalPages }} 页</span>
-        <button data-testid="traffic-threat-next-page" @click="nextPage" :disabled="loading || page >= totalPages">下一页</button>
+      <div class="tt-pager">
+        <button class="sx-btn" type="button" data-testid="traffic-threat-previous-page" :disabled="loading || page === 1" @click="prevPage">上一页</button>
+        <span data-testid="traffic-threat-page" class="sx-mono">第 {{ page }} 页 / {{ totalPages }} 页</span>
+        <button class="sx-btn" type="button" data-testid="traffic-threat-next-page" :disabled="loading || page >= totalPages" @click="nextPage">下一页</button>
       </div>
     </article>
 
-    <div v-if="selected" class="drawer-mask">
-      <aside class="drawer surface-card" data-testid="traffic-threat-detail">
-        <div class="drawer-title"><strong>威胁详情</strong><button data-testid="traffic-threat-detail-close" @click="selected = null">×</button></div>
-        <div class="detail-grid">
-          <template v-for="row in detailRows(selected)" :key="row.label">
-            <span>{{ row.label }}</span><b :data-testid="row.testId">{{ row.value }}</b>
-          </template>
+    <div v-if="selected" class="sx-drawer-scrim" @click.self="selected = null">
+      <aside class="sx-drawer" data-testid="traffic-threat-detail">
+        <div class="sx-drawer-head">
+          <div>
+            <p class="sx-kicker">EVIDENCE</p>
+            <div class="sx-panel-title">威胁详情</div>
+          </div>
+          <button class="sx-btn ghost" type="button" data-testid="traffic-threat-detail-close" @click="selected = null">关闭</button>
         </div>
-        <div class="drawer-actions">
-          <button type="button" class="primary" :disabled="suppressing || !suppressionRuleValue(selected)" @click="suppressSelected">{{ suppressing ? '保存中…' : '标记误报并抑制 30 天' }}</button>
-          <span v-if="suppressionMessage" class="drawer-message">{{ suppressionMessage }}</span>
+        <div class="sx-drawer-body tt-detail">
+          <dl class="tt-detail-grid">
+            <template v-for="row in detailRows(selected)" :key="row.label">
+              <dt>{{ row.label }}</dt>
+              <dd :data-testid="row.testId">{{ row.value }}</dd>
+            </template>
+          </dl>
+          <div class="tt-detail-actions">
+            <button type="button" class="sx-btn primary" :disabled="suppressing || !suppressionRuleValue(selected)" @click="suppressSelected">
+              {{ suppressing ? '保存中…' : '标记误报并抑制 30 天' }}
+            </button>
+            <span v-if="suppressionMessage" class="sx-muted">{{ suppressionMessage }}</span>
+          </div>
         </div>
       </aside>
     </div>
@@ -311,14 +366,44 @@ onUnmounted(() => { if (resizeObserver) resizeObserver.disconnect() })
 </script>
 
 <style scoped>
-.events-page{position:relative;height:100%;min-height:0;display:grid;grid-template-rows:auto minmax(0,1fr);gap:12px;padding:14px;color:var(--text-primary);box-sizing:border-box}.query-panel,.events-panel{border-color:var(--border-color)}.query-panel{display:grid;grid-template-columns:1.4fr repeat(5,minmax(110px,1fr)) auto;gap:9px;align-items:end;padding:12px;min-height:0}.query-panel label{display:grid;gap:5px;min-width:0;color:var(--text-secondary);font-size:12px}input,select{height:32px;min-width:0;border:1px solid var(--border-color);border-radius:var(--card-radius-sm);background:var(--bg-secondary);color:var(--text-primary);padding:0 11px;font-size:12px;outline:0}input::placeholder{color:var(--text-muted)}input:focus,select:focus{border-color:var(--border-glow);box-shadow:0 0 0 3px var(--primary-glow)}button{height:32px;padding:0 12px;border:1px solid var(--border-color);border-radius:var(--card-radius-sm);background:var(--bg-elevated);color:var(--text-secondary);cursor:pointer;font-size:12px;transition:border-color var(--transition-fast),color var(--transition-fast),background var(--transition-fast)}button:hover:not(:disabled){border-color:var(--border-glow);color:var(--text-primary);background:var(--bg-hover)}button:disabled{opacity:.45;cursor:not-allowed}.primary{border:0;background:linear-gradient(135deg,var(--primary-color),var(--risk-low));color:var(--text-inverse);font-weight:900;box-shadow:0 10px 28px rgba(56,189,248,.18)}.events-panel{min-height:0;display:grid;grid-template-rows:44px minmax(0,1fr) 40px}.panel-title{position:relative;height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 16px;border-bottom:1px solid var(--border-light);background:rgba(4,12,24,.38)}.panel-title strong{color:var(--text-primary);font-size:14px}.panel-title span{color:var(--text-muted);font-size:12px}.table-wrap{position:relative;min-height:0;overflow:auto}.table-wrap.updating{opacity:.72}table{width:100%;min-width:1180px;border-collapse:separate;border-spacing:0;table-layout:fixed}th,td{padding:8px 12px;border-bottom:1px solid var(--border-light);text-align:center;vertical-align:middle}th{position:sticky;top:0;z-index:1;height:36px;color:var(--text-muted);background:var(--bg-card);font-size:11px;font-weight:900;letter-spacing:.08em;text-transform:uppercase}td{height:38px;color:var(--text-primary);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}td b{display:block;color:var(--text-primary);font-size:12px;overflow:hidden;text-overflow:ellipsis}td small{display:block;margin-top:2px;color:var(--text-muted);overflow:hidden;text-overflow:ellipsis}.empty-cell{height:96px;text-align:center;color:var(--text-secondary)}.count-chip{display:inline-flex;align-items:center;justify-content:center;min-width:42px;padding:3px 8px;border:1px solid rgba(52,211,153,.24);border-radius:999px;color:var(--risk-low);background:rgba(52,211,153,.09);font-weight:900}.engine-chip{display:inline-flex;max-width:100%;padding:3px 8px;border:1px solid rgba(125,211,252,.24);border-radius:999px;color:var(--primary-light);background:rgba(125,211,252,.09);overflow:hidden;text-overflow:ellipsis}.severity{display:inline-flex;justify-content:center;min-width:44px;padding:3px 8px;border-radius:999px;font-size:11px;font-weight:900}.severity.low{color:var(--risk-low);background:var(--risk-low-bg);border:1px solid var(--risk-low-border)}.severity.medium{color:var(--risk-medium);background:var(--risk-medium-bg);border:1px solid var(--risk-medium-border)}.severity.high,.severity.critical{color:var(--risk-critical);background:var(--risk-critical-bg);border:1px solid var(--risk-critical-border)}.pager{position:relative;display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:4px 14px;border-top:1px solid var(--border-light);background:rgba(4,12,24,.34)}.pager span{min-width:72px;text-align:center;color:var(--text-secondary);font-size:12px}.notice.error{padding:10px 12px;border:1px solid var(--risk-critical-border);border-radius:var(--card-radius-sm);color:#fecaca;background:var(--risk-critical-bg)}.drawer-mask{position:fixed;inset:0;z-index:40;display:flex;justify-content:flex-end;padding:74px 24px 24px;background:rgba(2,8,23,.58)}.drawer{width:min(640px,92vw);height:100%;display:grid;grid-template-rows:auto minmax(0,1fr) auto;overflow:hidden}.drawer-title{position:relative;display:flex;align-items:center;justify-content:space-between;gap:14px;padding:16px 18px;border-bottom:1px solid var(--border-light)}.drawer-title strong{font-size:16px}.drawer-title button{font-size:18px}.detail-grid{display:grid;grid-template-columns:112px minmax(0,1fr);gap:10px 14px;padding:18px;overflow:auto}.detail-grid span{display:flex;align-items:center;justify-content:center;color:var(--text-muted);font-size:12px}.detail-grid b{display:flex;align-items:center;justify-content:center;text-align:center;min-width:0;color:var(--text-primary);font-size:12px;word-break:break-word}.drawer-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;padding:12px 18px;border-top:1px solid #e1e7ef;background:#f7f9fc}.drawer-message{color:#47617f;font-size:11px;line-height:1.4}@media(max-width:1100px){.query-panel{grid-template-columns:repeat(2,minmax(0,1fr)) auto}.events-page{padding:10px}}@media(max-width:760px){.query-panel{grid-template-columns:1fr}.drawer-mask{padding:54px 10px 10px}}
-.events-page{color:#243149}.query-panel,.events-panel,.drawer{border-color:#dce4ef!important;background:#fff!important;border-radius:6px!important;box-shadow:0 3px 12px rgba(44,66,96,.08)!important}.query-panel label{color:#526078}.query-panel input,.query-panel select{border-color:#d6dfeb;background:#fff;color:#273449;border-radius:4px}.query-panel button,.events-panel button,.drawer button{border-color:#d6dfeb;background:#fff;color:#40506a;border-radius:4px}.query-panel .primary{border-color:#1769d2;background:#1769d2;color:#fff;box-shadow:none}.panel-title,.pager{background:#f7f9fc;border-color:#e1e7ef}.panel-title strong,td,td b,.drawer-title strong,.detail-grid b{color:#263247}.panel-title span,td small,.pager span,.detail-grid span{color:#768399}th{background:#eef3f8;color:#53627a;letter-spacing:0}th,td{border-color:#e6ebf2}.engine-chip{border-color:#b9d6f4;background:#e8f3ff;color:#1769d2;border-radius:4px;font-weight:750}.count-chip{border-color:#b8dfca;background:#edf9f2;color:#19794b;border-radius:4px}.severity{border-radius:4px}.notice.error{color:#a72820;background:#fff2f1}.drawer-mask{background:rgba(32,45,63,.28)}
-.threat-head{grid-column:1/-1;display:flex;align-items:flex-end;justify-content:space-between;gap:18px;padding:2px 2px 10px;border-bottom:1px solid #e3ebf4;margin-bottom:1px}
-.threat-kicker{margin:0 0 3px;color:#0b6bcb;font-size:11px;font-weight:800;letter-spacing:.13em}
-.threat-head h2{margin:0;color:#17283d;font-size:23px;font-weight:760;letter-spacing:-.035em}
-.threat-subtitle{margin:4px 0 0;color:#738399;font-size:12px;line-height:1.5}
-.threat-summary{display:flex;gap:14px;white-space:nowrap}
-.threat-summary span{color:#7d8ba0;font-size:11px}
-.threat-summary b{margin-right:3px;color:#1f3550;font-size:16px;font-weight:760}
-@media(max-width:760px){.threat-head{align-items:flex-start;flex-direction:column}.threat-summary{flex-wrap:wrap}}
+.tt-stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+.tt-page-total { margin-left: 3px; color: var(--lyf-ink-3); font-size: 15px; font-weight: 500; }
+
+.tt-filter { display: grid; grid-template-columns: minmax(180px, 1.5fr) repeat(3, minmax(110px, 1fr)) repeat(2, minmax(150px, 1fr)) auto; align-items: end; }
+.tt-filter .wide { min-width: 180px; }
+.tt-filter input, .tt-filter select { width: 100%; }
+.tt-filter button { height: 34px; }
+
+.tt-table { max-height: calc(100vh - 430px); }
+.tt-table.updating { opacity: 0.72; }
+.tt-time { color: var(--lyf-ink-3); font-family: var(--lyf-font-data); font-size: 11px; white-space: nowrap; }
+.tt-threat { max-width: 320px; }
+.tt-threat b { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.tt-content { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.tt-action { text-align: right; }
+.tt-action .sx-btn { height: 26px; padding: 0 9px; font-size: 11px; }
+
+.tt-pager { display: flex; align-items: center; justify-content: flex-end; gap: 10px; padding: 10px 14px; border-top: 1px solid var(--lyf-line); background: var(--lyf-surface-2); }
+.tt-pager .sx-btn { height: 28px; padding: 0 10px; font-size: 11.5px; }
+.tt-pager span { color: var(--lyf-ink-3); font-size: 11px; }
+
+.tt-detail { display: grid; gap: 18px; }
+.tt-detail-grid { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 1px; margin: 0; border: 1px solid var(--lyf-line); border-radius: var(--lyf-radius-sm); overflow: hidden; }
+.tt-detail-grid dt { padding: 9px 12px; background: var(--lyf-surface-2); color: var(--lyf-ink-3); font-size: 11px; }
+.tt-detail-grid dd { margin: 0; padding: 9px 12px; overflow-wrap: anywhere; color: var(--lyf-ink); font-family: var(--lyf-font-data); font-size: 11.5px; }
+.tt-detail-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+
+@media (max-width: 1400px) {
+  .tt-filter { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .tt-filter .wide { grid-column: 1 / -1; }
+}
+@media (max-width: 1100px) {
+  .tt-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .tt-table { max-height: none; }
+}
+@media (max-width: 720px) {
+  .tt-stats { grid-template-columns: minmax(0, 1fr); }
+  .tt-filter { grid-template-columns: minmax(0, 1fr); }
+  .tt-detail-grid { grid-template-columns: minmax(0, 1fr); }
+}
 </style>

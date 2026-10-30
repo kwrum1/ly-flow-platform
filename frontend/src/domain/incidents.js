@@ -70,21 +70,23 @@ function normalizeStage(stage = {}, index = 0) {
 }
 
 function normalizeEvidence(item = {}, index = 0) {
+  const raw = item.raw_event || item.raw || item.payload || item
   return {
     id: firstNonEmpty(item.id, item.event_id, item.raw_reference, `evidence-${index + 1}`),
-    sourceModule: firstNonEmpty(item.source_module, item.sourceModule, item.module, item.source, 'xdr'),
-    title: firstNonEmpty(item.title, item.rule_name, item.raw_event?.rule_name, item.event_type, item.type, item.message, `Evidence ${index + 1}`),
-    summary: firstNonEmpty(item.summary, item.message, item.raw_event?.summary, item.raw_event?.message, item.title, item.rule_name, item.event_type, item.type),
+    sourceModule: firstNonEmpty(item.source_label, item.source_engine, item.source_module, item.sourceModule, item.module, item.source, 'unknown'),
+    title: firstNonEmpty(item.title, item.rule_name, raw?.rule_name, item.event_type, item.type, item.message, `Evidence ${index + 1}`),
+    summary: firstNonEmpty(item.summary, item.message, raw?.summary, raw?.message, item.title, item.rule_name, item.event_type, item.type),
     time: firstNonEmpty(item.time, item.date, item.timestamp, item.created_at, item.occurred_at),
     stage: stageKey(firstNonEmpty(item.stage, item.stage_hint, item.phase, item.tactic)),
     rawReference: firstNonEmpty(item.raw_reference, item.rawReference, item.raw_ref, item.evidence_ref),
     entityId: firstNonEmpty(item.entity_id, item.entityId, item.asset_id, item.agent_id, item.host_id, item.process_id),
-    ruleId: firstNonEmpty(item.component_rule_id, item.rule_id, item.raw_event?.component_rule_id, item.raw_event?.rule_id, item.raw?.rule_id),
-    ruleName: firstNonEmpty(item.rule_name, item.raw_event?.rule_name, item.raw?.rule_name),
+    ruleId: firstNonEmpty(item.component_rule_id, item.rule_id, raw?.component_rule_id, raw?.rule_id),
+    ruleName: firstNonEmpty(item.rule_name, raw?.rule_name, item.ruleName),
     sourceIP: firstNonEmpty(item.src_ip, item.source_ip, item.entities?.source_ip, item.client_ip),
     targetIP: firstNonEmpty(item.dst_ip, item.target_ip, item.entities?.target_ip, item.server_ip),
-    detectionSurface: firstNonEmpty(item.detection_surface, item.source_engine, item.engine, item.source_module, item.module, item.source, 'xdr'),
-    raw: item.raw_event || item.raw || item.payload || item,
+    detectionSurface: firstNonEmpty(item.source_label, item.source_engine, item.engine, item.source_module, item.module, item.source, 'unknown'),
+    whyStage: item.why_stage || null,
+    raw: raw,
   }
 }
 
@@ -100,11 +102,30 @@ function normalizeStageGroup(group = {}, index = 0) {
     name: firstNonEmpty(group.stage_label, group.label, STAGE_LABELS[resolvedKey], rawStage, `攻击阶段 ${index + 1}`),
     tactic: firstNonEmpty(group.tactic, group.mitre_tactic, STAGE_TACTICS[resolvedKey]),
     shortCode: firstNonEmpty(group.short_code, group.code, STAGE_TACTICS[resolvedKey]?.split(' ')[0], 'XDR'),
+    firstSeen: firstNonEmpty(group.first_seen, group.firstSeen),
+    count: Number(group.count || evidence.length || 0),
+    stageOrder: Number(group.stage_order ?? index),
     evidence: evidence.map(normalizeEvidence),
   }
 }
 
-export function normalizeIncident(raw = {}) {
+export 
+function isUUID(value = '') {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value).trim())
+}
+
+function readableIncidentTitle(raw = {}, fallbackAsset = '', stageLabel = '') {
+  const evidence = Array.isArray(raw.evidence) ? raw.evidence : Array.isArray(raw.events) ? raw.events : Array.isArray(raw.attack_chain) ? raw.attack_chain : []
+  const first = evidence[0] || {}
+  const candidates = [raw.title, raw.name, raw.rule_name, raw.attack_type, first.rule_name, first.title, first.raw_event?.rule_name]
+  let title = candidates.map((v) => String(v || '').trim()).find((v) => v && !isUUID(v) && !v.includes('出现攻击链') && !v.startsWith('目标资产')) || ''
+  if (title) return title
+  const asset = isUUID(fallbackAsset) ? '' : fallbackAsset
+  const parts = [asset, stageLabel].filter(Boolean)
+  return parts.length ? parts.join(' · ') : '关联安全事件'
+}
+
+function normalizeIncident(raw = {}) {
   const attackChain = Array.isArray(raw.attack_chain) ? raw.attack_chain : []
   const stages = Array.isArray(raw.stages) ? raw.stages : attackChain
   const evidence = Array.isArray(raw.evidence) ? raw.evidence : Array.isArray(raw.events) ? raw.events : attackChain
@@ -113,12 +134,14 @@ export function normalizeIncident(raw = {}) {
 
   return {
     id: firstNonEmpty(raw.id, raw.incident_id, raw.chain_id),
-    title: firstNonEmpty(raw.title, raw.name, raw.rule_name, raw.attack_type, '关联安全事件'),
+    title: readableIncidentTitle(raw, firstNonEmpty(raw.affected_asset, raw.asset, raw.hostname, raw.entity_id, raw.agent_id, firstEvidence.hostname, firstEvidence.agent_id), STAGE_LABELS[stageKey(firstNonEmpty(raw.seed_stage, raw.stage, (raw.stages || [])[0]))] || ''),
     severity: normalizeSeverity(raw.severity || raw.risk_level),
     status: normalizeStatus(raw.status),
-    affectedAsset: firstNonEmpty(raw.affected_asset, raw.affectedAsset, raw.asset, raw.hostname, raw.host, raw.entity_id, raw.asset_id, raw.agent_id, raw.host_id, firstEvidence.entity_id, firstEvidence.asset_id, firstEvidence.agent_id, firstEvidence.host_id),
+    affectedAsset: firstNonEmpty(raw.agent_display_name, raw.display_name, raw.hostname, raw.host, firstEvidence.hostname, firstEvidence.agent_display_name, raw.affected_asset, raw.affectedAsset, raw.asset, raw.entity_id, raw.asset_id, raw.agent_id, raw.host_id, firstEvidence.entity_id, firstEvidence.asset_id, firstEvidence.agent_id, firstEvidence.host_id),
     entityId: firstNonEmpty(raw.entity_id, raw.entityId, raw.asset_id, raw.agent_id, raw.host_id, raw.chain_id, raw.source_chain_id, firstEvidence.entity_id, firstEvidence.asset_id),
+    agentId: firstNonEmpty(raw.agent_id, raw.agentId, raw.entity_id, raw.entityId, firstEvidence.agent_id, firstEvidence.agentId, firstEvidence.entity_id),
     recommendedAction: firstNonEmpty(raw.recommended_action, raw.recommendedAction, raw.action, raw.remediation),
+    assignee: firstNonEmpty(raw.assignee, raw.assignee_name, raw.handler),
     createdAt: firstNonEmpty(raw.created_at, raw.createdAt, raw.timestamp, raw.first_seen),
     updatedAt: firstNonEmpty(raw.updated_at, raw.updatedAt, raw.last_seen),
     resolvedAt: firstNonEmpty(raw.resolved_at, raw.resolvedAt),

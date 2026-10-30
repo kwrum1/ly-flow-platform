@@ -43,21 +43,78 @@ func (b *Bundle) Match(env contracts.TelemetryEnvelope) []contracts.ComponentAle
 	if b == nil {
 		return nil
 	}
+	if isRASPHealthEvent(env) {
+		return nil
+	}
 	out := make([]contracts.ComponentAlert, 0)
 	for _, rule := range b.Rules {
 		if rule.Category != env.Category {
+			continue
+		}
+		// A regex that matches the empty string is not a detector: it would
+		// fire on every event. Broken upstream conversions have produced
+		// "(?i)" patterns, so reject them at runtime instead of flooding.
+		if rule.Regex && rule.compiled != nil && rule.compiled.MatchString("") {
 			continue
 		}
 		if !rule.matches(env) {
 			continue
 		}
 		alert := contracts.ComponentAlert{SchemaVersion: contracts.ComponentAlertSchemaVersion, Category: rule.Category, RuleID: rule.ID, RuleName: rule.Name, Severity: rule.Severity, ScoreHint: rule.ScoreHint, StageHint: rule.StageHint, Confidence: 0.8, Summary: rule.Name, CandidateOnly: rule.Candidate}
+		// Preserve the telemetry fields on the alert. RASP enforcement state
+		// (blocked / would_block / policy_version) lives there and must survive
+		// the rule match, otherwise the console can never prove a block.
+		if len(env.Fields) > 0 {
+			details := make(map[string]any, len(env.Fields))
+			for key, value := range env.Fields {
+				details[key] = value
+			}
+			alert.Details = details
+		}
+		action, _ := env.Fields["action"].(string)
+		blocked, _ := env.Fields["blocked"].(bool)
+		if action == "block" || blocked {
+			alert.Action = string(contracts.ActionBlock)
+			alert.PolicyState = contracts.PolicyBlock
+		}
 		if applyTrafficNoisePolicy(&alert) {
 			continue
 		}
 		out = append(out, alert)
 	}
+	// One RASP probe event is one attack. Matching several rules (native
+	// detector + generic OWASP signatures) must not create several alerts, or
+	// the overview multiplies one hit into a fake flood.
+	if env.Category == contracts.TelemetryRASP && len(out) > 1 {
+		best := out[0]
+		for _, candidate := range out[1:] {
+			if betterRASPAlert(candidate, best) {
+				best = candidate
+			}
+		}
+		out = []contracts.ComponentAlert{best}
+	}
 	return out
+}
+
+func isRASPHealthEvent(env contracts.TelemetryEnvelope) bool {
+	if env.Category != contracts.TelemetryRASP {
+		return false
+	}
+	eventType := strings.ToLower(strings.TrimSpace(env.EventType))
+	return strings.Contains(eventType, "heartbeat") || strings.Contains(eventType, "control.health")
+}
+
+func betterRASPAlert(candidate, current contracts.ComponentAlert) bool {
+	if candidate.ScoreHint != current.ScoreHint {
+		return candidate.ScoreHint > current.ScoreHint
+	}
+	candidateNative := strings.HasPrefix(strings.ToLower(candidate.RuleID), "rasp-")
+	currentNative := strings.HasPrefix(strings.ToLower(current.RuleID), "rasp-")
+	if candidateNative != currentNative {
+		return candidateNative
+	}
+	return candidate.RuleID < current.RuleID
 }
 
 func applyTrafficNoisePolicy(alert *contracts.ComponentAlert) bool {

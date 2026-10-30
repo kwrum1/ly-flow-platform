@@ -11,6 +11,9 @@
 | [`API.md`](API.md) | 人工阅读的 API 摘要；机器契约优先级更高 |
 | [`zh/当前功能盘点与能力边界.md`](zh/当前功能盘点与能力边界.md) | 已实现能力、限制和未承诺能力 |
 | [`zh/后续工作计划.md`](zh/后续工作计划.md) | 接盘后的唯一执行计划 |
+| [`dev/DETECTION-ACCEPTANCE-2026-10-30.md`](dev/DETECTION-ACCEPTANCE-2026-10-30.md) | 检测能力、主动防御和抓包链路验收 |
+| [`dev/ALERT-TUNING-2026-10-30.md`](dev/ALERT-TUNING-2026-10-30.md) | 规则降噪、转换器保真和误报处理 |
+| [`dev/MIRROR-SENSOR-125.md`](dev/MIRROR-SENSOR-125.md) | 镜像抓包环境部署与观测 |
 | [`CLICKHOUSE_EVENT_MIGRATION.md`](CLICKHOUSE_EVENT_MIGRATION.md) | 事件存储迁移和读切换约束 |
 | [`RELEASE_PROVENANCE.md`](RELEASE_PROVENANCE.md) | 当前服务端包来源、构建校验和交付边界 |
 | [`GITHUB-CI.md`](GITHUB-CI.md) | 当前正式服务端构建、周期、产物与历史清理 |

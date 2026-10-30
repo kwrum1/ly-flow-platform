@@ -3,7 +3,5 @@
 </template>
 
 <script setup>
-import './assets/styles/global.css'
-import './assets/styles/ikuai-theme.css'
-import './assets/styles/command.css'
+import './v4/styles/app.css'
 </script>

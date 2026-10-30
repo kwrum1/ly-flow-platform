@@ -49,6 +49,7 @@ type Config struct {
 	RedisLegacyPassword      string
 	InsecureSkipVerify       bool
 	HeartbeatInterval        int
+	ConfigPollInterval       int
 	LogLevel                 string
 	LogFile                  string
 	TrafficEnabled           bool
@@ -76,6 +77,7 @@ type Config struct {
 	RuntimeStream            string
 	YARACommand              string
 	YARARulesPath            string
+	YARARulesURL             string
 	YARAScanPaths            string
 	YARAScanIntervalSeconds  int
 	YARAScanTimeoutSeconds   int
@@ -116,6 +118,7 @@ type Agent struct {
 	engines                *EngineRegistry
 	trafficStarted         bool
 	hidsStarted            bool
+	logStarted             bool
 	raspStarted            bool
 	trafficSpool           *durableTrafficSpool
 	trafficSpoolMu         sync.Mutex
@@ -230,7 +233,6 @@ func NewAgent(cfg *Config) *Agent {
 	a.runtimePublisher = NewHTTPRuntimePublisher(a)
 	a.engines = NewEngineRegistry(
 		newSuricataSupervisor(),
-		newWazuhSupervisor(),
 		newYARASupervisor(),
 		newRASPSupervisor(),
 	)
@@ -261,8 +263,22 @@ func (a *Agent) capabilityModel() map[string]interface{} {
 	}
 
 	raspStatus := "disabled"
+	raspMode := "monitor"
+	raspEnforcing := false
 	if a.cfg.RASPEnabled {
-		raspStatus = "monitor"
+		raspMode = strings.TrimSpace(a.cfg.RASPMode)
+		if raspMode == "" {
+			raspMode = "monitor"
+		}
+		switch {
+		case raspMode == string(shared.ModeBlock) && a.cfg.RASPBlockOnHit:
+			raspStatus = "blocking"
+			raspEnforcing = true
+		case raspMode == string(shared.ModeBlock):
+			raspStatus = "dry_run"
+		default:
+			raspStatus = "monitor"
+		}
 	}
 
 	return map[string]interface{}{
@@ -337,7 +353,9 @@ func (a *Agent) capabilityModel() map[string]interface{} {
 		"rasp_probe_manager": map[string]interface{}{
 			"enabled":        a.cfg.RASPEnabled,
 			"status":         raspStatus,
-			"mode":           "monitor",
+			"mode":           raspMode,
+			"enforcing":      raspEnforcing,
+			"block_on_hit":   a.cfg.RASPBlockOnHit,
 			"python":         "sitecustomize_runtime_hooks",
 			"php":            "native_extension_with_prepend_fallback",
 			"java":           "javaagent_security_jdbc_hooks",
@@ -486,6 +504,10 @@ func (a *Agent) startManagedCollectors() {
 		go runSupervisedRuntime(a.ctx, health, runtimeSupervisorConfig{
 			Name: "rasp", Run: func(ctx context.Context) { a.runRASPEventAdapterContext(withRuntimeHealth(ctx, health)) }, OnHealth: a.handleControlHealth,
 		})
+	}
+	if !a.logStarted {
+		a.logStarted = true
+		go a.runLogSources()
 	}
 }
 
@@ -733,8 +755,10 @@ func (a *Agent) sendHeartbeat() {
 }
 
 func (a *Agent) configLoop() {
-	interval := 30
-	if a.cfg.HeartbeatInterval > 0 {
+	interval := 5
+	if a.cfg.ConfigPollInterval > 0 {
+		interval = a.cfg.ConfigPollInterval
+	} else if a.cfg.HeartbeatInterval > 0 {
 		interval = a.cfg.HeartbeatInterval
 	}
 
@@ -884,6 +908,21 @@ func (a *Agent) applyPulledConfig(config map[string]interface{}) {
 		if enabled, ok := boolFromInterface(runtimePolicy["enabled"]); ok {
 			a.cfg.HIDSEnabled = enabled
 		}
+	}
+	// RASP is a runtime toggle too: the console writes agents.rasp_enabled and
+	// the agent must start/stop the probe manager without a restart.
+	if raspPolicy := mapFromInterface(policy["rasp"]); len(raspPolicy) > 0 {
+		a.cfgMu.Lock()
+		if enabled, ok := boolFromInterface(raspPolicy["enabled"]); ok {
+			a.cfg.RASPEnabled = enabled
+		}
+		if mode := strings.TrimSpace(stringFromInterface(raspPolicy["mode"])); mode != "" {
+			a.cfg.RASPMode = mode
+		}
+		if blockOnHit, ok := boolFromInterface(raspPolicy["block_on_hit"]); ok {
+			a.cfg.RASPBlockOnHit = blockOnHit
+		}
+		a.cfgMu.Unlock()
 	}
 	a.startManagedCollectors()
 }
@@ -2334,15 +2373,6 @@ func (a *Agent) runHIDS() {
 				if err := a.runtimePublisher.Publish(a.ctx, event); err != nil {
 					fmt.Printf("[runtime] publish failed: %v\n", err)
 				}
-				if input, ok := wazuhInputFromRuntimeEvent(event); ok {
-					a.publishLogAuditTelemetry(event, input)
-					alert, err := componentAlertFromWazuh(input, a, contracts.RawReference{Path: xdrStringFromMap(event.Metadata, "log_path"), EventType: event.Type})
-					if err != nil {
-						fmt.Printf("[wazuh] log audit conversion failed: %v\n", err)
-					} else if err := a.publishComponentAlert(alert); err != nil {
-						fmt.Printf("[wazuh] log audit publish failed: %v\n", err)
-					}
-				}
 			}
 		}
 	}
@@ -2685,10 +2715,11 @@ func collectPerformance() map[string]interface{} {
 		memory = readWindowsMemoryInfo()
 	}
 	perf := map[string]interface{}{
-		"load_avg":  readLoadAvg(),
-		"memory":    memory,
-		"disk":      readDiskUsage("/"),
-		"cpu_cores": runtime.NumCPU(),
+		"load_avg":       readLoadAvg(),
+		"uptime_seconds": readUptimeSeconds(),
+		"memory":         memory,
+		"disk":           readDiskUsage("/"),
+		"cpu_cores":      runtime.NumCPU(),
 	}
 	if cpuPercent, ok := readWindowsCPUPercent(); ok {
 		perf["cpu_usage_percent"] = cpuPercent
@@ -2768,6 +2799,22 @@ func readLoadAvg() []float64 {
 		values = append(values, v)
 	}
 	return values
+}
+
+func readUptimeSeconds() int64 {
+	data, err := os.ReadFile("/proc/uptime")
+	if err != nil {
+		return 0
+	}
+	fields := strings.Fields(string(data))
+	if len(fields) == 0 {
+		return 0
+	}
+	value, err := strconv.ParseFloat(fields[0], 64)
+	if err != nil || value <= 0 {
+		return 0
+	}
+	return int64(value)
 }
 
 func readMemInfo() map[string]int64 {
@@ -2978,6 +3025,12 @@ func (c *processDeltaCollector) Collect(a *Agent, strategy string) []RuntimeEven
 	for _, pid := range newPIDs {
 		sample := snapshot[pid]
 		severity, signal := processSignal(sample)
+		// Kernel threads and benign short-lived commands are constant on a
+		// healthy host; emitting each one as an alert drowns real detections.
+		// Keep only medium/high signals by default.
+		if severity == "low" && signal == "new-process" {
+			continue
+		}
 		events = append(events, buildRuntimeMonitorEvent(
 			a,
 			strategy,
@@ -3202,8 +3255,6 @@ func readAppendedLines(path string, offset int64, limit int64) ([]string, int64,
 func classifyAuthSignal(line string) (eventType, severity, signal string, ok bool) {
 	l := strings.ToLower(line)
 	switch {
-	case hidsContainsAny(l, []string{"accepted password for root", "accepted publickey for root"}):
-		return "runtime.auth.root_login", "high", "root-login", true
 	case hidsContainsAny(l, []string{"sudo: pam_unix", "authentication failure", "incorrect password attempts"}) && strings.Contains(l, "sudo"):
 		return "runtime.auth.sudo_failure", "medium", "sudo-auth-failure", true
 	case hidsContainsAny(l, []string{"failed password", "authentication failure", "invalid user", "maximum authentication attempts", "preauth"}):
@@ -3750,6 +3801,11 @@ func applyYAMLConfig(cfg *Config, yamlValues map[string]string) {
 			cfg.HeartbeatInterval = n
 		}
 	}
+	if v := yamlValues["agent.config_poll_interval"]; v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.ConfigPollInterval = n
+		}
+	}
 	if v := yamlValues["agent.log_level"]; v != "" {
 		cfg.LogLevel = v
 	}
@@ -3836,6 +3892,9 @@ func applyYAMLConfig(cfg *Config, yamlValues map[string]string) {
 	if v := yamlValues["yara.rules_path"]; v != "" {
 		cfg.YARARulesPath = v
 	}
+	if v := yamlValues["yara.rules_url"]; v != "" {
+		cfg.YARARulesURL = v
+	}
 	if v := yamlValues["yara.scan_paths"]; v != "" {
 		cfg.YARAScanPaths = v
 	}
@@ -3884,6 +3943,11 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("AGENT_MODE"); v != "" {
 		cfg.Mode = v
+	}
+	if v := os.Getenv("AGENT_CONFIG_POLL_INTERVAL"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.ConfigPollInterval = n
+		}
 	}
 	if v := os.Getenv("LOCAL_MIRROR_MODE"); v != "" && parseBoolOrDefault(v, false) {
 		cfg.Mode = "local-mirror"
@@ -3979,6 +4043,9 @@ func applyEnvOverrides(cfg *Config) {
 	}
 	if v := os.Getenv("YARA_RULES_PATH"); v != "" {
 		cfg.YARARulesPath = v
+	}
+	if v := os.Getenv("YARA_RULES_URL"); v != "" {
+		cfg.YARARulesURL = v
 	}
 	if v := os.Getenv("YARA_SCAN_PATHS"); v != "" {
 		cfg.YARAScanPaths = v
@@ -4202,6 +4269,7 @@ func main() {
 		API:                      "http://localhost:8080",
 		Redis:                    "localhost:6379",
 		HeartbeatInterval:        30,
+		ConfigPollInterval:       5,
 		LogLevel:                 "info",
 		LogFile:                  "/opt/ly-agent/logs/agent.log",
 		TrafficEnabled:           true,
@@ -4229,9 +4297,9 @@ func main() {
 		RuntimeStream:            "alerts:runtime",
 		YARACommand:              "yara",
 		YARARulesPath:            "/opt/ly-agent/yara/rules.yar",
-		YARAScanPaths:            "/opt/ly-agent/yara/scan",
-		YARAScanIntervalSeconds:  60,
-		YARAScanTimeoutSeconds:   30,
+		YARAScanPaths:            "/opt/ly-agent/yara/scan,/tmp,/var/tmp,/dev/shm,/var/www,/usr/local/bin,/root,/home",
+		YARAScanIntervalSeconds:  3600,
+		YARAScanTimeoutSeconds:   300,
 		YARAMaxFileBytes:         256 * 1024 * 1024,
 		YARAMaxMatches:           1000,
 		RASPEnabled:              false,

@@ -1,5 +1,5 @@
 {
-  "version": "default-dev-bundle-v2",
+  "version": "default-dev-bundle-v4",
   "rules": [
     {
       "id": "rasp-sqli-default",
@@ -57,7 +57,7 @@
       "score_hint": 62,
       "stage_hint": "execution",
       "field": "cmdline",
-      "value": "(?i)(curl|wget|python).*https?://",
+      "value": "(?i)((curl|wget)[^|;]*https?://[^|;]*(\\|\\s*(sh|bash|python|perl)\\b|-O\\s+/(tmp|dev/shm|var/tmp)/))|(python[0-9.]*\\s+-c\\s+.*(urlopen|requests\\.get))",
       "regex": true,
       "candidate": true
     },
@@ -81,31 +81,7 @@
       "score_hint": 74,
       "stage_hint": "privilege_escalation",
       "field": "message",
-      "value": "(?i)(sudo:.*COMMAND|pam_unix\\(sudo|useradd|usermod|newgrp)",
-      "regex": true,
-      "candidate": true
-    },
-    {
-      "id": "log-collector-heartbeat-default",
-      "name": "Log Collector Heartbeat",
-      "category": "log_audit",
-      "severity": "low",
-      "score_hint": 20,
-      "stage_hint": "detection",
-      "field": "message",
-      "value": "lyflow log audit collector heartbeat",
-      "regex": false,
-      "candidate": true
-    },
-    {
-      "id": "dpi-admin-access-default",
-      "name": "DPI Sensitive Admin Path",
-      "category": "traffic",
-      "severity": "medium",
-      "score_hint": 50,
-      "stage_hint": "recon",
-      "field": "http_path",
-      "value": "(?i)(/admin|/manager|/actuator|/wp-admin)",
+      "value": "(?i)(useradd|usermod|groupadd|groupmod|visudo|setcap|passwd\\s+\\S+|chmod\\s+[0-7]*7[0-7][0-7]|chown\\s+root|sudo:.*COMMAND=.*(useradd|usermod|passwd|visudo|chmod\\s+777|chown\\s+root|setcap))",
       "regex": true,
       "candidate": true
     },
@@ -129,7 +105,7 @@
       "score_hint": 76,
       "stage_hint": "c2_exfiltration",
       "field": "domain",
-      "value": "(?i)(malware|miner|callback|beacon|\\.xyz$)",
+      "value": "(?i)(^|\\.)(malware|miner|ransom|stealer|botnet|c2)(\\.|$)",
       "regex": true,
       "candidate": true
     },
@@ -154,6 +130,66 @@
       "stage_hint": "execution",
       "field": "rule",
       "value": "(?i)(malware|trojan|webshell|miner|ransom)",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "log-nginx-sqli-default",
+      "name": "Nginx SQL Injection Log Signal",
+      "category": "log_audit",
+      "severity": "high",
+      "score_hint": 65,
+      "stage_hint": "initial_access",
+      "field": "message",
+      "value": "(?i)(union\\s+select|or\\s+1=1|information_schema|sleep\\s*\\()",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "log-nginx-xss-default",
+      "name": "Nginx XSS Log Signal",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 50,
+      "stage_hint": "initial_access",
+      "field": "message",
+      "value": "(?i)(<script|javascript:|onerror=|onload=)",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "log-nginx-traversal-default",
+      "name": "Nginx Path Traversal Log Signal",
+      "category": "log_audit",
+      "severity": "high",
+      "score_hint": 60,
+      "stage_hint": "discovery",
+      "field": "message",
+      "value": "(\\.\\./|%2e%2e)",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "log-nginx-scanner-default",
+      "name": "Nginx Web Scanner Log Signal",
+      "category": "log_audit",
+      "severity": "medium",
+      "score_hint": 45,
+      "stage_hint": "recon",
+      "field": "message",
+      "value": "(?i)(sqlmap|nikto|nmap|masscan|acunetix|burp|nessus)",
+      "regex": true,
+      "candidate": true
+    },
+    {
+      "id": "log-nginx-cmdi-default",
+      "name": "Nginx Command Injection Log Signal",
+      "category": "log_audit",
+      "severity": "high",
+      "score_hint": 65,
+      "stage_hint": "execution",
+      "field": "message",
+      "value": "(?i)(;|\\||&&|`|\\$\\()[^\\s]*(cat|id|whoami|wget|curl)",
       "regex": true,
       "candidate": true
     }

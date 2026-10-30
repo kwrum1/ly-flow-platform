@@ -1,54 +1,72 @@
 # 流影 LyFlow XDR 安全态势感知平台
 
-流影是面向单机安全设备和中小型安全运营场景的一体化 XDR 平台。服务端通过本机镜像口分析流量，外部主机通过无容器 Agent 上报运行时、日志、RASP、YARA 和小流量网络遥测；平台统一完成存储、检测、ATT&CK 关联、Incident 处置与可视化。
+流影是面向单机安全设备和中小型安全运营场景的一体化 XDR 平台。服务端通过镜像口分析南北向流量，外部 Linux 主机通过无容器 Agent 上报运行时、日志、RASP、YARA 和网络遥测；平台统一完成存储、检测、ATT&CK 关联、Incident 处置和可视化。
 
-## 生产验收状态
+## 当前状态
 
-- 最新真机专家验收：2026-10-21，生产 UI、真实 Agent、YARA、RASP 探针下载、Agent 二进制完整性和 Incident 闭环通过
-- 专家验收报告：[docs/dev/EXPERT-ACCEPTANCE-2026-10-21.md](docs/dev/EXPERT-ACCEPTANCE-2026-10-21.md)
-- CI：`.github/workflows/ci.yml` 已通过
-- 公网发布：GitHub Actions 继续生成 AMD64/ARM64 一键安装包，Release 固定为 `latest-server`
+- 2026-10-30 完成检测能力与主动防御验收，详见 [检测能力与主动防御验收](docs/dev/DETECTION-ACCEPTANCE-2026-10-30.md)
+- 流量规则：Suricata 58 条 + lyprobe 9 条，`overlap_count=0`
+- Agent 二进制、配置和信任链已签名，完整性校验开启
+- RASP 请求级拦截实测：SQLi / XSS / 路径穿越返回 403，正常请求 200
+- 自动值守：dry-run → active → stop/expire 回 monitor
+- EVE 告警入库、小时轮转、历史 gzip 查询和分级保留已上线
 
 ### 界面预览
 
-| 运营总览 | 攻击链处置（闭环审计） |
+| 运营总览 | 攻击链处置 |
 |---|---|
-| ![运营总览](docs/assets/screenshots/dashboard.png) | ![攻击链处置](docs/assets/screenshots/incidents.png) |
+| ![运营总览](docs/assets/screenshots/overview.png) | ![攻击链处置](docs/assets/screenshots/incidents.png) |
 
-| 事件中心 | 资产与 Agent |
+| 事件检索 | 检测面 |
 |---|---|
-| ![事件中心](docs/assets/screenshots/events.png) | ![资产与 Agent](docs/assets/screenshots/assets.png) |
+| ![事件检索](docs/assets/screenshots/events.png) | ![检测面](docs/assets/screenshots/threats.png) |
 
-| 规则中心 | 流量观测 |
+| 资产与 Agent | 引擎健康 |
 |---|---|
-| ![规则中心](docs/assets/screenshots/rules-center.png) | ![流量观测](docs/assets/screenshots/traffic-observe.png) |
+| ![资产与 Agent](docs/assets/screenshots/assets.png) | ![引擎健康](docs/assets/screenshots/health.png) |
 
-| 运行威胁 / eBPF | 响应处置 |
+| 规则中心 | 平台设置 |
 |---|---|
-| ![运行威胁](docs/assets/screenshots/runtime.png) | ![响应处置](docs/assets/screenshots/response.png) |
-
-| 平台设置 | 全球态势 |
-|---|---|
-| ![平台设置](docs/assets/screenshots/control-center.png) | ![全球态势](docs/assets/screenshots/global-situation.png) |
+| ![规则中心](docs/assets/screenshots/rules.png) | ![平台设置](docs/assets/screenshots/settings.png) |
 
 | 移动端 |
 |---|
-| ![移动端](docs/assets/screenshots/dashboard-mobile.png) |
+| ![移动端](docs/assets/screenshots/overview-mobile.png) |
 
 ## 当前能力
 
-- 本机镜像流量：AMD64 使用 PF_RING，Suricata 与统一安全引擎完成流量审计；lyprobe 通过 NetFlow v9 输出可追踪的流量证据。
-- 主机 Agent：仅支持 Linux AMD64/ARM64；使用 AF_PACKET，可独立开关流量采集。不提供 Windows/Npcap Agent。
-- 主机审计：日志、Runtime、YARA 文件扫描、Python RASP；进程采集优先 eBPF，回退 auditd，最后回退 procfs；Java RASP 仍为实验能力。
-- 数据存储：PostgreSQL 保存账号、资产、规则、告警和处置状态；ClickHouse 保存长期会话与分析事件；Redis 只承担实时事件总线和短期缓冲。
-- XDR：多源事件按实体、时间和 ATT&CK 阶段关联，只有关联链生成 Incident；默认只展示未闭环 Incident，闭环后移出处置队列和态势计数。
-- 检测窗口：流量威胁、运行威胁、应用威胁和事件中心默认最近 10 分钟，历史至少保留 30 天；态势总览使用最近 10 分钟检测事件和未闭环 Incident。
-- 资产研判：Agent 支持业务名称重命名，事件与告警优先展示业务名称；内网中/高危横向流量可在没有第二阶段遥测时直接形成 Incident。
-- 告警治理：规则中心支持按规则、来源 IP、资产添加 7/30/90 天告警白名单，到期自动恢复，可随时移除。
-- 规则中心：在线发现版本、下载、编译、签名、热加载和回滚；不兼容规则会隔离并记录原因；GPL NETBIOS SMB NT Trans NT 默认关闭。
-- 控制台：资产、Agent、事件中心、流量、运行威胁、应用威胁、会话、规则、攻击链闭环、处置和全球态势。
+### 流量检测
 
-能力限制与尚未完成的现场认证见 [当前功能盘点与能力边界](docs/zh/当前功能盘点与能力边界.md)。
+- 服务端镜像口使用 AF_PACKET（可选 PF_RING）抓包，默认排除内网 → 内网流量；
+- Suricata 负责完整签名、协议状态机和复杂匹配；
+- 平台流量引擎只保留可忠实表达的单模式规则；
+- 转换器有保真门禁：丢失端口/方向/offset 等约束且特征不足的规则不会进入运行时；
+- 内置 DNS 隧道、SMB 非标端口、FRP、WebShell、挖矿、C2、扫描等规则；
+- EVE 告警实时写入平台告警库，支持轮转后继续入库。
+
+### 主机与运行时
+
+- Linux AMD64/ARM64 Agent，无容器依赖；
+- 日志审计、Runtime、YARA 文件扫描、Python RASP；
+- 进程采集优先 eBPF，回退 auditd，最后回退 procfs；
+- Agent 二进制、配置和策略均签名校验；
+- 本地加密 spool 在平台不可达时缓冲并重放。
+
+### 主动防御
+
+- RASP 请求级规则包，支持 monitor / block；
+- defense 会话支持 dry-run、指定时长、手动停止和到期回滚；
+- 失败自动回安全 monitor；
+- 运行时进程终止 L3 动作需要双人审批，执行结果带回验。
+
+### 数据与告警治理
+
+- PostgreSQL：账号、资产、Agent、规则、告警、Incident、处置和审计；
+- ClickHouse：长期会话和高容量分析事件；
+- Redis：实时事件总线和短期缓冲，默认只保留 2 小时；
+- 原始 EVE 保留 48 小时，traffic_sessions 默认 3 天，threat_events 默认 30 天；
+- 支持按规则、来源 IP、资产添加 7/30/90 天告警白名单；
+- 已知误报规则会从默认规则包下线或收紧，避免重装/同步后复活。
 
 ## 正式服务端安装
 
@@ -72,7 +90,7 @@ sudo bash scripts/install-docker-bundle.sh
 
 安装器会校验主机架构、导入镜像、生成本机 `.env` 并启动正式 Compose 栈。安装完成后访问 `https://<服务器IP>/`；HTTP 80 自动跳转到 HTTPS 443。
 
-首次登录账号固定为 `admin`。初始密码由安装时的 `DEFAULT_ADMIN_PASSWORD` 决定，未显式设置时为 `password`；首次登录必须修改密码，修改后不会在服务重启时恢复默认密码。生产环境请在安装前设置强密码，不要把密码写入仓库或文档：
+首次登录账号固定为 `admin`。初始密码由安装时的 `DEFAULT_ADMIN_PASSWORD` 决定，未显式设置时为 `password`；首次登录必须修改密码。生产环境请在安装前设置强密码，不要把密码写入仓库或文档：
 
 ```bash
 export DEFAULT_ADMIN_PASSWORD='请替换为强密码'
@@ -81,97 +99,45 @@ sudo -E bash scripts/install-docker-bundle.sh
 
 如果已有 `.env`，安装器不会覆盖已有管理员密码；需要管理员重置时，使用 `LYFLOW_RESET_ADMIN_PASSWORD=true` 配合 `DEFAULT_ADMIN_PASSWORD` 重启服务端。
 
-### 曾部署过：彻底清理并全新安装
-
-以下命令用于旧部署异常、残留配置或数据卷导致新版本无法正常启动时的彻底重装。**它会永久删除 LyFlow 的账号、配置、规则状态、告警、会话、容器、数据卷和镜像，无法恢复**，不会清理其他 Compose 项目或其他仓库镜像。
-
-先将与服务器架构匹配的正式安装包放在 `/root` 等 `/opt/ly-flow-platform` 之外的位置，然后执行：
-
-```bash
-PACKAGE=/root/lyflow-server-amd64.tar.gz
-test -f "$PACKAGE" || { echo "安装包不存在: $PACKAGE" >&2; exit 1; }
-PACKAGE=$(readlink -f "$PACKAGE")
-
-sudo env PACKAGE="$PACKAGE" bash <<'LYFLOW_REINSTALL'
-set -euo pipefail
-
-install_dir=/opt/ly-flow-platform
-project=ly-flow-platform
-work_dir=$(mktemp -d /tmp/lyflow-reinstall.XXXXXX)
-trap 'rm -rf "$work_dir"' EXIT
-
-cd /
-if [ -f "$install_dir/docker-compose.yml" ]; then
-  docker compose -f "$install_dir/docker-compose.yml" down -v --remove-orphans || true
-fi
-
-docker ps -aq --filter "label=com.docker.compose.project=$project" | xargs -r docker rm -f
-docker volume ls -q --filter "label=com.docker.compose.project=$project" | xargs -r docker volume rm
-docker network ls -q --filter "label=com.docker.compose.project=$project" | xargs -r docker network rm
-docker image ls --format '{{.Repository}}:{{.Tag}}' | awk '/^ly-flow\// {print}' | xargs -r docker image rm -f
-rm -rf "$install_dir"
-
-tar -xzf "$PACKAGE" -C "$work_dir"
-cd "$work_dir/ly-flow-platform"
-unset LOCAL_MIRROR_INTERFACE
-bash scripts/install-docker-bundle.sh
-LYFLOW_REINSTALL
-```
-
-ARM64 服务器只需将第一行改为对应的 `lyflow-server-arm64.tar.gz`。重装完成后仍使用 `admin` 账号和安装时设置的 `DEFAULT_ADMIN_PASSWORD` 首次登录，并强制修改密码；本机镜像接口初始不绑定，请登录后在“控制中心”选择管理口以外的实际镜像网口。
-
 ## 默认生产拓扑
 
-2026-10 v2 使用 `deploy/compose/lean.yml`，默认启动 **core + capture** 两组服务：
+默认启动 9 个容器：
 
-**core**
+1. `ly-vis`：HTTPS 控制台、API/WS 代理和 HTTP 跳转。
+2. `ly-server`：认证、业务 API、规则生命周期、XDR、Incident 和告警入库。
+3. `agent-center`：Agent 注册、上线、配置和任务。
+4. `ly-local-mirror`：本机镜像口采集，写 flows/sessions。
+5. `ly-suricata-sensor`：Suricata 签名检测。
+6. `ly-security-engine`：多源遥测和规则包检测。
+7. `postgres`：账号、资产、Incident 和配置。
+8. `clickhouse`：长期会话和分析事件。
+9. `redis`：实时事件总线与短期缓冲。
 
-1. `ly-vis`：Pingora 前端，HTTP 跳转、HTTPS 控制台和 API/WS 代理。
-2. `ly-server`：认证、业务 API、规则生命周期、XDR 与 Incident。
-3. `agent-center`：Agent 注册、上线、配置和任务管理。
-4. `ly-security-engine`：多源遥测检测和统一告警。
-5. `postgres`：账号、资产、Incident 和配置。
-6. `clickhouse`：事件、会话和长期分析数据。
-7. `redis`：实时事件总线与短期缓冲（公开 lean 固定 Redis 7.2 BSD）。
-
-**capture**
-
-8. `lyprobe-sensor`：ly_probe 主机网络采集，`network_mode: host`。
-9. `suricata-sensor`：Suricata 签名协处理，`network_mode: host`。
-10. `lyflow-rulecompiler`：Suricata → ly_probe threat.json 热转换。
-11. `lyflow-capturedoctor`：运行时丢包/队列/进程诊断与受控告警。
-
-`full-private.yml` 是私有 overlay，仅用于 Elkeid HUB/Console/AgentCenter/Manager/ServiceDiscovery，不进入公开构建产物。
-
-`ly-engine-lab` 和容器化 Agent 不属于默认生产组件，只保留为 QA/兼容 profile；legacy DPI 已从源码和 UI 移除。
-
-当前实现状态、已知限制和容量基线见：
-
-- [v2 进度](docs/dev/PROGRESS.md)
-- [真机专家验收报告](docs/dev/EXPERT-ACCEPTANCE-2026-10-21.md)
-- [T4.6 性能报告](docs/dev/T4.6-REPORT.md)
-- [T4.7 打包报告](docs/dev/T4.7-REPORT.md)
-- [T4.8 安全审计](docs/dev/T4.8-AUDIT.md)
+管理/分析平台可以只运行管理面，不启用本地抓包；抓包实例单独部署在镜像口所在主机。两种角色使用同一套镜像，通过 `LOCAL_MIRROR_INTERFACE` 和 compose profile 控制。
 
 ## Agent 使用边界
 
-使用直接安装到宿主机的 Agent，不要求 Docker。Linux Agent 以静态二进制构建，面向现代 Linux（Ubuntu 22.04+/Debian 12+/RHEL 9+）；抓包使用 AF_PACKET/PF_RING，运行监控在旧内核回退到 auditd。容器 Agent 只用于自动化测试。
+- 仅支持 Linux AMD64/ARM64，不提供 Windows/Npcap Agent；
+- 抓包使用 AF_PACKET/PF_RING；
+- RASP 当前生产验证覆盖 Python WSGI，PHP/Java/Node/.NET 仍在验证中；
+- 容器 Agent 只用于 QA 和联调，不属于默认生产组件。
 
-Agent 安装、卸载和一键安装命令由控制台“安装配置”页面提供，当前仅支持 Linux AMD64/ARM64；服务端和 Agent 均不支持 Windows。
+Agent 安装、卸载和命令由控制台“平台设置 → 安装配置”提供。
 
-## 正式发布
+## 正式发布与 CI
 
-GitHub Actions 工作流为 `.github/workflows/release.yml`，名称为“正式服务端发布”。工作流在每月 1 日和 16 日自动运行，也可手动触发；每次从公网重新获取规则和基础环境，无跨构建缓存，同时原生构建 AMD64 与 ARM64 服务端包。
-
-云构建不依赖 HTTP/HTTPS 代理环境：规则直接来自 GitHub/上游规则站，Go 依赖使用 `GOPROXY=direct`，Docker 基础镜像直接从上游仓库拉取。本地构建/安装脚本同样不注入代理变量。
-
-新版本构建成功后，工作流删除旧 Actions 运行记录、旧 Release 和旧发布标签，只保留 `latest-server` 正式发布及本次两个服务端包。Gitea 继续作为内部源码和恢复仓库，不承担默认自动发布。
+- CI：`.github/workflows/ci.yml`，执行 Go、前端、Python 规则/探针测试和构建检查；
+- Release：`.github/workflows/release.yml`，每月 1 日和 16 日自动构建 AMD64/ARM64 服务端包，也支持手动触发；
+- 每次构建从公网重新获取规则源，不使用跨运行缓存；
+- 发布标签固定为 `latest-server`，只保留最新正式包。
 
 ## 文档
 
 - [软件架构](ARCHITECTURE.md)
 - [白皮书](docs/WHITEPAPER.md)
 - [当前功能盘点与能力边界](docs/zh/当前功能盘点与能力边界.md)
+- [检测能力与主动防御验收](docs/dev/DETECTION-ACCEPTANCE-2026-10-30.md)
+- [告警降噪与规则优化](docs/dev/ALERT-TUNING-2026-10-30.md)
 - [GitHub 正式发布](docs/GITHUB-CI.md)
 - [发布来源与交付边界](docs/RELEASE_PROVENANCE.md)
 - [API 摘要](docs/API.md)

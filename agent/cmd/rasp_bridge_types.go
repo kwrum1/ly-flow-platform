@@ -1,6 +1,8 @@
 package main
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -42,6 +44,8 @@ type raspBridgeEventRequest struct {
 	RuleID        string                  `json:"rule_id"`
 	Evidence      string                  `json:"evidence"`
 	TraceID       string                  `json:"trace_id,omitempty"`
+	Blocked       bool                    `json:"blocked,omitempty"`
+	WouldBlock    bool                    `json:"would_block,omitempty"`
 }
 
 type raspBridgePolicyBinding struct {
@@ -49,6 +53,7 @@ type raspBridgePolicyBinding struct {
 	PolicyID     string
 	Version      uint64
 	Mode         shared.Mode
+	BlockOnHit   bool
 	ExpiresAt    time.Time
 	Languages    []shared.Language
 	Signature    string
@@ -121,6 +126,15 @@ func normalizeLegacyRASPEvent(event map[string]interface{}, now time.Time) raspB
 	if evidence == "" {
 		evidence = "legacy RASP probe event"
 	}
+	// Replay-safe identity: honour a probe-supplied id, otherwise derive a
+	// stable digest of the payload. Using time.Now() here made every spool
+	// replay look like a brand-new event and duplicated alerts.
+	eventID := legacyString(event, "event_id", "event_uid", "id", "trace_id")
+	if eventID == "" {
+		canonical, _ := json.Marshal(event)
+		digest := sha256.Sum256(canonical)
+		eventID = "legacy-" + hex.EncodeToString(digest[:8])
+	}
 	severity := contracts.AlertSeverity(strings.ToLower(legacyString(event, "severity")))
 	switch severity {
 	case contracts.SeverityLow, contracts.SeverityMedium, contracts.SeverityHigh, contracts.SeverityCritical:
@@ -143,7 +157,7 @@ func normalizeLegacyRASPEvent(event map[string]interface{}, now time.Time) raspB
 	}
 	return raspBridgeEventRequest{
 		SchemaVersion: raspBridgeEventSchemaVersion,
-		EventID:       fmt.Sprintf("legacy-%d", now.UnixNano()),
+		EventID:       eventID,
 		Language:      language,
 		EventType:     eventType,
 		Severity:      severity,
@@ -152,6 +166,23 @@ func normalizeLegacyRASPEvent(event map[string]interface{}, now time.Time) raspB
 		RuleID:        ruleID,
 		Evidence:      evidence,
 		TraceID:       legacyString(event, "trace_id", "trace"),
+		Blocked:       legacyBool(event, "blocked"),
+		WouldBlock:    legacyBool(event, "would_block"),
+	}
+}
+
+func legacyBool(event map[string]interface{}, key string) bool {
+	value, ok := event[key]
+	if !ok {
+		return false
+	}
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	case string:
+		return strings.EqualFold(strings.TrimSpace(typed), "true")
+	default:
+		return false
 	}
 }
 
@@ -222,7 +253,15 @@ func (request raspBridgeEventRequest) validate(binding raspBridgePolicyBinding) 
 	if len(request.Application) > 256 || len(request.RuleID) > 256 || len(request.Evidence) > 64*1024 || len(request.TraceID) > 256 {
 		return errRASPBridgeSchema
 	}
-	if !binding.Acknowledged || binding.Mode != shared.ModeMonitor || request.AgentID != binding.AgentID || request.PolicyID != binding.PolicyID || request.PolicyVersion != binding.Version {
+	if !binding.Acknowledged || (binding.Mode != shared.ModeMonitor && binding.Mode != shared.ModeBlock) || request.AgentID != binding.AgentID || request.PolicyID != binding.PolicyID || request.PolicyVersion != binding.Version {
+		return errRASPBridgeBinding
+	}
+	// A probe cannot claim an enforcement outcome the signed policy did not
+	// grant: blocked requires block mode plus the promoted block_on_hit flag.
+	if request.Blocked && (binding.Mode != shared.ModeBlock || !binding.BlockOnHit) {
+		return errRASPBridgeBinding
+	}
+	if request.WouldBlock && binding.Mode != shared.ModeBlock {
 		return errRASPBridgeBinding
 	}
 	if !raspBridgeLanguageAllowed(request.Language, binding.Languages) {
@@ -236,6 +275,13 @@ func (request raspBridgeEventRequest) delivery(binding raspBridgePolicyBinding, 
 		"severity": request.Severity, "language": request.Language, "application": request.Application,
 		"rule_id": request.RuleID, "evidence": request.Evidence, "policy_id": request.PolicyID,
 		"policy_version": request.PolicyVersion, "policy_signature": binding.Signature,
+		"blocked": request.Blocked, "would_block": request.WouldBlock,
+		"action": "log",
+	}
+	if request.Blocked {
+		fields["action"] = "block"
+	} else if request.WouldBlock {
+		fields["action"] = "would_block"
 	}
 	switch request.EventType {
 	case raspBridgeEventCommand:

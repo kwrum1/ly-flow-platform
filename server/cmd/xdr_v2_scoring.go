@@ -7,16 +7,89 @@ import (
 	"github.com/lyflow/ly-flow-platform/server/xdr/models"
 )
 
+// ScoringModelVersionV2 pins the arithmetic that produces ChainScore. Bump it
+// whenever a weight or factor changes so stored scores stay interpretable.
+const ScoringModelVersionV2 = "xdr-score.v2.1"
+
+// scoringWeights is the composite weighting. Exposed so the API can publish the
+// exact weights alongside a score instead of documenting them out of band.
+type scoringWeights struct {
+	Risk       float64
+	Confidence float64
+	Impact     float64
+	Continuity float64
+}
+
+func defaultScoringWeights() scoringWeights {
+	return scoringWeights{Risk: 0.35, Confidence: 0.25, Impact: 0.20, Continuity: 0.20}
+}
+
+func (w scoringWeights) normalized() scoringWeights {
+	if w.Risk == 0 && w.Confidence == 0 && w.Impact == 0 && w.Continuity == 0 {
+		return defaultScoringWeights()
+	}
+	return w
+}
+
 func scoreChainHypothesisV2(path *ScoreablePath, config *Config) {
+	path.Weights = path.Weights.normalized()
 	path.RiskScore = computeRiskScore(path)
 	path.ConfidenceScore = computeConfidenceScore(path)
 	path.ImpactScore = computeImpactScore(path)
 	path.PathContinuityScore = computeContinuityScore(path, config)
-	path.ChainScore = clampFloat(
-		0.35*path.RiskScore+0.25*path.ConfidenceScore+0.20*path.ImpactScore+0.20*path.PathContinuityScore,
-		0, 100,
-	)
+	raw := path.Weights.Risk*path.RiskScore +
+		path.Weights.Confidence*path.ConfidenceScore +
+		path.Weights.Impact*path.ImpactScore +
+		path.Weights.Continuity*path.PathContinuityScore
+	path.ChainScore = clampFloat(raw, 0, 100)
+	path.ScoreCapped = raw < 0 || raw > 100
 	path.Severity = severityFromScore(path.ChainScore)
+	path.ScoreDetail = path.buildScoreDetail()
+}
+
+// buildScoreDetail publishes every factor and the weighted breakdown so a
+// reviewer can recompute ChainScore without reading the scoring source.
+func (s *ScoreablePath) buildScoreDetail() *models.ScoreDetailV2 {
+	detail := s.ScoreDetail
+	if detail == nil {
+		detail = s.eventScoreDetail()
+	}
+	riskFactors := append([]models.ScoreFactor{
+		{Name: "event_risk_avg", Value: s.RiskScore - s.EventCountBonus, Source: "event", Weight: 1.0},
+		{Name: "event_count_bonus", Value: s.EventCountBonus, Source: "chain", Weight: 1.0},
+	}, detail.RiskFactors...)
+	confFactors := append([]models.ScoreFactor{}, detail.ConfidenceFactors...)
+	missing := append([]string{}, detail.MissingContext...)
+	if len(s.EdgeStrengths) == 0 && len(s.Events) > 1 {
+		missing = append(missing, "edge_strength")
+	}
+	detail.RiskFactors = riskFactors
+	detail.ConfidenceFactors = confFactors
+	detail.MissingContext = uniqueStrings(missing)
+	w := s.Weights.normalized()
+	detail.Version = ScoringModelVersionV2
+	detail.FinalScore = s.ChainScore
+	detail.Capped = s.ScoreCapped
+	detail.TemporalDecay = s.TemporalDecay
+	detail.OrderingPenalty = s.OrderingPenalty
+	detail.EventCount = len(s.Events)
+	detail.EventCountBonus = s.EventCountBonus
+	detail.ContinuityFactors = append([]models.ScoreFactor{
+		{Name: "edge_strength_avg", Value: s.EdgeStrengthAverage, Source: "graph", Weight: 1.0},
+		{Name: "temporal_decay", Value: -s.TemporalDecay, Source: "window", Weight: 1.0},
+		{Name: "ordering_penalty", Value: -s.OrderingPenalty, Source: "transition", Weight: 1.0},
+	}, detail.ContinuityFactors...)
+	detail.Components = []models.ScoreComponent{
+		{Name: "risk", Value: s.RiskScore, Weight: w.Risk, Contribution: roundScore(w.Risk * s.RiskScore)},
+		{Name: "confidence", Value: s.ConfidenceScore, Weight: w.Confidence, Contribution: roundScore(w.Confidence * s.ConfidenceScore)},
+		{Name: "impact", Value: s.ImpactScore, Weight: w.Impact, Contribution: roundScore(w.Impact * s.ImpactScore)},
+		{Name: "continuity", Value: s.PathContinuityScore, Weight: w.Continuity, Contribution: roundScore(w.Continuity * s.PathContinuityScore)},
+	}
+	return detail
+}
+
+func roundScore(v float64) float64 {
+	return math.Round(v*100) / 100
 }
 
 type ScoreablePath struct {
@@ -36,6 +109,14 @@ type ScoreablePath struct {
 	Severity            string
 	RejectionReason     string
 	HypothesisStatus    string
+
+	Weights             scoringWeights
+	EventCountBonus     float64
+	EdgeStrengthAverage float64
+	TemporalDecay       float64
+	OrderingPenalty     float64
+	ScoreCapped         bool
+	ScoreDetail         *models.ScoreDetailV2
 }
 
 func computeRiskScore(path *ScoreablePath) float64 {
@@ -48,6 +129,7 @@ func computeRiskScore(path *ScoreablePath) float64 {
 	}
 	avg := total / float64(len(path.Events))
 	bonus := clampFloat(float64(len(path.Events))*0.5, 0, 5)
+	path.EventCountBonus = bonus
 	return clampFloat(avg+bonus, 0, 100)
 }
 
@@ -92,12 +174,16 @@ func computeContinuityScore(path *ScoreablePath, config *Config) float64 {
 		total += s * 100
 	}
 	avg := total / float64(n)
+	path.EdgeStrengthAverage = avg
 
+	penalty := 0.0
 	for _, t := range path.Transitions {
 		if t != nil {
-			avg -= t.Penalty * 100
+			penalty += t.Penalty * 100
 		}
 	}
+	path.OrderingPenalty = penalty
+	avg -= penalty
 
 	windowHours := config.XDRV2WindowHours
 	if windowHours <= 0 {
@@ -105,10 +191,12 @@ func computeContinuityScore(path *ScoreablePath, config *Config) float64 {
 	}
 	duration := path.LastSeen.Sub(path.FirstSeen)
 	hours := duration.Hours()
+	decay := 0.0
 	if hours > float64(windowHours)*0.5 {
-		decay := (hours - float64(windowHours)*0.5) / float64(windowHours) * 10
-		avg -= clampFloat(decay, 0, 30)
+		decay = clampFloat((hours-float64(windowHours)*0.5)/float64(windowHours)*10, 0, 30)
+		avg -= decay
 	}
+	path.TemporalDecay = decay
 
 	return clampFloat(avg, 0, 100)
 }

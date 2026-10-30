@@ -1,9 +1,23 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="zh-CN" data-theme="light">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="color-scheme" content="light dark">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta name="lyflow-build" content="v44">
   <title>流影安全态势感知平台</title>
+  <style>
+    html, body { margin: 0; background: #f5f6f8; color-scheme: light; }
+    html[data-theme='dark'] body { background: #0b0f14; color-scheme: dark; }
+  </style>
+  <script>
+    try {
+      var stored = localStorage.getItem('lyflow-theme')
+      document.documentElement.dataset.theme = stored === 'dark' ? 'dark' : 'light'
+    } catch (e) { /* keep light default */ }
+  </script>
 </head>
 <body>
   <div id="app"></div>

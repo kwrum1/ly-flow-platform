@@ -85,6 +85,39 @@ func TestAgentRASPPolicy_rejects_bad_signature_and_stale_version(t *testing.T) {
 	}
 }
 
+func TestAgentRASPPolicy_accepts_explicit_rollback_target_downgrade(t *testing.T) {
+	// Given
+	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatalf("generate key: %v", err)
+	}
+	agent := NewAgent(&Config{RASPPolicyRootPath: writeAgentPolicyRoot(t, publicKey)})
+	canary := agentPolicyFixture(time.Now().UTC().Add(time.Hour))
+	canary.Version = 2
+	canary.Mode = shared.ModeBlock
+	canary.Rollback.TargetVersion = 1
+	canaryEnvelope := signAgentPolicy(t, privateKey, publicKey, canary)
+	if err := agent.applySignedRASPPolicy(canaryEnvelope); err != nil {
+		t.Fatalf("apply canary: %v", err)
+	}
+	if err := agent.activateAcknowledgedRASPPolicy(canaryEnvelope); err != nil {
+		t.Fatalf("activate canary: %v", err)
+	}
+
+	// When: the server fail-safe rollback re-activates the named target.
+	monitor := agentPolicyFixture(time.Now().UTC().Add(time.Hour))
+	monitor.Version = 1
+	err = agent.applySignedRASPPolicy(signAgentPolicy(t, privateKey, publicKey, monitor))
+
+	// Then
+	if err != nil {
+		t.Fatalf("rollback target downgrade rejected: %v", err)
+	}
+	if agent.ackPolicyVersion != 1 {
+		t.Fatalf("ack version = %d, want 1", agent.ackPolicyVersion)
+	}
+}
+
 func TestAgentRASPPolicy_rejects_language_mismatch_and_same_version_replacement(t *testing.T) {
 	// Given
 	publicKey, privateKey, err := ed25519.GenerateKey(rand.Reader)

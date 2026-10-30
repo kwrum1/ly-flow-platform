@@ -15,7 +15,7 @@ func TestNormalizeEventMapFillsSharedContract(t *testing.T) {
 	if event["attack_type"] != "sql_injection" {
 		t.Fatalf("attack_type = %v", event["attack_type"])
 	}
-	if event["language"] != "python" || event["blocked"] != false || event["action"] != "log" {
+	if event["language"] != "unknown" || event["language_known"] != false || event["blocked"] != false || event["action"] != "log" {
 		t.Fatalf("normalized contract mismatch: %#v", event)
 	}
 	if event["rule_id"] == "" || event["occurred_at"] == "" {

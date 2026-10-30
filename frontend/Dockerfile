@@ -39,6 +39,15 @@ server { \
     index index.html; \
     resolver 127.0.0.11 valid=10s ipv6=off; \
     set $ly_server_upstream ${LY_SERVER_UPSTREAM}; \
+    add_header X-Content-Type-Options nosniff always; \
+    add_header X-Frame-Options DENY always; \
+    add_header Referrer-Policy no-referrer always; \
+    add_header X-Permitted-Cross-Domain-Policies none always; \
+    \
+    location /assets/ { \
+        try_files $uri =404; \
+        expires 1y; \
+    } \
     \
     location / { \
         try_files $uri /index.html; \

@@ -14,15 +14,9 @@ logger = logging.getLogger(__name__)
 _original_functions = {}
 
 
-def _report_detection(event_type: str, result: dict, func_name: str, args: Any) -> None:
-    """上报检测结果"""
-    result['hooked_function'] = func_name
-    result['args_preview'] = str(args)[:200]
-    logger.warning(f"Sensitive file access detected in {func_name}: {result}")
-    from ..reporter import get_reporter
-    reporter = get_reporter()
-    if reporter:
-        reporter.report({'type': event_type, 'details': result})
+def _report_detection(event_type: str, result: dict, func_name: str, args: Any, enforce: bool = True) -> None:
+    from ..blocking import handle_detection
+    handle_detection(event_type, result, func_name, args, enforce=enforce)
 
 
 def _patch_builtins_open() -> None:
@@ -68,19 +62,19 @@ def _patch_os_path() -> None:
     def patched_exists(path):
         result = detect_sensitive_file(str(path))
         if result:
-            _report_detection('sensitive_file_access', result, 'os.path.exists', path)
+            _report_detection('sensitive_file_access', result, 'os.path.exists', path, enforce=False)
         return _original_functions['os_path_exists'](path)
 
     def patched_isfile(path):
         result = detect_sensitive_file(str(path))
         if result:
-            _report_detection('sensitive_file_access', result, 'os.path.isfile', path)
+            _report_detection('sensitive_file_access', result, 'os.path.isfile', path, enforce=False)
         return _original_functions['os_path_isfile'](path)
 
     def patched_isdir(path):
         result = detect_sensitive_file(str(path))
         if result:
-            _report_detection('sensitive_file_access', result, 'os.path.isdir', path)
+            _report_detection('sensitive_file_access', result, 'os.path.isdir', path, enforce=False)
         return _original_functions['os_path_isdir'](path)
 
     os.path.exists = patched_exists

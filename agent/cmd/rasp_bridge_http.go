@@ -30,6 +30,7 @@ type raspBridgeConfigResponse struct {
 	PolicyID        string                 `json:"policy_id"`
 	PolicyVersion   uint64                 `json:"policy_version"`
 	PolicyMode      shared.Mode            `json:"policy_mode"`
+	BlockOnHit      bool                   `json:"block_on_hit"`
 	ExpiresAt       time.Time              `json:"expires_at"`
 	BridgeToken     string                 `json:"bridge_token"`
 	Limits          raspBridgeConfigLimits `json:"limits"`
@@ -169,7 +170,7 @@ func (bridge *raspBridgeRuntime) handleConfig(w http.ResponseWriter, r *http.Req
 	}
 	response := raspBridgeConfigResponse{
 		SchemaVersion: "lyflow.rasp_bridge_config.v1", AgentID: binding.AgentID, PolicyID: binding.PolicyID,
-		PolicyVersion: binding.Version, PolicyMode: binding.Mode, ExpiresAt: binding.ExpiresAt,
+		PolicyVersion: binding.Version, PolicyMode: binding.Mode, BlockOnHit: binding.BlockOnHit, ExpiresAt: binding.ExpiresAt,
 		BridgeToken: bridge.tokens.Current(), Limits: bridgeConfigLimits(), Delivery: bridge.Health(),
 	}
 	response.ConfigSignature = signRASPBridgeConfig(response, r.Header.Get(raspBridgeTokenHeader))
@@ -207,6 +208,7 @@ func signRASPBridgeConfig(response raspBridgeConfigResponse, secret string) stri
 		},
 		"policy_id": response.PolicyID, "policy_mode": response.PolicyMode,
 		"policy_version": response.PolicyVersion, "schema_version": response.SchemaVersion,
+		"block_on_hit": response.BlockOnHit,
 	})
 	if err != nil {
 		return ""
@@ -222,7 +224,8 @@ func (a *Agent) raspBridgePolicyBinding() (raspBridgePolicyBinding, bool) {
 	policy := a.raspPolicyEnvelope.Policy
 	binding := raspBridgePolicyBinding{
 		AgentID: a.agentID, PolicyID: policy.ID, Version: policy.Version, Mode: shared.Mode(a.cfg.RASPMode),
-		ExpiresAt: a.raspPolicyExpiresAt, Languages: append([]shared.Language(nil), policy.Selectors.Languages...),
+		BlockOnHit: a.cfg.RASPBlockOnHit,
+		ExpiresAt:  a.raspPolicyExpiresAt, Languages: append([]shared.Language(nil), policy.Selectors.Languages...),
 		Signature: a.ackPolicySignature, Acknowledged: a.raspPolicyACKed,
 	}
 	active := a.cfg.RASPEnabled && binding.Acknowledged && binding.AgentID != "" && binding.PolicyID != "" && binding.Version > 0

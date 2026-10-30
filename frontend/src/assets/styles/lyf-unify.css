@@ -1,0 +1,228 @@
+/* LyFlow legacy harmoniser
+ * ------------------------------------------------------------------
+ * `ikuai-theme.css` predates the v3 console and forces white surfaces
+ * with `!important`. This layer loads last and maps those legacy
+ * selectors back onto the v3 tokens so older screens stop rendering as
+ * white slabs inside the dark shell.
+ *
+ * It is intentionally additive: new pages keep their scoped styles, and
+ * removing this file restores the previous look.
+ * ------------------------------------------------------------------ */
+
+/* page headers */
+.page-head,
+.control-header,
+.incidents-hero,
+.screen-head {
+  padding: 0 0 14px !important;
+  border: 0 !important;
+  border-bottom: 1px solid var(--lyf-line) !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+.page-head h2,
+.control-header h2,
+.page-title,
+.screen-head h2,
+.screen-title b {
+  color: var(--lyf-ink) !important;
+  text-shadow: none !important;
+}
+
+.screen-head,
+.screen-title em,
+.page-head p,
+.control-header p {
+  color: var(--lyf-ink-3) !important;
+}
+
+/* cards / panels */
+.surface-card,
+.ly-card,
+.signal-card,
+.panel-card,
+.metric-card,
+.stat-card,
+.soc-screen,
+.side-panel,
+.state-card,
+.table-panel,
+.install-card,
+.linux-card,
+.whitelist-card,
+.source-card,
+.rules-panel,
+.chain-panel,
+.source-panel,
+.map-panel,
+.killchain-panel {
+  border: 1px solid var(--lyf-line) !important;
+  border-radius: var(--lyf-radius) !important;
+  background: var(--lyf-surface) !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+
+.screen-title,
+.panel-title,
+.panel-cap,
+.panel-heading,
+.upstream-heading,
+.panel-header {
+  border-color: var(--lyf-line) !important;
+  background: var(--lyf-surface-2) !important;
+  color: var(--lyf-ink) !important;
+}
+
+.panel-title,
+.panel-cap,
+.panel-heading strong,
+.panel-header strong {
+  color: var(--lyf-ink) !important;
+}
+
+.panel-caption,
+.panel-heading small,
+.screen-title em,
+.panel-copy {
+  color: var(--lyf-ink-3) !important;
+}
+
+.screen-title span,
+.screen-title b::before {
+  background: var(--lyf-accent) !important;
+}
+
+/* lists inside legacy screens */
+.rank-row,
+.stat-line {
+  border: 0 !important;
+  border-bottom: 1px solid var(--lyf-line) !important;
+  background: transparent !important;
+}
+
+.rank-row b,
+.stat-line b,
+.rank-row strong {
+  color: var(--lyf-ink) !important;
+}
+
+.rank-row span,
+.stat-line span {
+  color: var(--lyf-ink-3) !important;
+}
+
+/* tables — must match the legacy selector specificity (table th / td) */
+table,
+.data-table {
+  background: transparent !important;
+  color: var(--lyf-ink-2) !important;
+  border-collapse: collapse !important;
+}
+
+table th,
+.data-table th,
+.el-table th.el-table__cell {
+  border-color: var(--lyf-line-2) !important;
+  background: var(--lyf-surface-2) !important;
+  color: var(--lyf-ink-3) !important;
+  letter-spacing: 0.06em !important;
+  text-shadow: none !important;
+  text-transform: none !important;
+}
+
+table td,
+.data-table td {
+  border-color: var(--lyf-line) !important;
+  background: transparent !important;
+  color: var(--lyf-ink-2) !important;
+}
+
+table td b,
+table td strong,
+.data-table td b {
+  color: var(--lyf-ink) !important;
+}
+
+table td small,
+.data-table td small {
+  color: var(--lyf-ink-3) !important;
+}
+
+table tbody tr:hover,
+.data-table tbody tr:hover {
+  background: rgb(34 211 238 / 4%) !important;
+}
+
+/* forms inside legacy screens */
+input,
+select,
+textarea {
+  border-color: var(--lyf-line-2) !important;
+  background: var(--lyf-surface) !important;
+  color: var(--lyf-ink) !important;
+}
+
+input::placeholder,
+textarea::placeholder {
+  color: var(--lyf-ink-3) !important;
+}
+
+/* map surfaces */
+.world-map {
+  border: 0 !important;
+  background:
+    radial-gradient(circle at 50% 45%, rgb(34 211 238 / 8%), transparent 62%),
+    var(--lyf-paper) !important;
+  box-shadow: none !important;
+}
+
+.world-map::before {
+  background-image:
+    linear-gradient(rgb(34 211 238 / 5%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(34 211 238 / 5%) 1px, transparent 1px) !important;
+}
+
+/* auth & password surfaces are forced by the legacy theme */
+.password-page,
+.auth-page {
+  color: var(--lyf-ink) !important;
+  background:
+    radial-gradient(90% 80% at 14% 8%, rgb(34 211 238 / 14%), transparent 55%),
+    radial-gradient(70% 70% at 90% 92%, rgb(56 189 248 / 10%), transparent 55%),
+    linear-gradient(rgb(34 211 238 / 5%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(34 211 238 / 5%) 1px, transparent 1px),
+    #05080f !important;
+  background-size: auto, auto, 46px 46px, 46px 46px, auto !important;
+}
+
+.password-page::before,
+.auth-page::before {
+  background: none !important;
+}
+
+/* generic text in legacy pages */
+.ops-page,
+.control-page,
+.install-page,
+.account-page,
+.situation-page,
+.rules-page,
+.events-page {
+  color: var(--lyf-ink-2) !important;
+  background: transparent !important;
+}
+
+.notice,
+.state-card {
+  color: var(--lyf-ink-2) !important;
+}
+
+.notice.error,
+.error-state {
+  border-color: var(--lyf-critical-line) !important;
+  background: var(--lyf-critical-soft) !important;
+  color: var(--lyf-critical) !important;
+}

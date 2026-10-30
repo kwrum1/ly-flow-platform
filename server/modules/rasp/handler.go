@@ -306,6 +306,10 @@ func (h *Handler) GetProtectionStatus(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"code": 0, "message": "success", "data": agents,
+			// Five-state lifecycle and fail-safe policy are additive fields so
+			// existing clients keep working while the console shows the truth.
+			"protection_states": h.pm.ProtectionStates(),
+			"block_policy":      h.pm.BlockPolicySnapshot(),
 		})
 		return
 	}

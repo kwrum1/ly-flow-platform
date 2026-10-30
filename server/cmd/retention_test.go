@@ -16,3 +16,14 @@ func TestPostgresRetentionStatementsUseCurrentXDRSchema(t *testing.T) {
 		t.Fatalf("retention statements still include removed legacy table: %q", legacy)
 	}
 }
+
+func TestTrafficSessionRetentionDays(t *testing.T) {
+	t.Setenv("TRAFFIC_SESSION_RETENTION_DAYS", "3")
+	if got := trafficSessionRetentionDays(); got != 3 {
+		t.Fatalf("trafficSessionRetentionDays()=%d want 3", got)
+	}
+	t.Setenv("TRAFFIC_SESSION_RETENTION_DAYS", "0")
+	if got := trafficSessionRetentionDays(); got != 7 {
+		t.Fatalf("default trafficSessionRetentionDays()=%d want 7", got)
+	}
+}

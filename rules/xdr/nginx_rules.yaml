@@ -6,7 +6,7 @@ rules:
     name: "Nginx SQL 注入扫描"
     level: 10
     source: nginx
-    match: "(union|select|insert|delete|drop|--|' OR '|' AND )"
+    match: "(?i)(union|select|insert|delete|drop|--|' OR '|' AND )"
     regex: true
     description: "检测到 Nginx SQL 注入扫描尝试"
     mitre:
@@ -134,7 +134,7 @@ rules:
     name: "Nginx 恶意文件上传"
     level: 10
     source: nginx
-    match: '(\\.php|\.asp|\.jsp|\.exe|\.sh|\.cgi)'
+    match: '(\.php|\.asp|\.jsp|\.exe|\.sh|\.cgi)'
     regex: true
     description: "检测到可能的恶意文件上传"
     mitre:

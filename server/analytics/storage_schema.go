@@ -47,6 +47,8 @@ const clickHouseEventsV2DDL = `CREATE TABLE IF NOT EXISTS lyflow_events_v2 (
   dst_ip String,
   src_port UInt16,
   dst_port UInt16,
+  src_port_known UInt8,
+  dst_port_known UInt8,
   proto LowCardinality(String),
   rule_id String,
   rule_source LowCardinality(String),
@@ -187,6 +189,16 @@ version UInt64, applied_at DateTime64(3, 'UTC')) ENGINE = ReplacingMergeTree(app
 	{5, clickHouseEvents1mDDL},
 	{6, clickHouseEvents1hDDL},
 	{7, clickHouseEventsV2IndexesDDL},
+	// T0-03: distinguish a real port from the legacy "0 means missing" sentinel.
+	{8, `ALTER TABLE lyflow_events_v2
+  ADD COLUMN IF NOT EXISTS src_port_known UInt8 DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS dst_port_known UInt8 DEFAULT 0`},
+	// One-time backfill for rows written before the known flags existed. The
+	// mutation is asynchronous in ClickHouse; rows keep known=0 until it runs.
+	{9, `ALTER TABLE lyflow_events_v2 UPDATE
+  src_port_known = if(src_port > 0, 1, 0),
+  dst_port_known = if(dst_port > 0, 1, 0)
+WHERE src_port > 0 OR dst_port > 0`},
 }
 
 func (migration *StorageMigration) Migrate(ctx context.Context) error {

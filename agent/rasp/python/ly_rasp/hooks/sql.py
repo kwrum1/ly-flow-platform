@@ -37,16 +37,9 @@ def _create_wrapper(func: Callable, func_name: str, config: RASPConfig) -> Calla
     return wrapper
 
 
-def _report_detection(event_type: str, result: dict, func_name: str, args: Any) -> None:
-    """上报检测结果"""
-    result['hooked_function'] = func_name
-    result['args_preview'] = str(args)[:200]
-    logger.warning(f"SQL injection detected in {func_name}: {result}")
-    # 通过 reporter 上报
-    from ..reporter import get_reporter
-    reporter = get_reporter()
-    if reporter:
-        reporter.report({'type': event_type, 'details': result})
+def _report_detection(event_type: str, result: dict, func_name: str, args: Any, enforce: bool = True) -> None:
+    from ..blocking import handle_detection
+    handle_detection(event_type, result, func_name, args, enforce=enforce)
 
 
 def _patch_sqlite3() -> None:

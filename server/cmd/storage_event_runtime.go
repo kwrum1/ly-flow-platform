@@ -15,9 +15,10 @@ import (
 )
 
 type StorageEventRuntime struct {
-	migration  *analytics.StorageMigration
-	clickhouse *analytics.HTTPClickHouse
-	lateral    *lateral.Tracker
+	migration       *analytics.StorageMigration
+	clickhouse      *analytics.HTTPClickHouse
+	lateral         *lateral.Tracker
+	projectionRetry *projectionRetryStore
 }
 
 func newProductionStorageEventRuntime(ctx context.Context, postgres *pgxpool.Pool) (*StorageEventRuntime, error) {
@@ -48,8 +49,13 @@ func newProductionStorageEventRuntime(ctx context.Context, postgres *pgxpool.Poo
 	if err := clickhouse.EnsureTrafficSessionTable(ctx); err != nil {
 		return nil, fmt.Errorf("initialize full-session storage: %w", err)
 	}
+	projectionRetry := newProjectionRetryStore(postgres)
+	if err := projectionRetry.EnsureSchema(ctx); err != nil {
+		return nil, err
+	}
 	return &StorageEventRuntime{
 		migration: migration, clickhouse: clickhouse,
+		projectionRetry: projectionRetry,
 		lateral: lateral.NewTracker(lateral.Config{
 			Window:     time.Duration(toInt(getEnv("LATERAL_MOVEMENT_WINDOW_SECONDS", "600"))) * time.Second,
 			MinTargets: toInt(getEnv("LATERAL_MOVEMENT_MIN_TARGETS", "3")),
@@ -104,6 +110,22 @@ func (runtime *StorageEventRuntime) GetEventV2(ctx context.Context, eventUID str
 		return analytics.EventV2View{}, fmt.Errorf("ClickHouse v2 event storage unavailable")
 	}
 	return runtime.clickhouse.GetEventV2(ctx, eventUID)
+}
+
+// QueryRetention reports the actually queryable event window, not the TTL.
+func (runtime *StorageEventRuntime) QueryRetention(ctx context.Context) (time.Time, time.Time, int64, error) {
+	if runtime == nil || runtime.clickhouse == nil {
+		return time.Time{}, time.Time{}, 0, fmt.Errorf("ClickHouse v2 event storage unavailable")
+	}
+	return runtime.clickhouse.QueryRetention(ctx)
+}
+
+// projectionRetryStats exposes the durable projection queue depth.
+func (runtime *StorageEventRuntime) projectionRetryStats(ctx context.Context) (int, int, error) {
+	if runtime == nil || runtime.projectionRetry == nil {
+		return 0, 0, nil
+	}
+	return runtime.projectionRetry.Stats(ctx)
 }
 
 func (runtime *StorageEventRuntime) WriteTrafficSession(ctx context.Context, session analytics.TrafficSessionRecord) error {

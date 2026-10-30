@@ -26,12 +26,15 @@ alert tcp any any -> any any (msg:"[LY-FRP-004] FRP WebSocket Path /~!frp"; \
     flow:established,to_server; \
     classtype:trojan-activity; sid:9001004; rev:1;)
 
-# FRP TLS First Byte Fixed Pattern (v0.25.0+)
-alert tcp any any -> any any (msg:"[LY-FRP-005] FRP TLS First Byte 0x17 Fixed Pattern"; \
-    content:"|17 03|"; \
-    byte_test:1,=,0x17,2,relative; \
-    flow:established; \
-    classtype:protocol-violation; sid:9001005; rev:1;)
+# FRP TLS Control Connection (default port 7000)
+# The previous rule matched TLS record 0x17 03 (application data), which is
+# present in every TLS 1.2 session and therefore fired on normal HTTPS.
+# FRP's TLS mode is indistinguishable from TLS without DPI on the control
+# channel, so scope the rule to the default FRP control port instead.
+alert tls any any -> any 7000 (msg:"[LY-FRP-005] FRP TLS Control Connection on Port 7000"; \
+    flow:established,to_server; \
+    threshold:type limit, track by_src, count 1, seconds 300; \
+    classtype:trojan-activity; sid:9001005; rev:2;)
 
 # FRP Pool Count
 alert tcp any any -> any 7000 (msg:"[LY-FRP-006] FRP Pool Count Field"; \
@@ -50,12 +53,16 @@ alert tcp any any -> any 7000 (msg:"[LY-FRP-008] FRP Version 0.48 Detection"; \
     content:"windows"; nocase; \
     classtype:trojan-activity; sid:9001008; rev:1;)
 
-# FRP HTTP Basic Auth
-alert tcp any any -> any any (msg:"[LY-FRP-009] FRP HTTP Basic Auth Header"; \
-    content:"proxy-authorization"; nocase; \
-    content:"Basic"; \
-    flow:established; \
-    classtype:trojan-activity; sid:9001009; rev:1;)
+# FRP HTTP Proxy Basic Auth
+# Only client->server proxy requests carry Proxy-Authorization. The previous
+# rule had no direction and also matched server responses and normal proxy
+# traffic, producing false positives on internal proxy auth.
+alert http any any -> any any (msg:"[LY-FRP-009] FRP HTTP Proxy Basic Auth"; \
+    flow:established,to_server; \
+    http.request_header; content:"Proxy-Authorization"; nocase; \
+    http.request_header; content:"Basic"; nocase; \
+    threshold:type limit, track by_src, count 1, seconds 60; \
+    classtype:trojan-activity; sid:9001009; rev:2;)
 
 # FRP Custom Subdomain
 alert tcp any any -> any any (msg:"[LY-FRP-010] FRP Custom Subdomain Pattern"; \

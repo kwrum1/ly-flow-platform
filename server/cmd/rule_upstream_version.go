@@ -18,7 +18,6 @@ var upstreamRuleVersionCache sync.Map
 
 func upstreamRuleVersion(ctx context.Context, sourceID string) string {
 	repositories := map[string]string{
-		"wazuh-auditd":                  "https://api.github.com/repos/wazuh/wazuh/commits?path=ruleset/rules&per_page=1",
 		"yara-signature-base":           "https://api.github.com/repos/Neo23x0/signature-base/commits?path=yara&per_page=1",
 		"falco-supported-subset":        "https://api.github.com/repos/falcosecurity/rules/commits?path=rules&per_page=1",
 		"elastic-linux-detection-rules": "https://api.github.com/repos/elastic/detection-rules/commits?path=rules/linux&per_page=1",

@@ -74,15 +74,19 @@ func TestRASPProtectionHTTP_rejects_legacy_block_activation(t *testing.T) {
 	}
 }
 
-func TestRASPPolicyConfig_never_enables_block_on_hit(t *testing.T) {
+func TestRASPPolicyConfig_enables_block_on_hit_only_when_promoted(t *testing.T) {
 	// Given
-	policy := agentpolicy.Policy{Mode: agentpolicy.ModeMonitor, Version: 7}
+	policy := agentpolicy.Policy{Mode: agentpolicy.ModeBlock, Version: 7}
 
 	// When
-	config := raspPolicyConfig(policy)
+	dryRun := raspPolicyConfig(policy, false)
+	enforcing := raspPolicyConfig(policy, true)
 
 	// Then
-	if config["mode"] != agentpolicy.ModeMonitor || config["block_on_hit"] != false || config["version"] != uint64(7) {
-		t.Fatalf("config = %#v", config)
+	if dryRun["mode"] != agentpolicy.ModeBlock || dryRun["block_on_hit"] != false || dryRun["version"] != uint64(7) {
+		t.Fatalf("dry-run config = %#v", dryRun)
+	}
+	if enforcing["block_on_hit"] != true {
+		t.Fatalf("enforcing config = %#v", enforcing)
 	}
 }

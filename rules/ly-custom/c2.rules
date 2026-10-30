@@ -16,10 +16,16 @@ alert tls any any -> any any (msg:"[LY-CS-002] CobaltStrike Alt JA3 Fingerprint"
     classtype:trojan-activity; sid:9002002; rev:1;)
 
 # CobaltStrike Beacon DNS Pattern - Long Random Subdomain
+# Require: first label >= 24 chars, alphanumeric only (no hyphen), contains a
+# digit. This removes CDN/telemetry names (hyphenated or dictionary words)
+# while still matching encoded beacon labels.
+# `content:!"sru.edu.cn"` excludes a retired domain whose authoritative DNS
+# (10.1.0.6) still receives historical/scan traffic; it has no real servers.
 alert dns any any -> any any (msg:"[LY-CS-003] CobaltStrike DNS Beacon Long Subdomain"; \
-    dns.query; pcre:"/^[a-z0-9]{20,50}\.[a-z0-9\.]+$/i"; \
-    threshold:type threshold, track by_src, count 10, seconds 60; \
-    classtype:trojan-activity; sid:9002003; rev:1;)
+    flow:to_server; dns.query; content:!"sru.edu.cn"; content:!"huaweicloudwaf.com"; \
+    pcre:"/^(?=[a-z0-9]{24,}\.)(?=[a-z0-9]*[0-9])[a-z0-9]+\./i"; \
+    threshold:type threshold, track by_src, count 5, seconds 60; \
+    classtype:trojan-activity; sid:9002003; rev:2;)
 
 # CobaltStrike POST to /identity
 alert http any any -> any any (msg:"[LY-CS-004] CobaltStrike /identity Endpoint"; \

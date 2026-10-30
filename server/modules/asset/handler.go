@@ -59,6 +59,10 @@ type Host struct {
 	MemoryUsagePercent *float64   `json:"memory_usage_percent,omitempty"`
 	DiskUsedGB         *int64     `json:"disk_used_gb,omitempty"`
 	DiskUsagePercent   *float64   `json:"disk_usage_percent,omitempty"`
+	LoadAvg1           *float64   `json:"load_avg_1,omitempty"`
+	LoadAvg5           *float64   `json:"load_avg_5,omitempty"`
+	LoadAvg15          *float64   `json:"load_avg_15,omitempty"`
+	UptimeSeconds      *int64     `json:"uptime_seconds,omitempty"`
 	MetricsUpdatedAt   *time.Time `json:"metrics_updated_at,omitempty"`
 
 	Tags       []string `json:"tags,omitempty"`
@@ -454,6 +458,7 @@ func applyHostMetadata(host *Host, metadataRaw []byte) {
 	}
 	if loadAvg, ok := perf["load_avg"].([]interface{}); ok && len(loadAvg) > 0 {
 		if load1, ok := floatFromInterface(loadAvg[0]); ok {
+			host.LoadAvg1 = &load1
 			cpuPercent := load1
 			if cores := int64FromInterface(perf["cpu_cores"]); cores > 0 {
 				cpuPercent = (load1 / float64(cores)) * 100
@@ -462,6 +467,19 @@ func applyHostMetadata(host *Host, metadataRaw []byte) {
 				host.CPUUsagePercent = &cpuPercent
 			}
 		}
+		if len(loadAvg) > 1 {
+			if value, ok := floatFromInterface(loadAvg[1]); ok {
+				host.LoadAvg5 = &value
+			}
+		}
+		if len(loadAvg) > 2 {
+			if value, ok := floatFromInterface(loadAvg[2]); ok {
+				host.LoadAvg15 = &value
+			}
+		}
+	}
+	if uptime := int64FromInterface(perf["uptime_seconds"]); uptime > 0 {
+		host.UptimeSeconds = &uptime
 	}
 	if memory, ok := perf["memory"].(map[string]interface{}); ok {
 		total := int64FromInterface(memory["MemTotal"])

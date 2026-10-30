@@ -55,7 +55,11 @@ func (manager *Manager) Promote(ctx context.Context, version uint64) error {
 		if targetErr != nil || target.Envelope.Policy.Mode != ModeMonitor {
 			return ErrRollbackRequired
 		}
-		return ErrProductionBlockDisabled
+		if !manager.allowProductionBlock {
+			return ErrProductionBlockDisabled
+		}
+		stored.State, stored.UpdatedAt = StateActive, manager.now()
+		return manager.store.Promote(ctx, stored, manager.event(policy, "promoted", "production-block"))
 	}
 	stored.State, stored.UpdatedAt = StateActive, manager.now()
 	return manager.store.Promote(ctx, stored, manager.event(policy, "promoted", "monitor-only"))
@@ -88,7 +92,7 @@ func (manager *Manager) Rollback(ctx context.Context, version uint64) error {
 		return fmt.Errorf("load rollback target: %w", err)
 	}
 	if target.Envelope.Policy.Mode != ModeMonitor {
-		return ErrProductionBlockDisabled
+		return ErrRollbackRequired
 	}
 	current.State, current.UpdatedAt = StateRolledBack, manager.now()
 	target.State, target.UpdatedAt = StateActive, manager.now()

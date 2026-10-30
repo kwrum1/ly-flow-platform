@@ -280,6 +280,15 @@ CREATE INDEX IF NOT EXISTS idx_xdr_events_v2_observed ON xdr_events_v2(observed_
 CREATE INDEX IF NOT EXISTS idx_xdr_events_v2_host ON xdr_events_v2(host_id);
 CREATE INDEX IF NOT EXISTS idx_xdr_events_v2_technique ON xdr_events_v2(technique_id);
 
+CREATE TABLE IF NOT EXISTS incident_notes (
+    id BIGSERIAL PRIMARY KEY,
+    incident_id VARCHAR(128) NOT NULL,
+    author VARCHAR(128) NOT NULL,
+    body TEXT NOT NULL,
+    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+CREATE INDEX IF NOT EXISTS idx_incident_notes_incident ON incident_notes(incident_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS threat_events (
     event_uid VARCHAR(160) PRIMARY KEY,
     category VARCHAR(32) NOT NULL,

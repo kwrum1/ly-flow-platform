@@ -12,21 +12,64 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
+	"math"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
 	"sort"
 	"strings"
+	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/jackc/pgx/v5"
 	"gopkg.in/yaml.v3"
 
+	"github.com/lyflow/ly-flow-platform/server/modules/auth"
 	"github.com/lyflow/ly-flow-platform/server/rulelifecycle"
 )
 
 const rulePlatformSyncBodyLimit int64 = 65 << 20
+
+// rulePlatformParserVersion is bumped whenever the conversion quality rules
+// change. It is mixed into the stored source digest so an unchanged upstream
+// feed can never keep an active bundle produced by an older parser.
+const rulePlatformParserVersion = "2026-10-30.4"
+
+// retiredDefaultDetectionRuleIDs are bundled rules that produced more noise
+// than signal. They are removed from the shipped bundle and are also disabled
+// in older databases so an upgrade or re-sync cannot bring them back.
+var retiredDefaultDetectionRuleIDs = []string{
+	"dpi-admin-access-default",
+	"log-collector-heartbeat-default",
+}
+
+func retiredDefaultRuleID(id string) bool {
+	trimmed := strings.TrimSpace(id)
+	for _, retired := range retiredDefaultDetectionRuleIDs {
+		if trimmed == retired {
+			return true
+		}
+	}
+	return false
+}
+
+// convertedTrafficSourcePrefixes are external signature feeds that this server
+// flattens into a single field/pattern rule. That flattening drops companion
+// Suricata options (flow, dsize, offset, depth, threshold, urilen, ...), so a
+// low-specificity pattern becomes a catch-all. Rules from these sources are
+// only allowed into the runtime bundle when the surviving pattern contains a
+// distinctive literal.
+var convertedTrafficSourcePrefixes = []string{
+	"et-open-",
+	"ptresearch-attackdetection-",
+	"snort-community-",
+	"stamus-lateral-",
+	"oisf-trafficid-",
+}
 
 type ruleVersionStatusCommitter interface {
 	MarkSynced(ctx context.Context, sourceID, version, digest string) error
@@ -71,7 +114,10 @@ func rulePlatformSourcesHandler(cfg *Config) http.HandlerFunc {
 				writeJSONError(w, http.StatusInternalServerError, "rule_sources_failed", err.Error())
 				return
 			}
-			body, err := json.Marshal(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": items, "total": len(items)}})
+			body, err := json.Marshal(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{
+				"items": items, "total": len(items),
+				"freshness": rulePlatformFreshness(r.Context(), cfg),
+			}})
 			if err != nil {
 				writeJSONError(w, http.StatusInternalServerError, "rule_sources_encode_failed", err.Error())
 				return
@@ -121,6 +167,12 @@ func rulePlatformBundlesHandler(cfg *Config) http.HandlerFunc {
 func rulePlatformSyncHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
+		if r.Method == http.MethodGet {
+			// Status endpoint for the async "sync all" job; same route so the
+			// route contract does not change.
+			json.NewEncoder(w).Encode(map[string]interface{}{"code": 0, "message": "success", "data": rulePlatformSyncStatus()})
+			return
+		}
 		if r.Method != http.MethodPost {
 			writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed", "Method not allowed")
 			return
@@ -222,7 +274,19 @@ func loadRulePlatformSources(ctx context.Context, cfg *Config) ([]map[string]int
 	if err := ensureRuleSourceCatalog(ctx, cfg); err != nil {
 		return nil, err
 	}
-	rows, err := cfg.DBPool.Query(ctx, `SELECT id, name, category, origin, COALESCE(license,''), COALESCE(url,''), bundled, connector, restricted, updatable, updated_at FROM rule_sources ORDER BY name`)
+	rows, err := cfg.DBPool.Query(ctx, `
+		SELECT rs.id, rs.name, rs.category, rs.origin, COALESCE(rs.license,''), COALESCE(rs.url,''),
+		       rs.bundled, rs.connector, rs.restricted, rs.updatable, rs.updated_at,
+		       COALESCE(v.version,''), COALESCE(v.content_hash,''), COALESCE(v.sync_status,''), v.synced_at
+		FROM rule_sources rs
+		LEFT JOIN LATERAL (
+			SELECT version, content_hash, sync_status, synced_at
+			FROM rule_source_versions
+			WHERE source_id = rs.id
+			ORDER BY synced_at DESC
+			LIMIT 1
+		) v ON true
+		ORDER BY rs.name`)
 	if err != nil {
 		return nil, err
 	}
@@ -232,13 +296,34 @@ func loadRulePlatformSources(ctx context.Context, cfg *Config) ([]map[string]int
 		var id, name, category, origin, license, url string
 		var bundled, connector, restricted, updatable bool
 		var updated time.Time
-		if err := rows.Scan(&id, &name, &category, &origin, &license, &url, &bundled, &connector, &restricted, &updatable, &updated); err != nil {
+		var version, contentHash, syncStatus string
+		var syncedAt *time.Time
+		if err := rows.Scan(&id, &name, &category, &origin, &license, &url,
+			&bundled, &connector, &restricted, &updatable, &updated,
+			&version, &contentHash, &syncStatus, &syncedAt); err != nil {
 			return nil, err
 		}
 		if restricted && !cfg.RuleDownloadRestrictedShown {
 			continue
 		}
-		items = append(items, map[string]interface{}{"id": id, "source_id": id, "name": name, "category": category, "origin": origin, "license": license, "url": url, "bundled": bundled, "connector": connector, "restricted": restricted, "updatable": updatable, "updated_at": updated.Format(time.RFC3339)})
+		entry := map[string]interface{}{
+			"id": id, "source_id": id, "name": name, "category": category, "origin": origin,
+			"license": license, "url": url, "bundled": bundled, "connector": connector,
+			"restricted": restricted, "updatable": updatable, "updated_at": updated.Format(time.RFC3339),
+			"current_version": version, "content_hash": contentHash, "sync_status": syncStatus,
+			"version_known": version != "",
+		}
+		if syncedAt != nil {
+			entry["last_sync_at"] = syncedAt.UTC().Format(time.RFC3339)
+		}
+		if contentHash != "" {
+			short := contentHash
+			if len(short) > 12 {
+				short = short[:12]
+			}
+			entry["display_version"] = "sha256-" + short
+		}
+		items = append(items, entry)
 	}
 	return items, rows.Err()
 }
@@ -469,6 +554,13 @@ func ensureDefaultDetectionRules(ctx context.Context, cfg *Config) error {
 			return err
 		}
 	}
+	// Retire rules that shipped in older bundles. Keeping this in the startup
+	// path means a reinstall or re-sync cannot re-enable them on an existing DB.
+	for _, retired := range retiredDefaultDetectionRuleIDs {
+		if _, err := cfg.DBPool.Exec(ctx, `UPDATE detection_rules SET enabled=false, support_level='unsupported', updated_at=NOW() WHERE id=$1`, retired); err != nil {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -479,12 +571,16 @@ func loadEnabledDetectionRules(ctx context.Context, cfg *Config) ([]compiledRunt
 	}
 	defer rows.Close()
 	rules := []compiledRuntimeRule{}
+	skippedGeneric := 0
 	for rows.Next() {
 		var id, category, name, support, raw string
 		if err := rows.Scan(&id, &category, &name, &support, &raw); err != nil {
 			return nil, err
 		}
 		if support == "unsupported" {
+			continue
+		}
+		if retiredDefaultRuleID(id) {
 			continue
 		}
 		rule, err := compileDetectionRule(id, category, name, raw)
@@ -494,7 +590,14 @@ func loadEnabledDetectionRules(ctx context.Context, cfg *Config) ([]compiledRunt
 		if !compiledRuntimeRuleValid(rule) {
 			return nil, fmt.Errorf("rule %s failed strict runtime validation", id)
 		}
+		if compiledTrafficRuleIsGeneric(rule) {
+			skippedGeneric++
+			continue
+		}
 		rules = append(rules, rule)
+	}
+	if skippedGeneric > 0 {
+		log.Printf("[rule-platform] skipped %d over-broad converted traffic rules while building the active bundle", skippedGeneric)
 	}
 	return rules, rows.Err()
 }
@@ -506,12 +609,16 @@ func loadEnabledDetectionRulesExcludingSource(ctx context.Context, cfg *Config, 
 	}
 	defer rows.Close()
 	rules := []compiledRuntimeRule{}
+	skippedGeneric := 0
 	for rows.Next() {
 		var id, category, name, support, raw string
 		if err := rows.Scan(&id, &category, &name, &support, &raw); err != nil {
 			return nil, err
 		}
 		if support == "unsupported" {
+			continue
+		}
+		if retiredDefaultRuleID(id) {
 			continue
 		}
 		rule, err := compileDetectionRule(id, category, name, raw)
@@ -521,9 +628,188 @@ func loadEnabledDetectionRulesExcludingSource(ctx context.Context, cfg *Config, 
 		if !compiledRuntimeRuleValid(rule) {
 			return nil, fmt.Errorf("rule %s failed strict runtime validation", id)
 		}
+		if compiledTrafficRuleIsGeneric(rule) {
+			skippedGeneric++
+			continue
+		}
 		rules = append(rules, rule)
 	}
+	if skippedGeneric > 0 {
+		log.Printf("[rule-platform] skipped %d over-broad converted traffic rules from other sources", skippedGeneric)
+	}
 	return rules, rows.Err()
+}
+
+// rulePlatformContentDigest binds the raw upstream digest to the parser
+// version. A parser change therefore invalidates the incremental "unchanged"
+// shortcut and forces a rebuild instead of keeping a stale, noisy bundle.
+func rulePlatformContentDigest(rawDigest string) string {
+	sum := sha256.Sum256([]byte("parser:" + rulePlatformParserVersion + "\x00" + rawDigest))
+	return hex.EncodeToString(sum[:])
+}
+
+func convertedTrafficRuleID(id string) bool {
+	lower := strings.ToLower(strings.TrimSpace(id))
+	for _, prefix := range convertedTrafficSourcePrefixes {
+		if strings.Contains(lower, prefix) {
+			return true
+		}
+	}
+	return false
+}
+
+func longestAlnumRun(value string) int {
+	longest, current := 0, 0
+	for _, r := range value {
+		if (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z') || (r >= '0' && r <= '9') {
+			current++
+			if current > longest {
+				longest = current
+			}
+			continue
+		}
+		current = 0
+	}
+	return longest
+}
+
+// regexLiteralRun strips character classes and escapes before measuring the
+// longest literal run. Without this, "\x2ejpg" would count as six literal
+// characters even though it is just ".jpg".
+func regexLiteralRun(value string) int {
+	var builder strings.Builder
+	for i := 0; i < len(value); i++ {
+		ch := value[i]
+		if ch == '[' {
+			i++
+			for i < len(value) && value[i] != ']' {
+				if value[i] == '\\' && i+1 < len(value) {
+					i++
+				}
+				i++
+			}
+			continue
+		}
+		if ch == '\\' && i+1 < len(value) {
+			next := value[i+1]
+			if next == 'x' && i+3 < len(value) {
+				i += 3
+				continue
+			}
+			i++
+			continue
+		}
+		builder.WriteByte(ch)
+	}
+	return longestAlnumRun(builder.String())
+}
+
+// rulePatternIsSpecific decides whether a flattened pattern is distinctive
+// enough to run without the Suricata options that were dropped in conversion.
+func rulePatternIsSpecific(value, operator string) bool {
+	operator = strings.ToLower(strings.TrimSpace(operator))
+	trimmed := strings.TrimSpace(value)
+	if bareDomainPattern.MatchString(trimmed) {
+		return false
+	}
+	if commonConvertedTokens[strings.ToLower(trimmed)] {
+		return false
+	}
+	if operator == "regex" || operator == "pcre" {
+		if strings.Contains(value, ")?") {
+			return false // the only literal may be optional
+		}
+		return regexLiteralRun(value) >= 6
+	}
+	return longestAlnumRun(value) >= 6
+}
+
+var bareDomainPattern = regexp.MustCompile(`(?i)^[a-z0-9][a-z0-9.-]*\.(com|net|org|cn|io|ru|info|biz|xyz|top|cc|me|tv|co|uk|de|jp|fr|edu|gov|cloud|online|site|app|dev)$`)
+
+var commonConvertedTokens = map[string]bool{
+	"server": true, "windows": true, "microsoft": true, "samba": true,
+	"password": true, "admin": true, "login": true, "http": true,
+	"https": true, "user": true, "root": true, "shell": true,
+	"select": true, "union": true, "system": true, "network": true,
+	"client": true, "update": true, "service": true, "security": true,
+	"google": true, "facebook": true, "debian": true, "ubuntu": true,
+}
+
+// convertedTrafficRuleRejection explains why a flattened external signature
+// must not enter the flow engine. The runtime keeps only one field/pattern and
+// cannot enforce the port, direction or offset constraints of the original, so
+// a weak pattern turns into a catch-all and a binary pattern becomes dead.
+func convertedTrafficRuleRejection(rule map[string]interface{}, operator string) string {
+	value := strings.TrimSpace(asString(rule["value"]))
+	if operator == "contains" && strings.Contains(value, "|") {
+		return "unrepresentable_binary_content"
+	}
+	if bareDomainPattern.MatchString(value) {
+		return "bare_domain"
+	}
+	if commonConvertedTokens[strings.ToLower(value)] {
+		return "common_token"
+	}
+	run := longestAlnumRun(value)
+	if operator == "regex" || operator == "pcre" {
+		run = regexLiteralRun(value)
+	}
+	if run < 6 {
+		return "pattern_too_generic"
+	}
+	port := strings.TrimSpace(asString(rule["source_dest_port"]))
+	flow := strings.ToLower(asString(rule["source_flow"]))
+	lost := false
+	if port != "" && !strings.EqualFold(port, "any") && port != "$HTTP_PORTS" && port != "$SSH_PORTS" {
+		lost = true
+	}
+	if strings.Contains(flow, "from_server") || strings.Contains(flow, "to_client") {
+		lost = true
+	}
+	if len(stringSliceValue(rule["source_match_options"])) > 0 {
+		lost = true
+	}
+	if lost && run < 12 {
+		return "lost_match_constraints"
+	}
+	return ""
+}
+
+func stringSliceValue(value interface{}) []string {
+	switch typed := value.(type) {
+	case []string:
+		return typed
+	case []interface{}:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			if trimmed := strings.TrimSpace(asString(item)); trimmed != "" {
+				out = append(out, trimmed)
+			}
+		}
+		return out
+	case string:
+		if strings.TrimSpace(typed) == "" {
+			return nil
+		}
+		return []string{typed}
+	}
+	return nil
+}
+
+func compiledTrafficRuleIsGeneric(rule compiledRuntimeRule) bool {
+	if !strings.EqualFold(strings.TrimSpace(rule.Category), "traffic") {
+		return false
+	}
+	if !convertedTrafficRuleID(rule.ID) {
+		return false
+	}
+	if len(rule.Conditions) > 0 {
+		return false
+	}
+	if strings.EqualFold(strings.TrimSpace(rule.Operator), "contains") && strings.Contains(rule.Value, "|") {
+		return true
+	}
+	return !rulePatternIsSpecific(rule.Value, rule.Operator)
 }
 
 func mergeCompiledRuntimeRules(base, updates []compiledRuntimeRule) []compiledRuntimeRule {
@@ -753,13 +1039,254 @@ func slugifyRulePlatformID(value string) string {
 	return out
 }
 
+// ruleSyncJobState tracks the background "sync all" job. Fetching a dozen
+// upstream feeds cannot happen inside one HTTP request: nginx times out and the
+// operator sees a 502 with no idea what happened.
+type ruleSyncJobState struct {
+	Running          bool                     `json:"running"`
+	StartedAt        time.Time                `json:"started_at"`
+	FinishedAt       *time.Time               `json:"finished_at,omitempty"`
+	Version          string                   `json:"version"`
+	Total            int                      `json:"total"`
+	Applied          int                      `json:"applied"`
+	Unchanged        int                      `json:"unchanged"`
+	Failed           int                      `json:"failed"`
+	Skipped          int                      `json:"skipped"`
+	Current          string                   `json:"current_source,omitempty"`
+	CurrentStartedAt time.Time                `json:"current_started_at,omitempty"`
+	Results          []map[string]interface{} `json:"results"`
+}
+
+var ruleSyncJob = struct {
+	mu    sync.Mutex
+	state *ruleSyncJobState
+}{}
+
+// startRuleSyncScheduler keeps upstream rule sources fresh without an
+// operator clicking "sync" every day. It is explicitly opt-out (0 hours) and
+// runs the same audited job as the console button.
+var ruleSyncSchedulerStarted atomic.Bool
+
+func startRuleSyncScheduler(cfg *Config) {
+	if !ruleSyncSchedulerStarted.CompareAndSwap(false, true) {
+		return
+	}
+	hours := toInt(getEnv("LYFLOW_RULE_SYNC_INTERVAL_HOURS", "24"))
+	if hours <= 0 {
+		log.Printf("rule auto-sync disabled (LYFLOW_RULE_SYNC_INTERVAL_HOURS<=0)")
+		return
+	}
+	interval := time.Duration(hours) * time.Hour
+	log.Printf("rule auto-sync enabled: every %s", interval)
+	timer := time.NewTimer(2 * time.Minute)
+	defer timer.Stop()
+	for {
+		select {
+		case <-timer.C:
+			startRulePlatformSyncAll(cfg, 0, auth.RoleAdmin)
+			timer.Reset(interval)
+		}
+	}
+}
+
+// rulePlatformFreshness reports how old the newest upstream sync is. A rule
+// pack that has never been synced is "degraded", not "ok".
+func rulePlatformFreshness(ctx context.Context, cfg *Config) componentStatus {
+	intervalHours := toInt(getEnv("LYFLOW_RULE_SYNC_INTERVAL_HOURS", "24"))
+	if intervalHours <= 0 {
+		return componentStatus{Status: "ok", Message: "rule auto-sync disabled", Details: map[string]interface{}{"auto_sync": false}}
+	}
+	if cfg == nil || cfg.DBPool == nil {
+		return componentStatus{Status: "error", Message: "database unavailable"}
+	}
+	var last *time.Time
+	if err := cfg.DBPool.QueryRow(ctx, `SELECT max(synced_at) FROM rule_source_versions`).Scan(&last); err != nil {
+		return componentStatus{Status: "unknown", Message: err.Error()}
+	}
+	if last == nil || last.IsZero() {
+		return componentStatus{Status: "degraded", Message: "no rule source has ever been synced", Details: map[string]interface{}{"auto_sync": true, "interval_hours": intervalHours}}
+	}
+	age := time.Since(*last)
+	details := map[string]interface{}{
+		"auto_sync":      true,
+		"interval_hours": intervalHours,
+		"last_sync_at":   last.UTC().Format(time.RFC3339),
+		"age_hours":      math.Round(age.Hours()*10) / 10,
+		"stale_after":    last.Add(time.Duration(intervalHours) * 3 / 2 * time.Hour).UTC().Format(time.RFC3339),
+	}
+	if age > time.Duration(intervalHours)*3/2*time.Hour {
+		return componentStatus{Status: "degraded", Message: "rule sources are older than the freshness budget", Details: details}
+	}
+	return componentStatus{Status: "ok", Message: "rule sources are fresh", Details: details}
+}
+
+// syncAllRulePlatformSources starts the background job and returns immediately.
+// The caller's identity is carried into the job: the lifecycle audit rejects an
+// anonymous actor, and a background goroutine has no request context.
+func syncAllRulePlatformSources(ctx context.Context, cfg *Config, _ map[string]interface{}) (map[string]interface{}, error) {
+	return startRulePlatformSyncAll(cfg, auth.GetUserIDFromContext(ctx), auth.GetRoleFromContext(ctx)), nil
+}
+
+func startRulePlatformSyncAll(cfg *Config, actorID int64, role auth.UserRole) map[string]interface{} {
+	ruleSyncJob.mu.Lock()
+	if ruleSyncJob.state != nil && ruleSyncJob.state.Running {
+		view := ruleSyncJobViewLocked()
+		ruleSyncJob.mu.Unlock()
+		return view
+	}
+	state := &ruleSyncJobState{
+		Running:   true,
+		StartedAt: time.Now().UTC(),
+		Version:   "sync-" + time.Now().UTC().Format("20060102T150405Z"),
+		Results:   []map[string]interface{}{},
+	}
+	ruleSyncJob.state = state
+	ruleSyncJob.mu.Unlock()
+
+	go runRulePlatformSyncAll(cfg, state, actorID, role)
+
+	return map[string]interface{}{
+		"mode":       "async",
+		"running":    true,
+		"version":    state.Version,
+		"started_at": state.StartedAt.Format(time.RFC3339),
+	}
+}
+
+func ruleSyncJobViewLocked() map[string]interface{} {
+	state := ruleSyncJob.state
+	if state == nil {
+		return map[string]interface{}{"mode": "async", "running": false}
+	}
+	completed := state.Applied + state.Unchanged + state.Failed
+	progress := 0.0
+	if state.Total > 0 {
+		progress = float64(completed) / float64(state.Total) * 100
+	}
+	view := map[string]interface{}{
+		"mode":             "async",
+		"running":          state.Running,
+		"version":          state.Version,
+		"started_at":       state.StartedAt.Format(time.RFC3339),
+		"total":            state.Total,
+		"applied":          state.Applied,
+		"unchanged":        state.Unchanged,
+		"failed":           state.Failed,
+		"skipped":          state.Skipped,
+		"current_source":   state.Current,
+		"progress_percent": math.Round(progress*10) / 10,
+		"results":          state.Results,
+	}
+	if !state.CurrentStartedAt.IsZero() {
+		view["current_started_at"] = state.CurrentStartedAt.Format(time.RFC3339)
+	}
+	if state.FinishedAt != nil {
+		view["finished_at"] = state.FinishedAt.Format(time.RFC3339)
+	}
+	return view
+}
+
+func rulePlatformSyncStatus() map[string]interface{} {
+	ruleSyncJob.mu.Lock()
+	defer ruleSyncJob.mu.Unlock()
+	return ruleSyncJobViewLocked()
+}
+
+func runRulePlatformSyncAll(cfg *Config, state *ruleSyncJobState, actorID int64, role auth.UserRole) {
+	base := context.Background()
+	base = context.WithValue(base, auth.UserContextKey, actorID)
+	base = context.WithValue(base, auth.RoleContextKey, role)
+	ctx, cancel := context.WithTimeout(base, 20*time.Minute)
+	defer cancel()
+	finish := func() {
+		now := time.Now().UTC()
+		ruleSyncJob.mu.Lock()
+		state.Running = false
+		state.FinishedAt = &now
+		ruleSyncJob.mu.Unlock()
+	}
+	defer finish()
+
+	sources, err := loadRulePlatformSources(ctx, cfg)
+	if err != nil {
+		ruleSyncJob.mu.Lock()
+		state.Failed++
+		state.Results = append(state.Results, map[string]interface{}{"source_id": "*", "status": "failed", "error": err.Error()})
+		ruleSyncJob.mu.Unlock()
+		return
+	}
+
+	updatable := make([]map[string]interface{}, 0, len(sources))
+	for _, source := range sources {
+		if asString(source["source_id"]) == "" {
+			continue
+		}
+		if !asBoolDefault(source["updatable"], false) {
+			// Local/built-in sources are not part of "sync" at all: they ship
+			// with the product and must not appear as skipped noise.
+			continue
+		}
+		if strings.TrimSpace(asString(source["url"])) == "" && !asBoolDefault(source["connector"], false) {
+			continue
+		}
+		updatable = append(updatable, source)
+	}
+
+	ruleSyncJob.mu.Lock()
+	state.Total = len(updatable)
+	ruleSyncJob.mu.Unlock()
+
+	for _, source := range updatable {
+		sourceID := asString(source["source_id"])
+		if ctx.Err() != nil {
+			ruleSyncJob.mu.Lock()
+			state.Failed++
+			state.Results = append(state.Results, map[string]interface{}{"source_id": sourceID, "status": "failed", "error": "sync deadline reached"})
+			ruleSyncJob.mu.Unlock()
+			continue
+		}
+		ruleSyncJob.mu.Lock()
+		state.Current = sourceID
+		state.CurrentStartedAt = time.Now().UTC()
+		ruleSyncJob.mu.Unlock()
+
+		// The fetch layer has its own HTTP timeout; the source context must outlive
+		// parse+convert+audit so a slow feed does not expire the audit write.
+		sourceCtx, cancelSource := context.WithTimeout(ctx, 10*time.Minute)
+		result, syncErr := syncRulePlatformSource(sourceCtx, cfg, map[string]interface{}{
+			"source_id": sourceID,
+			"version":   state.Version,
+		})
+		cancelSource()
+
+		ruleSyncJob.mu.Lock()
+		state.Current = ""
+		state.CurrentStartedAt = time.Time{}
+		switch {
+		case syncErr != nil:
+			state.Failed++
+			state.Results = append(state.Results, map[string]interface{}{"source_id": sourceID, "status": "failed", "error": syncErr.Error()})
+		case asString(result["status"]) == "unchanged":
+			state.Unchanged++
+			state.Results = append(state.Results, map[string]interface{}{"source_id": sourceID, "status": "unchanged", "endpoint": asString(result["endpoint"])})
+		default:
+			state.Applied++
+			state.Results = append(state.Results, map[string]interface{}{"source_id": sourceID, "status": "applied", "endpoint": asString(result["endpoint"]), "rules": result["converted_count"]})
+		}
+		ruleSyncJob.mu.Unlock()
+	}
+}
+
 func syncRulePlatformSource(ctx context.Context, cfg *Config, req map[string]interface{}) (map[string]interface{}, error) {
 	if err := ensureRuleSourceCatalog(ctx, cfg); err != nil {
 		return nil, err
 	}
 	sourceID := firstNonEmpty(asString(req["source_id"]), asString(req["id"]))
 	if sourceID == "" {
-		return nil, fmt.Errorf("source_id is required")
+		// "Sync rules" without a source means: sync every catalog source that
+		// has a pinned upstream version. Per-source failures are reported, not
+		// turned into one opaque error.
+		return syncAllRulePlatformSources(ctx, cfg, req)
 	}
 	source, err := loadRulePlatformSource(ctx, cfg, sourceID)
 	if err != nil {
@@ -774,10 +1301,21 @@ func syncRulePlatformSource(ctx context.Context, cfg *Config, req map[string]int
 	}
 	version := strings.TrimSpace(asString(req["version"]))
 	if version == "" {
-		return nil, errors.New("pinned source version is required")
+		// A sync without an explicit pin means "fetch the current upstream
+		// snapshot"; the version still has to be unique per run.
+		version = "sync-" + time.Now().UTC().Format("20060102T150405Z")
 	}
+	// Discover/fetch audit entries use this pin revision as their resource.
+	// Persist the generated version back into the request before materializing
+	// the source, otherwise the audit entry has an empty resource and every
+	// sync fails with "incomplete audit entry".
+	req["version"] = version
 	if asString(req["url"]) == "" {
 		req["url"] = externalSourceURL(source, req)
+	}
+	// Build the ordered endpoint list once: primary first, GitHub mirrors after.
+	if _, exists := req["endpoints"]; !exists {
+		req["endpoints"] = githubMirrorEndpoints(asString(req["url"]))
 	}
 	if cfg.RuleLifecycle == nil {
 		return nil, errors.New("secure rule lifecycle is unavailable")
@@ -802,6 +1340,23 @@ func syncRulePlatformSource(ctx context.Context, cfg *Config, req map[string]int
 		}
 		return nil, err
 	}
+	// Incremental apply: unchanged upstream bytes do not need another bundle
+	// build or activation. This is what makes a 24h refresh cheap. The digest
+	// includes the parser version, so a stricter parser forces one rebuild.
+	contentDigest := rulePlatformContentDigest(sourceDigest)
+	if !inlineRequest {
+		var previousDigest string
+		previousErr := cfg.DBPool.QueryRow(ctx, `SELECT content_hash FROM rule_source_versions WHERE source_id=$1 AND sync_status <> 'staged' ORDER BY synced_at DESC LIMIT 1`, sourceID).Scan(&previousDigest)
+		if previousErr == nil && previousDigest == contentDigest {
+			_, _ = cfg.DBPool.Exec(ctx, `UPDATE rule_source_versions SET synced_at=NOW(), sync_status='synced' WHERE source_id=$1 AND content_hash=$2`, sourceID, contentDigest)
+			_ = cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.sync", sourceID+":"+version, rulelifecycle.AuditResultSucceeded, map[string]interface{}{"unchanged": true, "digest": sourceDigest})
+			return map[string]interface{}{
+				"source_id": sourceID, "version": version, "content_hash": sourceDigest,
+				"status": "unchanged", "activated": false, "endpoint": sourceLocation,
+			}, nil
+		}
+	}
+
 	if !validRulePlatformPathSegment(sourceID) || !validRulePlatformPathSegment(version) {
 		if inlineRequest {
 			if auditErr := recordRuleInlineFailure(ctx, cfg, actor, resource, "conflict", rulelifecycle.ErrRevision); auditErr != nil {
@@ -812,7 +1367,7 @@ func syncRulePlatformSource(ctx context.Context, cfg *Config, req map[string]int
 	}
 	var existingDigest string
 	existingErr := cfg.DBPool.QueryRow(ctx, `SELECT content_hash FROM rule_source_versions WHERE source_id=$1 AND version=$2`, sourceID, version).Scan(&existingDigest)
-	if existingErr == nil && existingDigest != sourceDigest {
+	if existingErr == nil && existingDigest != contentDigest {
 		if inlineRequest {
 			if auditErr := recordRuleInlineFailure(ctx, cfg, actor, resource, "conflict", rulelifecycle.ErrRevision); auditErr != nil {
 				return nil, auditErr
@@ -872,15 +1427,36 @@ func syncRulePlatformSource(ctx context.Context, cfg *Config, req map[string]int
 	if len(runtimeRules) == 0 {
 		return nil, errors.New("rule source produced no runtime-compatible rules")
 	}
+	// Respect operator decisions: a rule disabled in the console must not come
+	// back just because the upstream source was synced again. A source with no
+	// rows yet is new, not "everything disabled".
+	allowed, known, err := enabledRuntimeRuleIDs(ctx, cfg, sourceID)
+	if err != nil {
+		return nil, err
+	}
+	disabledByOperator := 0
+	if known {
+		kept := runtimeRules[:0]
+		for _, rule := range runtimeRules {
+			if allowed[rule.ID] || allowed[sourceID+"-"+rule.ID] {
+				kept = append(kept, rule)
+			}
+		}
+		disabledByOperator = len(runtimeRules) - len(kept)
+		if len(kept) == 0 {
+			return nil, errors.New("every rule from this source is disabled in the console")
+		}
+		runtimeRules = kept
+	}
 	if err := ensureDefaultDetectionRules(ctx, cfg); err != nil {
 		return nil, err
 	}
-	baseRules, err := loadActiveLifecycleRules(ctx, cfg)
+	// Build from the database, not from the currently active bundle: rules
+	// removed from detection_rules must not survive a sync through the old
+	// bundle's base set.
+	baseRules, err := loadEnabledDetectionRulesExcludingSource(ctx, cfg, sourceID)
 	if err != nil {
-		baseRules, err = loadEnabledDetectionRulesExcludingSource(ctx, cfg, sourceID)
-		if err != nil {
-			return nil, err
-		}
+		return nil, err
 	}
 	runtimeRules = mergeCompiledRuntimeRules(baseRules, runtimeRules)
 	bundleData, err := json.Marshal(compiledBundleFile{Version: lifecycleRevision, Rules: runtimeRules})
@@ -947,7 +1523,7 @@ func syncRulePlatformSource(ctx context.Context, cfg *Config, req map[string]int
 		}
 		return nil, err
 	}
-	if _, err := cfg.DBPool.Exec(ctx, `INSERT INTO rule_source_versions (source_id, version, content_hash, snapshot_path, sync_status, synced_at) VALUES ($1,$2,$3,$4,'staged',NOW()) ON CONFLICT (source_id, version) DO NOTHING`, sourceID, version, sourceDigest, snapshotPath); err != nil {
+	if _, err := cfg.DBPool.Exec(ctx, `INSERT INTO rule_source_versions (source_id, version, content_hash, snapshot_path, sync_status, synced_at) VALUES ($1,$2,$3,$4,'staged',NOW()) ON CONFLICT (source_id, version) DO NOTHING`, sourceID, version, contentDigest, snapshotPath); err != nil {
 		if auditErr := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.persist", sourceID+":"+version, rulelifecycle.AuditResultFailed, map[string]interface{}{"error": err.Error()}); auditErr != nil {
 			return nil, auditErr
 		}
@@ -966,11 +1542,15 @@ func syncRulePlatformSource(ctx context.Context, cfg *Config, req map[string]int
 	if err := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.persist", sourceID+":"+version, rulelifecycle.AuditResultSucceeded, map[string]interface{}{"digest": sourceDigest, "snapshot_path": snapshotPath}); err != nil {
 		return nil, err
 	}
+
+	// Sync applies immediately: the operator asked for "sync", and the staged
+	// snapshot would otherwise sit unused. Every activation is recorded in the
+	// lifecycle audit, and a bad source can be rolled back from the bundle list.
 	manifest, err := cfg.RuleLifecycle.ActivateWithManifestCommit(ctx, actor, lifecycleRevision, func(candidate rulelifecycle.ActiveManifest) error {
 		if cfg.RuleVersionStatus != nil {
-			return cfg.RuleVersionStatus.MarkSynced(ctx, sourceID, version, sourceDigest)
+			return cfg.RuleVersionStatus.MarkSynced(ctx, sourceID, version, contentDigest)
 		}
-		return commitSyncedRuleBundle(ctx, cfg, sourceID, version, sourceDigest, candidate)
+		return commitSyncedRuleBundle(ctx, cfg, sourceID, version, contentDigest, candidate)
 	})
 	if err != nil {
 		if inline {
@@ -994,7 +1574,7 @@ func syncRulePlatformSource(ctx context.Context, cfg *Config, req map[string]int
 	if err := cfg.RuleLifecycle.RecordOutcome(ctx, actor, "rule.source.sync", sourceID+":"+version, rulelifecycle.AuditResultSucceeded, map[string]interface{}{"digest": sourceDigest, "active_digest": manifest.Digest}); err != nil {
 		return nil, err
 	}
-	return map[string]interface{}{"source_id": sourceID, "version": version, "content_hash": sourceDigest, "snapshot_path": snapshotPath, "status": "synced", "restricted": asBool(source["restricted"]), "license": asString(source["license"]), "rule_count": len(rawRules), "converted_count": report.Converted, "inserted_count": report.Inserted, "duplicate_count": report.Duplicates, "unsupported_count": report.Unsupported, "support": report.SupportCounts, "dedup_report": report.DedupGroups, "bundle_hash": preview.Digest, "manifest_signature": manifest.Signature}, nil
+	return map[string]interface{}{"source_id": sourceID, "version": version, "content_hash": sourceDigest, "snapshot_path": snapshotPath, "status": "applied", "activated": true, "endpoint": sourceLocation, "restricted": asBool(source["restricted"]), "license": asString(source["license"]), "rule_count": len(rawRules), "converted_count": report.Converted, "inserted_count": report.Inserted, "duplicate_count": report.Duplicates, "unsupported_count": report.Unsupported, "disabled_count": disabledByOperator, "support": report.SupportCounts, "dedup_report": report.DedupGroups, "bundle_hash": preview.Digest, "manifest_signature": manifest.Signature}, nil
 }
 
 func recordRuleInlineFailure(ctx context.Context, cfg *Config, actor rulelifecycle.Actor, resource, stage string, cause error) error {
@@ -1044,16 +1624,13 @@ func ensureRuleSourceCatalog(ctx context.Context, cfg *Config) error {
 		{"id": "lyflow-compiled-local", "name": "LyFlow Compiled Local Corpus", "category": "all", "origin": "internal", "license": "LyFlow-Internal", "url": "lyflow://rules/compiled/live", "bundled": true, "connector": false, "restricted": false, "updatable": false},
 		{"id": "openrasp-derived", "name": "OpenRASP-derived Application Rules", "category": "rasp", "origin": "external_reference", "license": "Apache-2.0", "url": "https://raw.githubusercontent.com/baidu/openrasp/master/plugins/official/plugin.js", "bundled": false, "connector": true, "restricted": false, "updatable": false},
 		{"id": "owasp-crs-connector", "name": "OWASP CRS Connector", "category": "rasp", "origin": "external_subscription", "license": "Apache-2.0", "url": "https://raw.githubusercontent.com/coreruleset/coreruleset/main/rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf", "bundled": false, "connector": true, "restricted": false, "updatable": true},
-		{"id": "custom-rasp-rules", "name": "Custom RASP Rules", "category": "rasp", "origin": "user_provided", "license": "User-Provided", "url": "", "bundled": false, "connector": false, "restricted": false, "updatable": true},
+		{"id": "custom-rasp-rules", "name": "Custom RASP Rules", "category": "rasp", "origin": "user_provided", "license": "User-Provided", "url": "", "bundled": false, "connector": false, "restricted": false, "updatable": false},
 		{"id": "sigma-connector", "name": "Sigma Rules Connector", "category": "log_audit", "origin": "external_subscription", "license": "Detection Rule License", "url": "https://raw.githubusercontent.com/SigmaHQ/sigma/master/rules/linux/builtin/sshd/lnx_sshd_susp_ssh.yml", "bundled": false, "connector": true, "restricted": false, "updatable": true},
+		{"id": "sigma-full", "name": "SigmaHQ Sigma (full, medium+)", "category": "log_audit", "origin": "external_subscription", "license": "Detection Rule License", "url": "https://codeload.github.com/SigmaHQ/sigma/tar.gz/refs/heads/master", "bundled": false, "connector": true, "restricted": false, "updatable": true},
 		{"id": "falco-connector", "name": "Falco Rules Connector", "category": "runtime", "origin": "external_subscription", "license": "Apache-2.0", "url": "https://raw.githubusercontent.com/falcosecurity/rules/main/rules/falco_rules.yaml", "bundled": false, "connector": true, "restricted": false, "updatable": true},
 		{"id": "et-open-connector", "name": "Emerging Threats Open Connector", "category": "traffic", "origin": "external_subscription", "license": "ET Open", "url": "https://rules.emergingthreats.net/open/suricata/emerging-all.rules", "bundled": false, "connector": true, "restricted": false, "updatable": true},
 		{"id": "oisf-trafficid", "name": "OISF Traffic ID", "category": "traffic", "origin": "external_subscription", "license": "MIT", "url": "https://openinfosecfoundation.org/rules/trafficid/trafficid.rules", "bundled": false, "connector": true, "restricted": false, "updatable": true},
 		{"id": "stamus-lateral", "name": "Stamus Lateral Movement Rules", "category": "traffic", "origin": "external_subscription", "license": "GPL-3.0-or-later", "url": "https://ti.stamus-networks.io/open/stamus-lateral-rules.tar.gz", "bundled": false, "connector": true, "restricted": false, "updatable": true},
-		{"id": "snort-community", "name": "Snort Community Rules", "category": "traffic", "origin": "external_subscription", "license": "GPL-2.0", "url": "https://www.snort.org/downloads/community/community-rules.tar.gz", "bundled": false, "connector": true, "restricted": false, "updatable": true},
-		{"id": "ptresearch-attackdetection", "name": "Positive Technologies AttackDetection", "category": "traffic", "origin": "external_subscription", "license": "Positive Technologies Custom", "url": "https://rules.ptsecurity.com/files/ptopen.rules.tar.gz", "bundled": false, "connector": true, "restricted": false, "updatable": true},
-		{"id": "ip-geo-attribution", "name": "IP 地理归属更新", "category": "geoip", "origin": "external_subscription", "license": "CC-BY-SA / vendor dependent", "url": "https://github.com/Loyalsoldier/v2ray-rules-dat", "bundled": true, "connector": false, "restricted": false, "updatable": true},
-		{"id": "restricted-commercial", "name": "Restricted Commercial Feed", "category": "runtime", "origin": "external_subscription", "license": "Commercial Restricted", "url": "https://example.invalid/feed", "bundled": false, "connector": true, "restricted": true, "updatable": true},
 	}
 	for _, row := range catalog {
 		if _, err := cfg.DBPool.Exec(ctx, `INSERT INTO rule_sources (id, name, category, origin, license, url, bundled, connector, restricted, updatable, updated_at) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,NOW()) ON CONFLICT (id) DO UPDATE SET name=EXCLUDED.name, category=EXCLUDED.category, origin=EXCLUDED.origin, license=EXCLUDED.license, url=EXCLUDED.url, bundled=EXCLUDED.bundled, connector=EXCLUDED.connector, restricted=EXCLUDED.restricted, updatable=EXCLUDED.updatable, updated_at=NOW()`, row["id"], row["name"], row["category"], row["origin"], row["license"], row["url"], row["bundled"], row["connector"], row["restricted"], row["updatable"]); err != nil {
@@ -1113,24 +1690,37 @@ func rulePlatformSourceMaterial(ctx context.Context, cfg *Config, actor rulelife
 		return nil, nil, "", "", false, errors.New("custom rule sync requires pinned inline rules or content")
 	}
 	sourceURL := asString(req["url"])
-	if sourceURL == "" {
+	endpoints := rulePlatformStringSlice(req["endpoints"])
+	if len(endpoints) == 0 && sourceURL != "" {
+		endpoints = []string{sourceURL}
+	}
+	if len(endpoints) == 0 {
 		return nil, nil, "", "", false, errors.New("external rule source URL is required")
 	}
 	checksum := firstNonEmpty(asString(req["sha256"]), asString(req["checksum"]), asString(req["content_hash"]))
 	if cfg.RuleLifecycle == nil {
 		return nil, nil, "", "", false, errors.New("secure rule lifecycle is unavailable")
 	}
-	pin := rulelifecycle.SourcePin{URL: sourceURL, Revision: asString(req["version"]), SHA256: checksum}
 	var fetched rulelifecycle.FetchedSource
-	var err error
-	if checksum == "" {
-		fetched, err = cfg.RuleLifecycle.DiscoverSource(ctx, actor, pin)
-		checksum = fetched.Pin.SHA256
-	} else {
-		fetched, err = cfg.RuleLifecycle.FetchSource(ctx, actor, pin)
+	var lastErr error
+	for _, endpoint := range endpoints {
+		pin := rulelifecycle.SourcePin{URL: endpoint, Revision: asString(req["version"]), SHA256: checksum}
+		var err error
+		if checksum == "" {
+			fetched, err = cfg.RuleLifecycle.DiscoverSource(ctx, actor, pin)
+			checksum = fetched.Pin.SHA256
+		} else {
+			fetched, err = cfg.RuleLifecycle.FetchSource(ctx, actor, pin)
+		}
+		if err == nil {
+			lastErr = nil
+			break
+		}
+		lastErr = err
+		fetched = rulelifecycle.FetchedSource{}
 	}
-	if err != nil {
-		return nil, nil, "", "", false, err
+	if lastErr != nil {
+		return nil, nil, "", "", false, fmt.Errorf("all endpoints failed (last: %w)", lastErr)
 	}
 	content, err := decodeRuleSourceBody(fetched.Content)
 	if err != nil {
@@ -1158,6 +1748,43 @@ func verifyCallerDigest(content []byte, req map[string]interface{}) (string, err
 
 func externalSourceURL(source map[string]interface{}, req map[string]interface{}) string {
 	return firstNonEmpty(asString(req["url"]), asString(source["url"]))
+}
+
+// githubMirrorEndpoints returns the primary URL plus the mirrors we trust for
+// GitHub-hosted rule content. The order is the order we try: raw first (most
+// current), then CDN/mirrors for networks where GitHub is slow or blocked.
+func githubMirrorEndpoints(primary string) []string {
+	primary = strings.TrimSpace(primary)
+	if primary == "" {
+		return nil
+	}
+	parsed, err := url.Parse(primary)
+	if err != nil {
+		return []string{primary}
+	}
+	out := []string{primary}
+	switch strings.ToLower(parsed.Hostname()) {
+	case "raw.githubusercontent.com":
+		parts := strings.SplitN(strings.TrimPrefix(parsed.Path, "/"), "/", 4)
+		if len(parts) == 4 && parts[0] != "" && parts[1] != "" && parts[2] != "" && parts[3] != "" {
+			out = append(out,
+				"https://cdn.jsdelivr.net/gh/"+parts[0]+"/"+parts[1]+"@"+parts[2]+"/"+parts[3],
+				"https://raw.gitmirror.com/"+parts[0]+"/"+parts[1]+"/"+parts[2]+"/"+parts[3],
+			)
+		}
+		out = append(out, "https://ghproxy.net/"+primary, "https://gh-proxy.com/"+primary)
+	case "codeload.github.com":
+		out = append(out, "https://ghproxy.net/"+primary, "https://gh-proxy.com/"+primary)
+	}
+	seen := map[string]bool{}
+	unique := make([]string, 0, len(out))
+	for _, candidate := range out {
+		if candidate != "" && !seen[candidate] {
+			seen[candidate] = true
+			unique = append(unique, candidate)
+		}
+	}
+	return unique
 }
 
 func decodeRuleSourceBody(body []byte) (string, error) {
@@ -1206,7 +1833,8 @@ func readRuleTarText(data []byte, maxBytes int64) (string, bool, error) {
 			continue
 		}
 		name := strings.ToLower(header.Name)
-		if !strings.HasSuffix(name, ".rules") && !strings.HasSuffix(name, ".conf") && !strings.HasSuffix(name, ".txt") {
+		yamlDoc := strings.HasSuffix(name, ".yml") || strings.HasSuffix(name, ".yaml")
+		if !yamlDoc && !strings.HasSuffix(name, ".rules") && !strings.HasSuffix(name, ".conf") && !strings.HasSuffix(name, ".txt") {
 			continue
 		}
 		remaining := maxBytes - int64(b.Len())
@@ -1220,7 +1848,11 @@ func readRuleTarText(data []byte, maxBytes int64) (string, bool, error) {
 		if int64(len(chunk)) > remaining {
 			return "", false, errors.New("archived rule source exceeds 64 MiB")
 		}
-		b.WriteByte('\n')
+		if yamlDoc {
+			b.WriteString("\n---\n")
+		} else {
+			b.WriteByte('\n')
+		}
 		b.Write(chunk)
 		readAny = true
 	}
@@ -1233,7 +1865,7 @@ func parseExternalRuleSource(sourceID, content string) []map[string]interface{} 
 		return parseOpenRASPRules(content)
 	case "owasp-crs-connector":
 		return parseOWASPCRSRules(content)
-	case "sigma-connector":
+	case "sigma-connector", "sigma-full":
 		return parseSigmaRules(content)
 	case "falco-connector":
 		return parseFalcoRules(content)
@@ -1353,10 +1985,13 @@ func parseOWASPCRSRules(content string) []map[string]interface{} {
 		msg := firstNonEmpty(extractRuleAttribute(block, `msg:'([^']+)'`), "OWASP CRS Rule "+id)
 		severity := strings.ToLower(firstNonEmpty(extractRuleAttribute(block, `severity:'?([A-Z]+)'?`), "medium"))
 		pattern := extractRulePattern(block)
-		operator := "regex"
-		if pattern == "" || strings.Contains(block, "@detectSQLi") {
-			pattern = "(?i)(union\\s+select|or\\s+1=1|sleep\\s*\\(|benchmark\\s*\\(|information_schema|extractvalue|updatexml)"
+		if pattern == "" || isMatchAllRegex(pattern) {
+			// A rule without a usable pattern (or one that matches every
+			// event, such as the truncated "(?i)") is not a detector. Skip it
+			// instead of importing a match-all alert generator.
+			continue
 		}
+		operator := "regex"
 		out = append(out, map[string]interface{}{"id": "owasp-crs-" + id, "name": msg, "category": "rasp", "severity": severityFromCRS(severity), "stage_hint": "initial_access", "field": "payload", "operator": operator, "value": pattern, "source_operator": "modsecurity", "candidate": true})
 	}
 	return out
@@ -1402,14 +2037,78 @@ func extractRuleAttribute(block, pattern string) string {
 }
 
 func extractRulePattern(block string) string {
-	for _, pattern := range []string{`@rx\s+(.+?)(?:\\|")`, `SecRule\s+\S+\s+"([^"]+)"`} {
-		re := regexp.MustCompile(pattern)
-		m := re.FindStringSubmatch(block)
-		if len(m) > 1 {
-			return strings.TrimSpace(strings.TrimSuffix(m[1], `\`))
-		}
+	rest := strings.TrimSpace(strings.TrimPrefix(strings.TrimSpace(block), "SecRule"))
+	_, rest = nextModSecurityToken(rest)
+	operator, _ := nextModSecurityToken(rest)
+	operator = strings.TrimSpace(operator)
+	switch {
+	case strings.HasPrefix(operator, "@rx "):
+		return strings.TrimSpace(operator[len("@rx "):])
+	case strings.HasPrefix(operator, "@contains "):
+		return strings.TrimSpace(operator[len("@contains "):])
+	default:
+		// @detectSQLi and other non-regex operators are not translated; the
+		// caller skips the rule rather than inventing a pattern.
+		return ""
 	}
-	return ""
+}
+
+// nextModSecurityToken reads one quoted or bare token from a SecRule
+// directive. Quoted tokens may contain escaped quotes, which is exactly where
+// the previous "(.+?)(?:\\|\")" regex truncated OWASP patterns.
+func nextModSecurityToken(input string) (string, string) {
+	input = strings.TrimSpace(input)
+	if input == "" {
+		return "", ""
+	}
+	if input[0] != '"' {
+		index := strings.IndexAny(input, " \t")
+		if index < 0 {
+			return input, ""
+		}
+		return input[:index], strings.TrimSpace(input[index:])
+	}
+	var builder strings.Builder
+	escaped := false
+	for index := 1; index < len(input); index++ {
+		char := input[index]
+		if escaped {
+			switch char {
+			case '"':
+				builder.WriteByte('"')
+			default:
+				builder.WriteByte('\\')
+				builder.WriteByte(char)
+			}
+			escaped = false
+			continue
+		}
+		if char == '\\' {
+			escaped = true
+			continue
+		}
+		if char == '"' {
+			return builder.String(), strings.TrimSpace(input[index+1:])
+		}
+		builder.WriteByte(char)
+	}
+	return builder.String(), ""
+}
+
+func isMatchAllRegex(pattern string) bool {
+	compiled, err := regexp.Compile(pattern)
+	if err != nil {
+		return true
+	}
+	if compiled.MatchString("") {
+		return true
+	}
+	switch strings.TrimSpace(pattern) {
+	case "", "(?i)", "(?i).*", ".*", "^", "$":
+		return true
+	default:
+		return false
+	}
 }
 
 func severityFromCRS(severity string) string {
@@ -1434,14 +2133,69 @@ func parseSigmaRules(content string) []map[string]interface{} {
 			continue
 		}
 		detection := mapValue(doc["detection"])
+		logsource := mapValue(doc["logsource"])
+		product := strings.ToLower(asString(logsource["product"]))
+		service := strings.ToLower(asString(logsource["service"]))
+		logCategory := strings.ToLower(asString(logsource["category"]))
+		// Only telemetry LyFlow actually collects: Linux auth/audit and web
+		// access logs. Anything whose logsource names another product is
+		// excluded explicitly, because process_creation alone is used by
+		// Windows/macOS rules too.
+		switch product {
+		case "windows", "macos", "azure", "aws", "gcp", "m365", "okta",
+			"cisco", "fortinet", "paloalto", "zeek", "suricata", "proxy":
+			continue
+		}
+		allowed := false
+		switch {
+		case product == "linux" || product == "unix":
+			allowed = true
+		case product == "" && (service == "sshd" || service == "auditd" || service == "nginx" || service == "apache" || service == "cron" || service == "sudo"):
+			allowed = true
+		case product == "" && logCategory == "webserver":
+			allowed = true
+		}
+		if !allowed {
+			continue
+		}
+		condition := strings.ToLower(asString(detection["condition"]))
+		if strings.Contains(condition, "not ") {
+			// The converter cannot express Sigma's negative selection; a rule
+			// that includes a filter must not be turned into a positive match.
+			continue
+		}
 		conditions := sigmaConditions(detection)
 		if len(conditions) == 0 {
 			continue
 		}
+		usable := false
+		dangerous := false
+		stopWords := map[string]bool{"root": true, "admin": true, "user": true, "sudo": true, "sshd": true, "login": true, "error": true, "warning": true}
+		for _, condition := range conditions {
+			field := asString(condition["field"])
+			value := strings.TrimSpace(asString(condition["value"]))
+			if field == "" || value == "" {
+				continue
+			}
+			usable = true
+			if field == "message" && (len(value) < 6 || isAllDigits(value) || stopWords[strings.ToLower(value)]) {
+				dangerous = true
+				break
+			}
+		}
+		if !usable || dangerous {
+			continue
+		}
+		if len(out) >= 400 {
+			break
+		}
 		category := "log_audit"
-		logsource := mapValue(doc["logsource"])
-		if strings.Contains(strings.ToLower(asString(logsource["category"])), "process") {
+		if strings.Contains(logCategory, "process") {
 			category = "runtime"
+		}
+		level := strings.ToLower(strings.TrimSpace(asString(doc["level"])))
+		if level == "low" || level == "informational" || level == "info" {
+			continue
 		}
 		out = append(out, map[string]interface{}{"id": "sigma-" + slugifyRulePlatformID(firstNonEmpty(asString(doc["id"]), asString(doc["title"]), fmt.Sprintf("rule-%d", i))), "name": firstNonEmpty(asString(doc["title"]), "Sigma Rule"), "category": category, "severity": sigmaLevel(asString(doc["level"])), "stage_hint": sigmaStage(stringSliceFromInterface(doc["tags"])), "field": defaultRuleField(category), "operator": "contains", "value": firstNonEmpty(asString(doc["title"]), "sigma"), "conditions": conditions, "source_operator": "sigma_yaml", "candidate": true})
 	}
@@ -1517,14 +2271,26 @@ func sigmaValueConditions(value interface{}) []map[string]interface{} {
 func mapSigmaField(field string) string {
 	base := strings.Split(field, "|")[0]
 	switch strings.ToLower(base) {
-	case "commandline", "process.command_line":
+	case "commandline", "process.command_line", "command", "exe", "comm", "image", "process.executable":
 		return "cmdline"
-	case "image", "process.executable":
-		return "process_name"
 	case "pam_message", "message", "keywords":
 		return "message"
+	case "user", "user.name", "username", "uid":
+		return "user"
+	case "src_ip", "source.ip", "sourceip", "ip_address":
+		return "src_ip"
+	case "dst_ip", "destination.ip", "dest_ip":
+		return "dst_ip"
+	case "url", "request", "uri", "http.url", "cs-uri-stem":
+		return "path"
+	case "status", "http.status_code", "sc-status":
+		return "status"
+	case "process_name", "process.name":
+		return "process_name"
 	default:
-		return "message"
+		// Unknown Sigma fields must not silently become "message contains":
+		// that is how Windows EventID rules ended up matching everything.
+		return ""
 	}
 }
 
@@ -1536,6 +2302,18 @@ func sigmaOperator(field string) string {
 		return "prefix"
 	}
 	return "contains"
+}
+
+func isAllDigits(value string) bool {
+	if value == "" {
+		return false
+	}
+	for _, r := range value {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 func sigmaLevel(level string) string {
@@ -1816,7 +2594,8 @@ func normalizeRulePlatformRule(source map[string]interface{}, version string, ra
 	field := firstNonEmpty(asString(raw["field"]), defaultRuleField(category))
 	severity := firstNonEmpty(asString(raw["severity"]), "medium")
 	ruleID := slugifyRulePlatformID(firstNonEmpty(asString(raw["id"]), asString(raw["name"]), asString(source["id"])+"-rule"))
-	return map[string]interface{}{"id": ruleID, "name": firstNonEmpty(asString(raw["name"]), ruleID), "category": category, "severity": severity, "score_hint": firstNonZero(asInt(raw["score_hint"]), int(severityBaseScore(severity))), "stage_hint": firstNonEmpty(asString(raw["stage_hint"]), inferRuleStage(category, asString(raw["name"])+" "+asString(raw["value"]))), "field": field, "operator": operator, "value": asString(raw["value"]), "regex": operator == "regex" || operator == "pcre", "candidate": asBoolDefault(raw["candidate"], true), "source_id": asString(source["id"]), "source_version": version, "source_license": asString(source["license"]), "source_url": asString(source["url"]), "upstream_id": firstNonEmpty(asString(raw["upstream_id"]), asString(raw["id"])), "conditions": mapSlice(raw["conditions"]), "window": mapValue(raw["window"]), "group_by": asString(raw["group_by"])}
+	return map[string]interface{}{"id": ruleID, "name": firstNonEmpty(asString(raw["name"]), ruleID), "category": category, "severity": severity, "score_hint": firstNonZero(asInt(raw["score_hint"]), int(severityBaseScore(severity))), "stage_hint": firstNonEmpty(asString(raw["stage_hint"]), inferRuleStage(category, asString(raw["name"])+" "+asString(raw["value"]))), "field": field, "operator": operator, "value": asString(raw["value"]), "regex": operator == "regex" || operator == "pcre", "candidate": asBoolDefault(raw["candidate"], true), "source_id": asString(source["id"]), "source_version": version, "source_license": asString(source["license"]), "source_url": asString(source["url"]), "upstream_id": firstNonEmpty(asString(raw["upstream_id"]), asString(raw["id"])), "conditions": mapSlice(raw["conditions"]), "window": mapValue(raw["window"]), "group_by": asString(raw["group_by"]),
+		"source_dest_port": asString(raw["source_dest_port"]), "source_flow": asString(raw["source_flow"]), "source_match_options": raw["source_match_options"]}
 }
 
 func classifyRulePlatformSupport(rule map[string]interface{}) (string, []string) {
@@ -1828,6 +2607,16 @@ func classifyRulePlatformSupport(rule map[string]interface{}) (string, []string)
 	}
 	if strings.TrimSpace(asString(rule["field"])) == "" {
 		return "unsupported", []string{"missing_field"}
+	}
+	// Converted Suricata rules lose their companion options. A pattern without
+	// a distinctive literal then matches almost everything (for example the
+	// ET "GET" / PT "POST" / Snort ".php" rules), so never load it.
+	if strings.EqualFold(asString(rule["category"]), "traffic") &&
+		convertedTrafficRuleID(asString(rule["id"])) &&
+		len(conditions) == 0 {
+		if reason := convertedTrafficRuleRejection(rule, operator); reason != "" {
+			return "unsupported", []string{reason}
+		}
 	}
 	if operator != "exists" && operator != "not_exists" && strings.TrimSpace(asString(rule["value"])) == "" && len(conditions) == 0 {
 		return "unsupported", []string{"missing_value"}
@@ -1862,6 +2651,40 @@ func classifyRulePlatformSupport(rule map[string]interface{}) (string, []string)
 		return "partial_supported", []string{"window_metadata_preserved_without_stateful_threshold"}
 	}
 	return "full_supported", nil
+}
+
+// enabledRuntimeRuleIDs returns the rule ids the operator has left enabled for
+// one source, plus whether the source has any rows at all. A fresh source is
+// "unknown" so sync does not mistake it for "everything disabled".
+func enabledRuntimeRuleIDs(ctx context.Context, cfg *Config, sourceID string) (map[string]bool, bool, error) {
+	rows, err := cfg.DBPool.Query(ctx, `SELECT id, enabled FROM detection_rules WHERE source_id=$1`, sourceID)
+	if err != nil {
+		return nil, false, err
+	}
+	defer rows.Close()
+	allowed := map[string]bool{}
+	total := 0
+	for rows.Next() {
+		var id string
+		var enabled bool
+		if err := rows.Scan(&id, &enabled); err != nil {
+			return nil, false, err
+		}
+		total++
+		if !enabled {
+			continue
+		}
+		allowed[id] = true
+		// Stored ids are sourceID + "-" + converted id, and some converters
+		// already prefix the id with the source. Index every shape so the
+		// runtime id matches whichever form the database ended up with.
+		allowed[strings.TrimPrefix(id, sourceID+"-")] = true
+		allowed[sourceID+"-"+strings.TrimPrefix(id, sourceID+"-")] = true
+	}
+	if err := rows.Err(); err != nil {
+		return nil, false, err
+	}
+	return allowed, total > 0, nil
 }
 
 func upsertConvertedDetectionRules(ctx context.Context, cfg *Config, sourceID string, rules []map[string]interface{}) (int, int, int, error) {

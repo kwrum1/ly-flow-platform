@@ -52,9 +52,13 @@ alert tcp any any -> any any (msg:"[LY-PROXY-021] Venom Multi-level Proxy Patter
     classtype:trojan-activity; sid:9007021; rev:1;)
 
 # Venom Admin Port
+# Only match client->server traffic toward 65010. Without flow direction the
+# rule also matched the response packets of outbound connections whose
+# ephemeral source port happened to be 65010.
 alert tcp any any -> any 65010 (msg:"[LY-PROXY-022] Venom Admin Port Access"; \
-    flow:established; \
-    classtype:trojan-activity; sid:9007022; rev:1;)
+    flow:established,to_server; \
+    threshold:type limit, track by_src, count 1, seconds 300; \
+    classtype:trojan-activity; sid:9007022; rev:2;)
 
 # ============ Chisel ============
 

@@ -2,6 +2,7 @@ package rasp
 
 import (
 	"encoding/json"
+	"sort"
 	"strings"
 	"time"
 )
@@ -53,6 +54,107 @@ type RASPEvent struct {
 	Metadata   map[string]interface{} `json:"metadata,omitempty"`
 }
 
+// RuntimeSchemaVersion identifies the runtime context contract attached to
+// every RASP event.
+const RuntimeSchemaVersion = "rasp-runtime.v1"
+
+// RuntimeFrame is one call-site frame. Empty fields are omitted, not zeroed.
+type RuntimeFrame struct {
+	Module   string `json:"module,omitempty"`
+	Function string `json:"function,omitempty"`
+	File     string `json:"file,omitempty"`
+	Line     int    `json:"line,omitempty"`
+}
+
+// RuntimeContext is the calling context of a RASP detection: which runtime,
+// which application, which entrypoint and where in the stack the sink fired.
+// Missing values stay absent and are listed in MissingFields so a consumer can
+// tell "not reported" from "reported as empty".
+type RuntimeContext struct {
+	SchemaVersion  string         `json:"schema_version"`
+	Language       string         `json:"language,omitempty"`
+	LanguageKnown  bool           `json:"language_known"`
+	RuntimeVersion string         `json:"runtime_version,omitempty"`
+	App            string         `json:"app,omitempty"`
+	AppKnown       bool           `json:"app_known"`
+	Framework      string         `json:"framework,omitempty"`
+	Entrypoint     string         `json:"entrypoint,omitempty"`
+	User           string         `json:"user,omitempty"`
+	SessionID      string         `json:"session_id,omitempty"`
+	Method         string         `json:"request_method,omitempty"`
+	Path           string         `json:"request_path,omitempty"`
+	CallStack      []RuntimeFrame `json:"call_stack,omitempty"`
+	MissingFields  []string       `json:"missing_fields,omitempty"`
+}
+
+// NormalizeRuntimeContext extracts the runtime schema from a raw event. It
+// never substitutes a concrete language or application name for a missing one.
+func NormalizeRuntimeContext(event map[string]interface{}) RuntimeContext {
+	context := RuntimeContext{
+		SchemaVersion:  RuntimeSchemaVersion,
+		Language:       getMapString(event, "language"),
+		RuntimeVersion: getMapString(event, "runtime_version"),
+		App:            getMapString(event, "app"),
+		Framework:      getMapString(event, "framework"),
+		Entrypoint:     getMapString(event, "entrypoint"),
+		User:           getMapString(event, "user"),
+		SessionID:      getMapString(event, "session_id"),
+		Method:         getMapString(event, "request_method"),
+		Path:           getMapString(event, "request_path"),
+	}
+	context.LanguageKnown = context.Language != ""
+	context.AppKnown = context.App != ""
+	context.CallStack = normalizeRuntimeFrames(event)
+
+	missing := []string{}
+	for name, present := range map[string]bool{
+		"language":        context.LanguageKnown,
+		"runtime_version": context.RuntimeVersion != "",
+		"app":             context.AppKnown,
+		"entrypoint":      context.Entrypoint != "",
+		"request_path":    context.Path != "",
+		"request_method":  context.Method != "",
+		"call_stack":      len(context.CallStack) > 0,
+	} {
+		if !present {
+			missing = append(missing, name)
+		}
+	}
+	sort.Strings(missing)
+	context.MissingFields = missing
+	return context
+}
+
+func normalizeRuntimeFrames(event map[string]interface{}) []RuntimeFrame {
+	raw, ok := event["call_stack"].([]interface{})
+	if !ok || len(raw) == 0 {
+		return nil
+	}
+	frames := make([]RuntimeFrame, 0, len(raw))
+	for _, item := range raw {
+		entry, ok := item.(map[string]interface{})
+		if !ok {
+			continue
+		}
+		frame := RuntimeFrame{
+			Module:   getMapString(entry, "module"),
+			Function: getMapString(entry, "function"),
+			File:     getMapString(entry, "file"),
+		}
+		if line, ok := entry["line"].(float64); ok {
+			frame.Line = int(line)
+		}
+		if frame.Module == "" && frame.Function == "" && frame.File == "" {
+			continue
+		}
+		frames = append(frames, frame)
+		if len(frames) == 32 {
+			break
+		}
+	}
+	return frames
+}
+
 func NormalizeEventMap(event map[string]interface{}) map[string]interface{} {
 	if event == nil {
 		event = map[string]interface{}{}
@@ -84,12 +186,18 @@ func NormalizeEventMap(event map[string]interface{}) map[string]interface{} {
 	}
 	normalized["type"] = "rasp.attack"
 	normalized["attack_type"] = attackType
-	if getMapString(normalized, "language") == "" {
-		normalized["language"] = string(LangPython)
+	// Never substitute a concrete language/app for a missing one: the console
+	// must distinguish "unknown" from "Python" or "nginx".
+	language := getMapString(normalized, "language")
+	if language == "" {
+		language = "unknown"
 	}
+	normalized["language"] = language
+	normalized["language_known"] = getMapString(normalized, "language") != "unknown"
 	if getMapString(normalized, "app") == "" {
 		normalized["app"] = "unknown"
 	}
+	normalized["app_known"] = getMapString(normalized, "app") != "unknown"
 	if getMapString(normalized, "severity") == "" {
 		normalized["severity"] = "medium"
 	}
@@ -102,6 +210,11 @@ func NormalizeEventMap(event map[string]interface{}) map[string]interface{} {
 			normalized["mode"] = "monitor"
 		}
 	}
+	// T5-01: attach a versioned runtime schema so every detection carries the
+	// calling context, even when the answer is "not reported".
+	context := NormalizeRuntimeContext(normalized)
+	normalized["runtime_schema_version"] = context.SchemaVersion
+	normalized["runtime_context"] = context
 	if getMapString(normalized, "rule_id") == "" {
 		normalized["rule_id"] = "rasp-" + strings.ReplaceAll(attackType, "_", "-")
 	}

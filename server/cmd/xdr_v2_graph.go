@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"log"
 	"strings"
 	"time"
 
@@ -45,14 +46,16 @@ func buildGraphEdges(ctx context.Context, events []*models.CanonicalEventV2, con
 
 	candidates := []*edgeCandidate{}
 
-	for i := 0; i < len(events); i++ {
-		for j := i + 1; j < len(events); j++ {
-			a, b := events[i], events[j]
-			cand := classifyEdge(a, b)
-			if cand != nil {
-				cand.from, cand.to = i, j
-				candidates = append(candidates, cand)
-			}
+	pairs, truncated := indexedEdgePairs(events, defaultEdgeIndexConfig())
+	if truncated > 0 {
+		log.Printf("xdr correlation: %d candidate buckets truncated (partial correlation)", truncated)
+	}
+	for _, pair := range pairs {
+		i, j := pair[0], pair[1]
+		cand := classifyEdge(events[i], events[j])
+		if cand != nil {
+			cand.from, cand.to = i, j
+			candidates = append(candidates, cand)
 		}
 	}
 

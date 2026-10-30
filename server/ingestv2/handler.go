@@ -36,6 +36,16 @@ type Handler struct {
 	MaxBodyBytes int64
 	MaxBatch     int
 	Now          func() time.Time
+	// FieldMode controls network five-tuple enforcement. Empty means off so an
+	// existing deployment keeps its behaviour until the operator opts in.
+	FieldMode contracts.FieldValidationMode
+	// Logf receives shadow-mode diagnostics; nil disables logging.
+	Logf func(format string, args ...any)
+	// TenantID is the server-side tenant every event is bound to. Client-supplied
+	// tenant_id is treated as untrusted and overwritten.
+	TenantID string
+	// Tenant optionally resolves the tenant for an authenticated principal.
+	Tenant func(*http.Request, string) (string, error)
 }
 
 type batchRequest struct {
@@ -68,6 +78,23 @@ func (handler Handler) ServeHTTP(writer http.ResponseWriter, request *http.Reque
 		return
 	}
 
+	// Tenant is resolved server-side. A client-provided tenant_id is never
+	// trusted: it would allow cross-tenant event injection.
+	tenant := strings.TrimSpace(handler.TenantID)
+	if handler.Tenant != nil {
+		resolved, err := handler.Tenant(request, principalID)
+		if err != nil {
+			writeError(writer, http.StatusForbidden, "tenant_unresolved", "ingestion tenant unavailable")
+			return
+		}
+		if strings.TrimSpace(resolved) != "" {
+			tenant = strings.TrimSpace(resolved)
+		}
+	}
+	if tenant == "" {
+		tenant = "default"
+	}
+
 	maxBody := handler.MaxBodyBytes
 	if maxBody <= 0 {
 		maxBody = DefaultMaxBodyBytes
@@ -97,9 +124,8 @@ func (handler Handler) ServeHTTP(writer http.ResponseWriter, request *http.Reque
 	}
 	for index := range payload.Events {
 		event := &payload.Events[index]
-		if event.TenantID == "" {
-			event.TenantID = "default"
-		}
+		// Always overwrite: the authenticated tenant wins over client input.
+		event.TenantID = tenant
 		if event.CorrelationID == "" {
 			event.CorrelationID = event.EventUID
 		}
@@ -115,9 +141,20 @@ func (handler Handler) ServeHTTP(writer http.ResponseWriter, request *http.Reque
 			digest := sha256.Sum256(event.Payload)
 			event.Raw.PayloadSHA256 = hex.EncodeToString(digest[:])
 		}
-		if err := event.Validate(); err != nil {
+		if err := event.ValidateWithMode(handler.FieldMode); err != nil {
+			var violation *contracts.ContractValidationError
+			if errors.As(err, &violation) {
+				writeValidationError(writer, index, violation)
+				return
+			}
 			writeError(writer, http.StatusBadRequest, "invalid_event", eventErrorMessage(index, err))
 			return
+		}
+		if handler.FieldMode != "" && handler.FieldMode != contracts.FieldValidationOff {
+			report := event.ApplyNetworkFieldFlags()
+			if !report.Complete && handler.FieldMode == contracts.FieldValidationShadow && handler.Logf != nil {
+				handler.Logf("eventv2 shadow: index=%d uid=%s gap=%s", index, event.EventUID, report.String())
+			}
 		}
 	}
 
@@ -140,6 +177,19 @@ func eventErrorMessage(index int, err error) string {
 		return ""
 	}
 	return "event[" + strconv.Itoa(index) + "]: " + err.Error()
+}
+
+func writeValidationError(writer http.ResponseWriter, index int, violation *contracts.ContractValidationError) {
+	writer.Header().Set("Content-Type", "application/json")
+	writer.Header().Set("X-Content-Type-Options", "nosniff")
+	writer.WriteHeader(http.StatusUnprocessableEntity)
+	_ = json.NewEncoder(writer).Encode(map[string]any{
+		"code":       http.StatusUnprocessableEntity,
+		"error_code": violation.Code,
+		"message":    "event[" + strconv.Itoa(index) + "]: " + violation.Error(),
+		"field":      violation.Field,
+		"reason":     violation.Reason,
+	})
 }
 
 func writeError(writer http.ResponseWriter, status int, code, message string) {

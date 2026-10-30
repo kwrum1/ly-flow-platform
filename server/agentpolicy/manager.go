@@ -17,17 +17,52 @@ type Manager struct {
 	signer   trustroot.Signer
 	verifier trustroot.Layout
 	now      func() time.Time
+	// allowProductionBlock is the operator's explicit opt-in. Promotion of a
+	// block policy still has to pass every canary/replay/rollback gate; this
+	// flag only decides whether the final activation is permitted at all.
+	allowProductionBlock bool
 }
 
 type ManagerConfig struct {
-	Store    Store
-	Signer   trustroot.Signer
-	Verifier trustroot.Layout
-	Now      func() time.Time
+	Store                Store
+	Signer               trustroot.Signer
+	Verifier             trustroot.Layout
+	Now                  func() time.Time
+	AllowProductionBlock bool
 }
 
 func NewManager(config ManagerConfig) *Manager {
-	return &Manager{store: config.Store, signer: config.Signer, verifier: config.Verifier, now: config.Now}
+	return &Manager{
+		store: config.Store, signer: config.Signer, verifier: config.Verifier,
+		now: config.Now, allowProductionBlock: config.AllowProductionBlock,
+	}
+}
+
+// ProductionBlockAllowed reports whether the operator enabled block promotion.
+func (manager *Manager) ProductionBlockAllowed() bool {
+	return manager.allowProductionBlock
+}
+
+// Snapshot returns the latest and active persisted policies for the console.
+func (manager *Manager) Snapshot(ctx context.Context) (PersistedPolicy, PersistedPolicy, error) {
+	latest, err := manager.store.Latest(ctx)
+	if err != nil {
+		return PersistedPolicy{}, PersistedPolicy{}, err
+	}
+	active, err := manager.store.Active(ctx)
+	if err != nil {
+		return latest, PersistedPolicy{}, err
+	}
+	return latest, active, nil
+}
+
+// PolicyState reports the lifecycle state of one signed version.
+func (manager *Manager) PolicyState(ctx context.Context, version uint64) (State, error) {
+	stored, err := manager.store.Get(ctx, version)
+	if err != nil {
+		return "", err
+	}
+	return stored.State, nil
 }
 
 func (manager *Manager) EnsureDefault(ctx context.Context, owner, auditLink string) (SignedPolicy, error) {

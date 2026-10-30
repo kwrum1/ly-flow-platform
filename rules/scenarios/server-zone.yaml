@@ -1,0 +1,183 @@
+# LyFlow 服务器区流量引擎场景
+# ---------------------------------------------------------------------------
+# 适用范围：设备位于服务器区（不是出口）。只分析
+#   - 外网 -> 服务器区（入站攻击 / 弱口令 / Web 打点）
+#   - 服务器区 -> 外网（C2、隧道、挖矿、外传）
+# 不做东西向 / 横向移动，不做终端侧规则。
+#
+# 双引擎归属（互斥）：
+#   - Suricata：完整签名、复杂 matcher、协议状态机、threshold/flowbits。
+#   - lyprobe  ：只接收“单 content/pcre + 简单 buffer”且高置信的规则，
+#                由 server/cmd/rulecompiler 转成 threat.json。
+# 每条规则生成 signature_hash，只允许归一层；导出时 overlap_count 必须为 0。
+# 平台安全引擎（security-engine）只保留 flow-only 行为规则（扫描、beacon、
+# DNS 隧道、体积异常、罕见目的），本文件不复制这些规则。
+# ---------------------------------------------------------------------------
+schema_version: lyflow.traffic-scenario/v1
+name: server-zone
+display_name: 服务器区流量引擎
+description: >-
+  服务器区入站攻击与外联 C2/隧道/挖矿/外传检测。仅使用仓库内已有规则，
+  不依赖外网拉取；规则来源为 rules/ 文件与 detection_rules 中带原始签名的条目。
+
+# HOME_NET 自动来源说明：
+#   优先级 1. 环境变量 TRAFFIC_PROFILE_HOME_NET（逗号分隔 CIDR）
+#   优先级 2. deploy/suricata/lyflow-suricata-profile.yaml 的
+#              vars.address-groups.HOME_NET（与 Sensor 实际配置保持一致）
+#   优先级 3. 本文件的 fallback（仅用于方向判定的兜底，不代表真实资产范围）
+# 本文件不覆盖 Suricata 配置；Suricata 侧 HOME_NET 仍由部署时的 profile 决定。
+home_net:
+  mode: auto
+  env: TRAFFIC_PROFILE_HOME_NET
+  suricata_profile: deploy/suricata/lyflow-suricata-profile.yaml
+  fallback:
+    - 10.0.0.0/8
+    - 172.16.0.0/12
+    - 192.168.0.0/16
+  note: >-
+    服务器区真实网段由部署环境注入；未注入时使用 Suricata profile 的 HOME_NET。
+    这里只用于方向分类（inbound/outbound/internal），不会改写任何规则头。
+
+# 方向：服务器区只关注入站与外联；internal 永远丢弃。
+# ambiguous 表示规则头为 any -> any（例如按域名/SNI 命中的挖矿与 C2 规则），
+# 无法从规则头判断方向，但仍属于外网侧行为，允许保留。
+directions:
+  inbound: true
+  outbound: true
+  internal: false
+  ambiguous: true
+
+# 类别裁剪：先按 include 收窄，再按 exclude 剔除；exclude 始终优先。
+# 排除项按既定决策：chat/games/p2p/streaming/adware/toolbar/mobile/
+# web_client/phishing/policy/retired/scada/voip/tftp/user_agents。
+# 另排除 lateral（netbios/rpc/smb 不做横向）、database/mail/rdp/telnet
+# （内部邮件/数据库/RDP/Telnet 入站不装）。
+categories:
+  include:
+    - malware
+    - trojan
+    - c2
+    - mining
+    - exploit
+    - tunnel
+    - dns
+    - tls
+    - http
+    - web_attack
+    - scan
+    - suspicious
+    - worm
+    - shellcode
+  exclude:
+    - chat
+    - games
+    - p2p
+    - streaming
+    - adware
+    - toolbar
+    - mobile
+    - web_client
+    - phishing
+    - policy
+    - retired
+    - scada
+    - voip
+    - tftp
+    - user_agents
+    - lateral
+    - database
+    - mail
+    - rdp
+    - telnet
+    - netbios
+    - rpc
+    - smb
+    - uncategorized
+  exclude_wins: true
+
+# 协议级排除：SMB/NetBIOS/RPC 不在本场景做横向。
+protocols:
+  exclude:
+    - smb
+    - netbios
+    - rpc
+
+# 端口级排除：内部邮件/数据库/RDP/Telnet 入站不装。
+# exclude_direction 控制仅在入站或方向不明时生效，避免误删出站规则。
+ports:
+  exclude_inbound:
+    - 23
+    - 25
+    - 135
+    - 137
+    - 138
+    - 139
+    - 445
+    - 465
+    - 587
+    - 993
+    - 995
+    - 1433
+    - 1521
+    - 3306
+    - 3389
+    - 5432
+    - 6379
+    - 27017
+  exclude_direction:
+    - inbound
+    - ambiguous
+
+# 规则来源：只读仓库/本地文件与本地 DB，不访问外网。
+# detection_rules 中只有携带原始签名文本（signature/raw_rule/rule 字段）的
+# traffic 规则会进入双引擎；只有 field/value 的 flow-only 规则仍归平台安全引擎，
+# 计入 counts.platform_flow_only，不会在此重复归属。
+sources:
+  - kind: files
+    path: rules/suricata
+    glob: "*.rules"
+    recursive: false
+  - kind: files
+    path: rules/ly-custom
+    glob: "*.rules"
+    recursive: false
+  - kind: detection_rules
+    category: traffic
+    enabled_only: true
+
+budget:
+  max_total_rules: 4000
+  max_suricata_rules: 3000
+  max_lyprobe_rules: 800
+  max_total_bytes: 8388608
+  max_lyprobe_regex_bytes: 512
+
+# lyprobe 归属条件：简单、单匹配、高置信、buffer 可被 ly_probe servicePlugin
+# 表达。任何一项不满足都退回 Suricata，保证“能转换才转换”。
+assignment:
+  lyprobe:
+    min_severity: medium
+    require_simple_match: true
+    require_single_match: true
+    allowed_buffers:
+      - dns_query
+      - tls_sni
+      - http_uri
+      - http_client_body
+    allowed_categories:
+      - malware
+      - trojan
+      - c2
+      - mining
+      - tunnel
+      - dns
+      - tls
+      - scan
+
+# 导出根目录相对规则根（ENGINE_RULE_ROOT，默认 rules）；
+# 容器内实际写入 /app/rules/compiled/server-zone。
+exports:
+  root: compiled/server-zone
+  suricata_rules: suricata.rules
+  lyprobe_source: lyprobe-source.rules
+  manifest: profile-manifest.json

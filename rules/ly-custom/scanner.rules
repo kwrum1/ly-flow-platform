@@ -91,6 +91,7 @@ alert tcp any any -> any any (msg:"[LY-FSCAN-002] Fscan TCP Full Connect Scan"; 
 
 # Fscan UDP Scan Pattern
 alert udp any any -> any any (msg:"[LY-FSCAN-003] Fscan UDP Scan Pattern"; \
+    dsize:0; \
     threshold:type threshold, track by_src, count 30, seconds 60; \
     classtype:attempted-recon; sid:9003023; rev:1;)
 
@@ -157,3 +158,17 @@ alert http any any -> any any (msg:"[LY-NIKTO-002] Nikto Scan Multiple 404 Respo
     http.user_agent; content:"nikto"; nocase; \
     threshold:type threshold, track by_src, count 30, seconds 120; \
     classtype:attempted-recon; sid:9003072; rev:1;)
+
+# ============ SMB on Non-Standard Ports ============
+
+# Server Message Block Negotiate on non-standard ports
+# SMB should only be reachable on 139/445. An inbound SMB1 Negotiate on a web
+# or proxy port (for example 8080) is a scan, an SMB-over-HTTP tunnel, or an
+# exploitation attempt. This rule matches the real SMB header after the
+# 4-byte NetBIOS session header, unlike the converted GPL/ET rules that lost
+# their companion conditions and matched arbitrary payloads.
+alert tcp $EXTERNAL_NET any -> $HOME_NET ![139,445] (msg:"[LY-SCAN-004] Server Message Block Negotiate on Non-Standard Port"; \
+    flow:established,to_server; \
+    content:"|FF 53 4D 42 72|"; offset:4; depth:5; \
+    threshold:type limit, track by_src, count 1, seconds 300; \
+    classtype:attempted-recon; sid:9003024; rev:1;)

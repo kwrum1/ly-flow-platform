@@ -27,7 +27,7 @@
 | T1.4 | 总览页 | DONE | T1.2, T1.3 | — |
 | T1.5 | 事件中心 + 详情 + 证据面板 | DONE | T1.2, T1.3 | — |
 | T1.6 | 统一搜索 | DONE | T1.2 | — |
-| T1.7 | M1 验收 | IN_PROGRESS | T1.1–T1.6 | G2 |
+| T1.7 | M1 验收 | DONE | T1.1–T1.6 | G2 |
 
 ## M2：ATT&CK 与 Incident
 
@@ -66,8 +66,8 @@
 |---|---|---|---|---|
 | T4.1 | 内容同步服务 | REVIEW | T1.1 | — |
 | T4.2 | Suricata/ET Open 集成 | REVIEW | T4.1 | — |
-| T4.3 | `ly_probe` 产品化补丁 | REVIEW | T0.0 | — |
-| T4.4 | `ly_probe` 规则转换 | REVIEW | T4.3 | — |
+| T4.3 | `ly_probe` 产品化补丁 | DONE | T0.0 | — |
+| T4.4 | `ly_probe` 规则转换 | DONE | T4.3 | — |
 | T4.5 | Capture doctor | REVIEW | T4.3 | — |
 | T4.6 | 查询性能与压测 | REVIEW | T1.2, T4.2 | — |
 | T4.7 | 打包与 Compose profiles | REVIEW | T3.7, T4.2 | — |
@@ -89,3 +89,11 @@
 
 > 2026-10-20 生产级最终验收：功能/UI/Agent/lyprobe/规则/响应/证据通过；6 条重复路由已重定向并删除页面；
 > security-engine CPU budget 重启循环已修复。发布级例外：clean VM 安装回滚、20k EPS 容量复测。
+
+> 2026-10-29：P1 整体防护/自动值守、P2 Suricata 57 + lyprobe 9 规则集、P3 RASP
+> 请求级 24 条 CRS 规则完成；上游 ly_probe 已构建并以独立 systemd 进程部署到 `.241`，
+> 真实 SQLi 命中 `THREAT_TYPE=SQL/CRUD` 且 `threat_events` 落库。功能验收扩展为
+> **38/38**；离线发布包 `release-v60.tgz` 与 SHA256 已生成。
+> 2026-10-30 追加：移除流量规则面板；SSH 成功登录与低价值进程噪声抑制；
+> YARA 扫描路径扩展到真实目录；修复规则同步审计 resource 为空导致的上游同步失败。
+> 剩余发布级例外：clean VM 安装/回滚、ESXi 快照、10k EPS 容量复测、人工 G1–G5 签字。

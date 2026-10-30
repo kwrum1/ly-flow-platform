@@ -90,9 +90,14 @@ alert http any any -> any any (msg:"[LY-WSHELL-ASP-003] ASP Shell.Application Ob
 # ============ Chinese WebShell Keywords ============
 
 # WScript.Shell
-alert http any any -> any any (msg:"[LY-WSHELL-CN-001] WScript.Shell Object"; \
-    content:"WScript.Shell"; nocase; \
-    classtype:web-application-attack; sid:9004301; rev:1;)
+# Restrict to responses that actually serve a server-side script. The old rule
+# matched any HTTP payload containing "WScript.Shell", which fires on proxied
+# web pages (for example the CNKI proxy serving pages to 10.64.0.0/16 users).
+alert http any any -> any any (msg:"[LY-WSHELL-CN-001] WScript.Shell in script response"; \
+    flow:established,to_client; \
+    file.name; pcre:"/\.(php|asp|aspx|jsp|jspx|ashx|asmx|cer)(\?|$)/i"; \
+    file.data; content:"WScript.Shell"; nocase; \
+    classtype:web-application-attack; sid:9004301; rev:2;)
 
 # cmd.exe Shell
 alert http any any -> any any (msg:"[LY-WSHELL-CN-002] cmd.exe Shell Execution"; \
@@ -147,12 +152,16 @@ alert http any any -> any any (msg:"[LY-WSHELL-RG-002] Neo-reGeorg Session Patte
 # ============ Godzilla WebShell ============
 
 # Godzilla WebShell
-alert http any any -> any any (msg:"[LY-WSHELL-GZ-001] Godzilla WebShell Pattern"; \
-    content:"pass"; nocase; \
-    content:"key"; nocase; \
-    content:"AES"; nocase; \
-    threshold:type threshold, track by_src, count 5, seconds 60; \
-    classtype:web-application-attack; sid:9004601; rev:1;)
+# Require a script response and all three markers, so ordinary HTML/JS bundles
+# that mention "pass"/"key"/"AES" no longer alert.
+alert http any any -> any any (msg:"[LY-WSHELL-GZ-001] Godzilla WebShell script response"; \
+    flow:established,to_client; \
+    file.name; pcre:"/\.(php|asp|aspx|jsp|jspx|ashx|asmx|cer)(\?|$)/i"; \
+    file.data; content:"pass"; nocase; \
+    file.data; content:"key"; nocase; \
+    file.data; content:"AES"; nocase; \
+    threshold:type threshold, track by_src, count 2, seconds 60; \
+    classtype:web-application-attack; sid:9004601; rev:2;)
 
 # ============ Behinder WebShell ============
 

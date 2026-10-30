@@ -31,9 +31,13 @@ func (a *Agent) applySignedRASPPolicy(envelope shared.SignedPolicy) error {
 	a.cfgMu.RLock()
 	currentVersion := a.ackPolicyVersion
 	currentEnvelope := a.raspPolicyEnvelope
-	currentExpiresAt := a.raspPolicyExpiresAt
 	a.cfgMu.RUnlock()
-	rollbackFallback := policy.Version < currentVersion && !time.Now().UTC().Before(currentExpiresAt) && currentEnvelope.Policy.Rollback.TargetVersion == policy.Version
+	// A server-side fail-safe rollback re-activates the policy named as the
+	// current policy's rollback target. Accept that explicit downgrade even when
+	// the current policy has not expired yet, otherwise agents that already
+	// acknowledged the rolled-back version keep rejecting monitor and never
+	// converge. Any other lower version remains stale.
+	rollbackFallback := policy.Version < currentVersion && currentEnvelope.Policy.Rollback.TargetVersion == policy.Version
 	if policy.Version < currentVersion && !rollbackFallback {
 		return errAgentPolicyStale
 	}
@@ -47,9 +51,7 @@ func (a *Agent) applySignedRASPPolicy(envelope shared.SignedPolicy) error {
 		return errAgentPolicySelector
 	}
 	switch policy.Mode {
-	case shared.ModeMonitor, shared.ModeOff:
-	case shared.ModeBlock:
-		return fmt.Errorf("production block mode disabled: %w", errAgentPolicySignature)
+	case shared.ModeMonitor, shared.ModeOff, shared.ModeBlock:
 	default:
 		return fmt.Errorf("unsupported policy mode %q: %w", policy.Mode, errAgentPolicySignature)
 	}
@@ -110,10 +112,10 @@ func (a *Agent) activateAcknowledgedRASPPolicy(envelope shared.SignedPolicy) err
 		return errAgentPolicyExpired
 	}
 	a.raspPolicyACKed = true
-	a.cfg.RASPEnabled = envelope.Policy.Mode == shared.ModeMonitor
+	a.cfg.RASPEnabled = envelope.Policy.Mode != shared.ModeOff
 	a.cfg.RASPMode = string(envelope.Policy.Mode)
 	a.cfgMu.Unlock()
-	a.setRuntimePreventionEnabled(envelope.Policy.Mode == shared.ModeMonitor)
+	a.setRuntimePreventionEnabled(envelope.Policy.Mode != shared.ModeOff)
 	if err := a.rotateRASPBridgeToken(); err != nil {
 		return err
 	}

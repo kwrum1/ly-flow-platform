@@ -45,6 +45,24 @@ type ScoreDetailV2 struct {
 	TemporalDecay     float64       `json:"temporal_decay"`
 	OrderingPenalty   float64       `json:"ordering_penalty"`
 	MissingContext    []string      `json:"missing_context,omitempty"`
+	// Version identifies the exact scoring model. Two scores are only
+	// comparable when their versions match.
+	Version string `json:"version"`
+	// Components is the weighted breakdown that produced FinalScore.
+	Components []ScoreComponent `json:"components,omitempty"`
+	// FinalScore is the score before severity bucketing, so auditors can
+	// recompute it from Components instead of trusting the bucket.
+	FinalScore float64 `json:"final_score"`
+	// Capped reports that the weighted sum exceeded 0..100 and was clamped.
+	Capped bool `json:"capped"`
+}
+
+// ScoreComponent is one weighted term of a composite score.
+type ScoreComponent struct {
+	Name         string  `json:"name"`
+	Value        float64 `json:"value"`
+	Weight       float64 `json:"weight"`
+	Contribution float64 `json:"contribution"`
 }
 
 // ScoreFactor is a single named contributor to a score component.

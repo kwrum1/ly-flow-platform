@@ -16,11 +16,40 @@ func parseSuricataRules(content, prefix string) []map[string]interface{} {
 		if line == "" || strings.HasPrefix(line, "#") || openIndex < 0 || closeIndex <= openIndex {
 			continue
 		}
-		if rule := parseSuricataRuleLine(line[openIndex+1:closeIndex], prefix); len(rule) > 0 {
+		header := line[:openIndex]
+		metadata := line[openIndex+1 : closeIndex]
+		if rule := parseSuricataRuleLine(metadata, prefix); len(rule) > 0 {
+			rule["source_dest_port"] = suricataHeaderDestPort(header)
+			rule["source_flow"] = suricataOption(metadata, `flow\s*:\s*([^;]+)`)
+			rule["source_match_options"] = suricataLostMatchOptions(metadata)
 			out = append(out, rule)
 			if len(out) >= 1000 {
 				break
 			}
+		}
+	}
+	return out
+}
+
+// suricataHeaderDestPort extracts the destination port token from a rule
+// header so the conversion can tell whether it drops a real port restriction.
+func suricataHeaderDestPort(header string) string {
+	fields := strings.Fields(header)
+	if len(fields) < 7 {
+		return ""
+	}
+	return strings.TrimSpace(fields[6])
+}
+
+// suricataLostMatchOptions lists Suricata options that the flattened
+// field/pattern runtime cannot enforce. Their presence means the converted
+// rule is broader than the original signature.
+func suricataLostMatchOptions(metadata string) []string {
+	out := []string{}
+	lower := strings.ToLower(metadata)
+	for _, key := range []string{"dsize", "offset", "depth", "distance", "within", "byte_test", "byte_jump", "isdataat", "urilen", "threshold", "file_data", "pkt_data"} {
+		if strings.Contains(lower, key+":") || strings.Contains(lower, key+" :") {
+			out = append(out, key)
 		}
 	}
 	return out

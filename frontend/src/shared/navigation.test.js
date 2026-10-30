@@ -1,32 +1,28 @@
 ﻿import { describe, expect, it } from 'vitest'
-import { canAccessNavigationItem, flattenNavigation, productNavigation } from './navigation'
+import { V4_NAVIGATION, flattenV4Navigation } from '../v4/navigation'
 
-describe('流影运营导航', () => {
-  it('按当前产品口径展示核心运营、检测面、资产与处置和系统管理入口', () => {
-    expect(productNavigation.map((group) => group.title)).toEqual(['核心运营', '检测面', '资产与处置', '系统管理'])
-    expect(productNavigation[0].items.map((item) => item.label)).toEqual(['运营总览', '攻击链处置', '事件中心'])
-    expect(productNavigation[1].items.map((item) => item.label)).toEqual(['流量威胁', '运行威胁', '应用威胁', '全球态势'])
-    expect(productNavigation[2].items.map((item) => item.label)).toEqual(['资产运维', '响应处置', '证据库'])
-    expect(productNavigation[3].items.map((item) => item.label)).toEqual(['规则中心', '引擎健康', '平台设置', '安装配置', '账户管理'])
+describe('流影 v4 导航', () => {
+  it('只保留可运营的作业面', () => {
+    expect(V4_NAVIGATION.map((group) => group.title)).toEqual(['运营', '检测', '资产与数据', '系统'])
+    expect(V4_NAVIGATION[0].items.map((item) => item.label)).toEqual(['态势总览', '攻击链处置', '事件检索'])
+    expect(V4_NAVIGATION[1].items.map((item) => item.label)).toEqual(['检测面'])
+    expect(V4_NAVIGATION[2].items.map((item) => item.label)).toEqual(['资产运维', '数据与健康', '规则中心'])
+    expect(V4_NAVIGATION[3].items.map((item) => item.label)).toEqual(['系统管理'])
   })
 
-  it('所有导航文案都是中文自然语言且不暴露内部占位文案', () => {
-    const text = flattenNavigation().map((item) => `${item.label}${item.description}`).join(' ')
-    for (const label of ['运营总览', '事件中心', '攻击链处置', '流量威胁', '运行威胁', '应用威胁', '规则中心', '资产运维', '安装配置', '账户管理', '响应处置', '证据库', '引擎健康']) {
-      expect(text).toContain(label)
+  it('砍掉的旧入口不再出现在导航里', () => {
+    const labels = flattenV4Navigation().map((item) => item.label)
+    for (const removed of ['全球态势', '证据库', '响应处置', '时间线', '引擎健康', '账户管理']) {
+      expect(labels).not.toContain(removed)
     }
-    expect(text).not.toMatch(/TODO|mock|demo|placeholder|test/i)
   })
 
-  it('每个导航入口使用唯一路径', () => {
-    const paths = flattenNavigation().map((item) => item.path)
+  it('每个入口路径唯一且都有说明', () => {
+    const items = flattenV4Navigation()
+    const paths = items.map((item) => item.path)
     expect(new Set(paths).size).toBe(paths.length)
-  })
-
-  it('管理员入口受角色控制', () => {
-    for (const item of flattenNavigation()) {
-      expect(canAccessNavigationItem(item, 'viewer')).toBe(false)
-      expect(canAccessNavigationItem(item, 'admin')).toBe(true)
+    for (const item of items) {
+      expect(item.description.length).toBeGreaterThan(0)
     }
   })
 })

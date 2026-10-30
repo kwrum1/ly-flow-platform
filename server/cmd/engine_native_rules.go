@@ -36,7 +36,7 @@ func nativeEngineRulesHandler(cfg *Config) http.HandlerFunc {
 		items := loadNativeEngineRules(cfg)
 		items = mergeDetectionRules(r.Context(), cfg, items)
 		overrides := loadRuleOverrides()
-		counts := map[string]int{"suricata": 0, "wazuh": 0, "yara": 0, "rasp": 0, "lyprobe": 0}
+		counts := map[string]int{"suricata": 0, "yara": 0, "rasp": 0, "lyprobe": 0}
 		filtered := make([]map[string]interface{}, 0, len(items))
 		for _, item := range items {
 			applyNativeRuleOverride(item, overrides)
@@ -81,7 +81,7 @@ func nativeEngineRulesUpdateHandler(cfg *Config) http.HandlerFunc {
 			return
 		}
 		items := loadNativeEngineRules(cfg)
-		counts := map[string]int{"suricata": 0, "wazuh": 0, "yara": 0, "rasp": 0, "lyprobe": 0}
+		counts := map[string]int{"suricata": 0, "yara": 0, "rasp": 0, "lyprobe": 0}
 		for _, item := range items {
 			counts[asString(item["engine"])]++
 		}
@@ -242,8 +242,6 @@ func scanNativeEngineRules(cfg *Config) []map[string]interface{} {
 	root := firstNonEmpty(os.Getenv("ENGINE_RULE_ROOT"), "rules")
 	items := []map[string]interface{}{}
 	items = append(items, scanRuleFiles("suricata", filepath.Join(root, "suricata"), []string{".rules"}, parseSuricataRule)...)
-	items = append(items, scanRuleFiles("wazuh", filepath.Join(root, "wazuh"), []string{".xml", ".yml", ".yaml"}, parseWazuhRule)...)
-	items = append(items, scanRuleFiles("wazuh", filepath.Join("third_party", "security-engines", "wazuh", "ruleset"), []string{".xml", ".yml", ".yaml"}, parseWazuhRule)...)
 	items = append(items, scanRuleFiles("yara", filepath.Join(root, "yara"), []string{".yar", ".yara"}, parseYARARule)...)
 	items = append(items, scanRuleFiles("rasp", filepath.Join(root, "rasp"), []string{".json", ".yaml", ".yml", ".js"}, parseRASPRule)...)
 	items = append(items, loadLyprobeRules(filepath.Join(root, "lyprobe", "threat.json"))...)
@@ -262,7 +260,7 @@ func mergeDetectionRules(ctx context.Context, cfg *Config, items []map[string]in
 	if cfg == nil || cfg.DBPool == nil {
 		return items
 	}
-	rows, err := cfg.DBPool.Query(ctx, `SELECT id, COALESCE(source_id,''), category, name, support_level, enabled, rule_json::text FROM detection_rules WHERE category='traffic' ORDER BY source_id, id`)
+	rows, err := cfg.DBPool.Query(ctx, `SELECT id, COALESCE(source_id,''), category, name, support_level, enabled, rule_json::text FROM detection_rules ORDER BY category, source_id, id`)
 	if err != nil {
 		return items
 	}
@@ -283,11 +281,15 @@ func mergeDetectionRules(ctx context.Context, cfg *Config, items []map[string]in
 		var rule map[string]interface{}
 		_ = json.Unmarshal([]byte(raw), &rule)
 		severity := firstNonEmpty(asString(rule["severity"]), "medium")
-		path := "compiled/traffic-feeds"
-		if sourceID != "" {
-			path = "compiled/traffic-feeds/" + sourceID
+		engineName := "suricata"
+		if category != "" && category != "traffic" {
+			engineName = category
 		}
-		items = append(items, map[string]interface{}{"id": id, "name": name, "enabled": enabled, "severity": severity, "engine": "suricata", "path": path, "line": 0, "native_type": "traffic_feed_rule", "source_id": sourceID, "support_level": support})
+		path := "compiled/" + engineName + "-feeds"
+		if sourceID != "" {
+			path = "compiled/" + engineName + "-feeds/" + sourceID
+		}
+		items = append(items, map[string]interface{}{"id": id, "name": name, "enabled": enabled, "severity": severity, "engine": engineName, "path": path, "line": 0, "native_type": "traffic_feed_rule", "source_id": sourceID, "support_level": support})
 	}
 	return items
 }

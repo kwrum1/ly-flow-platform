@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/redis/go-redis/v9"
@@ -37,11 +38,13 @@ func debugComponentsHandler(cfg *Config) http.HandlerFunc {
 			"redis.streams":             checkRedisStreams(ctx, cfg),
 			"rule_platform.active":      checkRulePlatformActive(ctx, cfg),
 			"rule_platform.sources":     checkRulePlatformSources(ctx, cfg),
+			"rule_platform.freshness":   rulePlatformFreshness(ctx, cfg),
 			"security_engine.alert_bus": checkSecurityEngineAlertBus(ctx, cfg),
 			"xdr.evaluator":             checkXDREvaluator(ctx, cfg),
 			"xdr.response_policy":       checkXDRResponsePolicy(cfg),
 			"xdr.rules_dir":             checkRulesDir(resolveXDRRulesDir()),
 			"xdr.rules":                 checkXDRRules(),
+			"ops.backup":                checkBackupDirectory(),
 		}
 
 		status := "ok"
@@ -51,14 +54,38 @@ func debugComponentsHandler(cfg *Config) http.HandlerFunc {
 				break
 			}
 		}
+		// Gate 2: capture visibility is reported separately from component
+		// health so a degraded sensor is visible without pretending the API
+		// itself is broken. It does not fold into the top-level status.
+		capture := captureDebugPayload()
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		payload := map[string]interface{}{
 			"code":       0,
 			"message":    "success",
 			"status":     status,
 			"checked_at": time.Now().UTC().Format(time.RFC3339Nano),
 			"components": components,
-		})
+			"capture":    capture,
+			"versions":   buildVersionInfo(),
+			"backup":     backupDirectoryReport(),
+		}
+		// Gate 1 / T0-06: report the actually queryable event window alongside
+		// component health so a TTL setting cannot masquerade as retention.
+		if cfg != nil && cfg.EventStorage != nil {
+			if report, err := runRetentionAudit(ctx, cfg.EventStorage, time.Now().UTC()); err != nil {
+				payload["retention"] = map[string]interface{}{"status": "unknown", "reason": err.Error()}
+			} else {
+				payload["retention"] = report
+			}
+			if pending, permanent, err := cfg.EventStorage.projectionRetryStats(ctx); err == nil {
+				payload["projection_retry"] = map[string]interface{}{
+					"pending": pending, "permanent_failed": permanent,
+				}
+			} else {
+				payload["projection_retry"] = map[string]interface{}{"status": "unknown", "reason": err.Error()}
+			}
+		}
+		json.NewEncoder(w).Encode(payload)
 	}
 }
 
@@ -113,11 +140,17 @@ func checkSecurityEngineAlertBus(ctx context.Context, cfg *Config) componentStat
 		total += length
 	}
 	status := "ok"
-	if total == 0 {
-		status = "degraded"
+	state := "idle"
+	if total > 0 {
+		state = "flowing"
 	}
 	details["total_component_alerts"] = total
-	return componentStatus{Status: status, Message: "component alert streams readable", Details: details}
+	details["state"] = state
+	message := "component alert streams readable; no alerts yet"
+	if total > 0 {
+		message = "component alert streams readable"
+	}
+	return componentStatus{Status: status, Message: message, Details: details}
 }
 
 func checkXDREvaluator(ctx context.Context, cfg *Config) componentStatus {
@@ -125,11 +158,22 @@ func checkXDREvaluator(ctx context.Context, cfg *Config) componentStatus {
 	if err != nil {
 		return componentStatus{Status: "error", Message: err.Error(), Remediation: "verify canonical event storage and versioned XDR persistence"}
 	}
+	health := cfg.XDRGraph.Health()
+	healthStatus := strings.ToLower(asString(asMap(health)["status"]))
 	status := "ok"
-	if len(result.activeChains()) == 0 {
+	state := "idle"
+	switch {
+	case len(result.activeChains()) > 0:
+		state = "evaluating"
+	case healthStatus != "" && healthStatus != "healthy":
 		status = "degraded"
+		state = "unhealthy"
 	}
-	return componentStatus{Status: status, Message: "XDR evaluator online", Details: map[string]interface{}{"chain_count": len(result.activeChains()), "health": cfg.XDRGraph.Health()}}
+	return componentStatus{Status: status, Message: "XDR evaluator online", Details: map[string]interface{}{
+		"chain_count": len(result.activeChains()),
+		"state":       state,
+		"health":      health,
+	}}
 }
 
 func checkXDRResponsePolicy(cfg *Config) componentStatus {
@@ -227,4 +271,52 @@ func checkXDRRules() componentStatus {
 		return componentStatus{Status: "error", Message: err.Error(), Remediation: "verify XDR_RULES_DIR and rule YAML syntax"}
 	}
 	return componentStatus{Status: "ok", Message: "XDR rules loaded", Details: map[string]interface{}{"count": len(rules)}}
+}
+
+// buildVersionInfo exposes the running image tags so the console can show the
+// upgrade/rollback baseline without shelling out to docker.
+func buildVersionInfo() map[string]interface{} {
+	return map[string]interface{}{
+		"server_image":   getEnv("LY_SERVER_IMAGE", "unknown"),
+		"frontend_image": getEnv("LY_FRONTEND_IMAGE", "unknown"),
+		"build":          getEnv("LY_BUILD_ID", ""),
+	}
+}
+
+func backupDirectoryReport() map[string]interface{} {
+	dir := getEnv("LYFLOW_BACKUP_DIR", "/backup")
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		return map[string]interface{}{"status": "unknown", "path": dir, "reason": err.Error(), "items": []interface{}{}}
+	}
+	items := make([]map[string]interface{}, 0, len(entries))
+	for _, entry := range entries {
+		if entry.IsDir() {
+			continue
+		}
+		info, statErr := entry.Info()
+		if statErr != nil {
+			continue
+		}
+		items = append(items, map[string]interface{}{
+			"name": entry.Name(), "size_bytes": info.Size(),
+			"modified_at": info.ModTime().UTC().Format(time.RFC3339),
+		})
+	}
+	return map[string]interface{}{"status": "ok", "path": dir, "count": len(items), "items": items}
+}
+
+func checkBackupDirectory() componentStatus {
+	report := backupDirectoryReport()
+	if report["status"] != "ok" {
+		return componentStatus{Status: "unknown", Message: "backup directory not mounted", Details: report}
+	}
+	// A freshly installed instance has an empty but writable backup directory.
+	// That is a healthy state ("no backups yet"), not a degraded one. Only an
+	// unreadable/missing mount is reported as unknown above.
+	message := "backup directory readable"
+	if asInt(report["count"]) == 0 {
+		message = "backup directory ready, no backups yet"
+	}
+	return componentStatus{Status: "ok", Message: message, Details: report}
 }

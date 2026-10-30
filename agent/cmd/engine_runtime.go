@@ -28,10 +28,6 @@ func (a *Agent) runEngineAdapters() {
 		})
 	}
 	if a.cfg.HIDSEnabled {
-		wazuhHealth := newRuntimeControlHealth("agent-wazuh-adapter", agentRuntimeLimits(), time.Now)
-		go runSupervisedRuntime(a.ctx, wazuhHealth, runtimeSupervisorConfig{
-			Name: "wazuh", Run: func(ctx context.Context) { a.runWazuhAlertAdapterContext(withRuntimeHealth(ctx, wazuhHealth)) }, OnHealth: a.handleControlHealth,
-		})
 		yaraHealth := newRuntimeControlHealth("agent-yara-adapter", agentRuntimeLimits(), time.Now)
 		go runSupervisedRuntime(a.ctx, yaraHealth, runtimeSupervisorConfig{
 			Name: "yara", Run: func(ctx context.Context) { a.runYARAArtifactAdapterContext(withRuntimeHealth(ctx, yaraHealth)) }, OnHealth: a.handleControlHealth,
@@ -376,7 +372,6 @@ func (a *Agent) engineOutputPath(engine EngineName, fallback string) string {
 func defaultEngineDesiredStatesFromConfig(cfg *Config) []EngineDesiredState {
 	return []EngineDesiredState{
 		{Name: EngineSuricata, Enabled: suricataProfileEnabled(), Mode: "suricata_eve_profile", ConfigVersion: suricataProfileNativeSchema, RulePackVersion: suricataProfileRulePack, Settings: map[string]string{"output_path": "/var/log/suricata/eve.json", "engine_version": suricataProfileVersion}},
-		{Name: EngineWazuh, Enabled: cfg == nil || cfg.HIDSEnabled, Mode: "headless-agent", RulePackVersion: "wazuh-default", Settings: map[string]string{"output_path": "/var/ossec/logs/alerts/alerts.json"}},
 		{Name: EngineYARA, Enabled: cfg == nil || cfg.HIDSEnabled, Mode: "artifact-scan", RulePackVersion: "yara-security", Settings: map[string]string{"output_path": "/opt/ly-agent/yara/last-scan.json"}},
 		{Name: EngineRASP, Enabled: cfg != nil && cfg.RASPEnabled, Mode: "audit-only", RulePackVersion: "rasp-active", Settings: map[string]string{"output_path": "/opt/ly-agent/rasp/events.jsonl"}},
 	}

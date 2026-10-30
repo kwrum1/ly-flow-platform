@@ -24,10 +24,12 @@ func (runtime *StorageEventRuntime) projectEventsV2ForXDR(ctx context.Context, e
 		projection, err := canonicalProjectionFromV2(event)
 		if err != nil {
 			log.Printf("xdr v2 projection skipped event=%s: %v", event.EventUID, err)
+			runtime.requeueProjectionFailure(ctx, event, err)
 			continue
 		}
 		if err := runtime.WriteCanonical(ctx, projection); err != nil {
 			log.Printf("xdr v2 projection failed event=%s: %v", event.EventUID, err)
+			runtime.requeueProjectionFailure(ctx, event, err)
 		}
 	}
 }

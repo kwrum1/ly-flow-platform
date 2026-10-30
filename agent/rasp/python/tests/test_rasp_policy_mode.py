@@ -16,6 +16,17 @@ def test_protect_mode_cannot_activate_without_signed_lifecycle():
     assert should_block(RASPConfig(mode="monitor", block_on_hit=True)) is False
 
 
+def test_block_requires_signed_promoted_and_unexpired_policy():
+    promoted = RASPConfig(mode="block", block_on_hit=True, policy_version=7)
+    dry_run = RASPConfig(mode="block", block_on_hit=False, policy_version=7)
+    unsigned = RASPConfig(mode="block", block_on_hit=True, policy_version=0)
+
+    assert normalize_mode("block") == "block"
+    assert should_block(promoted) is True
+    assert should_block(dry_run) is False
+    assert should_block(unsigned) is False
+
+
 def test_expired_policy_applies_declared_fail_behavior():
     now = datetime(2026, 7, 14, 12, 0, tzinfo=timezone.utc)
     expired = now - timedelta(seconds=1)

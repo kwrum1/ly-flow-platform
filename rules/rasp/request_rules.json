@@ -1,0 +1,499 @@
+{
+  "schema_version": "lyflow.rasp.request_rules.v1",
+  "source": "owasp-crs",
+  "source_version": "4.31.0-dev",
+  "generated_at": "2026-10-29T00:00:00Z",
+  "paranoia_level": 2,
+  "limits": {
+    "max_path_bytes": 4096,
+    "max_query_bytes": 8192,
+    "max_body_bytes": 65536,
+    "max_headers_bytes": 8192,
+    "max_header_count": 100,
+    "max_evidence_bytes": 256
+  },
+  "rules": [
+    {
+      "id": "owasp-crs-913100",
+      "category": "scanner",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "pm",
+      "phrases": [
+        "arachni",
+        "Mozilla/6.0",
+        "betabot",
+        "bewica-security-scan",
+        "BFAC",
+        "commix",
+        "Detectify",
+        "dirbuster",
+        "fimap",
+        "fuzz faster",
+        "whatwaf",
+        "gobuster",
+        "havij",
+        "hexometer",
+        "jbrofuzz",
+        "jorgee",
+        "libwhisker",
+        "masscan",
+        "morfeus",
+        "Mozlila",
+        "Mozilla/5.g",
+        "nessus",
+        "netlab360",
+        "netsparker",
+        "nettacker",
+        "nikto",
+        "nmap",
+        "nuclei",
+        "openvas",
+        "php2shell",
+        "securityagent",
+        "sitelockspider",
+        "sqlmap",
+        "sysscan",
+        "TsunamiSecurityScanner",
+        "w3af.org",
+        "webbandit",
+        "webshag",
+        "wfuzz",
+        "whatweb",
+        "wprecon",
+        "wpscan",
+        "feroxbuster",
+        "l9explore",
+        "l9tcpid",
+        "wapiti",
+        "vega/",
+        "appspider",
+        "ironwasp",
+        "skipfish",
+        "qualysguard",
+        "n-stalker",
+        "acunetix",
+        "cmsmap",
+        "sqlninja",
+        "xsstrike",
+        "xsser",
+        "joomscan",
+        "droopescan",
+        "zgrab",
+        "Ghauri",
+        "zmeu",
+        "WPProbe",
+        "SSTIMap",
+        "Mozilla/4.0 (Hydra)",
+        "tplmap",
+        "DotDotPwn",
+        "shortscan",
+        "Kadimus",
+        "LFISuite",
+        "Mozilla/5.0 (compatible; Panoptic",
+        "LFImap",
+        "graphw00f",
+        "graphql-cop",
+        "jSQL",
+        "noseyparker",
+        "TruffleHog",
+        "YesWeHack-Hunter",
+        "TInjA",
+        "Mozilla/5.0 (compatible; AppScan;"
+      ],
+      "targets": [
+        "header:user-agent"
+      ],
+      "message": "Found User-Agent associated with security scanner",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-930110",
+      "category": "path_traversal",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "(?:^|[/;\\x5c])\\.{2,3}[/;\\x5c]",
+      "targets": [
+        "body",
+        "header:x-filename",
+        "headers",
+        "path",
+        "query"
+      ],
+      "message": "Path Traversal Attack (/../) or (/.../)",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-931100",
+      "category": "rfi",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "(?i)^(f(?:ile|tps?)|https?|ssh)://(?:\\[?[0-9a-f]+:[0-:a-f]+\\]?|[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3}\\.[0-9]{1,3})",
+      "targets": [
+        "body",
+        "query"
+      ],
+      "message": "Possible Remote File Inclusion (RFI) Attack: URL Parameter using IP Address",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-931120",
+      "category": "rfi",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "^(?i:file|ftps?|https?).*?\\?+$",
+      "targets": [
+        "body",
+        "query"
+      ],
+      "message": "Possible Remote File Inclusion (RFI) Attack: URL Payload Used w/Trailing Question Mark Character (?)",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-932130",
+      "category": "rce",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "\\$(?:\\((?:[^\\)]+|\\([^\\)]+\\))\\)|\\{[^\\}]+\\}|\\[[^\\]]*\\])|[\u003c\u003e]\\([^\\)]+\\)|/[0-9A-Z_a-z]*\\[[^\\]]+\\]",
+      "targets": [
+        "body",
+        "cookies",
+        "path",
+        "query"
+      ],
+      "message": "Remote Command Execution: Unix Shell Expression Found",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-932140",
+      "category": "rce",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "\\b(?:for(?:/[dflr].*)? %+[^ ]+ in\\(.*\\)[\\s\\x0b]?do|if(?:/i)?(?: not)?(?: (?:e(?:xist|rrorlevel)|defined|cmdextversion)\\b|[ \\(].*(?:\\b(?:g(?:eq|tr)|equ|neq|l(?:eq|ss))\\b|==)))",
+      "targets": [
+        "body",
+        "cookies",
+        "path",
+        "query"
+      ],
+      "message": "Remote Command Execution: Windows FOR/IF Command Found",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-932170",
+      "category": "rce",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "^\\(\\s*\\)\\s+\\{",
+      "targets": [
+        "headers",
+        "request_line"
+      ],
+      "message": "Remote Command Execution: Shellshock (CVE-2014-6271)",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-932280",
+      "category": "rce",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "\\{[0-9A-Z_a-z]*,[,\\-0-9A-Z_a-z]*\\}",
+      "targets": [
+        "body",
+        "cookies",
+        "path",
+        "query"
+      ],
+      "message": "Remote Command Execution: Brace Expansion Found",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-932330",
+      "category": "rce",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "!-\\d",
+      "targets": [
+        "body",
+        "cookies",
+        "path",
+        "query"
+      ],
+      "message": "Remote Command Execution: Unix shell history invocation",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-933100",
+      "category": "webshell",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "(?i)\u003c\\?(?:php[\\s\\x0b]|[\\s\\x0b=]|xml(?:[\\s\\x0b]+[^a-z]|:)|$)|\\[[/\\x5c]?php\\]|\\{/?php\\}",
+      "targets": [
+        "body",
+        "cookies",
+        "headers",
+        "query"
+      ],
+      "message": "PHP Injection Attack: PHP Open Tag Found",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-933110",
+      "category": "webshell",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": ".*\\.ph(?:p\\d*|tml|ar|ps|t|pt)[./]*$",
+      "targets": [
+        "header:x-file-name",
+        "header:x-filename",
+        "header:x.filename",
+        "header:x_filename"
+      ],
+      "message": "PHP Injection Attack: PHP Script File Upload Found",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-933140",
+      "category": "lfi",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "(?i)php://(?:std(?:in|out|err)|(?:in|out)put|f(?:d|ilter)|memory|temp)",
+      "targets": [
+        "body",
+        "cookies",
+        "query"
+      ],
+      "message": "PHP Injection Attack: I/O Stream Found",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-933160",
+      "category": "webshell",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "(?i)\\b\\(?[\"']*(?:assert(?:_options)?|c(?:hr|reate_function)|e(?:val|x(?:ec|p))|f(?:ile(?:group)?|open|puts)|glob|i(?:mage(?:gif|(?:jpe|pn)g|wbmp|xbm)|s_a|ntval)|m(?:d5|kdir)|o(?:pendir|rd)|p(?:assthru|hpinfo|open|r(?:intf|ev))|r(?:eadfile|trim)|s(?:t(?:rip_tags|at)|ubstr|ystem)|tmpfile|u(?:n(?:(?:pac|lin)k|serialize)|sort))(?:/\\*[^\\*]*\\*+(?:[^\\*/][^\\*]*\\*+)*/|(?:#|//)[^\\n\\r]*[\\n\\r]|[\\s\\x0b\"])*[\"']*\\)?[\\s\\x0b]*\\([^\\)]*\\)",
+      "targets": [
+        "body",
+        "cookies",
+        "query"
+      ],
+      "message": "PHP Injection Attack: High-Risk PHP Function Call Found",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-933170",
+      "category": "webshell",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "[oOcC]:\\d+:\".+?\":\\d+:\\{.*}",
+      "targets": [
+        "body",
+        "cookies",
+        "headers",
+        "query"
+      ],
+      "message": "PHP Injection Attack: Serialized Object Injection",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-933200",
+      "category": "lfi",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "(?:bzip2|expect|glob|ogg|(?:ph|r)ar|ssh2(?:.(?:s(?:hell|(?:ft|c)p)|exec|tunnel))?|z(?:ip|lib))://",
+      "targets": [
+        "body",
+        "cookies",
+        "query"
+      ],
+      "message": "PHP Injection Attack: Wrapper scheme detected",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-941110",
+      "category": "xss",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "(?i)\u003cscript[^\u003e]*\u003e[\\s\\S]*?",
+      "targets": [
+        "body",
+        "cookies",
+        "headers",
+        "path",
+        "query"
+      ],
+      "message": "XSS Filter - Category 1: Script Tag Vector",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-941130",
+      "category": "xss",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "(?i).(?:\\b(?:(?:x(?:link:href|html|mlns)|data:text/html|formaction)\\b|pattern[\\s\\x0b]*=)|(?:!ENTITY[\\s\\x0b]+(?:%[\\s\\x0b]+)?[^\\s\\x0b]+[\\s\\x0b]+(?:SYSTEM|PUBLIC)|@import|;base64)\\b)",
+      "targets": [
+        "body",
+        "cookies",
+        "header:user-agent",
+        "path",
+        "query"
+      ],
+      "message": "XSS Filter - Category 3: Attribute Vector",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-941380",
+      "category": "xss",
+      "severity": "critical",
+      "paranoia": 2,
+      "operator": "rx",
+      "pattern": "\\{\\{.*?}}",
+      "targets": [
+        "body",
+        "cookies",
+        "path",
+        "query"
+      ],
+      "message": "AngularJS client side template injection detected",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-941390",
+      "category": "xss",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "(?i)\\b(?:eval|set(?:timeout|interval)|new[\\s\\x0b]+Function|a(?:lert|tob)|btoa|(?:promp|impor)t|con(?:firm|sole\\.(?:log|dir))|fetch)[\\s\\x0b]*[\\(\\{]",
+      "targets": [
+        "body",
+        "cookies",
+        "path",
+        "query"
+      ],
+      "message": "Javascript method detected",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-942160",
+      "category": "sqli",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "(?i:sleep\\s*?\\(.*?\\)|benchmark\\s*?\\(.*?\\,.*?\\))",
+      "targets": [
+        "body",
+        "cookies",
+        "path",
+        "query"
+      ],
+      "message": "Detects blind sqli tests using sleep() or benchmark()",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-942170",
+      "category": "sqli",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "(?i)(?:select|;)[\\s\\x0b]+(?:benchmark|if|sleep)[\\s\\x0b]*?\\([\\s\\x0b]*?\\(?[\\s\\x0b]*?[0-9A-Z_a-z]+",
+      "targets": [
+        "body",
+        "cookies",
+        "query"
+      ],
+      "message": "Detects SQL benchmark and sleep injection attempts including conditional queries",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-942270",
+      "category": "sqli",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "(?i)union.*?select.*?from",
+      "targets": [
+        "body",
+        "cookies",
+        "query"
+      ],
+      "message": "Looking for basic sql injection. Common attack string for mysql, oracle and others",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-942390",
+      "category": "sqli",
+      "severity": "critical",
+      "paranoia": 2,
+      "operator": "rx",
+      "pattern": "(?i)\\bx?or\\b(?:[\\s\\x0b]+[0-9]{1,10}(?:[\\s\\x0b]*[\u003c-\u003e])?|[\\s\\x0b]*[\"'][^=]+[\"'])|[\"'][\\s\\x0b]+\\bx?or\\b[\\s\\x0b]+[^!\\+\\-\u003c-\u003e]+[!\\+\\-\u003c-\u003e]",
+      "targets": [
+        "body",
+        "cookies",
+        "query"
+      ],
+      "message": "SQL Injection Attack using (X)OR",
+      "action": "block",
+      "source": "owasp-crs"
+    },
+    {
+      "id": "owasp-crs-942500",
+      "category": "sqli",
+      "severity": "critical",
+      "paranoia": 1,
+      "operator": "rx",
+      "pattern": "(?i)/\\*[\\s\\x0b]*?[!\\+](?:[\\s\\x0b\\(\\)\\-0-9=A-Z_a-z]+)?\\*/",
+      "targets": [
+        "body",
+        "cookies",
+        "query"
+      ],
+      "message": "MySQL in-line comment detected",
+      "action": "block",
+      "source": "owasp-crs"
+    }
+  ],
+  "notes": [
+    "@detectSQLi is not representable as a regexp; it stays covered by sink-level detectors and the platform engine.",
+    "913100 uses an inlined scanner User-Agent phrase list instead of @pmFromFile.",
+    "Only request-side CRS rules at paranoia level 1-2 are included."
+  ],
+  "digest": "fa50ae33ba875a98a9c3aa0b494becb7c0b5b176fd59b92dcd18c0873631e27b"
+}

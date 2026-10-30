@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
-	"sort"
 	"strings"
 	"time"
 
@@ -175,18 +174,7 @@ func syncTrafficIncidentCandidatesWithStore(ctx context.Context, cfg *Config, st
 		return fmt.Errorf("query internal traffic candidates: %w", err)
 	}
 	defer rows.Close()
-	type trafficGroup struct {
-		source    string
-		victim    string
-		ruleID    string
-		ruleName  string
-		severity  string
-		firstSeen time.Time
-		lastSeen  time.Time
-		evidence  []incidentlifecycle.Evidence
-	}
-	groups := map[string]*trafficGroup{}
-	seen := map[string]struct{}{}
+	hits := make([]trafficHit, 0, 100)
 	policy := loadXDRResponsePolicy(cfg)
 	for rows.Next() {
 		var eventUID, raw string
@@ -204,55 +192,25 @@ func syncTrafficIncidentCandidatesWithStore(ctx context.Context, cfg *Config, st
 			xdrSourceIP(event), xdrVictimEntity(event), time.Now().UTC()) != nil {
 			continue
 		}
-		if _, exists := seen[eventUID]; exists {
-			continue
-		}
-		seen[eventUID] = struct{}{}
-		victim := firstNonEmpty(xdrVictimIP(event), xdrVictimEntity(event), "目标资产")
-		source := firstNonEmpty(xdrSourceIP(event), "未知来源")
-		ruleID := firstNonEmpty(validRuleID(xdrPickString(event, "component_rule_id")), validRuleID(xdrPickString(event, "rule_id")), validRuleID(xdrPickString(asMap(event["native_rule"]), "id")))
-		ruleName := firstNonEmpty(xdrPickString(event, "rule_name"), xdrPickString(event, "message"), "内网流量告警")
-		key := source + "|" + victim + "|" + firstNonEmpty(ruleID, ruleName)
-		group := groups[key]
-		if group == nil {
-			group = &trafficGroup{source: source, victim: victim, ruleID: ruleID, ruleName: ruleName, severity: xdrPickString(event, "severity")}
-			groups[key] = group
-		}
-		if group.firstSeen.IsZero() || observedAt.Before(group.firstSeen) {
-			group.firstSeen = observedAt.UTC()
-		}
-		if observedAt.After(group.lastSeen) {
-			group.lastSeen = observedAt.UTC()
-		}
-		if severityRank(xdrPickString(event, "severity")) > severityRank(group.severity) {
-			group.severity = xdrPickString(event, "severity")
-		}
-		group.evidence = append(group.evidence, incidentlifecycle.Evidence{
-			EventUID:      eventUID,
-			SourceNodeUID: "traffic-node-" + eventUID,
-			Stage:         firstNonEmpty(incidentStage(event), "lateral_movement"),
-			ObservedAt:    observedAt.UTC(),
-			Raw:           []byte(raw),
+		hits = append(hits, trafficHit{
+			EventUID:   eventUID,
+			ObservedAt: observedAt.UTC(),
+			SrcIP:      xdrSourceIP(event),
+			DstIP:      xdrPickString(event, "dst_ip", "destination_ip", "entities.target_ip"),
+			Victim:     firstNonEmpty(xdrVictimIP(event), xdrVictimEntity(event)),
+			RuleID:     firstNonEmpty(validRuleID(xdrPickString(event, "component_rule_id")), validRuleID(xdrPickString(event, "rule_id")), validRuleID(xdrPickString(asMap(event["native_rule"]), "id"))),
+			RuleName:   firstNonEmpty(xdrPickString(event, "rule_name"), xdrPickString(event, "message"), "内网流量告警"),
+			Severity:   xdrPickString(event, "severity"),
+			Stage:      incidentStage(event),
+			Raw:        []byte(raw),
 		})
 	}
 	if err := rows.Err(); err != nil {
 		return fmt.Errorf("iterate internal traffic candidates: %w", err)
 	}
-	candidates := make([]incidentlifecycle.Candidate, 0, len(groups))
-	for key, group := range groups {
-		title := group.victim + " 内网横向可疑流量"
-		summary := fmt.Sprintf("%s · %s → %s · %d 条证据", group.ruleName, group.source, group.victim, len(group.evidence))
-		candidates = append(candidates, incidentlifecycle.Candidate{
-			IncidentID:     "inc-traffic-" + safeID(key),
-			SourceChainID:  "chain-traffic-" + safeID(key),
-			CorrelationKey: "traffic:" + group.source + "->" + group.victim,
-			Title:          title,
-			Summary:        summary,
-			Severity:       group.severity,
-			FirstSeen:      group.firstSeen,
-			LastSeen:       group.lastSeen,
-			Evidence:       group.evidence,
-		})
+	candidates, withheld := buildTrafficIncidentCandidates(hits, lateralMinVictims())
+	if withheld > 0 {
+		log.Printf("traffic incidents: withheld %d weak groups (min victims=%d)", withheld, lateralMinVictims())
 	}
 	if len(candidates) == 0 {
 		return nil
@@ -303,6 +261,28 @@ func incidentActor(ctx context.Context) incidentlifecycle.Actor {
 	}
 }
 
+func evidenceSourceLabel(sourceEngine, category string) string {
+	value := strings.ToLower(strings.TrimSpace(sourceEngine + " " + category))
+	switch {
+	case strings.Contains(value, "suricata"):
+		return "流量 / Suricata"
+	case strings.Contains(value, "lyprobe"):
+		return "流量 / lyprobe"
+	case strings.Contains(value, "rasp"):
+		return "应用 / RASP"
+	case strings.Contains(value, "runtime"), strings.Contains(value, "hids"), strings.Contains(value, "falco"):
+		return "主机 / 运行时"
+	case strings.Contains(value, "yara"):
+		return "文件 / YARA"
+	case strings.Contains(value, "log"), strings.Contains(value, "sigma"), strings.Contains(value, "wazuh"):
+		return "日志"
+	case strings.Contains(value, "traffic"):
+		return "流量"
+	default:
+		return firstNonEmpty(sourceEngine, "未知来源")
+	}
+}
+
 func incidentJSONRow(incident incidentlifecycle.Incident) map[string]interface{} {
 	evidence := make([]map[string]interface{}, 0, len(incident.Evidence))
 	evidenceValues := make([]interface{}, 0, len(incident.Evidence))
@@ -310,6 +290,8 @@ func incidentJSONRow(incident incidentlifecycle.Incident) map[string]interface{}
 	seenStages := map[string]struct{}{}
 	sourceIPs := map[string]struct{}{}
 	victimIPs := map[string]struct{}{}
+	firstAgentID := ""
+	firstHostname := ""
 	for _, item := range incident.Evidence {
 		row := map[string]interface{}{
 			"event_id": item.EventUID, "stage": item.Stage, "time": item.ObservedAt.Format(time.RFC3339Nano),
@@ -317,11 +299,70 @@ func incidentJSONRow(incident incidentlifecycle.Incident) map[string]interface{}
 		}
 		var rawValue map[string]interface{}
 		if json.Unmarshal(item.Raw, &rawValue) == nil {
-			for _, key := range []string{"id", "event_type", "source_module", "source_engine", "src_ip", "dst_ip", "asset_id", "agent_id", "host_id", "summary", "raw_event", "raw_reference", "entity_id", "tactic", "technique"} {
+			// Keep the decoded payload in the row so the console can show the
+			// original rule/engine instead of the generic component.alert shell.
+			row["raw"] = rawValue
+			for _, key := range []string{"id", "event_type", "source_module", "source_engine", "src_ip", "dst_ip", "asset_id", "agent_id", "host_id", "summary", "message", "raw_event", "raw_reference", "entity_id", "tactic", "technique", "stage_hint", "confidence", "native_rule"} {
 				if value, exists := rawValue[key]; exists {
 					row[key] = value
 				}
 			}
+			native := asMap(rawValue["native_rule"])
+			nested := asMap(rawValue["raw_event"])
+			if len(asMap(nested["native_rule"])) > 0 {
+				native = asMap(nested["native_rule"])
+			}
+			pick := func(key string) string {
+				return firstNonEmpty(xdrPickString(rawValue, key), xdrPickString(nested, key))
+			}
+			ruleName := firstNonEmpty(
+				xdrPickString(nested, "rule_name"),
+				xdrPickString(native, "name"),
+				xdrPickString(rawValue, "rule_name"),
+				xdrPickString(nested, "summary"),
+				xdrPickString(nested, "message"),
+				xdrPickString(rawValue, "summary"),
+				xdrPickString(rawValue, "message"),
+			)
+			ruleID := firstNonEmpty(
+				xdrPickString(nested, "rule_id"),
+				xdrPickString(native, "id"),
+				xdrPickString(rawValue, "rule_id"),
+				xdrPickString(rawValue, "component_rule_id"),
+			)
+			sourceEngine := firstNonEmpty(xdrPickString(nested, "source_engine"), xdrPickString(nested, "source"), xdrPickString(native, "engine"), xdrPickString(rawValue, "source_engine"), xdrPickString(rawValue, "source"), "xdr")
+			summary := firstNonEmpty(
+				xdrPickString(nested, "summary"),
+				xdrPickString(nested, "message"),
+				xdrPickString(rawValue, "summary"),
+				xdrPickString(rawValue, "message"),
+				ruleName,
+			)
+			row["title"] = firstNonEmpty(ruleName, sourceEngine)
+			row["rule_name"] = ruleName
+			row["rule_id"] = ruleID
+			row["source_engine"] = sourceEngine
+			row["source_label"] = evidenceSourceLabel(sourceEngine, pick("component_category"))
+			row["summary"] = summary
+			if len(nested) > 0 {
+				row["raw_event"] = nested
+			}
+			row["why_stage"] = map[string]interface{}{
+				"source":     firstNonEmpty(pick("stage_source"), "rule_hint"),
+				"reason":     firstNonEmpty(pick("stage_reason"), pick("stage_hint")),
+				"technique":  firstNonEmpty(pick("mitre_technique"), pick("technique")),
+				"confidence": xdrPickFloat(rawValue, "confidence", 0.8),
+			}
+			agentID := firstNonEmpty(xdrPickString(nested, "agent_id"), xdrPickString(rawValue, "agent_id"), xdrPickString(rawValue, "entity_id"))
+			hostname := firstNonEmpty(xdrPickString(nested, "hostname"), xdrPickString(rawValue, "hostname"), xdrPickString(nested, "entities.hostname"))
+			if firstAgentID == "" {
+				firstAgentID = agentID
+			}
+			if firstHostname == "" {
+				firstHostname = hostname
+			}
+			row["agent_id"] = agentID
+			row["hostname"] = hostname
 			if ip := xdrPickString(rawValue, "src_ip", "source_ip"); ip != "" {
 				sourceIPs[ip] = struct{}{}
 			}
@@ -336,12 +377,21 @@ func incidentJSONRow(incident incidentlifecycle.Incident) map[string]interface{}
 			stages = append(stages, item.Stage)
 		}
 	}
-	sort.Strings(stages)
+	displayTitle := incident.Title
+	if strings.Contains(displayTitle, "目标资产") || strings.Contains(displayTitle, "出现攻击链") {
+		for _, row := range evidence {
+			if value := firstNonEmpty(xdrPickString(row, "rule_name"), xdrPickString(row, "title")); value != "" {
+				displayTitle = value
+				break
+			}
+		}
+	}
 	return map[string]interface{}{
 		"id": incident.ID, "source_chain_id": incident.SourceChainID, "algorithm": incident.Algorithm,
-		"dedup_key": incident.DedupKey, "correlation": incident.CorrelationKey, "title": incident.Title,
+		"dedup_key": incident.DedupKey, "correlation": incident.CorrelationKey, "title": displayTitle,
 		"summary": incident.Summary, "severity": incident.Severity, "severity_label": severityLabel(incident.Severity),
 		"status": incident.Status, "status_label": incidentStatusLabel(string(incident.Status)), "assignee": incident.Assignee,
+		"agent_id": firstAgentID, "hostname": firstHostname,
 		"suppressed": incident.Suppressed, "suppressed_until": incident.SuppressedUntil, "suppression_reason": incident.SuppressionReason,
 		"first_seen": incident.FirstSeen, "last_seen": incident.LastSeen, "created_at": incident.CreatedAt, "updated_at": incident.UpdatedAt,
 		"acknowledge_due_at": incident.AcknowledgeDueAt, "resolve_due_at": incident.ResolveDueAt,

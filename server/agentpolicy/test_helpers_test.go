@@ -19,6 +19,16 @@ type policyHarness struct {
 
 func newPolicyHarness(t *testing.T) *policyHarness {
 	t.Helper()
+	return newPolicyHarnessWithBlockOptInFlag(t, false)
+}
+
+func newPolicyHarnessWithBlockOptIn(t *testing.T) *policyHarness {
+	t.Helper()
+	return newPolicyHarnessWithBlockOptInFlag(t, true)
+}
+
+func newPolicyHarnessWithBlockOptInFlag(t *testing.T, allowProductionBlock bool) *policyHarness {
+	t.Helper()
 	base := t.TempDir()
 	layout := trustroot.Layout{TrustDir: filepath.Join(base, "trust"), KeyDir: filepath.Join(base, "keys")}
 	if err := layout.Bootstrap(rand.Reader); err != nil {
@@ -29,7 +39,10 @@ func newPolicyHarness(t *testing.T) *policyHarness {
 		t.Fatalf("load policy signer: %v", err)
 	}
 	harness := &policyHarness{store: NewMemoryStore(), now: time.Date(2026, 7, 14, 12, 0, 0, 0, time.UTC)}
-	harness.manager = NewManager(ManagerConfig{Store: harness.store, Signer: signer, Verifier: layout, Now: func() time.Time { return harness.now }})
+	harness.manager = NewManager(ManagerConfig{
+		Store: harness.store, Signer: signer, Verifier: layout,
+		Now: func() time.Time { return harness.now }, AllowProductionBlock: allowProductionBlock,
+	})
 	if _, err := harness.manager.EnsureDefault(context.Background(), "platform-owner", "audit://policy/default"); err != nil {
 		t.Fatalf("ensure default policy: %v", err)
 	}

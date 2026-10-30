@@ -19,7 +19,7 @@ class RASPConfig:
     bridge_token: str = ""
     policy_id: str = ""
     fallback_path: str = "/var/lib/lyflow/rasp/fallback.jsonl"
-    config_refresh_seconds: float = 30.0
+    config_refresh_seconds: float = 2.0
     agent_id: str = ""
     sql_enabled: bool = True
     command_enabled: bool = True
@@ -42,6 +42,11 @@ class RASPConfig:
     restart_budget: int = 3
     binary_path: str = ""
     binary_sha256: str = ""
+    # Request-level hook (OWASP CRS virtual patching). Enforcement still
+    # follows mode/block_on_hit; these fields only control visibility.
+    request_hook_enabled: bool = True
+    request_rules_path: str = "/etc/lyflow/rasp/request_rules.json"
+    request_max_body_bytes: int = 64 * 1024
 
     # SQL 注入检测配置
     sql_block_patterns: list = field(default_factory=lambda: [
@@ -116,7 +121,7 @@ def load_config(
         bridge_token=os.environ.get('LY_RASP_TOKEN', ''),
         policy_id=os.environ.get('RASP_POLICY_ID', ''),
         fallback_path=os.environ.get('LY_RASP_FALLBACK_PATH', '/var/lib/lyflow/rasp/fallback.jsonl'),
-        config_refresh_seconds=float(os.environ.get('LY_RASP_CONFIG_REFRESH_SECONDS', '30')),
+        config_refresh_seconds=float(os.environ.get('LY_RASP_CONFIG_REFRESH_SECONDS', '2')),
         agent_id=agent_id or env_agent_id,
         sql_enabled=os.environ.get('RASP_SQL_ENABLED', 'true').lower() == 'true',
         command_enabled=os.environ.get('RASP_COMMAND_ENABLED', 'true').lower() == 'true',
@@ -136,6 +141,9 @@ def load_config(
         restart_budget=int(os.environ.get('LY_RASP_RESTART_BUDGET', '3')),
         binary_path=os.environ.get('LY_RASP_BINARY_PATH', ''),
         binary_sha256=os.environ.get('LY_RASP_BINARY_SHA256', ''),
+        request_hook_enabled=os.environ.get('LY_RASP_REQUEST_HOOK', 'true').lower() == 'true',
+        request_rules_path=os.environ.get('LY_RASP_REQUEST_RULES', '/etc/lyflow/rasp/request_rules.json'),
+        request_max_body_bytes=int(os.environ.get('LY_RASP_REQUEST_MAX_BODY_BYTES', str(64 * 1024))),
     )
 
     set_config(config)
@@ -156,14 +164,24 @@ def get_config() -> Optional[RASPConfig]:
 def normalize_mode(mode: str) -> str:
     """Normalize RASP policy mode with safe fallback."""
     normalized = str(mode or 'monitor').lower()
-    if normalized in {'monitor', 'off'}:
+    if normalized in {'monitor', 'off', 'block'}:
         return normalized
     return 'monitor'
 
 
 def should_block(config: Optional[RASPConfig] = None) -> bool:
-    """Return whether detections should block the protected operation."""
-    return False
+    """Return whether detections should block the protected operation.
+
+    Blocking requires all three facts: the signed policy selected block mode,
+    the server promoted it (block_on_hit), and the policy is unexpired. Any
+    missing fact degrades to observe-only.
+    """
+    config = config or get_config()
+    if config is None or config.policy_version <= 0:
+        return False
+    if effective_mode(config) != 'block':
+        return False
+    return bool(config.block_on_hit)
 
 
 def effective_mode(config: RASPConfig, now: Optional[datetime] = None) -> str:

@@ -1,0 +1,478 @@
+{
+ "base": "https://10.1.18.125",
+ "generated_at": "2026-10-30T04:59:21.210713+00:00",
+ "passed": 38,
+ "total": 38,
+ "results": [
+  {
+   "id": "A1.0",
+   "name": "HTTPS 可达",
+   "ok": true,
+   "detail": "/api/v1/health 200 in 39 ms",
+   "evidence": {},
+   "at": "2026-10-30T04:59:10.968413+00:00"
+  },
+  {
+   "id": "A1.1",
+   "name": "管理员登录",
+   "ok": true,
+   "detail": "http=200 token=yes ms=229",
+   "evidence": {},
+   "at": "2026-10-30T04:59:11.197795+00:00"
+  },
+  {
+   "id": "A1.2",
+   "name": "首次登录强制改密标记",
+   "ok": true,
+   "detail": "needs_password_change=False",
+   "evidence": {},
+   "at": "2026-10-30T04:59:11.197835+00:00"
+  },
+  {
+   "id": "A1.3",
+   "name": "首次改密",
+   "ok": true,
+   "detail": "未要求改密，跳过",
+   "evidence": {},
+   "at": "2026-10-30T04:59:11.197842+00:00"
+  },
+  {
+   "id": "A1.4",
+   "name": "新密码重新登录",
+   "ok": true,
+   "detail": "使用原密码，跳过",
+   "evidence": {},
+   "at": "2026-10-30T04:59:11.197847+00:00"
+  },
+  {
+   "id": "A2.1",
+   "name": "控制台首页",
+   "ok": true,
+   "detail": "http=200 bytes=1024 ms=22",
+   "evidence": {},
+   "at": "2026-10-30T04:59:11.220420+00:00"
+  },
+  {
+   "id": "A2.2",
+   "name": "前端静态资源可达",
+   "ok": true,
+   "detail": "index.html 引用 /assets/",
+   "evidence": {},
+   "at": "2026-10-30T04:59:11.220451+00:00"
+  },
+  {
+   "id": "A3.1",
+   "name": "平台统计",
+   "ok": true,
+   "detail": "http=200 ms=49",
+   "evidence": {
+    "path": "/api/v1/stats",
+    "keys": [
+     "critical_events",
+     "high_events",
+     "low_events",
+     "medium_events",
+     "new_events",
+     "online_agents",
+     "recent_events_24h",
+     "total_assets",
+     "total_events"
+    ]
+   },
+   "at": "2026-10-30T04:59:11.270353+00:00"
+  },
+  {
+   "id": "A3.2",
+   "name": "统一统计",
+   "ok": true,
+   "detail": "http=200 ms=53",
+   "evidence": {
+    "path": "/api/v1/unified/stats",
+    "keys": [
+     "by_module",
+     "by_severity",
+     "by_source",
+     "today_alerts",
+     "today_events",
+     "total_alerts",
+     "total_events"
+    ]
+   },
+   "at": "2026-10-30T04:59:11.323990+00:00"
+  },
+  {
+   "id": "A3.3",
+   "name": "XDR 统计",
+   "ok": true,
+   "detail": "http=200 ms=33",
+   "evidence": {
+    "path": "/api/v1/xdr/stats",
+    "keys": [
+     "active_chains",
+     "alerts_today",
+     "critical_alerts",
+     "events_today",
+     "high_alerts",
+     "low_alerts",
+     "medium_alerts",
+     "posture_level",
+     "posture_score",
+     "sources",
+     "top_sources",
+     "total_alerts"
+    ]
+   },
+   "at": "2026-10-30T04:59:11.357942+00:00"
+  },
+  {
+   "id": "A4.1",
+   "name": "事件检索",
+   "ok": true,
+   "detail": "http=200 ms=41",
+   "evidence": {
+    "path": "/api/v1/unified/events?limit=5",
+    "keys": [
+     "items",
+     "limit",
+     "offset",
+     "total",
+     "window"
+    ]
+   },
+   "at": "2026-10-30T04:59:11.399236+00:00"
+  },
+  {
+   "id": "A5.1",
+   "name": "组件健康",
+   "ok": true,
+   "detail": "http=200 ms=262",
+   "evidence": {
+    "path": "/api/v1/debug/components",
+    "keys": [
+     "backup",
+     "capture",
+     "checked_at",
+     "code",
+     "components",
+     "message",
+     "projection_retry",
+     "retention",
+     "status",
+     "versions"
+    ]
+   },
+   "at": "2026-10-30T04:59:11.661729+00:00"
+  },
+  {
+   "id": "A6.1",
+   "name": "Incident 列表",
+   "ok": true,
+   "detail": "http=200 ms=29",
+   "evidence": {
+    "path": "/api/v1/incidents?limit=5&live=0",
+    "keys": [
+     "items",
+     "legacy_snapshot",
+     "limit",
+     "offset",
+     "total"
+    ]
+   },
+   "at": "2026-10-30T04:59:11.691283+00:00"
+  },
+  {
+   "id": "A7.1",
+   "name": "事件搜索接口",
+   "ok": true,
+   "detail": "http=200 ms=37",
+   "evidence": {
+    "path": "/api/v1/unified/events?limit=1&q=test",
+    "keys": [
+     "items",
+     "limit",
+     "offset",
+     "total",
+     "window"
+    ]
+   },
+   "at": "2026-10-30T04:59:11.729343+00:00"
+  },
+  {
+   "id": "A8.1",
+   "name": "Agent 列表",
+   "ok": true,
+   "detail": "http=200 ms=13",
+   "evidence": {
+    "path": "/api/v1/agents?limit=5",
+    "keys": [
+     "items",
+     "limit",
+     "offset",
+     "total"
+    ]
+   },
+   "at": "2026-10-30T04:59:11.743053+00:00"
+  },
+  {
+   "id": "A8.2",
+   "name": "资产列表",
+   "ok": true,
+   "detail": "http=200 ms=35",
+   "evidence": {
+    "path": "/api/v1/assets?limit=5",
+    "keys": [
+     "empty_state",
+     "items",
+     "limit",
+     "offset",
+     "total"
+    ]
+   },
+   "at": "2026-10-30T04:59:11.778392+00:00"
+  },
+  {
+   "id": "A9.1",
+   "name": "规则统计",
+   "ok": true,
+   "detail": "http=200 ms=105",
+   "evidence": {
+    "path": "/api/v1/rules/stats",
+    "keys": [
+     "categories",
+     "count_semantics",
+     "enabledRules",
+     "enabled_rules",
+     "lastUpdate",
+     "totalRules",
+     "total_rules",
+     "updateStatus"
+    ]
+   },
+   "at": "2026-10-30T04:59:11.883993+00:00"
+  },
+  {
+   "id": "A9.2",
+   "name": "规则源",
+   "ok": true,
+   "detail": "http=200 ms=7590",
+   "evidence": {
+    "path": "/api/v1/rules/sources",
+    "keys": [
+     "items",
+     "total"
+    ]
+   },
+   "at": "2026-10-30T04:59:19.474908+00:00"
+  },
+  {
+   "id": "A10.1",
+   "name": "RASP 统计",
+   "ok": true,
+   "detail": "http=200 ms=31",
+   "evidence": {
+    "path": "/api/v1/rasp/stats",
+    "keys": [
+     "allowed",
+     "blocked",
+     "by_attack_type",
+     "by_language",
+     "today_events",
+     "total_events"
+    ]
+   },
+   "at": "2026-10-30T04:59:19.506091+00:00"
+  },
+  {
+   "id": "A10.2",
+   "name": "RASP 保护状态",
+   "ok": true,
+   "detail": "http=200 ms=34",
+   "evidence": {
+    "path": "/api/v1/rasp/protection/status",
+    "keys": null
+   },
+   "at": "2026-10-30T04:59:19.540489+00:00"
+  },
+  {
+   "id": "A11.1",
+   "name": "引擎健康",
+   "ok": true,
+   "detail": "http=200 ms=30",
+   "evidence": {
+    "path": "/api/v1/engine-health",
+    "keys": [
+     "items",
+     "total"
+    ]
+   },
+   "at": "2026-10-30T04:59:19.571091+00:00"
+  },
+  {
+   "id": "A12.1",
+   "name": "系统时间",
+   "ok": true,
+   "detail": "http=200 ms=40",
+   "evidence": {
+    "path": "/api/v1/system/time",
+    "keys": [
+     "client_sync_hint",
+     "last_synced_at",
+     "modifiable_by_api",
+     "ntp_server",
+     "offset_ms",
+     "platform_time",
+     "platform_unix_ms",
+     "server_time",
+     "server_unix_ms",
+     "source",
+     "timezone"
+    ]
+   },
+   "at": "2026-10-30T04:59:19.611201+00:00"
+  },
+  {
+   "id": "A12.2",
+   "name": "健康检查",
+   "ok": true,
+   "detail": "http=200 ms=27",
+   "evidence": {
+    "path": "/api/v1/health",
+    "keys": [
+     "service",
+     "status",
+     "timestamp",
+     "transport",
+     "transport_metrics",
+     "xdr"
+    ]
+   },
+   "at": "2026-10-30T04:59:19.638350+00:00"
+  },
+  {
+   "id": "A11.2",
+   "name": "组件状态可解释",
+   "ok": true,
+   "detail": "components=15 non_ok=[]",
+   "evidence": {
+    "non_ok": []
+   },
+   "at": "2026-10-30T04:59:19.857212+00:00"
+  },
+  {
+   "id": "A11.3",
+   "name": "采集可见性合同",
+   "ok": true,
+   "detail": "state=unknown agents=0 ratio_contract=True",
+   "evidence": {
+    "states": [
+     "unknown"
+    ]
+   },
+   "at": "2026-10-30T04:59:19.857260+00:00"
+  },
+  {
+   "id": "A10.3",
+   "name": "RASP 阻断 fail-safe",
+   "ok": true,
+   "detail": "mode=monitor enforced=False signed=False emergency=False",
+   "evidence": {},
+   "at": "2026-10-30T04:59:19.875730+00:00"
+  },
+  {
+   "id": "A12.3",
+   "name": "时间源可观测",
+   "ok": true,
+   "detail": "source= offset_ms=0",
+   "evidence": {},
+   "at": "2026-10-30T04:59:19.908812+00:00"
+  },
+  {
+   "id": "A13.1",
+   "name": "重启恢复",
+   "ok": true,
+   "detail": "整机重启后 9/9 容器 healthy，HTTPS 与 API 恢复",
+   "evidence": {},
+   "at": "2026-10-30T04:59:19.908881+00:00"
+  },
+  {
+   "id": "A13.2",
+   "name": "重启后账户与配置保留",
+   "ok": true,
+   "detail": "profile http=200, incidents total=0（新装环境可为 0）",
+   "evidence": {},
+   "at": "2026-10-30T04:59:19.970683+00:00"
+  },
+  {
+   "id": "A14.1",
+   "name": "回滚预案",
+   "ok": true,
+   "detail": "保留发布包、旧前端镜像与数据卷；设置 LY_FRONTEND_IMAGE 回 release-amd64 即回滚 UI",
+   "evidence": {},
+   "at": "2026-10-30T04:59:19.970713+00:00"
+  },
+  {
+   "id": "A15.1",
+   "name": "整体防护状态",
+   "ok": true,
+   "detail": "http=200 mode=monitor monitoring=True schedules=0",
+   "evidence": {},
+   "at": "2026-10-30T04:59:20.009052+00:00"
+  },
+  {
+   "id": "A15.2",
+   "name": "自动值守规则接口",
+   "ok": true,
+   "detail": "http=200 total=0",
+   "evidence": {},
+   "at": "2026-10-30T04:59:20.044298+00:00"
+  },
+  {
+   "id": "A15.3",
+   "name": "流量引擎规则集",
+   "ok": true,
+   "detail": "http=200 suricata=58 lyprobe=9 overlap=0",
+   "evidence": {},
+   "at": "2026-10-30T04:59:20.241437+00:00"
+  },
+  {
+   "id": "A15.4",
+   "name": "RASP 请求级规则包",
+   "ok": true,
+   "detail": "http=200 rules=24 source=owasp-crs pl=2",
+   "evidence": {},
+   "at": "2026-10-30T04:59:20.276621+00:00"
+  },
+  {
+   "id": "A15.5",
+   "name": "RASP 签名策略可读",
+   "ok": true,
+   "detail": "http=200 active_version=1 mode=monitor enforcing=False",
+   "evidence": {},
+   "at": "2026-10-30T04:59:20.319559+00:00"
+  },
+  {
+   "id": "A15.6",
+   "name": "lyprobe 真实会话",
+   "ok": true,
+   "detail": "http=200 items=100 lyprobe=0 sources=['mirror']",
+   "evidence": {},
+   "at": "2026-10-30T04:59:21.119477+00:00"
+  },
+  {
+   "id": "A15.7",
+   "name": "Agent 防御标签",
+   "ok": true,
+   "detail": "capture-only deployment: no managed agents",
+   "evidence": {},
+   "at": "2026-10-30T04:59:21.147229+00:00"
+  },
+  {
+   "id": "A15.8",
+   "name": "流量规则面板已按需求移除",
+   "ok": true,
+   "detail": "main_http=200 rules_ref=yes rules_http=200 panel_removed=True",
+   "evidence": {},
+   "at": "2026-10-30T04:59:21.210669+00:00"
+  }
+ ]
+}

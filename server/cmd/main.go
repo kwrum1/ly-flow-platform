@@ -198,6 +198,9 @@ func loadConfig() *Config {
 		log.Fatalf("无法初始化 RASP policy lifecycle: %v", err)
 	}
 	cfg.RASPPolicy = raspPolicy
+	if _, err := InitDefenseRuntime(context.Background(), cfg); err != nil {
+		log.Printf("defense runtime unavailable (sessions API will return 503): %v", err)
+	}
 	ruleLifecycle, err := newRuleLifecycleRuntime(ctx, cfg.SecurityEngineReloadURL)
 	if err != nil {
 		log.Fatalf("无法初始化 rule lifecycle: %v", err)
@@ -250,6 +253,8 @@ func loadConfig() *Config {
 	}
 	cfg.EventStorage = storageRuntime
 	cfg.XDRInput = storageRuntime
+	// Gate 1 / T0-04: drain failed XDR projections from the durable queue.
+	go runProjectionRetryWorker(context.Background(), storageRuntime, 30*time.Second)
 	legacyWindowEnd, err := time.Parse(time.RFC3339, getEnv("XDR_LEGACY_READ_WINDOW_END", "2026-10-01T00:00:00Z"))
 	if err != nil {
 		log.Fatalf("XDR_LEGACY_READ_WINDOW_END must be RFC3339: %v", err)
@@ -308,6 +313,10 @@ func main() {
 	if cfg.DBPool != nil {
 		cfg.DBPool.Exec(context.Background(), `ALTER TABLE agents ADD COLUMN IF NOT EXISTS connection_since TIMESTAMPTZ`)
 		cfg.DBPool.Exec(context.Background(), `ALTER TABLE agents ADD COLUMN IF NOT EXISTS display_name TEXT`)
+		cfg.DBPool.Exec(context.Background(), `ALTER TABLE agents ADD COLUMN IF NOT EXISTS kind TEXT NOT NULL DEFAULT 'agent'`)
+		// Local capture probes were historically enrolled as agents. They are
+		// sensors, not managed endpoints, and must not appear in the agent view.
+		cfg.DBPool.Exec(context.Background(), `UPDATE agents SET kind='sensor' WHERE COALESCE(kind,'agent')='agent' AND (agent_version ILIKE 'lyprobe%' OR agent_key='local-mirror')`)
 	}
 	assetHandler = asset.NewHandler(cfg.DBPool)
 	if liveCount, err := syncLiveRules(); err != nil {
@@ -316,7 +325,9 @@ func main() {
 		log.Printf("规则生效目录已同步: %d 条开启规则", liveCount)
 	}
 	go startLogRetentionWorker(cfg)
+	go startSuricataEVEIngest(context.Background(), cfg)
 	go startAgentStaleCleanup(cfg)
+	go startRuleSyncScheduler(cfg)
 
 	// 初始化Auth模块
 	authService := auth.NewService(
@@ -352,6 +363,13 @@ func main() {
 			return principal.AgentID(), nil
 		},
 		Writer: cfg.EventStorage,
+		// Gate 1: network field completeness starts in shadow mode. Set
+		// LYFLOW_EVENTV2_FIELD_VALIDATION=enforce only after the shadow report
+		// shows producers have been fixed.
+		FieldMode: contracts.ParseFieldValidationMode(os.Getenv("LYFLOW_EVENTV2_FIELD_VALIDATION")),
+		Logf:      log.Printf,
+		// Gate 1: tenant is bound server-side; client tenant_id is overwritten.
+		TenantID: firstNonEmpty(strings.TrimSpace(os.Getenv("LYFLOW_DEFAULT_TENANT")), "default"),
 	})
 
 	queryV2Handler := queryv2.Handler{Store: cfg.EventStorage}
@@ -397,6 +415,8 @@ func main() {
 	mux.HandleFunc("/api/v1/rule-platform/versions", rulePlatformVersionsHandler(cfg))
 	mux.HandleFunc("/api/v1/rule-platform/rollback", rulePlatformRollbackHandler(cfg))
 	mux.HandleFunc("/api/v1/rule-platform/active-bundle", rulePlatformActiveBundleHandler(cfg))
+	mux.HandleFunc("/api/v1/rule-platform/yara", yaraRulesStatusHandler())
+	mux.HandleFunc("/api/v1/rule-platform/yara/import", yaraRulesImportHandler())
 	mux.HandleFunc("/api/v1/response/actions", responseActionsHandler(cfg))
 	mux.HandleFunc("/api/v1/response/actions/", responseActionHandler(cfg))
 	mux.HandleFunc("/api/v1/response/automation", responseAutomationHandler(cfg))
@@ -429,6 +449,8 @@ func main() {
 	mux.HandleFunc("/api/v1/engine-runtime/status", nativeEngineStatusHandler(cfg))
 	mux.HandleFunc("/api/v1/engine-rules", nativeEngineRulesHandler(cfg))
 	mux.HandleFunc("/api/v1/engine-rules/update", nativeEngineRulesUpdateHandler(cfg))
+	mux.HandleFunc("/api/v1/traffic/rule-profile", trafficRuleProfileStatusHandler(cfg))
+	mux.HandleFunc("/api/v1/traffic/rule-profile/export", trafficRuleProfileExportHandler(cfg))
 	mux.HandleFunc("/api/v1/threats/", threatCategoryHandler(cfg))
 	mux.HandleFunc("/api/v1/component-alerts/", componentAlertsHandler(cfg))
 	mux.HandleFunc("/api/v1/component-alerts", componentAlertsHandler(cfg))
@@ -454,6 +476,20 @@ func main() {
 	mux.HandleFunc("/api/v1/rasp/protection/status", raspProtectionStatusHandler(cfg))
 	mux.HandleFunc("/api/v1/rasp/event", raspReceiveEventHandler(cfg))
 	mux.HandleFunc("/api/v1/rasp/elkeid-rules", raspElkeidRulesHandler(cfg))
+	mux.HandleFunc("/api/v1/rasp/policy", raspPolicyStatusHandler(cfg))
+	mux.HandleFunc("/api/v1/rasp/policy/canary", raspPolicyCanaryHandler(cfg))
+	mux.HandleFunc("/api/v1/rasp/policy/actions/", raspPolicyActionHandler(cfg))
+
+	mux.HandleFunc("/api/v1/rasp/request-rules/status", raspRequestRulesStatusHandler(cfg))
+	mux.HandleFunc("/api/v1/rasp/request-rules/download", raspRequestRulesDownloadHandler(cfg))
+
+	// Defense sessions and automatic watch
+	mux.HandleFunc("/api/v1/defense/status", defenseStatusHandler(cfg))
+	mux.HandleFunc("/api/v1/defense/sessions", defenseSessionsHandler(cfg))
+	mux.HandleFunc("/api/v1/defense/sessions/", defenseSessionActionHandler(cfg))
+	mux.HandleFunc("/api/v1/defense/schedules", defenseSchedulesHandler(cfg))
+	mux.HandleFunc("/api/v1/defense/schedules/", defenseScheduleActionHandler(cfg))
+	mux.HandleFunc("/api/v1/defense/audit", defenseAuditHandler(cfg))
 
 	// Trace API
 	mux.HandleFunc("/api/v1/trace/stats", traceStatsHandler(cfg))
@@ -475,6 +511,7 @@ func main() {
 	mux.HandleFunc("/api/v1/agents", agentsListHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/capabilities/", agentCapabilitiesToggleHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/name/", agentRenameHandler(cfg))
+	mux.HandleFunc("/api/v1/agent/tags/", agentTagsHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/names", agentNamesHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/enroll", agentEnrollHandler(cfg))
 	mux.HandleFunc("/api/v1/agent/heartbeat", agentHeartbeatHandler(cfg))
@@ -2791,7 +2828,30 @@ func rulesStatsHandler(cfg *Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		xdrRules, _ := loadXDRRulePack()
-		categories := map[string]int{"xdr": len(xdrRules), "runtime": countRuleFiles("rules/hids"), "rasp": countRuleFiles("rules/rasp"), "traffic": countRuleFiles("rules/domain")}
+		dbCounts := map[string]int{}
+		dbEnabled := 0
+		if cfg != nil && cfg.DBPool != nil {
+			rows, err := cfg.DBPool.Query(r.Context(), `SELECT category, count(*) FROM detection_rules WHERE enabled GROUP BY category`)
+			if err == nil {
+				for rows.Next() {
+					var category string
+					var count int
+					if scanErr := rows.Scan(&category, &count); scanErr == nil {
+						dbCounts[category] += count
+						dbEnabled += count
+					}
+				}
+				rows.Close()
+			}
+		}
+		categories := map[string]int{
+			"xdr":       len(xdrRules),
+			"runtime":   dbCounts["runtime"],
+			"rasp":      dbCounts["rasp"],
+			"log_audit": dbCounts["log_audit"],
+			"artifact":  dbCounts["artifact"],
+			"traffic":   dbCounts["traffic"],
+		}
 		trafficCount, err := activeLifecycleTrafficCount(r.Context(), cfg.RuleLifecycle, categories["traffic"], countRuleFiles("rules/suricata"))
 		if err != nil {
 			writeJSONError(w, http.StatusServiceUnavailable, "traffic_count_unverified", err.Error())
@@ -2804,15 +2864,16 @@ func rulesStatsHandler(cfg *Config) http.HandlerFunc {
 				enabled++
 			}
 		}
+		total := categories["xdr"] + categories["runtime"] + categories["rasp"] + categories["log_audit"] + categories["artifact"] + categories["traffic"]
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"code":    0,
 			"message": "success",
 			"data": map[string]interface{}{
-				"total_rules":     categories["xdr"] + categories["runtime"] + categories["rasp"] + categories["traffic"],
-				"enabled_rules":   enabled,
+				"total_rules":     total,
+				"enabled_rules":   enabled + dbEnabled,
 				"categories":      categories,
-				"totalRules":      categories["xdr"] + categories["runtime"] + categories["rasp"] + categories["traffic"],
-				"enabledRules":    enabled,
+				"totalRules":      total,
+				"enabledRules":    enabled + dbEnabled,
 				"lastUpdate":      nil,
 				"updateStatus":    "never",
 				"count_semantics": map[string]interface{}{"traffic": trafficCount},
@@ -3555,6 +3616,12 @@ func normalizeComponentAlertStreamEvent(stream, msgID string, payload map[string
 		"native_rule":        firstNonNil(payload["native_rule"], flat["native_rule"]),
 		"raw_reference":      firstNonNil(payload["raw_reference"], flat["raw_reference"]),
 		"rule_pack":          xdrPickString(flat, "rule_pack", "metadata.rule_pack"),
+		"details":            firstNonNil(payload["details"], flat["details"]),
+		"action":             xdrPickString(flat, "action", "details.action"),
+		"blocked":            strings.EqualFold(xdrPickString(flat, "blocked", "details.blocked"), "true"),
+		"would_block":        strings.EqualFold(xdrPickString(flat, "would_block", "details.would_block"), "true"),
+		"policy_version":     xdrPickString(flat, "policy_version", "details.policy_version"),
+		"policy_id":          xdrPickString(flat, "policy_id", "details.policy_id"),
 		"created_at":         createdAt,
 		"timestamp":          createdAt,
 	})
@@ -4035,7 +4102,9 @@ func xdrChainIsCorrelated(row *xdrChainAgg) bool {
 		// movement on hosts without a runtime agent.
 		return xdrInternalLateralCandidate(row.Events[0])
 	}
-	return len(row.Categories) >= 2 || len(row.Stages) >= 2 || len(row.Sessions) > 0
+	// Multi-event chains need strong or moderate evidence. Different categories
+	// or stages alone are not proof: shared-IP coincidence stays context.
+	return chainEvidenceIsActionable(row.Events)
 }
 
 func xdrInternalLateralCandidate(event map[string]interface{}) bool {
@@ -4127,16 +4196,53 @@ func buildXDRPosture(events []map[string]interface{}) map[string]interface{} {
 	}
 }
 
+// XDRScoringVersionV1 pins the v1 chain scoring arithmetic. Stored scores are
+// only comparable within the same version.
+const XDRScoringVersionV1 = "xdr-score.v1.1"
+
 func xdrChainScore(row *xdrChainAgg) int64 {
+	return int64(xdrChainScoreDetail(row)["final_score"].(int64))
+}
+
+// xdrChainScoreDetail exposes the exact additive breakdown so a reviewer can
+// recompute the chain score instead of trusting a single number.
+func xdrChainScoreDetail(row *xdrChainAgg) map[string]interface{} {
 	avg := int64(0)
 	if len(row.Events) > 0 {
 		avg = row.TotalScore / int64(len(row.Events))
 	}
+	base := maxInt64(row.MaxScore, avg)
 	stageWeight := int64(xdrStageRank(row.SeedStage) * 10)
+	stageSource := "seed_stage_rank"
 	if stageWeight == 0 {
 		stageWeight = int64(len(row.Stages) * 6)
+		stageSource = "stage_count"
 	}
-	return clampInt64(maxInt64(row.MaxScore, avg)+stageWeight+int64(len(row.Categories))*7+int64(len(row.Evidence))*2, 0, 100)
+	categoryComponent := int64(len(row.Categories)) * 7
+	evidenceComponent := int64(len(row.Evidence)) * 2
+	raw := base + stageWeight + categoryComponent + evidenceComponent
+	final := clampInt64(raw, 0, 100)
+	return map[string]interface{}{
+		"version":     XDRScoringVersionV1,
+		"final_score": final,
+		"raw_score":   raw,
+		"capped":      final != raw,
+		"components": []map[string]interface{}{
+			{"name": "event_score", "value": base, "weight": 1.0, "contribution": base, "source": "max(seed,chain_avg)"},
+			{"name": "stage_weight", "value": stageWeight, "weight": 1.0, "contribution": stageWeight, "source": stageSource},
+			{"name": "category_spread", "value": categoryComponent, "weight": 1.0, "contribution": categoryComponent, "source": "distinct_categories*7"},
+			{"name": "evidence_breadth", "value": evidenceComponent, "weight": 1.0, "contribution": evidenceComponent, "source": "evidence_count*2"},
+		},
+		"inputs": map[string]interface{}{
+			"max_event_score": row.MaxScore,
+			"avg_event_score": avg,
+			"event_count":     len(row.Events),
+			"stage_count":     len(row.Stages),
+			"category_count":  len(row.Categories),
+			"evidence_count":  len(row.Evidence),
+			"seed_stage":      row.SeedStage,
+		},
+	}
 }
 
 func xdrChainRow(row *xdrChainAgg) map[string]interface{} {
@@ -4145,6 +4251,7 @@ func xdrChainRow(row *xdrChainAgg) map[string]interface{} {
 		return parseXDRTime(xdrPickString(events[i], "created_at", "timestamp")).Before(parseXDRTime(xdrPickString(events[j], "created_at", "timestamp")))
 	})
 	score := xdrChainScore(row)
+	explanation := xdrChainScoreDetail(row)
 	stages := sortedStages(row.Stages)
 	if len(stages) == 0 {
 		stages = xdrStagesFromEvents(events)
@@ -4159,6 +4266,7 @@ func xdrChainRow(row *xdrChainAgg) map[string]interface{} {
 		"victim":              row.Victim,
 		"seed_stage":          row.SeedStage,
 		"score":               score,
+		"score_explanation":   explanation,
 		"severity":            severityFromScore(float64(score)),
 		"stage_count":         len(row.Stages),
 		"event_count":         len(row.Events),
@@ -4216,6 +4324,9 @@ func enrichXDREvaluation(event map[string]interface{}) {
 	event["risk_level"] = severityFromScore(float64(score))
 	event["evaluation_version"] = "xdr-eval.v1"
 	event["candidate_only"] = true
+	// T1-05: shadow behaviour baseline annotation only; it never changes score
+	// or incident state.
+	annotateBehaviorBaseline(event, behaviorBaselineRegistry, behaviorBaselineModeFromEnv())
 }
 
 func classifyXDRStage(event map[string]interface{}) (string, map[string]interface{}) {
@@ -4295,7 +4406,37 @@ func scoreXDREvent(event map[string]interface{}) (int64, map[string]interface{})
 		candidatePenalty = -3
 	}
 	score := clampInt64(base+confidenceComponent+categoryComponent+stageComponent+evidenceComponent+candidatePenalty, 0, 100)
-	return score, map[string]interface{}{"base": base, "severity": severity, "upstream_score_hint": upstream, "confidence_component": confidenceComponent, "category_component": categoryComponent, "stage_component": stageComponent, "evidence_component": evidenceComponent, "candidate_penalty": candidatePenalty, "reason": "severity + upstream hint + confidence + category + stage + evidence - candidate_only"}
+	raw := base + confidenceComponent + categoryComponent + stageComponent + evidenceComponent + candidatePenalty
+	return score, map[string]interface{}{
+		"version":              XDRScoringVersionV1,
+		"final_score":          score,
+		"raw_score":            raw,
+		"capped":               score != raw,
+		"base":                 base,
+		"severity":             severity,
+		"upstream_score_hint":  upstream,
+		"confidence_component": confidenceComponent,
+		"category_component":   categoryComponent,
+		"stage_component":      stageComponent,
+		"evidence_component":   evidenceComponent,
+		"candidate_penalty":    candidatePenalty,
+		"components": []map[string]interface{}{
+			{"name": "severity_base", "value": base, "weight": 1.0, "contribution": base, "source": "severity" + optionalHint(upstream > 0)},
+			{"name": "confidence", "value": confidenceComponent, "weight": 1.0, "contribution": confidenceComponent, "source": "confidence-0.5)*20"},
+			{"name": "category", "value": categoryComponent, "weight": 1.0, "contribution": categoryComponent, "source": componentCategoryFromEvent(event)},
+			{"name": "stage", "value": stageComponent, "weight": 1.0, "contribution": stageComponent, "source": stage},
+			{"name": "evidence", "value": evidenceComponent, "weight": 1.0, "contribution": evidenceComponent, "source": "rule_or_stream"},
+			{"name": "candidate_penalty", "value": candidatePenalty, "weight": 1.0, "contribution": candidatePenalty, "source": "candidate_only"},
+		},
+		"reason": "severity + upstream hint + confidence + category + stage + evidence - candidate_only",
+	}
+}
+
+func optionalHint(active bool) string {
+	if active {
+		return "+upstream_hint"
+	}
+	return ""
 }
 
 func xdrEventScore(event map[string]interface{}) int64 {
@@ -5052,6 +5193,7 @@ func flattenXDRComponentEvent(event map[string]interface{}) map[string]interface
 		flat[k] = v
 	}
 	mergeXDRDetails(flat, asMap(event["entities"]), "entities")
+	mergeXDRDetails(flat, asMap(event["details"]), "details")
 	if behavior := asMap(event["behavior_context"]); len(behavior) > 0 {
 		for k, v := range behavior {
 			flat["behavior_context."+k] = v
@@ -5244,6 +5386,7 @@ func loadRASPEvents(cfg *Config, limit, offset int) ([]map[string]interface{}, i
 			if xdrPickString(event, "source") == "" {
 				event["source"] = stream
 			}
+			normalizeRASPEnforcementFields(event)
 			events = append(events, event)
 		}
 	}
@@ -5259,6 +5402,27 @@ func loadRASPEvents(cfg *Config, limit, offset int) ([]map[string]interface{}, i
 	}
 
 	return events[offset:end], int(total), nil
+}
+
+// normalizeRASPEnforcementFields lifts the enforcement outcome out of the
+// nested telemetry details emitted by the security engine, so the RASP API and
+// stats see the same blocked/would_block values the probe reported.
+func normalizeRASPEnforcementFields(event map[string]interface{}) {
+	if event == nil {
+		return
+	}
+	details := asMap(event["details"])
+	if len(details) == 0 {
+		return
+	}
+	for _, key := range []string{"blocked", "would_block", "policy_version", "policy_id", "action"} {
+		if _, exists := event[key]; exists {
+			continue
+		}
+		if value, ok := details[key]; ok {
+			event[key] = value
+		}
+	}
 }
 
 func loadRASPProtectionAgents(cfg *Config) ([]map[string]interface{}, error) {
@@ -5863,6 +6027,8 @@ func xdrPickString(event map[string]interface{}, keys ...string) string {
 			if vv != 0 {
 				return strconv.Itoa(vv)
 			}
+		case bool:
+			return strconv.FormatBool(vv)
 		}
 	}
 	return ""
@@ -6158,7 +6324,7 @@ func unifiedEventFromThreat(threat map[string]interface{}, category string) map[
 	nativeRule := asMap(threat["native_rule"])
 	return map[string]interface{}{
 		"event_uid": uid, "event_at": ts, "timestamp": ts,
-		"source": firstNonEmpty(xdrPickString(threat, "source_engine"), xdrPickString(threat, "source"), category),
+		"source":   firstNonEmpty(xdrPickString(threat, "source_engine"), xdrPickString(threat, "source"), category),
 		"category": category, "event_type": eventType, "severity": xdrPickString(threat, "severity"),
 		"stage": xdrPickString(threat, "stage"), "asset_id": firstNonEmpty(xdrPickString(threat, "agent_display_name"), xdrPickString(threat, "display_name"), xdrPickString(threat, "hostname"), xdrPickString(threat, "agent_id")),
 		"rule_id": ruleID, "rule_source": xdrPickString(nativeRule, "source"), "confidence": threat["confidence"],
@@ -6701,18 +6867,36 @@ func loadEngineHealth(ctx context.Context, cfg *Config) ([]map[string]interface{
 		}
 		capabilities := capabilitiesFromMetadata(metadataRaw)
 		engines := asMap(capabilities["engine_supervisors"])
-		for _, name := range []string{"suricata", "wazuh", "yara", "rasp"} {
+		for _, name := range []string{"suricata", "yara", "rasp"} {
 			engine := asMap(engines[name])
 			installed := asBool(engine["installed"])
 			running := asBool(engine["running"])
 			version := asString(engine["version"])
 			lastError := asString(engine["last_error"])
-			if len(engine) == 0 || (!installed && !running && lastError == "") {
-				if capState, ok := engineCapabilityStateFromMetadata(name, capabilities); ok {
-					installed = true
-					running = capState
-					version = firstNonEmpty(version, "ly-agent-adapter")
-					lastError = ""
+			capActive, capKnown := engineCapabilityStateFromMetadata(name, capabilities)
+			state := "not_installed"
+			switch {
+			case running:
+				state = "running"
+			case installed:
+				state = "installed"
+			case capKnown && capActive:
+				// The sidecar package is absent but the agent's own adapter is
+				// capturing for this family. Say exactly that; do not claim the
+				// engine is running.
+				state = "adapter_active"
+				installed = true
+				version = firstNonEmpty(version, "ly-agent-adapter")
+			case capKnown:
+				state = "disabled"
+			}
+			if state == "adapter_active" && !running {
+				running = true
+			}
+			var lastEvent interface{}
+			if raw := asString(engine["last_event_at"]); raw != "" {
+				if parsed, err := time.Parse(time.RFC3339Nano, raw); err == nil && !parsed.IsZero() {
+					lastEvent = parsed.UTC().Format(time.RFC3339Nano)
 				}
 			}
 			items = append(items, map[string]interface{}{
@@ -6724,12 +6908,13 @@ func loadEngineHealth(ctx context.Context, cfg *Config) ([]map[string]interface{
 				"engine":            name,
 				"installed":         installed,
 				"running":           running,
+				"state":             state,
 				"version":           version,
 				"config_hash":       asString(engine["config_hash"]),
 				"rule_pack_version": asString(engine["rule_pack_version"]),
 				"output_path":       asString(engine["output_path"]),
 				"last_error":        lastError,
-				"last_event_at":     engine["last_event_at"],
+				"last_event_at":     lastEvent,
 			})
 		}
 	}
@@ -6741,8 +6926,6 @@ func engineCapabilityStateFromMetadata(name string, capabilities map[string]inte
 	switch name {
 	case "suricata":
 		capability = asMap(capabilities["traffic_collector"])
-	case "wazuh":
-		capability = asMap(capabilities["log_collector"])
 	case "yara":
 		capability = asMap(capabilities["yara_scanner"])
 	case "rasp":
@@ -6998,7 +7181,7 @@ func persistThreatEvent(ctx context.Context, cfg *Config, event map[string]inter
 	if category == "" {
 		category = normalizeComponentCategory(xdrPickString(event, "category"))
 	}
-	if category != "traffic" && category != "runtime" && category != "rasp" && category != "log_audit" {
+	if category != "traffic" && category != "runtime" && category != "rasp" && category != "log_audit" && category != "artifact" {
 		return nil
 	}
 	if shouldSuppressTrafficNoiseEvent(event) {
@@ -8267,6 +8450,7 @@ func runLogRetention(cfg *Config) {
 	redisCutoff := time.Now().Add(-time.Duration(redisRetentionHours) * time.Hour)
 	cleanupRedisStreams(cfg, redisCutoff)
 	cleanupPostgresEvents(cfg, cutoff)
+	cleanupTrafficSessions(cfg)
 	log.Printf("日志保留策略完成: retention_days=%d redis_stream_retention_hours=%d effective_cleanup_days=%d cutoff=%s disk_usage=%.1f%%", retentionDays, redisRetentionHours, cleanupDays, cutoff.Format(time.RFC3339), usage)
 }
 
@@ -8298,6 +8482,32 @@ func cleanupPostgresEvents(cfg *Config, cutoff time.Time) {
 		if _, err := cfg.DBPool.Exec(ctx, stmt, cutoff); err != nil {
 			log.Printf("PostgreSQL日志清理跳过/失败: stmt=%q err=%v", stmt, err)
 		}
+	}
+}
+
+func trafficSessionRetentionDays() int {
+	days := toInt(getEnv("TRAFFIC_SESSION_RETENTION_DAYS", "7"))
+	if days <= 0 {
+		days = 7
+	}
+	return days
+}
+
+func cleanupTrafficSessions(cfg *Config) {
+	if cfg == nil || cfg.DBPool == nil {
+		return
+	}
+	days := trafficSessionRetentionDays()
+	cutoff := time.Now().AddDate(0, 0, -days)
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	result, err := cfg.DBPool.Exec(ctx, `DELETE FROM traffic_sessions WHERE observed_at < $1`, cutoff)
+	if err != nil {
+		log.Printf("traffic session retention failed: days=%d err=%v", days, err)
+		return
+	}
+	if removed := result.RowsAffected(); removed > 0 {
+		log.Printf("traffic session retention: removed=%d days=%d cutoff=%s", removed, days, cutoff.Format(time.RFC3339))
 	}
 }
 
@@ -8454,15 +8664,56 @@ func incidentsFromXDRChains(chains []map[string]interface{}) []map[string]interf
 }
 
 func incidentTitleFromChain(chain map[string]interface{}) string {
-	name := firstNonEmpty(xdrPickString(chain, "entity"), xdrPickString(chain, "victim"), "目标资产")
-	if name == "unknown" || name == "未知资产" || strings.HasPrefix(name, "standalone:") {
-		name = "目标资产"
+	name := firstNonEmpty(xdrPickString(chain, "entity"), xdrPickString(chain, "victim"))
+	if name == "unknown" || name == "未知资产" || strings.HasPrefix(name, "standalone:") || looksLikeUUID(name) {
+		name = ""
 	}
 	ip := firstNonEmpty(firstStringFromValue(chain["victim_ips"]), firstStringFromValue(chain["source_ips"]))
-	if ip != "" && !strings.Contains(name, ip) {
-		name = name + "(" + ip + ")"
+	if name == "" {
+		if ip != "" {
+			name = ip
+		} else {
+			name = "目标资产"
+		}
 	}
-	return name + " 出现攻击链"
+	parts := []string{name}
+	if ip != "" && !strings.Contains(name, ip) {
+		parts = append(parts, ip)
+	}
+	stage := firstNonEmpty(xdrPickString(chain, "seed_stage"), firstStringFromValue(chain["stages"]))
+	if stage != "" {
+		if labels := stageLabels([]string{stage}); len(labels) > 0 {
+			parts = append(parts, labels[0])
+		}
+	}
+	if summary := strings.TrimSpace(xdrPickString(chain, "summary")); summary != "" {
+		if len([]rune(summary)) > 60 {
+			summary = string([]rune(summary)[:60]) + "…"
+		}
+		parts = append(parts, summary)
+	}
+	return strings.Join(parts, " · ")
+}
+
+func looksLikeUUID(value string) bool {
+	value = strings.TrimSpace(value)
+	if len(value) != 36 {
+		return false
+	}
+	dashes := 0
+	for i, r := range value {
+		if r == '-' {
+			dashes++
+			if i != 8 && i != 13 && i != 18 && i != 23 {
+				return false
+			}
+			continue
+		}
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') && (r < 'A' || r > 'F') {
+			return false
+		}
+	}
+	return dashes == 4
 }
 
 func incidentStageGroups(stages []string, evidence []interface{}) []map[string]interface{} {
@@ -8495,6 +8746,11 @@ func incidentStageGroups(stages []string, evidence []interface{}) []map[string]i
 				"severity":       xdrPickString(m, "severity"),
 				"severity_label": severityLabel(xdrPickString(m, "severity")),
 			}
+			ruleName := firstNonEmpty(xdrPickString(m, "rule_name"), xdrPickString(m, "title"), xdrPickString(m, "summary"), xdrPickString(m, "event_type"))
+			row["title"] = firstNonEmpty(ruleName, "未命名证据")
+			row["rule_name"] = firstNonEmpty(xdrPickString(m, "rule_name"), ruleName)
+			row["rule_id"] = xdrPickString(m, "rule_id", "component_rule_id")
+			row["source_label"] = firstNonEmpty(xdrPickString(m, "source_label"), evidenceSourceLabel(xdrPickString(m, "source_engine"), xdrPickString(m, "component_category")))
 			for key, value := range m {
 				if _, exists := row[key]; !exists {
 					row[key] = value
@@ -8503,10 +8759,59 @@ func incidentStageGroups(stages []string, evidence []interface{}) []map[string]i
 			items = append(items, row)
 		}
 		if len(items) > 0 {
-			groups = append(groups, map[string]interface{}{"stage": stage, "stage_label": stageLabel(stage), "evidence": items})
+			firstSeen := ""
+			for _, item := range items {
+				value := xdrPickString(item, "time", "date", "timestamp", "created_at")
+				if value != "" && (firstSeen == "" || value < firstSeen) {
+					firstSeen = value
+				}
+			}
+			groups = append(groups, map[string]interface{}{
+				"stage": stage, "stage_label": stageLabel(stage),
+				"stage_order": incidentStageOrder(stage),
+				"first_seen":  firstSeen, "count": len(items), "evidence": items,
+			})
 		}
 	}
+	// Stage order and time order can disagree when a later-stage event was
+	// observed first. Show the evidence in real chronological order and keep
+	// stage_order separately so the UI can explain the difference.
+	sort.SliceStable(groups, func(i, j int) bool {
+		left := parseXDRTime(xdrPickString(groups[i], "first_seen"))
+		right := parseXDRTime(xdrPickString(groups[j], "first_seen"))
+		if left.IsZero() || right.IsZero() || left.Equal(right) {
+			return xdrPickNumber(groups[i], "stage_order", 0) < xdrPickNumber(groups[j], "stage_order", 0)
+		}
+		return left.Before(right)
+	})
 	return groups
+}
+
+func incidentStageOrder(stage string) int64 {
+	switch normalizeXDRStage(stage) {
+	case "recon":
+		return 0
+	case "initial_access":
+		return 1
+	case "execution":
+		return 2
+	case "persistence":
+		return 3
+	case "privilege_escalation":
+		return 4
+	case "credential_access":
+		return 5
+	case "lateral_movement":
+		return 6
+	case "collection":
+		return 7
+	case "c2_exfiltration":
+		return 8
+	case "impact":
+		return 9
+	default:
+		return 10
+	}
 }
 
 func firstStringFromValue(value interface{}) string {
@@ -8663,7 +8968,10 @@ func raspEventsHandler(cfg *Config) http.HandlerFunc {
 
 		limit := parseQueryInt(r.URL.Query().Get("limit"), 50)
 		offset := parseQueryInt(r.URL.Query().Get("offset"), 0)
-		events, _, err := loadRASPEvents(cfg, offset+limit+200, 0)
+		// Heartbeats are frequent and would otherwise push real detections out
+		// of the first page. They remain available with include_heartbeat=1.
+		includeHeartbeat := r.URL.Query().Get("include_heartbeat") == "1"
+		events, _, err := loadRASPEvents(cfg, offset+limit+2000, 0)
 		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(map[string]interface{}{"code": 1, "message": err.Error()})
@@ -8672,6 +8980,9 @@ func raspEventsHandler(cfg *Config) http.HandlerFunc {
 
 		filtered := make([]map[string]interface{}, 0, len(events))
 		for _, e := range events {
+			if !includeHeartbeat && strings.EqualFold(xdrPickString(e, "event_type"), "rasp.protection.heartbeat") {
+				continue
+			}
 			if sev := r.URL.Query().Get("severity"); sev != "" && !strings.EqualFold(xdrPickString(e, "severity"), sev) {
 				continue
 			}
@@ -8900,6 +9211,8 @@ func raspProtectionStatusHandler(cfg *Config) http.HandlerFunc {
 		}
 
 		items := make([]map[string]interface{}, 0, len(status))
+		policy := raspBlockPolicyConfig()
+		states := map[string]interface{}{}
 		for _, a := range status {
 			blockedTypes := []string{}
 			if bt, ok := a["blocked_types"].(map[string]interface{}); ok {
@@ -8910,26 +9223,83 @@ func raspProtectionStatusHandler(cfg *Config) http.HandlerFunc {
 				}
 			}
 			sort.Strings(blockedTypes)
+			agentID := xdrPickString(a, "agent_id")
+			mode := xdrPickString(a, "mode")
+			policyState := xdrPickString(a, "policy_state")
+			lastSeen := xdrPickString(a, "last_seen_at", "updated_at")
+			// T1-04r: the five-state lifecycle is derived, never defaulted.
+			lastSeenAt := parseXDRTime(lastSeen)
+			resolved := rasp.ResolveProtectionState(rasp.StateFacts{
+				AgentPresent:      agentID != "",
+				ProbeReported:     !lastSeenAt.IsZero(),
+				EventsObserved:    !lastSeenAt.IsZero(),
+				ProtectionEnabled: firstNonNil(a["enabled"], true) == true,
+				BlockMode:         a["block_mode"] == true,
+				PolicySigned:      policy.PolicySigned || policyState == "signed",
+				PolicyExpiresAt:   policy.PolicyExpiresAt,
+				EmergencyStop:     policy.EmergencyStop,
+				LastEventAt:       lastSeenAt,
+				Now:               time.Now().UTC(),
+			})
+			states[agentID] = resolved
 			items = append(items, map[string]interface{}{
-				"agent_id":      xdrPickString(a, "agent_id"),
+				"agent_id":      agentID,
 				"hostname":      xdrPickString(a, "hostname"),
 				"language":      xdrPickString(a, "language"),
 				"enabled":       firstNonNil(a["enabled"], true),
-				"status":        firstNonEmpty(xdrPickString(a, "status"), "protected"),
-				"mode":          firstNonEmpty(xdrPickString(a, "mode"), "monitor"),
-				"source":        firstNonEmpty(xdrPickString(a, "source"), "telemetry:rasp"),
-				"last_seen_at":  xdrPickString(a, "last_seen_at", "updated_at"),
-				"policy_state":  firstNonEmpty(xdrPickString(a, "policy_state"), "audit_only"),
+				"status":        xdrPickString(a, "status"),
+				"mode":          mode,
+				"mode_known":    mode != "",
+				"source":        xdrPickString(a, "source"),
+				"last_seen_at":  lastSeen,
+				"policy_state":  policyState,
+				"policy_known":  policyState != "",
 				"block_mode":    a["block_mode"],
 				"blocked_types": blockedTypes,
+				"state":         resolved.State,
+				"state_reason":  resolved.Reason,
 			})
 		}
 		sort.Slice(items, func(i, j int) bool { return xdrPickString(items[i], "agent_id") < xdrPickString(items[j], "agent_id") })
 
 		json.NewEncoder(w).Encode(map[string]interface{}{
 			"code": 0, "message": "success", "data": items,
+			"protection_states": states,
+			"block_policy":      raspBlockPolicySnapshot(policy),
 		})
 	}
+}
+
+// raspBlockPolicyConfig reads the fail-safe block policy from the environment.
+// Anything ambiguous stays disabled: enforcement is opt-in.
+func raspBlockPolicyConfig() rasp.BlockPolicy {
+	policy := rasp.BlockPolicy{
+		Mode:          getEnv("LYFLOW_RASP_BLOCK_MODE", rasp.BlockModeMonitor),
+		PolicySigned:  toBool(getEnv("LYFLOW_RASP_POLICY_SIGNED", "false")),
+		EmergencyStop: toBool(getEnv("LYFLOW_RASP_EMERGENCY_STOP", "false")),
+	}
+	if raw := strings.TrimSpace(getEnv("LYFLOW_RASP_POLICY_EXPIRES_AT", "")); raw != "" {
+		if parsed, err := time.Parse(time.RFC3339, raw); err == nil {
+			policy.PolicyExpiresAt = parsed
+		}
+	}
+	return policy
+}
+
+func raspBlockPolicySnapshot(policy rasp.BlockPolicy) map[string]interface{} {
+	decision := policy.Decide(time.Now().UTC(), true)
+	snapshot := map[string]interface{}{
+		"mode":                 decision.Mode,
+		"policy_signed":        policy.PolicySigned,
+		"emergency_stop":       policy.EmergencyStop,
+		"fail_safe_on_unknown": true,
+		"enforced":             decision.Block,
+		"reason":               decision.Reason,
+	}
+	if !policy.PolicyExpiresAt.IsZero() {
+		snapshot["policy_expires_at"] = policy.PolicyExpiresAt.UTC().Format(time.RFC3339)
+	}
+	return snapshot
 }
 
 func raspReceiveEventHandler(cfg *Config) http.HandlerFunc {
@@ -9371,7 +9741,8 @@ func agentsListHandler(cfg *Config) http.HandlerFunc {
 		}
 		limit := parseQueryInt(r.URL.Query().Get("limit"), 50)
 		offset := parseQueryInt(r.URL.Query().Get("offset"), 0)
-		items, total, err := loadAgentSummaries(r.Context(), cfg, limit, offset)
+		includeSensors := r.URL.Query().Get("include_sensors") == "1" || strings.EqualFold(r.URL.Query().Get("include_sensors"), "true")
+		items, total, err := loadAgentSummaries(r.Context(), cfg, limit, offset, includeSensors)
 		if err != nil {
 			writeJSONError(w, http.StatusInternalServerError, "agent_list_failed", err.Error())
 			return
@@ -9426,12 +9797,21 @@ func agentCapabilitiesToggleHandler(cfg *Config) http.HandlerFunc {
 		value := asBool(req["enabled"])
 		var column string
 		switch field {
-		case "traffic":
+		case "traffic", "traffic_sensor", "traffic_collector":
 			column = "traffic_enabled"
-		case "rasp":
+		case "runtime", "runtime_sensor", "hids":
+			column = "hids_enabled"
+		case "rasp", "rasp_probe_manager":
 			column = "rasp_enabled"
+		case "yara", "yara_scanner", "log_audit", "log_collector":
+			// Reported by the agent, but not controllable through the control
+			// plane yet. Saying so beats a silent no-op.
+			writeJSONError(w, http.StatusUnprocessableEntity, "capability_not_controllable",
+				"field "+field+" is reported by the agent but not remotely controllable")
+			return
 		default:
-			writeJSONError(w, http.StatusBadRequest, "invalid_field", "field must be traffic or rasp")
+			writeJSONError(w, http.StatusBadRequest, "invalid_field",
+				"field must be one of traffic, runtime, rasp (aliases: traffic_sensor, runtime_sensor, rasp_probe_manager)")
 			return
 		}
 		if _, err := cfg.DBPool.Exec(r.Context(),
@@ -9604,6 +9984,18 @@ func agentHeartbeatHandler(cfg *Config) http.HandlerFunc {
 			if err := updateHostCapabilityModel(ctx, cfg, agentID, req.Capabilities); err != nil {
 				log.Printf("Failed to update heartbeat capability model: %v", err)
 			}
+			// T0-08: fold the sensor's capture counters into a server-side
+			// verdict. Missing counters stay unknown; they are never zeroed.
+			if quality, ok := captureQualityFromCapabilities(req.Capabilities); ok {
+				previous, hasPrevious := captureHealthRegistry.get(agentID)
+				var previousRecord *captureAgentHealth
+				if hasPrevious {
+					previousRecord = &previous
+				}
+				captureHealthRegistry.put(evaluateCaptureHealth(agentID, quality, previousRecord, time.Now().UTC()))
+			} else if collector, ok := req.Capabilities["traffic_collector"].(map[string]interface{}); ok && collector != nil {
+				captureHealthRegistry.forget(agentID)
+			}
 		}
 
 		json.NewEncoder(w).Encode(map[string]interface{}{
@@ -9660,18 +10052,9 @@ func agentConfigHandler(cfg *Config) http.HandlerFunc {
 			http.Error(w, "agent desired config lookup failed", http.StatusInternalServerError)
 			return
 		}
-		if enabled, _ := capabilityEnabled(req.Capabilities, "traffic_collector"); enabled {
-			trafficEnabled = true
-		}
-		if enabled, _ := capabilityEnabled(req.Capabilities, "runtime_sensor"); enabled {
-			hidsEnabled = true
-		}
-		if enabled, _ := capabilityEnabled(req.Capabilities, "yara_scanner"); enabled {
-			hidsEnabled = true
-		}
-		if enabled, _ := capabilityEnabled(req.Capabilities, "rasp_probe_manager"); enabled {
-			raspEnabled = true
-		}
+		// The database capability flags are authoritative. A capability report
+		// describes what the agent can do, not what the operator currently wants
+		// enabled; using it here made "关闭流量" impossible.
 		desiredStates := engineDesiredStatesForAgent(trafficEnabled, hidsEnabled, raspEnabled)
 		if cfg.RASPPolicy == nil {
 			http.Error(w, "RASP policy lifecycle unavailable", http.StatusServiceUnavailable)
@@ -9680,8 +10063,15 @@ func agentConfigHandler(cfg *Config) http.HandlerFunc {
 		if req.ACKPolicyVersion > 0 {
 			acknowledgement := agentpolicy.Acknowledgement{AgentID: agentID, Version: req.ACKPolicyVersion, Signature: req.ACKPolicySignature}
 			if err := cfg.RASPPolicy.Acknowledge(r.Context(), acknowledgement); err != nil {
-				writeJSONError(w, http.StatusConflict, "rasp_policy_ack_rejected", err.Error())
-				return
+				// A fail-safe rollback re-activates an older policy version. Agents
+				// that already acknowledged the now rolled-back version send a stale
+				// ACK; reject only the ACK, then return the current assignment so the
+				// agent can converge instead of looping on 409 forever.
+				if !errors.Is(err, agentpolicy.ErrStaleVersion) {
+					writeJSONError(w, http.StatusConflict, "rasp_policy_ack_rejected", err.Error())
+					return
+				}
+				log.Printf("RASP policy ACK superseded: agent_id=%s ack_version=%d err=%v", agentID, req.ACKPolicyVersion, err)
 			}
 		}
 		assignment, err := cfg.RASPPolicy.AssignCurrent(r.Context(), raspAssignmentTarget(agentID, req.Capabilities))
@@ -9690,10 +10080,18 @@ func agentConfigHandler(cfg *Config) http.HandlerFunc {
 			http.Error(w, "RASP policy assignment failed", http.StatusServiceUnavailable)
 			return
 		}
-		raspConfig := raspPolicyConfig(assignment.Envelope.Policy)
+		enforceBlock := false
+		if assignment.Envelope.Policy.Mode == agentpolicy.ModeBlock {
+			// Dry-run is the default: a signed block policy only enforces after
+			// the lifecycle promoted it to active. Canary/draft stays monitor.
+			if state, stateErr := cfg.RASPPolicy.PolicyState(r.Context(), assignment.Envelope.Policy.Version); stateErr == nil {
+				enforceBlock = state == agentpolicy.StateActive && cfg.RASPPolicy.ProductionBlockAllowed()
+			}
+		}
+		raspConfig := raspPolicyConfig(assignment.Envelope.Policy, enforceBlock)
 		for _, state := range desiredStates {
 			if asString(state["name"]) == "rasp" {
-				state["enabled"] = assignment.Envelope.Policy.Mode == agentpolicy.ModeMonitor
+				state["enabled"] = assignment.Envelope.Policy.Mode != agentpolicy.ModeOff
 			}
 		}
 		tasks := []responsepkg.ActionTask{}
@@ -9842,7 +10240,7 @@ func engineDesiredStatesForAgent(trafficEnabled, hidsEnabled, raspEnabled bool) 
 		switch asString(state["name"]) {
 		case "suricata":
 			state["enabled"] = trafficEnabled
-		case "wazuh", "yara":
+		case "yara":
 			state["enabled"] = hidsEnabled
 		case "rasp":
 			state["enabled"] = raspEnabled
@@ -9854,7 +10252,6 @@ func engineDesiredStatesForAgent(trafficEnabled, hidsEnabled, raspEnabled bool) 
 func defaultEngineDesiredStates() []map[string]interface{} {
 	return []map[string]interface{}{
 		{"name": "suricata", "enabled": true, "mode": "suricata_live", "config_version": "v2", "rule_pack_version": "et-open-active", "settings": map[string]string{"output_path": "/var/log/suricata/eve.json", "interface": "auto"}},
-		{"name": "wazuh", "enabled": true, "mode": "headless-agent", "config_version": "v2", "rule_pack_version": "wazuh-default", "settings": map[string]string{"output_path": "/var/ossec/logs/alerts/alerts.json"}},
 		{"name": "yara", "enabled": true, "mode": "artifact-scan", "config_version": "v2", "rule_pack_version": "yara-security", "settings": map[string]string{"output_path": "/opt/ly-agent/yara/last-scan.json"}},
 		{"name": "rasp", "enabled": true, "mode": "audit-only", "config_version": "v2", "rule_pack_version": "rasp-active", "settings": map[string]string{"output_path": "/opt/ly-agent/rasp/events.jsonl"}},
 	}
@@ -10035,10 +10432,21 @@ func storeV2ComponentAlert(ctx context.Context, cfg *Config, alert contracts.Com
 	return receipt.EventUID, nil
 }
 
+func agentRecordKind(agent *models.Agent) string {
+	if agent == nil {
+		return "agent"
+	}
+	version := strings.ToLower(strings.TrimSpace(agent.AgentVersion))
+	if strings.HasPrefix(version, "lyprobe") || strings.EqualFold(strings.TrimSpace(agent.AgentKey), "local-mirror") {
+		return "sensor"
+	}
+	return "agent"
+}
+
 func upsertAgent(ctx context.Context, cfg *Config, agent *models.Agent) error {
 	query := `
-		INSERT INTO agents (uuid, agent_key, hostname, ip, os, agent_version, status, traffic_enabled, hids_enabled, rasp_enabled, last_heartbeat, connection_since, enrolled_at)
-		VALUES ($1, $2, $3, NULLIF($4, '')::inet, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW())
+		INSERT INTO agents (uuid, agent_key, hostname, ip, os, agent_version, status, traffic_enabled, hids_enabled, rasp_enabled, last_heartbeat, connection_since, enrolled_at, kind)
+		VALUES ($1, $2, $3, NULLIF($4, '')::inet, $5, $6, $7, $8, $9, $10, $11, NOW(), NOW(), $12)
 		ON CONFLICT (uuid) DO UPDATE SET
 			agent_key = EXCLUDED.agent_key,
 			hostname = EXCLUDED.hostname,
@@ -10049,7 +10457,8 @@ func upsertAgent(ctx context.Context, cfg *Config, agent *models.Agent) error {
 			traffic_enabled = EXCLUDED.traffic_enabled,
 			hids_enabled = EXCLUDED.hids_enabled,
 			rasp_enabled = EXCLUDED.rasp_enabled,
-			last_heartbeat = EXCLUDED.last_heartbeat
+			last_heartbeat = EXCLUDED.last_heartbeat,
+			kind = EXCLUDED.kind
 	`
 	_, err := cfg.DBPool.Exec(ctx, query,
 		agent.UUID,
@@ -10063,6 +10472,7 @@ func upsertAgent(ctx context.Context, cfg *Config, agent *models.Agent) error {
 		agent.HIDSEnabled,
 		agent.RASPEnabled,
 		agent.LastHeartbeat,
+		agentRecordKind(agent),
 	)
 	return err
 }
@@ -10096,15 +10506,19 @@ func startAgentStaleCleanup(cfg *Config) {
 	}
 }
 
-func loadAgentSummaries(ctx context.Context, cfg *Config, limit, offset int) ([]map[string]interface{}, int, error) {
+func loadAgentSummaries(ctx context.Context, cfg *Config, limit, offset int, includeSensors bool) ([]map[string]interface{}, int, error) {
 	if limit <= 0 {
 		limit = 50
 	}
 	if offset < 0 {
 		offset = 0
 	}
+	filter := "WHERE COALESCE(a.kind, 'agent') = 'agent'"
+	if includeSensors {
+		filter = ""
+	}
 	var total int
-	if err := cfg.DBPool.QueryRow(ctx, "SELECT COUNT(*) FROM agents").Scan(&total); err != nil {
+	if err := cfg.DBPool.QueryRow(ctx, "SELECT COUNT(*) FROM agents a "+filter).Scan(&total); err != nil {
 		return nil, 0, err
 	}
 	rows, err := cfg.DBPool.Query(ctx, `
@@ -10114,6 +10528,7 @@ func loadAgentSummaries(ctx context.Context, cfg *Config, limit, offset int) ([]
 			COALESCE(a.display_name, a.hostname), COALESCE(h.metadata, '{}'::jsonb)
 		FROM agents a
 		LEFT JOIN hosts h ON h.agent_id = a.uuid
+		`+filter+`
 		ORDER BY a.last_heartbeat DESC NULLS LAST
 		LIMIT $1 OFFSET $2
 	`, limit, offset)
@@ -10737,28 +11152,26 @@ func agentYARARulesHandler() http.HandlerFunc {
 			http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		for _, directory := range []string{"/etc/ly/rules/yara", "/app/rules/yara", "rules/yara", "../rules/yara"} {
-			files, err := filepath.Glob(filepath.Join(directory, "*.yar"))
-			if err != nil || len(files) == 0 {
-				continue
-			}
-			w.Header().Set("Content-Type", "text/plain; charset=utf-8")
-			for _, file := range files {
-				content, err := os.ReadFile(file)
-				if err != nil {
-					http.Error(w, "YARA rule asset unreadable", http.StatusInternalServerError)
-					return
-				}
-				if _, err := w.Write(content); err != nil {
-					return
-				}
-				if _, err := w.Write([]byte("\n")); err != nil {
-					return
-				}
-			}
+		files := yaraRuleFiles()
+		if len(files) == 0 {
+			http.Error(w, "YARA rules not found", http.StatusNotFound)
 			return
 		}
-		http.Error(w, "YARA rules not found", http.StatusNotFound)
+		w.Header().Set("Content-Type", "text/plain; charset=utf-8")
+		for _, file := range files {
+			content, err := os.ReadFile(file)
+			if err != nil {
+				http.Error(w, "YARA rule asset unreadable", http.StatusInternalServerError)
+				return
+			}
+			if _, err := w.Write(content); err != nil {
+				return
+			}
+			if _, err := w.Write([]byte("\n")); err != nil {
+				return
+			}
+		}
+		return
 	}
 }
 

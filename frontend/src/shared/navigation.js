@@ -25,10 +25,16 @@ export const productNavigation = Object.freeze([
     ],
   },
   {
+    title: '数据与健康',
+    items: [
+      { path: '/data-quality', label: '数据质量', description: '字段完整率、留存与时间源', roles: ['admin'] },
+      { path: '/engines', label: '引擎健康', description: 'Suricata / Wazuh / RASP / YARA', roles: ['admin'] },
+      { path: '/rules', label: '规则中心', description: '规则源、索引与生命周期', roles: ['admin'] },
+    ],
+  },
+  {
     title: '系统管理',
     items: [
-      { path: '/rules', label: '规则中心', description: '规则源、索引与生命周期', roles: ['admin'] },
-      { path: '/engines', label: '引擎健康', description: 'Suricata / Wazuh / RASP / YARA', roles: ['admin'] },
       { path: '/control-center', label: '平台设置', description: '采集接口、设备地点与时间', roles: ['admin'] },
       { path: '/install-config', label: '安装配置', description: 'Agent 安装与令牌', roles: ['admin'] },
       { path: '/users', label: '账户管理', description: '用户、角色与登录状态', roles: ['admin'] },

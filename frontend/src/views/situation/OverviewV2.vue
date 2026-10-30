@@ -1,231 +1,305 @@
 <template>
-  <section class="sx-page overview-page">
+  <section class="sx-page ov-page">
     <header class="sx-page-head">
       <div>
-        <p class="sx-kicker">LIVE SECURITY OPERATIONS</p>
-        <h2 class="sx-title">态势总览</h2>
-        <p class="sx-subtitle">从最近 10 分钟检测事件、未闭环 Incident 与资产心跳中聚合当前安全态势；闭环 Incident 不再计入。</p>
+        <p class="sx-kicker">SECURITY OPERATIONS · LIVE POSTURE</p>
+        <h2 class="sx-title">运营总览</h2>
+        <p class="sx-subtitle">
+          基于最近 {{ windowLabel }} 的检测样本与未闭环 Incident 聚合。统计口径：事件为告警聚合记录（1 条记录可代表多次命中），
+          Incident 仅统计未闭环项；两者不是同一计数单位。
+        </p>
       </div>
       <div class="sx-head-actions">
-        <span class="sx-live"><i />LIVE</span>
-        <span class="overview-updated">最近同步 {{ lastUpdated }}</span>
+        <div class="ov-window" role="group" aria-label="时间窗口">
+          <button
+            v-for="item in windows"
+            :key="item.key"
+            type="button"
+            class="ov-window-btn"
+            :class="{ active: item.key === activeWindow }"
+            @click="setWindow(item.key)"
+          >{{ item.label }}</button>
+        </div>
         <button class="sx-btn" type="button" :disabled="loading" @click="load">
-          {{ loading ? '同步中…' : '刷新态势' }}
+          {{ loading ? '同步中…' : '刷新' }}
         </button>
       </div>
     </header>
 
     <div v-if="error" class="sx-error">{{ error }}</div>
 
-    <section class="overview-hero">
-      <article class="posture-card" :class="`risk-${riskTone}`">
-        <div class="posture-card-top">
-          <div>
-            <span class="posture-eyebrow"><i />ACTIVE INCIDENT POSTURE</span>
-            <h3>{{ ready.posture ? riskLabel : '态势计算中' }}</h3>
-            <p>{{ ready.posture ? postureNote : '正在读取未闭环 Incident 与最近 10 分钟事件…' }}</p>
-          </div>
-          <span class="sx-badge" :class="ready.posture ? riskTone : 'muted'">{{ ready.posture ? riskToneLabel : '加载中' }}</span>
-        </div>
+    <!-- KPI -->
+    <section class="ov-kpis">
+      <article class="sx-metric ov-kpi">
+        <span class="sx-metric-label"><i />未闭环 Incident</span>
+        <strong class="sx-metric-value" :class="openIncidentCount ? 'warning' : 'success'">{{ incidentsReady ? formatNumber(openIncidentCount) : '—' }}</strong>
+        <span class="sx-metric-note">
+          {{ incidentsReady ? `共 ${formatNumber(totalIncidents)} 条，其中高/严重 ${formatNumber(openHighRiskCount)} 条` : '正在读取 Incident' }}
+        </span>
+        <RouterLink class="ov-kpi-link" to="/incidents">进入处置队列 →</RouterLink>
+      </article>
 
-        <div class="posture-score-row">
-          <div class="score-ring" :style="scoreRingStyle">
-            <div>
-              <strong>{{ ready.posture ? riskScore : '—' }}</strong>
-              <span>安全评分</span>
+      <article class="sx-metric ov-kpi">
+        <span class="sx-metric-label"><i />窗口内命中</span>
+        <strong class="sx-metric-value">{{ eventsReady ? formatNumber(occurrenceTotal) : '—' }}</strong>
+        <span class="sx-metric-note">
+          {{ eventsReady ? `来自 ${formatNumber(eventSampleCount)} 条聚合记录 · 样本上限 500` : '正在读取检测样本' }}
+        </span>
+        <RouterLink class="ov-kpi-link" to="/events">查看事件中心 →</RouterLink>
+      </article>
+
+      <article class="sx-metric ov-kpi">
+        <span class="sx-metric-label"><i />高危命中</span>
+        <strong class="sx-metric-value danger">{{ eventsReady ? formatNumber(highOccurrence) : '—' }}</strong>
+        <span class="sx-metric-note">
+          {{ eventsReady ? `占窗口命中 ${percent(highOccurrence, occurrenceTotal)}` : '正在汇总严重度' }}
+        </span>
+        <RouterLink class="ov-kpi-link" to="/events">按严重度筛选 →</RouterLink>
+      </article>
+
+      <article class="sx-metric ov-kpi">
+        <span class="sx-metric-label"><i />采集覆盖</span>
+        <strong class="sx-metric-value">{{ agentsReady ? `${formatNumber(onlineAgents)}/${formatNumber(agentTotal)}` : '—' }}</strong>
+        <span class="sx-metric-note">
+          {{ agentsReady ? `资产 ${formatNumber(assetTotal)} · 离线 Agent ${formatNumber(offlineAgents)}` : '正在读取 Agent 心跳' }}
+        </span>
+        <RouterLink class="ov-kpi-link" to="/assets">资产与 Agent →</RouterLink>
+      </article>
+    </section>
+
+    <!-- posture + attack stages -->
+    <section class="ov-main">
+      <article class="sx-panel ov-posture">
+        <div class="sx-panel-head">
+          <div class="sx-panel-title">处置态势</div>
+          <span class="sx-panel-meta">规则：等级取未闭环 Incident 的最高严重度</span>
+        </div>
+        <div class="sx-panel-body">
+          <div class="ov-posture-top">
+            <div class="ov-radar" :data-tone="posture.tone" aria-hidden="true">
+              <span class="ov-radar-ring" />
+              <span class="ov-radar-ring r2" />
+              <span class="ov-radar-ring r3" />
+              <span class="ov-radar-cross" />
+              <span class="ov-radar-sweep" />
+              <i
+                v-for="(blip, index) in blips"
+                :key="index"
+                :style="{ left: blip.x + '%', top: blip.y + '%', background: blip.color }"
+              />
+            </div>
+            <div class="ov-posture-grade" :data-tone="posture.tone">
+              <span>当前态势</span>
+              <strong>{{ incidentsReady ? posture.label : '计算中' }}</strong>
+              <small>{{ incidentsReady ? posture.note : '正在读取未闭环 Incident' }}</small>
+            </div>
+            <div class="ov-posture-facts">
+              <div><span>待分诊</span><b>{{ incidentsReady ? formatNumber(countByStatus('new') + countByStatus('open')) : '—' }}</b></div>
+              <div><span>处理中</span><b>{{ incidentsReady ? formatNumber(countByStatus('triaged') + countByStatus('processing')) : '—' }}</b></div>
+              <div><span>已解决</span><b>{{ incidentsReady ? formatNumber(countByStatus('resolved')) : '—' }}</b></div>
+              <div><span>已闭环</span><b>{{ incidentsReady ? formatNumber(countByStatus('closed')) : '—' }}</b></div>
             </div>
           </div>
-          <div class="posture-facts">
-            <div><span>未闭环 Incident</span><b>{{ incidentsReady ? formatNumber(incidentTotal) : '…' }}</b></div>
-            <div><span>其中高/严重</span><b class="warning">{{ incidentsReady ? formatNumber(activeHighRiskCount) : '…' }}</b></div>
-            <div><span>在线 Agent</span><b>{{ ready.assetStats ? formatNumber(onlineAgents) : '…' }}<em v-if="ready.assetStats">/{{ formatNumber(totalAssets) }}</em></b></div>
-            <div><span>待审批处置</span><b class="warning">{{ ready.actions ? formatNumber(pendingApprovalCount) : '…' }}</b></div>
-          </div>
-        </div>
 
-        <div class="posture-card-foot">
-          <span><i class="dot ok" />检测引擎 {{ ready.engines ? `${engineOnline}/${engineTotal}` : '…' }}</span>
-          <span><i class="dot" :class="platformOnline ? 'ok' : 'bad'" />平台{{ platformOnline ? '在线' : '异常' }}</span>
-          <span>生效规则 {{ ready.rules ? formatNumber(ruleTotal) : '…' }} 条</span>
+          <div class="ov-sev-bar" :class="{ empty: !incidentsReady || !openIncidentCount }">
+            <i
+              v-for="row in severityRows"
+              :key="row.key"
+              :style="{ width: row.percent + '%', background: row.color }"
+              :title="`${row.label} ${row.count}`"
+            />
+          </div>
+          <div class="ov-sev-legend">
+            <span v-for="row in severityRows" :key="row.key">
+              <i :style="{ background: row.color }" />{{ row.label }} <b>{{ row.count }}</b>
+            </span>
+            <em v-if="!openIncidentCount">当前没有未闭环 Incident</em>
+          </div>
         </div>
       </article>
 
-      <div class="hero-metrics">
-        <article class="sx-metric metric-live">
-          <span class="sx-metric-label"><i />近 10 分钟检测事件</span>
-          <strong class="sx-metric-value">{{ ready.unified || ready.stats ? formatNumber(todayEvents) : '—' }}</strong>
-          <span class="sx-metric-note">{{ ready.unified || ready.stats ? `最近 10 分钟 · 当前样本 ${ready.events ? eventItems.length : '…'} 条` : '正在汇总最近 10 分钟事件' }}</span>
-        </article>
-        <article class="sx-metric">
-          <span class="sx-metric-label"><i />未闭环高危 / 严重</span>
-          <strong class="sx-metric-value danger">{{ incidentsReady ? formatNumber(highRiskCount) : '—' }}</strong>
-          <span class="sx-metric-note">{{ incidentsReady ? highRiskNote : '正在汇总未闭环 Incident' }}</span>
-        </article>
-        <article class="sx-metric">
-          <span class="sx-metric-label"><i />处置队列</span>
-          <strong class="sx-metric-value warning">{{ incidentsReady ? formatNumber(openIncidentCount) : '…' }}</strong>
-          <span class="sx-metric-note">{{ incidentsReady ? (openIncidentCount ? `最近 ${normalizedIncidents.length} 条未闭环 Incident 中的待处置` : '当前没有待处置 Incident') : '正在加载 Incident' }}</span>
-        </article>
-        <article class="sx-metric">
-          <span class="sx-metric-label"><i />资产覆盖</span>
-          <strong class="sx-metric-value success">{{ ready.assetStats ? formatNumber(totalAssets) : '—' }}</strong>
-          <span class="sx-metric-note">{{ ready.assetStats ? `在线 ${formatNumber(onlineAgents)} · 离线 ${formatNumber(offlineAgents)}` : '正在读取资产心跳' }}</span>
-        </article>
-      </div>
-    </section>
-
-    <section class="sx-panel stage-panel">
-      <div class="sx-panel-head">
-        <div class="sx-panel-title">ATT&CK 攻击阶段</div>
-        <div class="sx-panel-meta">{{ incidentsReady ? `来自 ${incidentSampleLabel} 未闭环 Incident` : 'Incident 加载中' }} · 点击阶段筛选事件</div>
-      </div>
-      <div class="sx-panel-body">
-        <div class="sx-stage-ribbon">
-          <button
-            v-for="stage in stageRows"
-            :key="stage.key"
-            class="sx-stage"
-            :class="{ active: stage.count > 0 }"
-            type="button"
-            @click="openStage(stage.key)"
-          >
-            <span>{{ stage.label }}</span>
-            <strong>{{ stage.count }}</strong>
-            <i :style="{ width: `${stage.percent}%` }" />
-          </button>
+      <article class="sx-panel ov-attack">
+        <div class="sx-panel-head">
+          <div class="sx-panel-title">ATT&CK 阶段覆盖</div>
+          <span class="sx-panel-meta">{{ incidentsReady ? `来自 ${formatNumber(totalIncidents)} 条 Incident 的阶段证据` : '加载中' }}</span>
         </div>
-      </div>
+        <div class="sx-panel-body">
+          <div class="sx-stage-ribbon">
+            <button
+              v-for="stage in stageRows"
+              :key="stage.key"
+              class="sx-stage"
+              :class="{ active: stage.count > 0 }"
+              type="button"
+              @click="openStage(stage.key)"
+            >
+              <span>{{ stage.label }}</span>
+              <strong>{{ stage.count }}</strong>
+              <i :style="{ width: `${stage.percent}%` }" />
+            </button>
+          </div>
+        </div>
+      </article>
     </section>
 
-    <section class="overview-main-grid">
-      <article class="sx-panel trend-panel">
+    <!-- trend + sources -->
+    <section class="ov-grid-2">
+      <article class="sx-panel">
         <div class="sx-panel-head">
           <div class="sx-panel-title">检测活动趋势</div>
-          <div class="sx-panel-meta">{{ ready.events ? `最近 10 分钟原始检测事件 · 最近 ${eventItems.length} 条（不等同 Incident）` : '正在读取检测样本' }}</div>
+          <span class="sx-panel-meta">{{ windowLabel }} · {{ formatNumber(eventSampleCount) }} 条样本 · 按命中次数</span>
         </div>
-        <div class="sx-panel-body trend-body">
-          <div v-if="ready.events && trendRows.length" ref="trendElement" class="chart-box trend-chart" />
-          <div v-else class="sx-empty"><div><strong>{{ ready.events ? '暂无可绘制的检测样本' : '正在读取检测样本' }}</strong>{{ ready.events ? '当前时间窗内没有事件返回。' : '事件接口返回后立即绘制趋势。' }}</div></div>
-          <div v-if="ready.events" class="trend-legend">
-            <span v-for="item in severityRows" :key="item.key"><i :style="{ background: item.color }" />{{ item.label }} <b>{{ item.count }}</b></span>
+        <div class="sx-panel-body">
+          <div v-if="eventsReady && trendRows.length" ref="trendElement" class="ov-chart" />
+          <div v-else class="sx-empty">
+            <div><strong>{{ eventsReady ? '窗口内没有检测样本' : '正在读取检测样本' }}</strong>{{ eventsReady ? '可切换更长的时间窗口。' : '事件接口返回后绘制。' }}</div>
           </div>
         </div>
       </article>
 
-      <div class="overview-side">
-        <article class="sx-panel severity-panel">
-          <div class="sx-panel-head">
-            <div class="sx-panel-title">未闭环 Incident 等级</div>
-            <span class="sx-panel-meta">{{ incidentsReady ? '与上方高风险口径一致' : '加载中' }}</span>
-          </div>
-          <div class="sx-panel-body severity-body">
-            <div v-if="incidentsReady && severityTotal" ref="severityElement" class="chart-box severity-chart" />
-            <div v-else class="sx-empty"><div><strong>{{ incidentsReady ? '暂无未闭环 Incident' : '正在读取 Incident 等级' }}</strong>{{ incidentsReady ? '闭环 Incident 不再计入。' : 'Incident 返回后展示。' }}</div></div>
-            <div v-if="incidentsReady" class="severity-list">
-              <div v-for="item in severityRows" :key="item.key">
-                <span><i :style="{ background: item.color }" />{{ item.label }}</span>
-                <b>{{ formatNumber(item.count) }}</b>
-              </div>
+      <article class="sx-panel">
+        <div class="sx-panel-head">
+          <div class="sx-panel-title">数据来源覆盖</div>
+          <span class="sx-panel-meta">{{ sourcesReady ? `${sourceRows.length} 个来源` : '加载中' }}</span>
+        </div>
+        <div class="sx-panel-body">
+          <div v-if="sourcesReady && sourceRows.length" class="ov-ranks">
+            <div v-for="row in sourceRows" :key="row.key" class="ov-rank">
+              <span class="ov-rank-label">{{ row.label }}</span>
+              <span class="ov-rank-track"><i :style="{ width: row.percent + '%' }" /></span>
+              <b>{{ formatNumber(row.count) }}</b>
             </div>
           </div>
-        </article>
-
-        <article class="sx-panel source-panel">
-          <div class="sx-panel-head">
-            <div class="sx-panel-title">数据来源覆盖</div>
-            <span class="sx-panel-meta">{{ ready.unified ? `${sourceRows.length} 个来源` : '加载中' }}</span>
-          </div>
-          <div class="sx-panel-body source-body">
-            <div v-if="ready.unified && sourceRows.length" class="source-list">
-              <div v-for="item in sourceRows" :key="item.key" class="source-row">
-                <span>{{ item.label }}</span>
-                <div><i :style="{ width: `${item.percent}%` }" /></div>
-                <b>{{ formatNumber(item.count) }}</b>
-              </div>
-            </div>
-            <div v-else class="sx-empty"><div><strong>{{ ready.unified ? '暂无来源数据' : '正在读取来源覆盖' }}</strong>{{ ready.unified ? '' : '统一告警聚合返回后展示。' }}</div></div>
-          </div>
-        </article>
-      </div>
+          <div v-else class="sx-empty"><div><strong>{{ sourcesReady ? '暂无来源数据' : '正在读取来源覆盖' }}</strong>{{ sourcesReady ? '' : '统一告警聚合返回后展示。' }}</div></div>
+        </div>
+      </article>
     </section>
 
-    <section class="overview-lower-grid">
-      <article class="sx-panel incident-panel">
+    <!-- top rules + top pairs -->
+    <section class="ov-grid-2">
+      <article class="sx-panel">
+        <div class="sx-panel-head">
+          <div class="sx-panel-title">高频命中规则</div>
+          <span class="sx-panel-meta">按命中次数 · Top 8</span>
+        </div>
+        <div class="sx-panel-body">
+          <div v-if="eventsReady && topRules.length" class="ov-ranks">
+            <div v-for="row in topRules" :key="row.key" class="ov-rank">
+              <span class="ov-rank-label" :title="row.key">{{ row.label }}</span>
+              <span class="ov-rank-track"><i :style="{ width: row.percent + '%' }" /></span>
+              <b>{{ formatNumber(row.count) }}</b>
+            </div>
+          </div>
+          <div v-else class="sx-empty"><div><strong>{{ eventsReady ? '窗口内没有命中' : '正在读取检测样本' }}</strong></div></div>
+        </div>
+      </article>
+
+      <article class="sx-panel">
+        <div class="sx-panel-head">
+          <div class="sx-panel-title">热源 → 目标</div>
+          <span class="sx-panel-meta">按命中次数 · Top 8</span>
+        </div>
+        <div class="sx-panel-body">
+          <div v-if="eventsReady && topPairs.length" class="ov-ranks">
+            <div v-for="row in topPairs" :key="row.key" class="ov-rank">
+              <span class="ov-rank-label sx-mono" :title="row.key">{{ row.label }}</span>
+              <span class="ov-rank-track"><i :style="{ width: row.percent + '%' }" /></span>
+              <b>{{ formatNumber(row.count) }}</b>
+            </div>
+          </div>
+          <div v-else class="sx-empty"><div><strong>{{ eventsReady ? '暂无地址对' : '正在读取检测样本' }}</strong></div></div>
+        </div>
+      </article>
+    </section>
+
+    <!-- incident queue + live stream -->
+    <section class="ov-grid-2 wide-left">
+      <article class="sx-panel">
         <div class="sx-panel-head">
           <div class="sx-panel-title">优先处置</div>
-          <RouterLink class="sx-panel-meta" to="/incidents">全部 {{ formatNumber(incidentTotal) }} 条 →</RouterLink>
+          <RouterLink class="sx-panel-meta" to="/incidents">全部 {{ formatNumber(totalIncidents) }} 条 →</RouterLink>
         </div>
         <div v-if="!incidentsReady" class="sx-empty"><div><strong>正在加载 Incident</strong>列表返回后立即展示处置队列。</div></div>
-        <div v-else-if="activeIncidents.length" class="incident-list">
+        <div v-else-if="activeIncidents.length" class="ov-queue">
           <RouterLink
             v-for="incident in activeIncidents"
             :key="incident.id"
-            class="incident-row"
+            class="ov-queue-row"
             :to="{ path: '/incidents', query: { id: incident.id } }"
           >
             <span class="sx-badge" :class="incident.severity">{{ severityLabel(incident.severity) }}</span>
-            <div class="incident-copy">
+            <span class="ov-queue-main">
               <b>{{ incident.title }}</b>
               <small>{{ incident.affectedAsset || incident.entityId || '未绑定资产' }} · {{ formatTime(incident.updatedAt || incident.createdAt) }}</small>
-            </div>
-            <div class="incident-stages">
-              <span v-for="stage in incident.stages.slice(0, 3)" :key="stage.id">{{ stage.name }}</span>
-            </div>
-            <span class="incident-status">{{ statusLabel(incident.status) }}</span>
+            </span>
+            <span class="ov-queue-stages">
+              <em v-for="stage in incident.stages.slice(0, 3)" :key="stage.id">{{ stage.name }}</em>
+            </span>
+            <span class="ov-queue-status">{{ statusLabel(incident.status) }}</span>
           </RouterLink>
         </div>
         <div v-else class="sx-empty"><div><strong>暂无待处置 Incident</strong>当前队列为空。</div></div>
       </article>
 
-      <article class="sx-panel event-panel">
+      <article class="sx-panel">
         <div class="sx-panel-head">
           <div class="sx-panel-title">实时事件流</div>
           <RouterLink class="sx-panel-meta" to="/events">事件中心 →</RouterLink>
         </div>
-        <div v-if="ready.events && recentEvents.length" class="event-stream">
+        <div v-if="eventsReady && recentEvents.length" class="ov-stream">
           <RouterLink
             v-for="event in recentEvents"
             :key="event.event_uid"
-            class="event-stream-row"
+            class="ov-stream-row"
             :to="{ path: '/events', query: { uid: event.event_uid } }"
           >
-            <span class="stream-dot" :class="event.severity" />
-            <time>{{ formatShortTime(event.timestamp || event.event_at || event.created_at) }}</time>
-            <div>
+            <span class="ov-stream-dot" :data-sev="event.severity" />
+            <time>{{ formatShortTime(event.timestamp || event.event_at) }}</time>
+            <span class="ov-stream-main">
               <b>{{ event.rule_name || event.rule_id || event.event_type || '检测事件' }}</b>
               <small>{{ event.source || event.source_engine || 'unknown' }} · {{ event.hostname || event.agent_id || event.src_ip || '未绑定资产' }}</small>
-            </div>
+            </span>
             <span class="sx-badge" :class="event.severity">{{ severityLabel(event.severity) }}</span>
           </RouterLink>
         </div>
-        <div v-else class="sx-empty"><div><strong>{{ ready.events ? '暂无实时事件' : '正在读取实时事件' }}</strong>{{ ready.events ? '等待采集面上报。' : '事件接口返回后立即展示。' }}</div></div>
+        <div v-else class="sx-empty"><div><strong>{{ eventsReady ? '暂无实时事件' : '正在读取实时事件' }}</strong></div></div>
       </article>
+    </section>
 
-      <article class="sx-panel engine-panel">
+    <!-- engines + data quality -->
+    <section class="ov-grid-2">
+      <article class="sx-panel">
         <div class="sx-panel-head">
           <div class="sx-panel-title">检测引擎</div>
           <RouterLink class="sx-panel-meta" to="/engines">引擎健康 →</RouterLink>
         </div>
-        <div v-if="ready.engines && engineRows.length" class="engine-list">
-          <div v-for="engine in engineRows" :key="engine.key" class="engine-row">
-            <span class="engine-icon" :class="engine.tone">{{ engine.short }}</span>
-            <div>
-              <b>{{ engine.label }}</b>
-              <small>{{ engine.note }}</small>
+        <div class="sx-panel-body">
+          <div v-if="enginesReady && engineRows.length" class="ov-engines">
+            <div v-for="engine in engineRows" :key="engine.key" class="ov-engine">
+              <span class="ov-engine-mark">{{ engine.short }}</span>
+              <span class="ov-engine-copy"><b>{{ engine.label }}</b><small>{{ engine.note }}</small></span>
+              <span class="sx-state" :data-state="engine.state">{{ engine.status }}</span>
             </div>
-            <span class="sx-badge" :class="engine.tone">{{ engine.status }}</span>
           </div>
+          <div v-else class="sx-empty"><div><strong>{{ enginesReady ? '暂无引擎心跳' : '正在读取引擎健康' }}</strong></div></div>
         </div>
-        <div v-else class="sx-empty"><div><strong>{{ ready.engines ? '暂无引擎心跳' : '正在读取引擎健康' }}</strong>{{ ready.engines ? '' : '引擎心跳返回后展示。' }}</div></div>
-        <div class="asset-mini">
-          <div class="asset-mini-head"><span>资产风险</span><RouterLink to="/assets">资产中心 →</RouterLink></div>
-          <div v-for="asset in topAssets" :key="asset.id || asset.agent_id || asset.hostname" class="asset-mini-row">
-            <span>{{ asset.hostname || asset.display_name || asset.id }}</span>
-            <i :class="asset.status === 'online' ? 'ok' : 'bad'" />
-            <b>{{ asset.ip || '未上报 IP' }}</b>
+      </article>
+
+      <article class="sx-panel">
+        <div class="sx-panel-head">
+          <div class="sx-panel-title">数据质量</div>
+          <RouterLink class="sx-panel-meta" to="/data-quality">完整报告 →</RouterLink>
+        </div>
+        <div class="sx-panel-body">
+          <div class="ov-quality">
+            <div><span>五元组完整率</span><b :class="quality.missingRate > 0 ? 'warn' : 'ok'">{{ quality.completeRate }}</b><small>样本 {{ quality.sample }} 条</small></div>
+            <div><span>端口未知率</span><b :class="quality.portUnknownRate > 0 ? 'warn' : 'ok'">{{ quality.portUnknownRate }}</b><small>dst_port 为空或 0</small></div>
+            <div><span>可查询跨度</span><b>{{ quality.span }}</b><small>最早样本至今</small></div>
+            <div><span>时间源</span><b :class="quality.timeTone">{{ quality.timeSource }}</b><small>{{ quality.timeNote }}</small></div>
           </div>
-          <div v-if="!ready.assets" class="sx-muted">正在读取资产心跳…</div>
-          <div v-else-if="!topAssets.length" class="sx-muted">暂无资产心跳</div>
+          <p class="ov-quality-note">
+            完整率只统计本次样本；缺失值不会以 0 补齐，端口 0 视为未知。
+          </p>
         </div>
       </article>
     </section>
@@ -236,43 +310,49 @@
 import { computed, nextTick, onMounted, onUnmounted, reactive, ref } from 'vue'
 import { RouterLink, useRouter } from 'vue-router'
 import * as echarts from 'echarts'
-import { attackWorkbenchClient, assetAgentClient, overviewClient, ruleClient } from '../../api/domain'
+import { attackWorkbenchClient, assetAgentClient, opsClient, overviewClient, ruleClient } from '../../api/domain'
 import { normalizeIncidents } from '../../domain/incidents'
 import { severityLabel } from '../../domain/attack-labels'
-import { formatChinaDateTime, formatChinaTime } from '../../shared/time'
+import { formatChinaDateTime } from '../../shared/time'
 
 const router = useRouter()
+
+const windows = [
+  { key: '10m', label: '10 分钟', ms: 10 * 60 * 1000 },
+  { key: '1h', label: '1 小时', ms: 60 * 60 * 1000 },
+  { key: '24h', label: '24 小时', ms: 24 * 60 * 60 * 1000 },
+  { key: '7d', label: '7 天', ms: 7 * 24 * 60 * 60 * 1000 },
+]
+
+const activeWindow = ref('1h')
 const loading = ref(false)
 const error = ref('')
-const lastUpdated = ref('-')
-const stats = ref({})
-const unified = ref({})
+
+const events = ref({ items: [], total: 0, window: null })
 const incidents = ref({ items: [], total: 0 })
+const unified = ref({})
+const stats = ref({})
 const assetStats = ref({})
-const assets = ref({ items: [] })
+const agents = ref({ items: [] })
 const engines = ref({ items: [] })
-const runtimeStatus = ref({ engines: {} })
-const events = ref({ items: [], total: 0 })
-const responseActions = ref({ items: [], total: 0 })
 const ruleStats = ref({})
-const platformOnline = ref(true)
-const incidentsReady = ref(false)
+const components = ref(null)
+const systemTime = ref(null)
+
 const ready = reactive({
-  stats: false,
-  unified: false,
-  posture: false,
-  assetStats: false,
-  assets: false,
-  engines: false,
   events: false,
-  actions: false,
+  incidents: false,
+  unified: false,
+  assets: false,
+  agents: false,
+  engines: false,
   rules: false,
+  components: false,
+  time: false,
 })
 
 const trendElement = ref(null)
-const severityElement = ref(null)
 let trendChart = null
-let severityChart = null
 let pollTimer = null
 
 const stageDefinitions = [
@@ -289,119 +369,134 @@ const stageDefinitions = [
 ]
 
 const severityDefinitions = [
-  { key: 'critical', label: '严重', color: '#d92d20' },
-  { key: 'high', label: '高危', color: '#e26a00' },
-  { key: 'medium', label: '中危', color: '#c58b00' },
-  { key: 'low', label: '低危', color: '#0f9f6e' },
+  { key: 'critical', label: '严重', color: '#b42318' },
+  { key: 'high', label: '高危', color: '#b5470b' },
+  { key: 'medium', label: '中危', color: '#8a6100' },
+  { key: 'low', label: '低危', color: '#0b6e8a' },
 ]
 
-const normalizedIncidents = computed(() => normalizeIncidents(incidents.value.items || []))
-const activeIncidentList = computed(() => normalizedIncidents.value.filter((item) => ['new', 'open', 'triaged', 'processing', 'resolved'].includes(item.status)))
-const incidentTotal = computed(() => Number(incidents.value.total || activeIncidentList.value.length || 0))
+const windowLabel = computed(() => windows.find((item) => item.key === activeWindow.value)?.label || '1 小时')
+
+function setWindow(key) {
+  if (activeWindow.value === key) return
+  activeWindow.value = key
+  load()
+}
+
+/* ---------------- derived: events ---------------- */
+
 const eventItems = computed(() => (Array.isArray(events.value.items) ? events.value.items : []))
-const todayEvents = computed(() => Number(unified.value.total_events || 0))
-const activeHighRiskCount = computed(() => activeIncidentList.value.filter((item) => ['critical', 'high'].includes(item.severity)).length)
-const highRiskCount = computed(() => activeHighRiskCount.value)
-const onlineAgents = computed(() => Number(assetStats.value.online ?? stats.value.online_agents ?? 0))
-const offlineAgents = computed(() => Number(assetStats.value.offline ?? 0))
-const totalAssets = computed(() => Number(assetStats.value.total ?? stats.value.total_assets ?? 0))
-const ruleTotal = computed(() => Number(ruleStats.value.totalRules || ruleStats.value.total_rules || 0))
-const pendingApprovalCount = computed(() => (responseActions.value.items || []).filter((item) => item.status === 'pending_approval').length)
-const riskScore = computed(() => {
-  if (!activeIncidentList.value.length) return 100
-  const severityBase = { critical: 20, high: 50, medium: 75, low: 90 }
-  const tone = activeIncidentList.value.some((item) => item.severity === 'critical')
-    ? 'critical'
-    : activeIncidentList.value.some((item) => item.severity === 'high')
-      ? 'high'
-      : activeIncidentList.value.some((item) => item.severity === 'medium') ? 'medium' : 'low'
-  const volumePenalty = Math.min(15, Math.max(0, activeIncidentList.value.length - 1) * 2)
-  return Math.max(10, (severityBase[tone] || 90) - volumePenalty)
-})
-const riskTone = computed(() => {
-  if (!activeIncidentList.value.length) return 'low'
-  if (activeIncidentList.value.some((item) => item.severity === 'critical')) return 'critical'
-  if (activeIncidentList.value.some((item) => item.severity === 'high')) return 'high'
-  if (activeIncidentList.value.some((item) => item.severity === 'medium')) return 'medium'
-  return 'low'
-})
-const riskToneLabel = computed(() => severityLabel(riskTone.value))
-const riskLabel = computed(() => ({ critical: '严重风险', high: '高风险', medium: '中风险', low: '低风险' })[riskTone.value] || '低风险')
-const postureNote = computed(() => {
-  if (!incidentTotal.value) return '当前没有未闭环 Incident，历史告警保留在事件中心，不参与态势计数。'
-  if (riskTone.value === 'low') return '当前未闭环 Incident 风险较低，保持持续监测。'
-  if (riskTone.value === 'medium') return '存在未闭环 Incident，建议优先核查高严重度证据。'
-  return '存在高危未闭环 Incident，请进入攻击链处置队列。'
-})
-const highRiskNote = computed(() => {
-  if (!incidentTotal.value) return '没有未闭环 Incident'
-  return `未闭环 Incident 中 ${activeHighRiskCount.value} 条高/严重 · 闭环后立即移出`
-})
-const openIncidentCount = computed(() => activeIncidentList.value.filter((item) => ['new', 'open', 'triaged', 'processing'].includes(item.status)).length)
-const incidentSampleLabel = computed(() => `${activeIncidentList.value.length} 条`)
-const engineRows = computed(() => {
-  const groups = new Map()
-  for (const item of engines.value.items || []) {
-    const key = item.engine || 'unknown'
-    if (!groups.has(key)) groups.set(key, [])
-    groups.get(key).push(item)
+const eventSampleCount = computed(() => eventItems.value.length)
+const occurrence = (item) => {
+  const n = Number(item?.count)
+  return Number.isFinite(n) && n > 0 ? n : 1
+}
+const occurrenceTotal = computed(() => eventItems.value.reduce((sum, item) => sum + occurrence(item), 0))
+const highOccurrence = computed(() => eventItems.value
+  .filter((item) => ['critical', 'high'].includes(String(item.severity || '').toLowerCase()))
+  .reduce((sum, item) => sum + occurrence(item), 0))
+
+const eventsReady = computed(() => ready.events)
+
+const recentEvents = computed(() => [...eventItems.value]
+  .sort((a, b) => timestampMs(b) - timestampMs(a))
+  .slice(0, 8))
+
+function rankRows(map, limit, labeler = (key) => key) {
+  const entries = [...map.entries()]
+    .map(([key, count]) => ({ key, label: labeler(key), count }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, limit)
+  const max = entries[0]?.count || 1
+  return entries.map((row) => ({ ...row, percent: Math.max(3, Math.round((row.count / max) * 100)) }))
+}
+
+const topRules = computed(() => {
+  const map = new Map()
+  for (const item of eventItems.value) {
+    const key = item.rule_name || item.rule_id || item.event_type || '未知规则'
+    map.set(key, (map.get(key) || 0) + occurrence(item))
   }
-  // Platform-managed engines (security engine and lyprobe) are not Agent
-  // capabilities, but they are still detection engines. Merge the runtime
-  // status so the overview count matches the engine health page.
-  for (const [key, runtime] of Object.entries(runtimeStatus.value.engines || {})) {
-    if (groups.has(key)) continue
-    const status = String(runtime?.status || '').toLowerCase()
-    const ruleCount = Number(runtime?.signature_count || runtime?.rule_count || 0)
-    groups.set(key, [{
-      engine: key,
-      running: status === 'running' || runtime?.running === true || (key === 'suricata' && ruleCount > 0),
-      installed: runtime?.installed !== false,
-      agent_status: 'online',
-      hostname: runtime?.service || '',
-      rule_pack_version: runtime?.bundle_version || runtime?.rule_pack_version || '',
-    }])
-  }
-  return [...groups.entries()].map(([key, items]) => {
-    const item = items[0] || {}
-    const offline = String(item.agent_status || '').toLowerCase() === 'offline'
-    const running = Boolean(item.running) && !offline
-    const installed = item.installed !== false
-    return {
-      key,
-      short: ({ 'security-engine': 'LY', lyprobe: 'LP', suricata: 'SU', wazuh: 'WA', yara: 'YA', rasp: 'RA' })[key] || key.slice(0, 2).toUpperCase(),
-      label: ({ 'security-engine': 'LyFlow 安全引擎', lyprobe: 'LyFlow 探针', suricata: 'Suricata', wazuh: 'Wazuh', yara: 'YARA', rasp: 'OpenRASP' })[key] || key,
-      status: !installed ? '未安装' : running ? '运行中' : offline ? 'Agent 离线' : '待连接',
-      tone: !installed ? 'muted' : running ? 'low' : 'medium',
-      note: [item.rule_pack_version || '', items.length > 1 ? `${items.length} 个探针` : item.hostname || ''].filter(Boolean).join(' · ') || '无心跳详情',
-      running,
-      offline,
-    }
-  })
+  return rankRows(map, 8, (key) => String(key))
 })
-const engineOnline = computed(() => engineRows.value.filter((item) => item.running).length)
-const engineTotal = computed(() => engineRows.value.length)
-const activeIncidents = computed(() => normalizedIncidents.value.filter((item) => ['new', 'open', 'triaged', 'processing'].includes(item.status)).slice(0, 5))
-const topAssets = computed(() => (assets.value.items || []).slice(0, 4))
-const recentEvents = computed(() => [...eventItems.value].sort((a, b) => timestampMs(b) - timestampMs(a)).slice(0, 7))
+
+const topPairs = computed(() => {
+  const map = new Map()
+  for (const item of eventItems.value) {
+    const src = item.src_ip || '(空)'
+    const dst = item.dst_ip || '(空)'
+    const key = `${src} → ${dst}`
+    map.set(key, (map.get(key) || 0) + occurrence(item))
+  }
+  return rankRows(map, 8, (key) => key)
+})
+
+/* ---------------- derived: incidents ---------------- */
+
+const normalizedIncidents = computed(() => normalizeIncidents(incidents.value.items || []))
+const totalIncidents = computed(() => Number(incidents.value.total || normalizedIncidents.value.length || 0))
+const openStatuses = ['new', 'open', 'triaged', 'processing', 'resolved']
+const openIncidentList = computed(() => normalizedIncidents.value.filter((item) => openStatuses.includes(item.status)))
+const openIncidentCount = computed(() => openIncidentList.value.filter((item) => item.status !== 'resolved').length)
+const openHighRiskCount = computed(() => openIncidentList.value.filter((item) => ['critical', 'high'].includes(item.severity)).length)
+const incidentsReady = computed(() => ready.incidents)
+
+const activeIncidents = computed(() => normalizedIncidents.value
+  .filter((item) => ['new', 'open', 'triaged', 'processing'].includes(item.status))
+  .slice(0, 6))
+
+function countByStatus(status) {
+  return normalizedIncidents.value.filter((item) => item.status === status).length
+}
+
 const severityRows = computed(() => {
   const counts = { critical: 0, high: 0, medium: 0, low: 0 }
-  for (const incident of activeIncidentList.value) {
-    const key = String(incident.severity || 'low').toLowerCase()
+  for (const item of openIncidentList.value) {
+    if (item.status === 'resolved') continue
+    const key = String(item.severity || 'low').toLowerCase()
     if (counts[key] !== undefined) counts[key] += 1
   }
-  return severityDefinitions.map((item) => ({ ...item, count: counts[item.key] || 0 })).filter((item) => item.count > 0)
+  const total = Object.values(counts).reduce((sum, n) => sum + n, 0) || 1
+  return severityDefinitions.map((item) => ({
+    ...item,
+    count: counts[item.key] || 0,
+    percent: Math.round(((counts[item.key] || 0) / total) * 100),
+  }))
 })
-const severityTotal = computed(() => severityRows.value.reduce((sum, item) => sum + item.count, 0))
-const sourceRows = computed(() => {
-  const source = unified.value.by_source || {}
-  const rows = Object.entries(source)
-    .map(([key, count]) => ({ key, label: sourceLabel(key), count: Number(count || 0) }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 6)
-  const max = rows[0]?.count || 1
-  return rows.map((item) => ({ ...item, percent: Math.max(4, Math.round((item.count / max) * 100)) }))
+
+const severityColor = (key) => severityDefinitions.find((item) => item.key === key)?.color || '#22d3ee'
+
+/**
+ * Radar blips are a deterministic visualisation of the open-incident
+ * severity mix. They carry no information beyond `severityRows`, and the
+ * accessible text lives in the legend, not in this decoration.
+ */
+const blips = computed(() => {
+  const out = []
+  severityRows.value.forEach((row, rowIndex) => {
+    const count = Math.min(row.count, 6)
+    for (let i = 0; i < count; i += 1) {
+      const angle = rowIndex * 1.35 + i * 1.1
+      const radius = 7 + i * 5 + rowIndex * 3
+      out.push({
+        x: 50 + Math.cos(angle) * radius,
+        y: 50 + Math.sin(angle) * radius,
+        color: severityColor(row.key),
+      })
+    }
+  })
+  return out
 })
+
+const posture = computed(() => {
+  const list = openIncidentList.value.filter((item) => item.status !== 'resolved')
+  if (!list.length) return { tone: 'low', label: '无未闭环', note: '没有未闭环 Incident，历史告警保留在事件中心' }
+  if (list.some((item) => item.severity === 'critical')) return { tone: 'critical', label: '严重', note: '存在严重级未闭环 Incident，立即进入处置' }
+  if (list.some((item) => item.severity === 'high')) return { tone: 'high', label: '高', note: '存在高危未闭环 Incident，优先核查证据链' }
+  if (list.some((item) => item.severity === 'medium')) return { tone: 'medium', label: '中', note: '存在中危未闭环 Incident，按队列处置' }
+  return { tone: 'low', label: '低', note: '未闭环 Incident 均为低危' }
+})
+
 const stageRows = computed(() => {
   const counts = Object.fromEntries(stageDefinitions.map(([key]) => [key, 0]))
   for (const incident of normalizedIncidents.value) {
@@ -418,13 +513,144 @@ const stageRows = computed(() => {
     percent: counts[key] ? Math.max(8, Math.round((counts[key] / max) * 100)) : 0,
   }))
 })
-const trendRows = computed(() => buildTrendRows(eventItems.value))
-const scoreRingStyle = computed(() => {
-  if (!ready.posture) return { background: 'conic-gradient(var(--sx-surface-3) 0deg, var(--sx-surface-3) 360deg)' }
-  const tone = severityDefinitions.find((item) => item.key === riskTone.value)?.color || '#0f9f6e'
-  const degrees = Math.max(6, Math.round((riskScore.value / 100) * 360))
-  return { background: `conic-gradient(${tone} ${degrees}deg, var(--sx-surface-3) ${degrees}deg)` }
+
+function openStage(key) {
+  if (!key) return
+  router.push({ path: '/events', query: { stage: key } })
+}
+
+/* ---------------- derived: coverage ---------------- */
+
+const agentsReady = computed(() => ready.agents)
+const agentList = computed(() => agents.value.items || [])
+const agentTotal = computed(() => agentList.value.length)
+const onlineAgents = computed(() => agentList.value.filter((a) => String(a.status || '').toLowerCase() === 'online').length)
+const offlineAgents = computed(() => Math.max(0, agentTotal.value - onlineAgents.value))
+const assetTotal = computed(() => Number(assetStats.value.total ?? stats.value.total_assets ?? 0))
+
+const sourceRows = computed(() => {
+  // Derive sources from the same windowed sample so this panel cannot
+  // disagree with the KPI above it. Platform-wide /unified/stats is only
+  // used as a fallback when the sample is empty.
+  const fromSample = new Map()
+  for (const item of eventItems.value) {
+    const key = String(item.source || item.source_engine || 'unknown')
+    fromSample.set(key, (fromSample.get(key) || 0) + occurrence(item))
+  }
+  if (fromSample.size) return rankRows(fromSample, 6, sourceLabel)
+
+  const source = unified.value.by_source || {}
+  const map = new Map()
+  for (const [key, count] of Object.entries(source)) map.set(key, Number(count || 0))
+  return rankRows(map, 6, sourceLabel)
 })
+const sourcesReady = computed(() => ready.unified)
+
+const engineRows = computed(() => {
+  const groups = new Map()
+  for (const item of engines.value.items || []) {
+    const key = item.engine || 'unknown'
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key).push(item)
+  }
+  return [...groups.entries()].map(([key, items]) => {
+    const item = items[0] || {}
+    const offline = String(item.agent_status || '').toLowerCase() === 'offline'
+    const installed = item.installed !== false
+    const running = Boolean(item.running) && !offline
+    return {
+      key,
+      short: ({ 'security-engine': 'LY', lyprobe: 'LP', suricata: 'SU', wazuh: 'WA', yara: 'YA', rasp: 'RA' })[key] || key.slice(0, 2).toUpperCase(),
+      label: ({ 'security-engine': 'LyFlow 安全引擎', lyprobe: 'LyFlow 探针', suricata: 'Suricata', wazuh: 'Wazuh', yara: 'YARA', rasp: 'OpenRASP' })[key] || key,
+      state: !installed ? 'not_configured' : offline ? 'failed' : running ? 'online' : 'degraded',
+      status: !installed ? '未安装' : offline ? 'Agent 离线' : running ? '运行中' : '未运行',
+      note: [item.rule_pack_version || '', items.length > 1 ? `${items.length} 个探针` : item.hostname || ''].filter(Boolean).join(' · ') || '无心跳详情',
+    }
+  })
+})
+const enginesReady = computed(() => ready.engines)
+
+/* ---------------- derived: data quality ---------------- */
+
+const quality = computed(() => {
+  const items = eventItems.value
+  const sample = items.length
+  const missing = items.filter((item) => !item.src_ip || !item.dst_ip).length
+  const portUnknown = items.filter((item) => item.dst_port === 0 || item.dst_port === null || item.dst_port === undefined || item.dst_port === '').length
+  const earliest = items
+    .map((item) => item.first_seen || item.event_at || item.timestamp)
+    .filter(Boolean)
+    .sort()[0]
+  const spanDays = earliest ? Math.max(0, (Date.now() - new Date(earliest).getTime()) / 86400000) : null
+  const source = systemTime.value?.source || 'unknown'
+  const offset = Number(systemTime.value?.offset_ms)
+  return {
+    sample,
+    completeRate: sample ? `${Math.round(((sample - missing) / sample) * 100)}%` : '—',
+    missingRate: sample ? missing : 0,
+    portUnknownRate: sample ? `${Math.round((portUnknown / sample) * 100)}%` : '—',
+    span: spanDays === null ? '—' : `${spanDays.toFixed(1)} 天`,
+    timeSource: source === 'ntp' ? 'NTP' : source === 'manual' ? '手动' : source === 'unknown' ? '未知' : source,
+    timeNote: Number.isFinite(offset) ? `偏移 ${Math.round(offset / 1000)}s` : '未读取',
+    timeTone: source === 'ntp' || source === 'system' ? 'ok' : source === 'unknown' ? 'muted' : 'warn',
+  }
+})
+
+/* ---------------- trend chart ---------------- */
+
+const trendRows = computed(() => buildTrendRows(eventItems.value))
+
+function renderTrend() {
+  if (!trendElement.value || !trendRows.value.length) {
+    trendChart?.dispose()
+    trendChart = null
+    return
+  }
+  if (!trendChart || trendChart.getDom() !== trendElement.value) {
+    trendChart?.dispose()
+    trendChart = echarts.init(trendElement.value)
+  }
+  const styles = getComputedStyle(document.documentElement)
+  const text = styles.getPropertyValue('--lyf-ink-3').trim() || '#6d7684'
+  const line = styles.getPropertyValue('--lyf-line').trim() || '#e3ded4'
+  const surface = styles.getPropertyValue('--lyf-surface').trim() || '#fff'
+  trendChart.setOption({
+    animationDuration: 420,
+    grid: { left: 36, right: 12, top: 14, bottom: 26 },
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: surface,
+      borderColor: line,
+      borderWidth: 1,
+      textStyle: { color: styles.getPropertyValue('--lyf-ink').trim() || '#14181d', fontSize: 11 },
+    },
+    legend: { show: false },
+    xAxis: {
+      type: 'category',
+      data: trendRows.value.map((row) => row.label),
+      axisLine: { lineStyle: { color: line } },
+      axisTick: { show: false },
+      axisLabel: { color: text, fontSize: 9, interval: 1 },
+    },
+    yAxis: {
+      type: 'value',
+      minInterval: 1,
+      splitLine: { lineStyle: { color: line } },
+      axisLabel: { color: text, fontSize: 9 },
+    },
+    series: severityDefinitions.map((item) => ({
+      name: item.label,
+      type: 'bar',
+      stack: 'total',
+      barMaxWidth: 18,
+      itemStyle: { color: item.color, borderRadius: item.key === 'low' ? [2, 2, 0, 0] : 0 },
+      data: trendRows.value.map((row) => row[item.key]),
+    })),
+  }, true)
+}
+
+/* ---------------- helpers ---------------- */
+
 function unwrap(response) {
   return response?.data?.data ?? response?.data ?? response ?? {}
 }
@@ -438,8 +664,13 @@ function formatNumber(value) {
   return number(value).toLocaleString('zh-CN')
 }
 
+function percent(part, whole) {
+  if (!whole) return '0%'
+  return `${Math.round((part / whole) * 100)}%`
+}
+
 function timestampMs(item) {
-  const value = item?.timestamp || item?.event_at || item?.occurred_at || item?.created_at
+  const value = item?.timestamp || item?.event_at || item?.first_seen || item?.created_at
   const parsed = new Date(value).getTime()
   return Number.isFinite(parsed) ? parsed : 0
 }
@@ -456,7 +687,7 @@ function formatShortTime(value) {
 }
 
 function statusLabel(value) {
-  return ({ new: '新发', open: '新发', triaged: '已分诊', processing: '处理中', resolved: '已解决', closed: '已关闭' })[value] || value || '-'
+  return ({ new: '新发', open: '新发', triaged: '已分诊', processing: '处理中', resolved: '已解决', closed: '已关闭', suppressed: '已抑制' })[value] || value || '-'
 }
 
 function sourceLabel(value) {
@@ -479,7 +710,6 @@ function buildTrendRows(items) {
   const bucketCount = 12
   const start = last - bucketMs * (bucketCount - 1)
   const buckets = Array.from({ length: bucketCount }, (_, index) => ({
-    time: start + bucketMs * index,
     label: new Date(start + bucketMs * index).toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' }),
     critical: 0,
     high: 0,
@@ -489,614 +719,331 @@ function buildTrendRows(items) {
   for (const item of sorted) {
     const index = Math.max(0, Math.min(bucketCount - 1, Math.floor((timestampMs(item) - start) / bucketMs)))
     const key = String(item.severity || 'low').toLowerCase()
-    if (buckets[index][key] !== undefined) buckets[index][key] += 1
+    if (buckets[index][key] !== undefined) buckets[index][key] += occurrence(item)
   }
   return buckets
 }
 
-function renderTrend() {
-  if (!trendElement.value || !trendRows.value.length) {
-    trendChart?.dispose()
-    trendChart = null
-    return
-  }
-  if (!trendChart || trendChart.getDom() !== trendElement.value) {
-    trendChart?.dispose()
-    trendChart = echarts.init(trendElement.value)
-  }
-  const styles = getComputedStyle(document.documentElement)
-  const text = styles.getPropertyValue('--sx-text-3').trim() || '#8493a6'
-  const line = styles.getPropertyValue('--sx-line-soft').trim() || '#e8eef6'
-  trendChart.setOption({
-    animationDuration: 500,
-    grid: { left: 34, right: 10, top: 12, bottom: 24 },
-    tooltip: { trigger: 'axis', backgroundColor: 'rgba(8, 26, 45, .92)', borderWidth: 0, textStyle: { color: '#e8f3ff', fontSize: 11 } },
-    xAxis: { type: 'category', boundaryGap: false, data: trendRows.value.map((row) => row.label), axisLine: { lineStyle: { color: line } }, axisTick: { show: false }, axisLabel: { color: text, fontSize: 9, interval: 1 } },
-    yAxis: { type: 'value', minInterval: 1, splitLine: { lineStyle: { color: line } }, axisLabel: { color: text, fontSize: 9 } },
-    series: severityDefinitions.map((item) => ({
-      name: item.label,
-      type: 'line',
-      stack: 'total',
-      smooth: true,
-      showSymbol: false,
-      lineStyle: { width: 1.5, color: item.color },
-      itemStyle: { color: item.color },
-      areaStyle: { color: item.color, opacity: 0.1 },
-      data: trendRows.value.map((row) => row[item.key]),
-    })),
-  }, true)
-}
+/* ---------------- loading ---------------- */
 
-function renderSeverity() {
-  if (!severityElement.value || !severityRows.value.length) {
-    severityChart?.dispose()
-    severityChart = null
-    return
-  }
-  if (!severityChart || severityChart.getDom() !== severityElement.value) {
-    severityChart?.dispose()
-    severityChart = echarts.init(severityElement.value)
-  }
-  const styles = getComputedStyle(document.documentElement)
-  const text = styles.getPropertyValue('--sx-text-3').trim() || '#8493a6'
-  severityChart.setOption({
-    animationDuration: 500,
-    tooltip: { trigger: 'item', backgroundColor: 'rgba(8, 26, 45, .92)', borderWidth: 0, textStyle: { color: '#e8f3ff', fontSize: 11 } },
-    series: [{
-      type: 'pie',
-      radius: ['62%', '80%'],
-      center: ['50%', '50%'],
-      avoidLabelOverlap: true,
-      itemStyle: { borderColor: styles.getPropertyValue('--sx-surface').trim() || '#fff', borderWidth: 2 },
-      label: { show: false },
-      data: severityRows.value.map((item) => ({ name: item.label, value: item.count, itemStyle: { color: item.color } })),
-    }],
-    graphic: [
-      { type: 'text', left: 'center', top: '42%', style: { text: severityTotal.value.toLocaleString('zh-CN'), fill: styles.getPropertyValue('--sx-text').trim() || '#17283d', fontSize: 18, fontWeight: 750, textAlign: 'center' } },
-      { type: 'text', left: 'center', top: '56%', style: { text: '有等级告警', fill: text, fontSize: 10, textAlign: 'center' } },
-    ],
-  }, true)
-}
-
-function renderCharts() {
-  renderTrend()
-  renderSeverity()
-}
-
-async function load() {
-  loading.value = true
+async function load(silent = false) {
+  if (!silent) loading.value = true
   error.value = ''
-  let succeeded = 0
-  const refreshCharts = () => nextTick(renderCharts)
+  const ms = windows.find((item) => item.key === activeWindow.value)?.ms || 3600000
   const to = new Date()
-  const from = new Date(to.getTime() - 10 * 60 * 1000)
+  const from = new Date(to.getTime() - ms)
+
   const jobs = [
-    overviewClient.health().then(() => { platformOnline.value = true; succeeded++ }).catch(() => { platformOnline.value = false }),
-    attackWorkbenchClient.events({ from: from.toISOString(), to: to.toISOString(), limit: 500 }).then((value) => {
-      events.value = normalizePage(value)
-      const items = events.value.items
-      const severity = { critical: 0, high: 0, medium: 0, low: 0 }
-      const sources = {}
-      for (const item of items) {
-        const key = String(item.severity || 'low').toLowerCase()
-        severity[key] = (severity[key] || 0) + 1
-        const source = item.source || item.category || 'unknown'
-        sources[source] = (sources[source] || 0) + 1
-      }
-      unified.value = { total_events: items.length, total_alerts: items.length, by_severity: severity, by_source: sources, window_minutes: 10 }
-      ready.unified = true
-      ready.events = true
-      ready.posture = true
-      succeeded++
-      refreshCharts()
-    }),
-    attackWorkbenchClient.incidents({ limit: 100, live: 1, status: 'active' }).then((value) => { incidents.value = normalizePage(value); incidentsReady.value = true; succeeded++ }),
-    assetAgentClient.assetStats().then((value) => { assetStats.value = unwrap(value); ready.assetStats = true; succeeded++ }),
-    assetAgentClient.assets({ limit: 8 }).then((value) => { assets.value = normalizePage(value); ready.assets = true; succeeded++ }),
-    assetAgentClient.engineHealth().then((value) => { engines.value = normalizePage(value); ready.engines = true; succeeded++ }),
-    ruleClient.engineRuntimeStatus().then((value) => { runtimeStatus.value = unwrap(value) || { engines: {} }; succeeded++ }),
-    ruleClient.responseActions({ limit: 100 }).then((value) => { responseActions.value = normalizePage(value); ready.actions = true; succeeded++ }),
-    ruleClient.stats().then((value) => { ruleStats.value = unwrap(value); ready.rules = true; succeeded++ }),
+    opsClient.eventSample({ from: from.toISOString(), to: to.toISOString(), limit: 500 })
+      .then((value) => { events.value = normalizePage(value); ready.events = true })
+      .catch(() => { ready.events = false }),
+    attackWorkbenchClient.incidents({ limit: 100 })
+      .then((value) => { incidents.value = normalizePage(value); ready.incidents = true })
+      .catch(() => { ready.incidents = false }),
+    attackWorkbenchClient.stats()
+      .then((value) => { unified.value = unwrap(value); ready.unified = true })
+      .catch(() => { ready.unified = false }),
+    overviewClient.stats()
+      .then((value) => { stats.value = unwrap(value) })
+      .catch(() => {}),
+    assetAgentClient.assetStats()
+      .then((value) => { assetStats.value = unwrap(value); ready.assets = true })
+      .catch(() => { ready.assets = false }),
+    assetAgentClient.agents({ limit: 200 })
+      .then((value) => { agents.value = normalizePage(value); ready.agents = true })
+      .catch(() => { ready.agents = false }),
+    assetAgentClient.engineHealth()
+      .then((value) => { engines.value = unwrap(value); ready.engines = true })
+      .catch(() => { ready.engines = false }),
+    ruleClient.stats()
+      .then((value) => { ruleStats.value = unwrap(value); ready.rules = true })
+      .catch(() => { ready.rules = false }),
+    opsClient.components()
+      .then((value) => { components.value = value; ready.components = true })
+      .catch(() => { ready.components = false }),
+    opsClient.systemTime()
+      .then((value) => { systemTime.value = value; ready.time = true })
+      .catch(() => { ready.time = false }),
   ]
-  try {
-    await Promise.allSettled(jobs)
-    if (succeeded === 0) error.value = '态势数据加载失败，请检查后端连接。'
-  } catch (panic) {
-    error.value = '态势数据加载失败，请检查后端连接。'
-  } finally {
-    lastUpdated.value = formatChinaTime()
-    loading.value = false
-    await refreshCharts()
-  }
-}
 
-function normalizePage(value) {
-  const data = unwrap(value)
-  const items = Array.isArray(data) ? data : Array.isArray(data.items) ? data.items : []
-  return { items, total: Number(data.total ?? items.length) || items.length }
-}
+  const results = await Promise.allSettled(jobs)
+  const failed = results.filter((item) => item.status === 'rejected').length
+  if (failed && failed === results.length) error.value = '所有数据接口均不可达，请检查网络或登录状态。'
+  else if (failed) error.value = `${failed} 个数据接口读取失败，相关面板显示为未就绪而不是 0。`
 
-function openStage(stage) {
-  router.push({ path: '/events', query: { stage } })
+  if (!silent) loading.value = false
+  await nextTick()
+  renderTrend()
+}
+function normalizePage(response) {
+  const payload = unwrap(response)
+  const items = Array.isArray(payload) ? payload : (payload.items || payload.events || [])
+  return { ...(Array.isArray(payload) ? {} : payload), items: Array.isArray(items) ? items : [], total: payload.total ?? (Array.isArray(items) ? items.length : 0) }
 }
 
 function onResize() {
   trendChart?.resize()
-  severityChart?.resize()
 }
 
-function onThemeChange() {
-  trendChart?.dispose()
-  severityChart?.dispose()
-  trendChart = null
-  severityChart = null
-  nextTick(renderCharts)
-}
-
-onMounted(async () => {
-  await load()
-  pollTimer = setInterval(load, 60000)
+onMounted(() => {
+  load()
+  pollTimer = setInterval(() => load(true), 60000)
   window.addEventListener('resize', onResize)
-  window.addEventListener('lyflow-theme-changed', onThemeChange)
 })
 
 onUnmounted(() => {
   if (pollTimer) clearInterval(pollTimer)
-  window.removeEventListener('resize', onResize)
-  window.removeEventListener('lyflow-theme-changed', onThemeChange)
   trendChart?.dispose()
-  severityChart?.dispose()
   trendChart = null
-  severityChart = null
+  window.removeEventListener('resize', onResize)
 })
 </script>
 
 <style scoped>
-.overview-page {
-  gap: 14px;
-}
+.ov-page { gap: 14px; }
 
-.overview-updated {
-  color: var(--sx-text-3);
-  font-size: 12px;
-  white-space: nowrap;
-}
-
-.overview-hero {
-  display: grid;
-  grid-template-columns: minmax(340px, 1.15fr) minmax(0, 1.85fr);
-  gap: 14px;
-}
-
-.posture-card {
-  position: relative;
-  display: flex;
-  min-height: 238px;
+.ov-window {
+  display: inline-flex;
   overflow: hidden;
-  flex-direction: column;
-  justify-content: space-between;
-  padding: 18px;
-  border: 1px solid rgb(84 166 228 / 22%);
-  border-radius: var(--sx-radius-lg);
-  background:
-    radial-gradient(circle at 95% 0%, rgb(46 180 255 / 25%), transparent 42%),
-    radial-gradient(circle at 0% 110%, rgb(109 93 252 / 22%), transparent 48%),
-    linear-gradient(135deg, #071a2d 0%, #0b2a45 58%, #0c3552 100%);
-  box-shadow: 0 20px 44px -28px rgb(4 30 54 / 72%);
-  color: #e9f7ff;
+  border: var(--lyf-hairline-strong);
+  border-radius: var(--lyf-radius-sm);
+  background: var(--lyf-surface);
 }
 
-.posture-card::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image: linear-gradient(rgb(120 200 255 / 5%) 1px, transparent 1px), linear-gradient(90deg, rgb(120 200 255 / 5%) 1px, transparent 1px);
-  background-size: 26px 26px;
-  mask-image: linear-gradient(120deg, black, transparent 62%);
-}
-
-.posture-card.risk-critical { border-color: rgb(255 122 112 / 45%); }
-.posture-card.risk-high { border-color: rgb(255 174 69 / 38%); }
-.posture-card.risk-medium { border-color: rgb(255 209 102 / 34%); }
-
-.posture-card-top,
-.posture-score-row,
-.posture-card-foot {
-  position: relative;
-  z-index: 1;
-}
-
-.posture-card-top {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 14px;
-}
-
-.posture-eyebrow {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #75c7f6;
-  font-size: 11px;
-  font-weight: 750;
-  letter-spacing: 0.12em;
-}
-
-.posture-eyebrow i {
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #43ddad;
-  box-shadow: 0 0 0 3px rgb(67 221 173 / 14%);
-}
-
-.posture-card h3 {
-  margin: 7px 0 0;
-  color: #f2fbff;
-  font-size: 22px;
-  font-weight: 720;
-  letter-spacing: -0.035em;
-}
-
-.posture-card p {
-  max-width: 320px;
-  margin: 5px 0 0;
-  color: #9ebbd3;
-  font-size: 11px;
-  line-height: 1.55;
-}
-
-.posture-card .sx-badge {
-  border-color: rgb(126 202 255 / 22%);
-  background: rgb(255 255 255 / 8%);
-  color: #d7efff;
-}
-
-.posture-card .sx-badge.low { color: #83f0c9; }
-.posture-card .sx-badge.high { color: #ffca82; }
-.posture-card .sx-badge.critical { color: #ffaaa3; }
-
-.posture-score-row {
-  display: flex;
-  align-items: center;
-  gap: 20px;
-  margin-top: 12px;
-}
-
-.score-ring {
-  display: grid;
-  width: 116px;
-  height: 116px;
-  flex: 0 0 116px;
-  place-items: center;
-  border-radius: 50%;
-  box-shadow: 0 0 38px -18px rgb(60 186 255 / 75%);
-}
-
-.score-ring > div {
-  display: grid;
-  width: 88px;
-  height: 88px;
-  place-items: center;
-  align-content: center;
-  border: 1px solid rgb(91 179 239 / 22%);
-  border-radius: 50%;
-  background: #0a2239;
-}
-
-.score-ring strong {
-  color: #f2fbff;
-  font-size: 30px;
-  font-weight: 780;
-  letter-spacing: -0.07em;
-  line-height: 1;
-}
-
-.score-ring span {
-  margin-top: 4px;
-  color: #84a7c1;
-  font-size: 11px;
-}
-
-.posture-facts {
-  display: grid;
-  flex: 1;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 9px 16px;
-}
-
-.posture-facts span {
-  display: block;
-  color: #86a8c2;
-  font-size: 11px;
-}
-
-.posture-facts b {
-  display: block;
-  margin-top: 2px;
-  color: #eaf8ff;
-  font-size: 17px;
-  font-weight: 700;
-}
-
-.posture-facts b em {
-  margin-left: 3px;
-  color: #7f9eb6;
-  font-size: 12px;
-  font-style: normal;
+.ov-window-btn {
+  height: 32px;
+  padding: 0 11px;
+  border: 0;
+  border-right: var(--lyf-hairline);
+  background: transparent;
+  color: var(--lyf-ink-3);
+  font: inherit;
+  font-size: 11.5px;
   font-weight: 500;
-}
-
-.posture-facts b.warning { color: #ffca82; }
-
-.posture-card-foot {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  padding-top: 12px;
-  border-top: 1px solid rgb(128 196 241 / 14%);
-  color: #87a8c0;
-  font-size: 11px;
-}
-
-.posture-card-foot span {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.dot {
-  display: inline-block;
-  width: 5px;
-  height: 5px;
-  border-radius: 50%;
-  background: #7893a9;
-}
-
-.dot.ok { background: #43ddad; box-shadow: 0 0 0 3px rgb(67 221 173 / 12%); }
-.dot.bad { background: #ff7a70; box-shadow: 0 0 0 3px rgb(255 122 112 / 12%); }
-
-.hero-metrics {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 14px;
-}
-
-.metric-live .sx-metric-value { color: var(--sx-accent); }
-
-.stage-panel .sx-panel-body {
-  padding: 12px;
-}
-
-.stage-panel .sx-stage {
-  appearance: none;
-  border: 1px solid var(--sx-line-soft);
-  text-align: left;
   cursor: pointer;
 }
 
-.overview-main-grid {
+.ov-window-btn:last-child { border-right: 0; }
+.ov-window-btn:hover { color: var(--lyf-accent); background: var(--lyf-accent-soft); }
+.ov-window-btn.active { background: var(--lyf-ink); color: var(--lyf-surface); font-weight: 600; }
+[data-theme='dark'] .ov-window-btn.active { background: var(--lyf-accent); color: #06120f; }
+
+/* KPI */
+.ov-kpis {
   display: grid;
-  grid-template-columns: minmax(0, 1.7fr) minmax(280px, 0.8fr);
-  gap: 14px;
-}
-
-.trend-body {
-  display: flex;
-  min-height: 250px;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.chart-box { width: 100%; min-width: 0; }
-
-.trend-chart { flex: 1; min-height: 210px; }
-
-.trend-legend {
-  display: flex;
-  flex-wrap: wrap;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
-  color: var(--sx-text-3);
-  font-size: 12px;
 }
 
-.trend-legend span { display: inline-flex; align-items: center; gap: 5px; }
-.trend-legend i { width: 7px; height: 7px; border-radius: 2px; }
-.trend-legend b { color: var(--sx-text); font-weight: 650; }
-
-.overview-side {
-  display: grid;
-  gap: 14px;
-}
-
-.severity-body {
-  display: grid;
-  grid-template-columns: 130px minmax(0, 1fr);
-  align-items: center;
-  gap: 8px;
-}
-
-.severity-chart { height: 132px; }
-
-.severity-list {
-  display: grid;
-  gap: 6px;
-}
-
-.severity-list > div {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  padding: 5px 7px;
-  border-radius: 5px;
-  background: var(--sx-surface-2);
-  font-size: 12px;
-}
-
-.severity-list span { display: inline-flex; align-items: center; gap: 6px; color: var(--sx-text-2); }
-.severity-list i { width: 6px; height: 6px; border-radius: 50%; }
-.severity-list b { color: var(--sx-text); font-weight: 700; }
-
-.source-body { padding-top: 12px; }
-
-.source-list { display: grid; gap: 9px; }
-
-.source-row {
-  display: grid;
-  grid-template-columns: 80px minmax(0, 1fr) 44px;
-  align-items: center;
-  gap: 8px;
-  font-size: 12px;
-}
-
-.source-row > span { overflow: hidden; color: var(--sx-text-2); text-overflow: ellipsis; white-space: nowrap; }
-.source-row > div { height: 6px; overflow: hidden; border-radius: 4px; background: var(--sx-surface-3); }
-.source-row > div i { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--sx-accent), var(--sx-accent-2)); }
-.source-row > b { color: var(--sx-text); font-weight: 700; text-align: right; }
-
-.overview-lower-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1.15fr) minmax(240px, 0.85fr);
-  gap: 14px;
-}
-
-.incident-list { display: grid; }
-
-.incident-row {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr) auto 48px;
-  align-items: center;
-  gap: 9px;
-  padding: 9px 14px;
-  border-bottom: 1px solid var(--sx-line-soft);
-  color: inherit;
-  text-decoration: none;
-  transition: background var(--transition-fast);
-}
-
-.incident-row:last-child { border-bottom: 0; }
-.incident-row:hover { background: var(--sx-surface-3); }
-
-.incident-copy { min-width: 0; }
-.incident-copy b { display: block; overflow: hidden; color: var(--sx-text); font-size: 11px; font-weight: 650; text-overflow: ellipsis; white-space: nowrap; }
-.incident-copy small { display: block; overflow: hidden; margin-top: 2px; color: var(--sx-text-3); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-
-.incident-stages { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 3px; }
-.incident-stages span { padding: 2px 5px; border-radius: 3px; background: var(--sx-surface-3); color: var(--sx-text-2); font-size: 12px; }
-.incident-status { color: var(--sx-text-3); font-size: 11px; text-align: right; }
-
-.event-stream { display: grid; }
-
-.event-stream-row {
-  display: grid;
-  grid-template-columns: 7px 54px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  padding: 8px 14px;
-  border-bottom: 1px solid var(--sx-line-soft);
-  color: inherit;
-  text-decoration: none;
-}
-
-.event-stream-row:last-child { border-bottom: 0; }
-.event-stream-row:hover { background: var(--sx-surface-3); }
-
-.stream-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--sx-text-3); }
-.stream-dot.critical { background: var(--sx-critical); box-shadow: 0 0 0 3px rgb(217 45 32 / 10%); }
-.stream-dot.high { background: var(--sx-high); }
-.stream-dot.medium { background: var(--sx-medium); }
-.stream-dot.low { background: var(--sx-success); }
-
-.event-stream-row time { color: var(--sx-text-3); font-family: var(--sx-font-mono); font-size: 11px; }
-.event-stream-row div { min-width: 0; }
-.event-stream-row b { display: block; overflow: hidden; color: var(--sx-text); font-size: 12px; font-weight: 620; text-overflow: ellipsis; white-space: nowrap; }
-.event-stream-row small { display: block; overflow: hidden; margin-top: 1px; color: var(--sx-text-3); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.event-stream-row .sx-badge { font-size: 12px; }
-
-.engine-list { display: grid; padding: 4px 0; }
-
-.engine-row {
-  display: grid;
-  grid-template-columns: 27px minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
-  padding: 7px 14px;
-}
-
-.engine-icon {
-  display: grid;
-  width: 25px;
-  height: 25px;
-  place-items: center;
-  border-radius: 6px;
-  background: var(--sx-accent-soft);
-  color: var(--sx-accent);
-  font-size: 12px;
-  font-weight: 800;
-}
-
-.engine-icon.low { background: var(--sx-success-soft); color: var(--sx-success); }
-.engine-icon.medium { background: var(--sx-warning-soft); color: var(--sx-warning); }
-.engine-icon.muted { background: var(--sx-surface-3); color: var(--sx-text-3); }
-
-.engine-row b { display: block; color: var(--sx-text); font-size: 12px; font-weight: 650; }
-.engine-row small { display: block; overflow: hidden; margin-top: 1px; color: var(--sx-text-3); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
-.engine-row .sx-badge { font-size: 12px; }
-
-.asset-mini {
-  margin-top: 4px;
-  padding: 10px 14px 12px;
-  border-top: 1px solid var(--sx-line-soft);
-  background: var(--sx-surface-2);
-}
-
-.asset-mini-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 6px;
-  color: var(--sx-text-3);
+.ov-kpi { display: flex; flex-direction: column; }
+.ov-kpi-link {
+  margin-top: auto;
+  padding-top: 10px;
+  color: var(--lyf-accent);
   font-size: 11px;
+  font-weight: 550;
+  text-decoration: none;
+}
+.ov-kpi-link:hover { text-decoration: underline; }
+
+/* posture */
+.ov-main { display: grid; grid-template-columns: minmax(0, 6fr) minmax(0, 6fr); gap: 12px; }
+.ov-posture .sx-panel-body { display: grid; gap: 14px; }
+
+.ov-posture-top { display: flex; gap: 14px; align-items: stretch; }
+
+/* HUD radar: decoration for the severity mix, not a data source. */
+.ov-radar {
+  position: relative;
+  width: 96px;
+  height: 96px;
+  flex: 0 0 96px;
+  align-self: center;
+  overflow: hidden;
+  border: 1px solid var(--lyf-accent-line);
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, rgb(34 211 238 / 12%), transparent 70%),
+    var(--lyf-surface-2);
+  box-shadow: inset 0 0 24px -12px var(--lyf-accent);
 }
 
-.asset-mini-head a { color: var(--sx-accent); text-decoration: none; }
-.asset-mini-row { display: grid; grid-template-columns: minmax(0, 1fr) 6px auto; align-items: center; gap: 7px; padding: 4px 0; font-size: 11px; }
-.asset-mini-row span { overflow: hidden; color: var(--sx-text-2); text-overflow: ellipsis; white-space: nowrap; }
-.asset-mini-row i { width: 5px; height: 5px; border-radius: 50%; background: var(--sx-text-3); }
-.asset-mini-row i.ok { background: var(--sx-success); }
-.asset-mini-row i.bad { background: var(--sx-danger); }
-.asset-mini-row b { color: var(--sx-text-3); font-weight: 500; }
+.ov-radar[data-tone='critical'] { border-color: var(--lyf-critical-line); box-shadow: inset 0 0 24px -12px var(--lyf-critical); }
+.ov-radar[data-tone='high'] { border-color: var(--lyf-high-line); }
+.ov-radar[data-tone='medium'] { border-color: var(--lyf-medium-line); }
+
+.ov-radar-ring { position: absolute; inset: 8%; border: 1px solid rgb(34 211 238 / 18%); border-radius: 50%; }
+.ov-radar-ring.r2 { inset: 26%; }
+.ov-radar-ring.r3 { inset: 42%; }
+
+.ov-radar-cross {
+  position: absolute;
+  inset: 0;
+  background:
+    linear-gradient(90deg, transparent 49.5%, rgb(34 211 238 / 20%) 49.5%, rgb(34 211 238 / 20%) 50.5%, transparent 50.5%),
+    linear-gradient(0deg, transparent 49.5%, rgb(34 211 238 / 20%) 49.5%, rgb(34 211 238 / 20%) 50.5%, transparent 50.5%);
+}
+
+.ov-radar-sweep {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(from 0deg, rgb(34 211 238 / 42%), transparent 28%);
+  animation: sx-sweep 5s linear infinite;
+}
+
+.ov-radar i {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  margin: -2.5px 0 0 -2.5px;
+  border-radius: 50%;
+  box-shadow: 0 0 9px currentColor;
+}
+
+.ov-posture-grade {
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  min-width: 128px;
+  padding: 10px 14px;
+  border-left: 3px solid var(--lyf-ink-3);
+  background: var(--lyf-surface-2);
+}
+
+.ov-posture-grade[data-tone='critical'] { border-left-color: var(--lyf-critical); }
+.ov-posture-grade[data-tone='high'] { border-left-color: var(--lyf-high); }
+.ov-posture-grade[data-tone='medium'] { border-left-color: var(--lyf-medium); }
+.ov-posture-grade[data-tone='low'] { border-left-color: var(--lyf-success); }
+
+.ov-posture-grade span { color: var(--lyf-ink-3); font-size: 10.5px; }
+.ov-posture-grade strong { font-size: 20px; font-weight: 650; letter-spacing: -0.02em; }
+.ov-posture-grade small { color: var(--lyf-ink-3); font-size: 10.5px; line-height: 1.45; }
+
+.ov-posture-facts { display: grid; flex: 1; min-width: 132px; grid-template-columns: repeat(2, minmax(46px, 1fr)); gap: 8px 14px; align-content: center; }
+.ov-posture-facts div { display: flex; min-width: 0; flex-direction: column; gap: 1px; }
+.ov-posture-facts span { color: var(--lyf-ink-3); font-size: 10.5px; white-space: nowrap; }
+.ov-posture-facts b { font-family: var(--lyf-font-data); font-size: 16px; font-weight: 600; }
+
+.ov-sev-bar { display: flex; height: 6px; overflow: hidden; border-radius: 3px; background: var(--lyf-surface-3); }
+.ov-sev-bar i { display: block; height: 100%; }
+.ov-sev-bar.empty { opacity: 0.45; }
+
+.ov-sev-legend { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; color: var(--lyf-ink-3); font-size: 11px; }
+.ov-sev-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.ov-sev-legend i { width: 6px; height: 6px; border-radius: 50%; }
+.ov-sev-legend b { color: var(--lyf-ink); font-family: var(--lyf-font-data); font-weight: 600; }
+.ov-sev-legend em { font-style: normal; }
+
+/* grids */
+.ov-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.ov-grid-2.wide-left { grid-template-columns: minmax(0, 7fr) minmax(0, 5fr); }
+
+.ov-chart { width: 100%; height: 230px; }
+
+/* ranked bars */
+.ov-ranks { display: grid; gap: 9px; }
+.ov-rank { display: grid; grid-template-columns: minmax(0, 1fr) 72px 46px; align-items: center; gap: 10px; }
+.ov-rank-label { overflow: hidden; color: var(--lyf-ink-2); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+.ov-rank-track { height: 4px; overflow: hidden; border-radius: 2px; background: var(--lyf-surface-3); }
+.ov-rank-track i { display: block; height: 100%; background: var(--lyf-accent); opacity: 0.75; }
+.ov-rank b { color: var(--lyf-ink); font-family: var(--lyf-font-data); font-size: 11.5px; font-weight: 600; text-align: right; }
+
+/* queue */
+.ov-queue { display: grid; }
+.ov-queue-row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  border-bottom: var(--lyf-hairline);
+  color: inherit;
+  text-decoration: none;
+}
+.ov-queue-row:last-child { border-bottom: 0; }
+.ov-queue-row:hover { background: var(--lyf-surface-2); }
+.ov-queue-main { display: grid; gap: 2px; min-width: 0; }
+.ov-queue-main b { overflow: hidden; color: var(--lyf-ink); font-size: 12.5px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.ov-queue-main small { color: var(--lyf-ink-3); font-size: 10.5px; }
+.ov-queue-stages { display: flex; gap: 4px; }
+.ov-queue-stages em {
+  padding: 1px 6px;
+  border: var(--lyf-hairline);
+  border-radius: 3px;
+  color: var(--lyf-ink-3);
+  font-size: 10px;
+  font-style: normal;
+  white-space: nowrap;
+}
+.ov-queue-status { color: var(--lyf-ink-3); font-size: 10.5px; white-space: nowrap; }
+
+/* stream */
+.ov-stream { display: grid; }
+.ov-stream-row {
+  display: grid;
+  grid-template-columns: 8px 62px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 16px;
+  border-bottom: var(--lyf-hairline);
+  color: inherit;
+  text-decoration: none;
+}
+.ov-stream-row:last-child { border-bottom: 0; }
+.ov-stream-row:hover { background: var(--lyf-surface-2); }
+.ov-stream-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--lyf-low); }
+.ov-stream-dot[data-sev='critical'] { background: var(--lyf-critical); }
+.ov-stream-dot[data-sev='high'] { background: var(--lyf-high); }
+.ov-stream-dot[data-sev='medium'] { background: var(--lyf-medium); }
+.ov-stream-row time { color: var(--lyf-ink-3); font-family: var(--lyf-font-data); font-size: 10px; }
+.ov-stream-main { display: grid; gap: 1px; min-width: 0; }
+.ov-stream-main b { overflow: hidden; color: var(--lyf-ink); font-size: 11.5px; font-weight: 550; text-overflow: ellipsis; white-space: nowrap; }
+.ov-stream-main small { overflow: hidden; color: var(--lyf-ink-3); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+
+/* engines */
+.ov-engines { display: grid; gap: 8px; }
+.ov-engine { display: grid; grid-template-columns: 28px minmax(0, 1fr) auto; align-items: center; gap: 10px; }
+.ov-engine-mark {
+  display: grid;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border: var(--lyf-hairline);
+  border-radius: var(--lyf-radius-sm);
+  color: var(--lyf-accent);
+  font-family: var(--lyf-font-data);
+  font-size: 10px;
+  font-weight: 700;
+}
+.ov-engine-copy { display: grid; gap: 1px; min-width: 0; }
+.ov-engine-copy b { font-size: 12px; font-weight: 600; }
+.ov-engine-copy small { overflow: hidden; color: var(--lyf-ink-3); font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+
+/* quality */
+.ov-quality { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
+.ov-quality div { display: grid; gap: 2px; padding: 10px; border: var(--lyf-hairline); border-radius: var(--lyf-radius-sm); background: var(--lyf-surface-2); }
+.ov-quality span { color: var(--lyf-ink-3); font-size: 10.5px; }
+.ov-quality b { font-family: var(--lyf-font-data); font-size: 17px; font-weight: 600; }
+.ov-quality b.warn { color: var(--lyf-high); }
+.ov-quality b.ok { color: var(--lyf-success); }
+.ov-quality b.muted { color: var(--lyf-unknown); }
+.ov-quality small { color: var(--lyf-ink-3); font-size: 10px; }
+.ov-quality-note { margin: 10px 0 0; color: var(--lyf-ink-3); font-size: 10.5px; }
 
 @media (max-width: 1280px) {
-  .overview-hero { grid-template-columns: 1fr; }
-  .posture-card { min-height: 210px; }
-  .overview-main-grid { grid-template-columns: 1fr; }
-  .overview-side { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .overview-lower-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .engine-panel { grid-column: span 2; }
+  .ov-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ov-main,
+  .ov-grid-2,
+  .ov-grid-2.wide-left { grid-template-columns: minmax(0, 1fr); }
 }
 
-@media (max-width: 900px) {
-  .hero-metrics { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .overview-side,
-  .overview-lower-grid { grid-template-columns: 1fr; }
-  .engine-panel { grid-column: auto; }
-  .severity-body { grid-template-columns: 120px minmax(0, 1fr); }
-}
-
-@media (max-width: 620px) {
-  .hero-metrics { grid-template-columns: 1fr; }
-  .posture-score-row { align-items: flex-start; flex-direction: column; }
-  .score-ring { width: 102px; height: 102px; flex-basis: 102px; }
-  .score-ring > div { width: 78px; height: 78px; }
-  .posture-facts { width: 100%; }
-  .incident-row { grid-template-columns: 48px minmax(0, 1fr) 42px; }
-  .incident-stages { display: none; }
-  .event-stream-row { grid-template-columns: 7px 48px minmax(0, 1fr); }
-  .event-stream-row .sx-badge { display: none; }
+@media (max-width: 720px) {
+  .ov-kpis { grid-template-columns: minmax(0, 1fr); }
+  .ov-posture-top { flex-direction: column; }
+  .ov-quality { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .ov-queue-stages { display: none; }
+  .ov-rank { grid-template-columns: minmax(0, 1fr) 46px; }
+  .ov-rank-track { display: none; }
 }
 </style>

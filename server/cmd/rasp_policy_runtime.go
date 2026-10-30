@@ -53,14 +53,17 @@ func newRASPPolicyRuntime(ctx context.Context, pool *pgxpool.Pool) (*agentpolicy
 	if err := store.EnsureSchema(ctx); err != nil {
 		return nil, err
 	}
-	manager := agentpolicy.NewManager(agentpolicy.ManagerConfig{Store: store, Signer: signer, Verifier: layout, Now: time.Now})
+	manager := agentpolicy.NewManager(agentpolicy.ManagerConfig{
+		Store: store, Signer: signer, Verifier: layout, Now: time.Now,
+		AllowProductionBlock: toBool(getEnv("LYFLOW_RASP_ALLOW_BLOCK", "false")),
+	})
 	if _, err := manager.EnsureDefault(ctx, getEnv("RASP_POLICY_OWNER", "lyflow-platform"), "audit://rasp-policy/default"); err != nil {
 		return nil, fmt.Errorf("ensure default RASP policy: %w", err)
 	}
 	return manager, nil
 }
 
-func raspPolicyConfig(policy agentpolicy.Policy) map[string]interface{} {
+func raspPolicyConfig(policy agentpolicy.Policy, enforceBlock bool) map[string]interface{} {
 	languages := make(map[string]bool, len(policy.Selectors.Languages))
 	for _, language := range policy.Selectors.Languages {
 		languages[string(language)] = true
@@ -71,7 +74,7 @@ func raspPolicyConfig(policy agentpolicy.Policy) map[string]interface{} {
 	}
 	return map[string]interface{}{
 		"enabled": policy.Mode != agentpolicy.ModeOff, "mode": policy.Mode,
-		"languages": languages, "block_on_hit": false, "version": policy.Version,
+		"languages": languages, "block_on_hit": enforceBlock, "version": policy.Version,
 		"expires_at": policy.ExpiresAt, "fail_behavior": policy.FailBehavior,
 		"max_events_per_second": policy.Limits.MaxEventsPerSecond,
 	}

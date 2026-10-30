@@ -33,11 +33,14 @@ export const assetAgentClient = Object.freeze({
   agent: (id) => api.get(`/agents/${encodeURIComponent(id)}`),
   toggleAgentCapability: (id, field, enabled) => api.put(`/agent/capabilities/${encodeURIComponent(id)}`, { field, enabled }),
   renameAgent: (id, displayName) => api.put(`/agent/name/${encodeURIComponent(id)}`, { display_name: displayName }),
+  agentTags: (id) => api.get(`/agent/tags/${encodeURIComponent(id)}`),
+  setAgentTags: (id, tags) => api.put(`/agent/tags/${encodeURIComponent(id)}`, { tags }),
   deleteAgent: (id) => api.delete(`/agents/${encodeURIComponent(id)}`),
   agentNames: () => api.get('/agent/names'),
   engineHealth: () => api.get('/engine-health'),
   setAgentName: (id, name) => api.put('/agent/names', { agent_id: id, display_name: name }),
   installScript: () => api.get('/agent/install.sh'),
+  uninstallScript: () => api.get('/agent/uninstall.sh'),
   downloadAgent: (params = {}) => api.get('/agent/download', { params }),
 })
 
@@ -64,6 +67,7 @@ export const ruleClient = Object.freeze({
   updateSource: (id) => api.post(`/rules/sources/${encodeURIComponent(id)}/update`, undefined, { timeout: 120000 }),
   platformSources: () => api.get('/rule-platform/sources'),
   platformSync: (payload) => api.post('/rule-platform/sync', payload),
+  platformSyncStatus: () => api.get('/rule-platform/sync'),
   platformVersions: (params = {}) => api.get('/rule-platform/versions', { params }),
   platformCompilePreview: (payload = {}) => api.post('/rule-platform/compile-preview', payload),
   platformActiveBundle: () => api.get('/rule-platform/active-bundle'),
@@ -71,6 +75,8 @@ export const ruleClient = Object.freeze({
   /** @returns {Promise<import('../domain/contracts/api-contracts').NativeEngineRulesResponse>} */
   engineRules: (params = {}) => api.get('/engine-rules', { params }),
   engineRuntimeStatus: () => api.get('/engine-runtime/status'),
+  trafficRuleProfile: () => api.get('/traffic/rule-profile'),
+  exportTrafficRuleProfile: (payload = {}) => api.post('/traffic/rule-profile/export', payload),
   updateEngineRules: () => api.post('/engine-rules/update'),
   platformRollback: (payload = {}) => api.post('/rule-platform/rollback', payload),
   responseActions: (params = {}) => api.get('/response/actions', { params }),
@@ -123,6 +129,21 @@ export const signalClient = Object.freeze({
   traceSearch: (params = {}) => api.get('/trace/search', { params }),
 })
 
+export const raspPolicyClient = Object.freeze({
+  status: () => api.get('/rasp/policy'),
+  startCanary: (payload) => api.post('/rasp/policy/canary', payload),
+  complete: (version, payload) => api.post(`/rasp/policy/actions/${version}/complete`, payload),
+  promote: (version) => api.post(`/rasp/policy/actions/${version}/promote`, {}),
+  rollback: (version) => api.post(`/rasp/policy/actions/${version}/rollback`, {}),
+  emergencyStop: () => api.post('/rasp/policy/actions/emergency-stop', {}),
+})
+
+export const yaraClient = Object.freeze({
+  status: () => api.get('/rule-platform/yara'),
+  import: (formData) => api.post('/rule-platform/yara/import', formData, { headers: { 'Content-Type': 'multipart/form-data' } }),
+  clear: () => api.delete('/rule-platform/yara'),
+})
+
 export const overviewClient = Object.freeze({
   health: () => api.get('/health'),
   stats: () => api.get('/stats'),
@@ -132,4 +153,36 @@ export const overviewClient = Object.freeze({
   updateTargetLocation: (payload) => api.put('/situation/target-location', payload),
   systemTime: () => api.get('/system/time'),
   updateSystemTime: (payload) => api.put('/system/time', payload),
+})
+
+/**
+ * Platform truth surface: component health, ingestion stats and the
+ * time source. These feed the shell status bar and the data-quality page,
+ * and must never be silently defaulted to a "healthy" value.
+ */
+/**
+ * Raw GET for endpoints whose envelope has no `data` field. The shared
+ * axios interceptor intentionally unwraps `{code,data}` envelopes and
+ * returns `{}` for `{code,status,components}`, so component health must be
+ * read directly or the console would silently show a wrong state.
+ */
+async function rawGet(path) {
+  const token = typeof localStorage !== 'undefined' ? localStorage.getItem('token') : ''
+  const response = await fetch(`/api/v1${path}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  })
+  if (!response.ok) throw new Error(`HTTP ${response.status}`)
+  return response.json()
+}
+
+export const opsClient = Object.freeze({
+  components: () => rawGet('/debug/components'),
+  stats: () => api.get('/stats'),
+  unifiedStats: () => api.get('/unified/stats'),
+  xdrStats: () => api.get('/xdr/stats'),
+  systemTime: () => api.get('/system/time'),
+  agents: (params = {}) => api.get('/agents', { params }),
+  assets: (params = {}) => api.get('/assets', { params }),
+  engineHealth: () => api.get('/engine-health'),
+  eventSample: (params = {}) => api.get('/unified/events', { params }),
 })

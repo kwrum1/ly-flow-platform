@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -9,12 +10,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/lyflow/ly-flow-platform/contracts"
 )
 
 type yaraNativeMatch struct {
@@ -28,6 +32,8 @@ func (a *Agent) runYARAScanner() {
 	if interval <= 0 {
 		interval = time.Minute
 	}
+	fmt.Printf("[yara] scanner starting: paths=%s interval=%s timeout=%ds\n", a.cfg.YARAScanPaths, interval, a.cfg.YARAScanTimeoutSeconds)
+	a.refreshYARARules()
 	a.scanWithNativeYARA()
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
@@ -36,11 +42,54 @@ func (a *Agent) runYARAScanner() {
 		case <-a.ctx.Done():
 			return
 		case <-ticker.C:
+			a.refreshYARARules()
 			if a.cfg.HIDSEnabled {
 				a.scanWithNativeYARA()
 			}
 		}
 	}
+}
+
+// refreshYARARules pulls the local rule pack published by the platform. The
+// pack can be imported from the console; no external upstream is required.
+func (a *Agent) refreshYARARules() {
+	url := strings.TrimSpace(a.cfg.YARARulesURL)
+	if url == "" {
+		api := strings.TrimRight(strings.TrimSpace(a.cfg.API), "/")
+		if api == "" {
+			return
+		}
+		url = api + "/api/v1/agent/yara/rules"
+	}
+	client := &http.Client{Timeout: 10 * time.Second}
+	response, err := client.Get(url)
+	if err != nil {
+		return
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return
+	}
+	content, err := io.ReadAll(io.LimitReader(response.Body, 32<<20))
+	if err != nil || len(content) == 0 || !bytes.Contains(content, []byte("rule ")) {
+		return
+	}
+	target := filepath.Clean(a.cfg.YARARulesPath)
+	if existing, err := os.ReadFile(target); err == nil && bytes.Equal(existing, content) {
+		return
+	}
+	if err := os.MkdirAll(filepath.Dir(target), 0o750); err != nil {
+		return
+	}
+	temporary := target + ".tmp"
+	if err := os.WriteFile(temporary, content, 0o640); err != nil {
+		return
+	}
+	if err := os.Rename(temporary, target); err != nil {
+		_ = os.Remove(temporary)
+		return
+	}
+	fmt.Printf("[yara] local rule pack refreshed: %d bytes\n", len(content))
 }
 
 func (a *Agent) scanWithNativeYARA() {
@@ -189,5 +238,14 @@ func (a *Agent) appendYARAMatch(match yaraNativeMatch, hash string) error {
 	a.yaraSeenMu.Lock()
 	a.yaraSeen[dedupKey] = struct{}{}
 	a.yaraSeenMu.Unlock()
+	alert, alertErr := componentAlertFromYARA(yaraMatchInput{
+		Rule: match.Rule, Namespace: "yara-security", Tags: match.Tags,
+		FilePath: match.FilePath, FileHash: hash, MatchedAt: time.Now().UTC(),
+	}, a, contracts.RawReference{Path: path})
+	if alertErr == nil {
+		if publishErr := a.publishComponentAlert(alert); publishErr != nil {
+			fmt.Printf("[yara] publish match %s failed: %v\n", match.Rule, publishErr)
+		}
+	}
 	return nil
 }

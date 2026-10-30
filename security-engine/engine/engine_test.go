@@ -19,6 +19,33 @@ func TestBundleMatchesRASPEvent(t *testing.T) {
 	}
 }
 
+func TestBundleCollapsesMultipleRASPRuleMatchesIntoOneAlert(t *testing.T) {
+	bundle, err := NewBundle("test", []RuntimeRule{
+		{ID: "owasp-crs-942120", Name: "SQL Operator", Category: contracts.TelemetryRASP, Severity: contracts.SeverityCritical, ScoreHint: 90, Field: "query", Value: "(?i)union select", Regex: true, Candidate: true},
+		{ID: "owasp-crs-942140", Name: "DB Names", Category: contracts.TelemetryRASP, Severity: contracts.SeverityCritical, ScoreHint: 90, Field: "query", Value: "(?i)select", Regex: true, Candidate: true},
+		{ID: "rasp-sqli", Name: "RASP SQLi", Category: contracts.TelemetryRASP, Severity: contracts.SeverityCritical, ScoreHint: 90, Field: "query", Value: "(?i)union select", Regex: true, Candidate: true},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	env := contracts.TelemetryEnvelope{SchemaVersion: contracts.TelemetrySchemaVersion, ID: "e1", Category: contracts.TelemetryRASP, EventType: "rasp.sql", ObservedAt: time.Now(), Source: "python-probe", Fields: map[string]any{"query": "select 1 union select 2", "blocked": true}}
+
+	alerts := bundle.Match(env)
+
+	if len(alerts) != 1 {
+		t.Fatalf("one RASP event produced %d alerts: %#v", len(alerts), alerts)
+	}
+	if alerts[0].RuleID != "rasp-sqli" {
+		t.Fatalf("native RASP rule must win, got %s", alerts[0].RuleID)
+	}
+	if alerts[0].Details["blocked"] != true {
+		t.Fatalf("enforcement fields were dropped: %#v", alerts[0].Details)
+	}
+	if alerts[0].Action != string(contracts.ActionBlock) || alerts[0].PolicyState != contracts.PolicyBlock {
+		t.Fatalf("blocked action/policy not preserved: action=%q policy=%q", alerts[0].Action, alerts[0].PolicyState)
+	}
+}
+
 func TestBundleCounts(t *testing.T) {
 	bundle, err := NewBundle("test", []RuntimeRule{{ID: "runtime-1", Category: contracts.TelemetryRuntime}, {ID: "dpi-1", Category: contracts.TelemetryTraffic}})
 	if err != nil {

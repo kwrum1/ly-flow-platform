@@ -7,6 +7,13 @@ from typing import Optional
 from .config import RASPConfig, get_config, load_config, set_config
 from .tracer import rasp_trace
 from .reporter import Reporter, set_reporter
+from .request_hook import (
+    RASPASGIMiddleware,
+    RASPRequestBlocked,
+    RASPWSGIMiddleware,
+    inspect_http_request,
+    request_hook_status,
+)
 
 
 _config: Optional[RASPConfig] = None

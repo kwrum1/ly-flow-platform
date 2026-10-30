@@ -1,5 +1,87 @@
 # LyFlow Operational Console Design System
 
+> **当前方向：v4「Clean Operations」（2026-10-29 起）。**
+> v1 iKuai 蓝白、v2 暖纸、v3 深色 HUD 均已被取代。v4 是浅色优先的清爽控制台，
+> 深色作为可选变体。下方第 0–8 节保留为历史基础与可访问性底线。
+
+## v4 设计契约 — Clean Operations
+
+### 定位
+
+流影控制台是安全运营工具，不是数据大屏。目标是：留白足够、层级清楚、密度恰当，
+让值守人员连续使用数小时不疲劳。参考同类产品的清爽信息结构，但不复制其品牌语言。
+
+设计原则：
+
+1. **一屏一件事**：每个页面只回答一个问题，次要信息下钻到抽屉。
+2. **留白优先**：卡片间距 16px、页面内边距 24px、表格行高 52px。
+3. **颜色即状态**：界面骨架用中性灰，颜色只用于风险等级、在线/离线与主操作。
+4. **数字可核对**：聚合值标注时间窗与口径；缺失显示「—」，不补 0。
+
+### 颜色
+
+| 角色 | Token | Light | Dark |
+|---|---|---:|---:|
+| 画布 | `--v-canvas` | `#f5f6f8` | `#0b0f14` |
+| 表面 | `--v-surface` | `#ffffff` | `#121820` |
+| 次级表面 | `--v-surface-2` | `#fafbfc` | `#151c25` |
+| 主文本 | `--v-ink` | `#111827` | `#e8edf3` |
+| 次文本 | `--v-ink-3` | `#6b7280` | `#8a96a5` |
+| 分隔线 | `--v-line` | `#e5e8ec` | `#232c37` |
+| 交互色 | `--v-accent` | `#2563eb` | `#38bdf8` |
+| 严重 | `--v-critical` | `#dc2626` | `#f87171` |
+| 高危 | `--v-high` | `#ea580c` | `#fb923c` |
+| 中危 | `--v-medium` | `#ca8a04` | `#facc15` |
+| 低危 | `--v-low` | `#0e7490` | `#22d3ee` |
+| 正常 | `--v-success` | `#15803d` | `#4ade80` |
+| 未知 | `--v-unknown` | `#6b7280` | `#8a96a5` |
+
+规则：交互色不表达风险；未知态用虚线/空心点；状态永远带文字。
+
+### 排版
+
+- UI：`Inter / Segoe UI / PingFang SC / Microsoft YaHei`。
+- 数据：`JetBrains Mono / Cascadia Code / Consolas`，`tabular-nums`。
+- 尺度：10 / 11 / 12 / 13 / 16 / 22 / 26px。正文 12.5–13px，页面标题 22px。
+
+### 布局与信息架构
+
+- 左侧 224px 白色导航（可收起 68px），右侧 56px 顶栏 + 画布。
+- 顶栏固定展示：组件健康、在线 Agent、时间源与偏移、当前时间。
+- 8 个作业面：
+  1. 态势总览 `/overview`
+  2. 攻击链处置 `/incidents`
+  3. 事件检索 `/events`
+  4. 检测面 `/threats`（流量 / 主机运行时 / 应用 RASP 合并）
+  5. 资产运维 `/assets`
+  6. 数据与健康 `/health`（数据质量 + 引擎 + 组件合并）
+  7. 规则中心 `/rules`
+  8. 系统管理 `/settings`（平台 / 账户 / 安装合并）
+
+砍掉的独立页面：全球态势、证据库、响应处置、时间线、独立引擎健康、独立账户管理、
+独立安装配置。它们要么数据不足，要么与上述作业面重复；旧路由保留 301 式重定向到新页面。
+
+### 状态语义
+
+`not_configured / installed / online / telemetry / detecting / blocking / degraded / failed / unknown`
+保持分离。monitor 模式不得显示为已阻断；未上报能力显示未知。
+
+### 数据诚实
+
+- 缺失保留 `unknown/null`，不补 0；空样本显示「—」。
+- 比率必须带样本量；聚合指标标注时间窗与「记录数 / 命中次数」。
+- 不使用不可解释的综合评分；态势等级写明派生规则。
+- 组件健康直连 `/api/v1/debug/components`（该响应没有 `data` 包裹）。
+
+### 实现边界
+
+- `src/v4/styles/app.css` 是唯一全局样式表；`global.css`、`ikuai-theme.css`、
+  `command.css`、`lyf-unify.css` 不再被导入。
+- 页面只使用 `v-*` 令牌与共享类，不再写页面级硬编码颜色。
+- 旧页面文件保留在仓库中但不再被路由引用，可随时回滚。
+
+---
+
 ## 0. Research Log
 
 - Approved public source packet: iKuai 4 beta console imagery and product material published through the iKuai official site (`https://www.ikuai8.com/`) and official documentation portal (`https://doc.ikuai8.com/`). T16 uses only the already-approved structural facts: a narrow blue icon rail, a white secondary navigation plane, a compact identity row, dense controls, and a blue-white work canvas.

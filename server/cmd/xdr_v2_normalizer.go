@@ -43,7 +43,8 @@ func normalizeComponentEvent(event map[string]interface{}, config *Config) (*mod
 	}
 
 	ruleID := firstNonEmpty(xdrPickString(event, "component_rule_id"), xdrPickString(event, "rule_id"))
-	eventUID := deterministicEventUID(tenant, category, ruleID, srcIP, victim, agentID, observedAt)
+	eventUID, shadowUID := resolveEventUID(event, tenant, category, ruleID, srcIP, victim, agentID, observedAt)
+	logEventUIDShadow(eventUID, shadowUID)
 
 	riskScore := float64(scoreHint)
 	if riskScore == 0 {

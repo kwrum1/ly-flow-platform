@@ -50,8 +50,8 @@ type EventV2View struct {
 	FileHash      string                  `json:"file_hash,omitempty"`
 	SrcIP         string                  `json:"src_ip,omitempty"`
 	DstIP         string                  `json:"dst_ip,omitempty"`
-	SrcPort       uint16                  `json:"src_port,omitempty"`
-	DstPort       uint16                  `json:"dst_port,omitempty"`
+	SrcPort       *uint16                 `json:"src_port"`
+	DstPort       *uint16                 `json:"dst_port"`
 	Proto         string                  `json:"proto,omitempty"`
 	RuleID        string                  `json:"rule_id,omitempty"`
 	RuleSource    string                  `json:"rule_source,omitempty"`
@@ -129,7 +129,7 @@ func (client *HTTPClickHouse) QueryEventsV2(ctx context.Context, query EventV2Qu
 	}
 	sql := "SELECT event_uid, correlation_id, tenant_id, source, event_type, " +
 		"event_at, observed_at, ingested_at, asset_id, user_id, " +
-		"process_pid, process_exe, file_hash, src_ip, dst_ip, src_port, dst_port, proto, " +
+		"process_pid, process_exe, file_hash, src_ip, dst_ip, src_port, dst_port, src_port_known, dst_port_known, proto, " +
 		"rule_id, rule_source, severity, confidence, tactic_id, technique_id, stage, " +
 		"evidence_json, payload_json, raw_schema, raw_event_id, raw_sha256 " +
 		"FROM lyflow_events_v2 WHERE " + strings.Join(conditions, " AND ") +
@@ -163,7 +163,7 @@ func (client *HTTPClickHouse) GetEventV2(ctx context.Context, eventUID string) (
 	}
 	sql := "SELECT event_uid, correlation_id, tenant_id, source, event_type, " +
 		"event_at, observed_at, ingested_at, asset_id, user_id, " +
-		"process_pid, process_exe, file_hash, src_ip, dst_ip, src_port, dst_port, proto, " +
+		"process_pid, process_exe, file_hash, src_ip, dst_ip, src_port, dst_port, src_port_known, dst_port_known, proto, " +
 		"rule_id, rule_source, severity, confidence, tactic_id, technique_id, stage, " +
 		"evidence_json, payload_json, raw_schema, raw_event_id, raw_sha256 " +
 		"FROM lyflow_events_v2 WHERE event_uid = " + quoteClickHouseString(eventUID) +
@@ -202,6 +202,8 @@ type eventV2QueryRow struct {
 	DstIP         string  `json:"dst_ip"`
 	SrcPort       uint16  `json:"src_port"`
 	DstPort       uint16  `json:"dst_port"`
+	SrcPortKnown  uint8   `json:"src_port_known"`
+	DstPortKnown  uint8   `json:"dst_port_known"`
 	Proto         string  `json:"proto"`
 	RuleID        string  `json:"rule_id"`
 	RuleSource    string  `json:"rule_source"`
@@ -246,8 +248,6 @@ func (row eventV2QueryRow) view() EventV2View {
 		FileHash:      row.FileHash,
 		SrcIP:         row.SrcIP,
 		DstIP:         row.DstIP,
-		SrcPort:       row.SrcPort,
-		DstPort:       row.DstPort,
 		Proto:         row.Proto,
 		RuleID:        row.RuleID,
 		RuleSource:    row.RuleSource,
@@ -264,6 +264,16 @@ func (row eventV2QueryRow) view() EventV2View {
 	view.EventAt, _ = parseClickHouseTime(row.EventAt)
 	view.ObservedAt, _ = parseClickHouseTime(row.ObservedAt)
 	view.IngestedAt, _ = parseClickHouseTime(row.IngestedAt)
+	// A port is only surfaced when the row recorded it as a real observation.
+	// Legacy rows without the known flag stay nil rather than reporting 0.
+	if row.SrcPortKnown == 1 {
+		port := row.SrcPort
+		view.SrcPort = &port
+	}
+	if row.DstPortKnown == 1 {
+		port := row.DstPort
+		view.DstPort = &port
+	}
 	if row.EvidenceJSON != "" {
 		_ = json.Unmarshal([]byte(row.EvidenceJSON), &view.Evidence)
 	}

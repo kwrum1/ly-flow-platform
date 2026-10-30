@@ -65,7 +65,7 @@ func TestBlockPromotion_rejects_missing_ack_failed_canary_and_replay_metrics(t *
 	}
 }
 
-func TestBlockPromotion_stays_disabled_after_all_safety_gates_pass(t *testing.T) {
+func TestBlockPromotion_stays_disabled_without_operator_opt_in(t *testing.T) {
 	// Given
 	harness := newPolicyHarness(t)
 	policy := harness.blockPolicy(2)
@@ -79,6 +79,30 @@ func TestBlockPromotion_stays_disabled_after_all_safety_gates_pass(t *testing.T)
 	// Then
 	if !errors.Is(err, ErrProductionBlockDisabled) {
 		t.Fatalf("error = %v, want ErrProductionBlockDisabled", err)
+	}
+}
+
+func TestBlockPromotion_activates_after_opt_in_and_all_safety_gates(t *testing.T) {
+	// Given
+	harness := newPolicyHarnessWithBlockOptIn(t)
+	policy := harness.blockPolicy(2)
+	createCanaryForTest(t, harness, policy)
+	ackCanaryForTest(t, harness, policy.Version)
+	completeCanaryForTest(t, harness, policy.Version, successfulCanary())
+
+	// When
+	err := harness.manager.Promote(context.Background(), policy.Version)
+
+	// Then
+	if err != nil {
+		t.Fatalf("promote block policy: %v", err)
+	}
+	state, stateErr := harness.manager.PolicyState(context.Background(), policy.Version)
+	if stateErr != nil {
+		t.Fatalf("load policy state: %v", stateErr)
+	}
+	if state != StateActive {
+		t.Fatalf("state = %q, want active", state)
 	}
 }
 

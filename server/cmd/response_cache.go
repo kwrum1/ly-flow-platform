@@ -84,7 +84,10 @@ func warmRulePlatformSourcesCache(cfg *Config) {
 	if err != nil {
 		return
 	}
-	body, err := json.Marshal(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{"items": items, "total": len(items)}})
+	body, err := json.Marshal(map[string]interface{}{"code": 0, "message": "success", "data": map[string]interface{}{
+		"items": items, "total": len(items),
+		"freshness": rulePlatformFreshness(ctx, cfg),
+	}})
 	if err != nil {
 		return
 	}
