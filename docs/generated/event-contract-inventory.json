@@ -3627,6 +3627,7 @@
         "hasExt",
         "loadLyprobeRules",
         "loadNativeEngineRules",
+        "loadSuricataRulesetManifest",
         "lyprobeManifestVersion",
         "lyprobeRecentFlowAt",
         "lyprobeRecentFlowFromMessages",
@@ -4447,7 +4448,8 @@
         "startSuricataEVEIngest",
         "suricataAlertUID",
         "suricataEVEInode",
-        "suricataSeverity"
+        "suricataSeverity",
+        "suricataSignatureSeverity"
       ],
       "roles": [
         "consumer"
@@ -8331,6 +8333,7 @@
         "hasExt",
         "loadLyprobeRules",
         "loadNativeEngineRules",
+        "loadSuricataRulesetManifest",
         "lyprobeManifestVersion",
         "lyprobeRecentFlowAt",
         "lyprobeRecentFlowFromMessages",
