@@ -49,8 +49,13 @@ jobs:
       - name: Build installer bundle
         env:
           LYFLOW_TARGET_ARCH: amd64
+          TMPDIR: /var/tmp/lyflow-bundle
         run: |
           set -euo pipefail
+          # /tmp is a 32G tmpfs shared with other builds; stage on the data disk.
+          mkdir -p "$TMPDIR"
+          trap 'rm -rf "$TMPDIR"' EXIT
+          docker builder prune -f >/dev/null 2>&1 || true
           bash scripts/build-docker-bundle.sh
           ls -lh release/lyflow-server-amd64.tar.gz
           gzip -t release/lyflow-server-amd64.tar.gz
