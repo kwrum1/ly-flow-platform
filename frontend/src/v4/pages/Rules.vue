@@ -323,7 +323,7 @@ async function load() {
     ruleClient.quarantine(),
     ruleClient.engineRules({ limit: 200 }),
     yaraClient.status(),
-    opsClient.engineRuntimeStatus(),
+    ruleClient.engineRuntimeStatus(),
   ])
   if (s.status === 'fulfilled') stats.value = unwrap(s.value)
   if (src.status === 'fulfilled') {

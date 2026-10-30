@@ -142,7 +142,7 @@
           <dt>样本跨度</dt><dd>{{ span.earliest ? `${shortTime(span.earliest)} ~ ${shortTime(span.latest)}` : '无有效时间字段' }}</dd>
         </dl>
         <ul class="notes">
-          <li>样本每次最多 500 条聚合记录，比率是样本比率，不是全量断言。</li>
+          <li>样本每次最多 200 条聚合记录，比率是样本比率，不是全量断言。</li>
           <li>缺失值不会补 0；端口 0 一律计为未知。</li>
           <li>留存跨度只反映样本中能查到的最早时间，不等同于存储 TTL 或合规承诺。</li>
         </ul>

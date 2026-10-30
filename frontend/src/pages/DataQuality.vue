@@ -166,7 +166,7 @@
       <div class="sx-panel-head"><div class="sx-panel-title">口径说明</div></div>
       <div class="sx-panel-body">
         <ul>
-          <li><b>样本</b>：本页每次最多读取 500 条聚合记录，比率是样本比率，不是全量断言。</li>
+          <li><b>样本</b>：本页每次最多读取 200 条聚合记录，比率是样本比率，不是全量断言。</li>
           <li><b>缺失</b>：空字符串、null、undefined 都记为缺失；不会补 0，也不会推断。</li>
           <li><b>端口 0</b>：历史数据用 0 表示未知端口，本页一律计为未知。</li>
           <li><b>留存</b>：只反映样本里能查到的最早时间，不等同于存储层 TTL 或合规承诺。</li>

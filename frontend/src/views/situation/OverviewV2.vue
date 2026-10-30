@@ -43,7 +43,7 @@
         <span class="sx-metric-label"><i />窗口内命中</span>
         <strong class="sx-metric-value">{{ eventsReady ? formatNumber(occurrenceTotal) : '—' }}</strong>
         <span class="sx-metric-note">
-          {{ eventsReady ? `来自 ${formatNumber(eventSampleCount)} 条聚合记录 · 样本上限 500` : '正在读取检测样本' }}
+          {{ eventsReady ? `来自 ${formatNumber(eventSampleCount)} 条聚合记录` : '正在读取检测样本' }}
         </span>
         <RouterLink class="ov-kpi-link" to="/events">查看事件中心 →</RouterLink>
       </article>

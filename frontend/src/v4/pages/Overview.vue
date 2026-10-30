@@ -26,7 +26,7 @@
       <article class="v-stat">
         <span class="v-stat-label"><i />窗口内命中</span>
         <strong class="v-stat-value">{{ eventsReady ? formatNumber(occurrences) : '—' }}</strong>
-        <span class="v-stat-note">{{ eventsReady ? `${events.length} 条聚合记录 · 样本上限 500` : '正在读取检测样本' }}</span>
+        <span class="v-stat-note">{{ eventsReady ? `${events.length} 条聚合记录` : '正在读取检测样本' }}</span>
         <RouterLink class="v-stat-link" to="/events">查看事件</RouterLink>
       </article>
       <article class="v-stat">
