@@ -170,6 +170,6 @@ jobs:
           gh release create latest-server \
             --repo "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "流影 LyFlow 正式服务端" \
-            --notes "包含 AMD64 与 ARM64 服务端一键部署包；规则库在本次构建中从公网重新获取并编译。"
+            --title "流影 LyFlow 1.0 正式服务端" \
+            --notes "LyFlow 1.0.0：包含 AMD64 与 ARM64 服务端一键部署包；规则库在本次构建中从公网重新获取并编译。版本说明见 docs/RELEASE-1.0.md。"
           gh release upload latest-server --repo "$GITHUB_REPOSITORY" release/lyflow-server-*.tar.gz

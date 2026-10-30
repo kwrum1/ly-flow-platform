@@ -42,7 +42,7 @@
 
         <footer class="ly-auth-foot">
           <span>会话凭据仅保存在本机</span>
-          <span class="ly-auth-foot-mark">XDR · RASP · XDR</span>
+          <span class="ly-auth-foot-mark">v1.0.0 · XDR · RASP · YARA</span>
         </footer>
       </div>
     </section>

@@ -1,15 +1,24 @@
 # 流影 LyFlow XDR 安全态势感知平台
 
-流影是面向单机安全设备和中小型安全运营场景的一体化 XDR 平台。服务端通过镜像口分析南北向流量，外部 Linux 主机通过无容器 Agent 上报运行时、日志、RASP、YARA 和网络遥测；平台统一完成存储、检测、ATT&CK 关联、Incident 处置和可视化。
+流影 LyFlow 1.0 是面向单机安全设备和中小型安全运营场景的一体化 XDR 平台。服务端通过镜像口分析南北向流量，外部 Linux 主机通过无容器 Agent 上报运行时、日志、RASP、YARA 和网络遥测；平台统一完成存储、检测、ATT&CK 关联、Incident 处置和可视化。
 
-## 当前状态
+## 1.0 正式版（2026-10-31）
 
-- 2026-10-30 完成检测能力与主动防御验收，详见 [检测能力与主动防御验收](docs/dev/DETECTION-ACCEPTANCE-2026-10-30.md)
-- 流量规则：Suricata 58 条 + lyprobe 9 条，`overlap_count=0`
-- Agent 二进制、配置和信任链已签名，完整性校验开启
-- RASP 请求级拦截实测：SQLi / XSS / 路径穿越返回 403，正常请求 200
-- 自动值守：dry-run → active → stop/expire 回 monitor
-- EVE 告警入库、小时轮转、历史 gzip 查询和分级保留已上线
+- **检测能力**：Suricata 传感器加载 ET Open 全量签名（约 3.8 万条）+ 自写规则，
+  流量转换规则 182 条、lyprobe 6 条进入 flow 引擎，两套引擎职责分离；
+- **检测面**：流量、主机运行时、应用 RASP、YARA 四类，阻断以端侧证据为准；
+- **降噪**：ET INFO/POLICY/HUNTING/DNS 启发式等低价值家族默认剔除，
+  转换规则有保真门禁，历史误报规则已退役且不会随同步回归；
+- **规则更新**：ET Open 每日 03:30 自动刷新（失败保留旧库），
+  flow 引擎规则支持定时同步、版本化与热加载；
+- **主动防御**：RASP 请求级拦截实测 SQLi / XSS / 路径穿越返回 403，正常请求 200；
+  defense 支持 dry-run → active → stop/expire 回 monitor；
+- **数据保留**：原始 EVE 48 小时、traffic_sessions 3 天、threat_events 30 天；
+- **Agent**：Linux AMD64/ARM64，二进制/配置/策略签名校验开启；
+- **CI**：Go、前端、Python RASP 与策略检查全部通过。
+
+> 详细验收记录见 [检测能力与主动防御验收](docs/dev/DETECTION-ACCEPTANCE-2026-10-30.md)，
+> 版本说明见 [1.0 发布说明](docs/RELEASE-1.0.md)。
 
 ### 界面预览
 
