@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -37,7 +38,7 @@ const rulePlatformSyncBodyLimit int64 = 65 << 20
 // rulePlatformParserVersion is bumped whenever the conversion quality rules
 // change. It is mixed into the stored source digest so an unchanged upstream
 // feed can never keep an active bundle produced by an older parser.
-const rulePlatformParserVersion = "2026-10-30.4"
+const rulePlatformParserVersion = "2026-10-30.7"
 
 // retiredDefaultDetectionRuleIDs are bundled rules that produced more noise
 // than signal. They are removed from the shipped bundle and are also disabled
@@ -70,6 +71,11 @@ var convertedTrafficSourcePrefixes = []string{
 	"stamus-lateral-",
 	"oisf-trafficid-",
 }
+
+// convertedSourcePrefixes also covers rule families that are flattened into a
+// condition list rather than a single signature: Sigma conversions lose the
+// upstream AND/OR grouping, so they need the same specificity gate.
+var convertedSourcePrefixes = append(append([]string{}, convertedTrafficSourcePrefixes...), "sigma-")
 
 type ruleVersionStatusCommitter interface {
 	MarkSynced(ctx context.Context, sourceID, version, digest string) error
@@ -590,7 +596,7 @@ func loadEnabledDetectionRules(ctx context.Context, cfg *Config) ([]compiledRunt
 		if !compiledRuntimeRuleValid(rule) {
 			return nil, fmt.Errorf("rule %s failed strict runtime validation", id)
 		}
-		if compiledTrafficRuleIsGeneric(rule) {
+		if compiledRuleIsOverBroad(rule) {
 			skippedGeneric++
 			continue
 		}
@@ -628,7 +634,7 @@ func loadEnabledDetectionRulesExcludingSource(ctx context.Context, cfg *Config, 
 		if !compiledRuntimeRuleValid(rule) {
 			return nil, fmt.Errorf("rule %s failed strict runtime validation", id)
 		}
-		if compiledTrafficRuleIsGeneric(rule) {
+		if compiledRuleIsOverBroad(rule) {
 			skippedGeneric++
 			continue
 		}
@@ -794,6 +800,46 @@ func stringSliceValue(value interface{}) []string {
 		return []string{typed}
 	}
 	return nil
+}
+
+func compiledRuleIsOverBroad(rule compiledRuntimeRule) bool {
+	if !convertedRuleID(rule.ID) {
+		return false
+	}
+	if compiledTrafficRuleIsGeneric(rule) {
+		return true
+	}
+	if len(rule.Conditions) == 0 {
+		if strings.EqualFold(strings.TrimSpace(rule.Category), "traffic") {
+			return false
+		}
+		return !rulePatternIsSpecific(rule.Value, rule.Operator)
+	}
+	specific := false
+	for _, condition := range rule.Conditions {
+		if sigmaConditionHasWeakAlternation(condition) {
+			return true
+		}
+		field := strings.TrimSpace(asString(condition["field"]))
+		value := strings.TrimSpace(asString(condition["value"]))
+		if field == "" || value == "" {
+			return true
+		}
+		if sigmaConditionValueIsSpecific(field, value) {
+			specific = true
+		}
+	}
+	return !specific
+}
+
+func convertedRuleID(id string) bool {
+	lower := strings.ToLower(strings.TrimSpace(id))
+	for _, prefix := range convertedSourcePrefixes {
+		if strings.Contains(lower, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 func compiledTrafficRuleIsGeneric(rule compiledRuntimeRule) bool {
@@ -2170,20 +2216,24 @@ func parseSigmaRules(content string) []map[string]interface{} {
 		}
 		usable := false
 		dangerous := false
-		stopWords := map[string]bool{"root": true, "admin": true, "user": true, "sudo": true, "sshd": true, "login": true, "error": true, "warning": true}
+		specific := false
 		for _, condition := range conditions {
-			field := asString(condition["field"])
-			value := strings.TrimSpace(asString(condition["value"]))
-			if field == "" || value == "" {
-				continue
-			}
-			usable = true
-			if field == "message" && (len(value) < 6 || isAllDigits(value) || stopWords[strings.ToLower(value)]) {
+			if sigmaConditionHasWeakAlternation(condition) {
 				dangerous = true
 				break
 			}
+			field := asString(condition["field"])
+			value := strings.TrimSpace(asString(condition["value"]))
+			if field == "" || value == "" {
+				dangerous = true
+				break
+			}
+			usable = true
+			if sigmaConditionValueIsSpecific(field, value) {
+				specific = true
+			}
 		}
-		if !usable || dangerous {
+		if !usable || dangerous || !specific {
 			continue
 		}
 		if len(out) >= 400 {
@@ -2202,86 +2252,260 @@ func parseSigmaRules(content string) []map[string]interface{} {
 	return out
 }
 
+// sigmaConditions keeps Sigma's boolean shape. A selection is a set of field
+// matches that must all hold, so flattening it into one "a|b|c" regex turns an
+// AND into an OR: "GET" alone then matches every web log line. Only genuine
+// alternatives (keyword lists, "1 of them") become a regex, and each branch
+// must still be distinctive.
 func sigmaConditions(detection map[string]interface{}) []map[string]interface{} {
-	out := []map[string]interface{}{}
-	condition := strings.ToLower(asString(detection["condition"]))
+	condition := strings.ToLower(strings.TrimSpace(asString(detection["condition"])))
+	selections := map[string][]map[string]interface{}{}
+	keys := make([]string, 0, len(detection))
 	for key, value := range detection {
 		if key == "condition" || key == "timeframe" {
 			continue
 		}
-		conditions := sigmaValueConditions(value)
-		if strings.TrimSpace(condition) == key || strings.Contains(condition, "1 of "+key) || strings.Contains(condition, "1 of them") {
-			if regexCondition := oneOfConditionsRegex(conditions); len(regexCondition) > 0 {
-				out = append(out, regexCondition)
-				continue
-			}
-		}
-		out = append(out, conditions...)
+		lower := strings.ToLower(key)
+		keys = append(keys, lower)
+		selections[lower] = sigmaSelectionConditions(value)
 	}
-	return out
-}
-
-func oneOfConditionsRegex(conditions []map[string]interface{}) map[string]interface{} {
-	values := []string{}
-	field := "message"
-	for _, condition := range conditions {
-		if asString(condition["field"]) != "" {
-			field = asString(condition["field"])
-		}
-		if value := asString(condition["value"]); value != "" {
-			values = append(values, regexp.QuoteMeta(value))
-		}
-	}
-	if len(values) == 0 {
+	sort.Strings(keys)
+	if len(keys) == 0 {
 		return nil
 	}
-	return map[string]interface{}{"field": field, "operator": "regex", "value": "(?i)(" + strings.Join(values, "|") + ")", "regex": true}
+	if selected, ok := selections[condition]; ok {
+		// "condition: selection" requires every field of that selection.
+		return selected
+	}
+	switch {
+	case strings.Contains(condition, "all of "), strings.Contains(condition, " and "):
+		out := []map[string]interface{}{}
+		for _, key := range keys {
+			out = append(out, selections[key]...)
+		}
+		return out
+	case strings.Contains(condition, "1 of "), strings.Contains(condition, " or "):
+		return sigmaOrSelections(selections, keys)
+	}
+	return nil
 }
 
-func sigmaValueConditions(value interface{}) []map[string]interface{} {
-	out := []map[string]interface{}{}
-	switch v := value.(type) {
-	case []interface{}:
-		for _, item := range v {
-			if s := asString(item); s != "" {
-				out = append(out, map[string]interface{}{"field": "message", "operator": "contains", "value": s})
+// sigmaOrSelections flattens genuine alternatives into one regex. It refuses
+// selections that themselves hold several fields, because "one of (A and B)"
+// is not representable as a single pattern.
+func sigmaOrSelections(selections map[string][]map[string]interface{}, keys []string) []map[string]interface{} {
+	values := []string{}
+	field := ""
+	for _, key := range keys {
+		conditions := selections[key]
+		if len(conditions) != 1 {
+			return nil
+		}
+		condition := conditions[0]
+		fieldName := asString(condition["field"])
+		value := strings.TrimSpace(asString(condition["value"]))
+		if fieldName == "" || value == "" || (field != "" && field != fieldName) {
+			return nil
+		}
+		if !sigmaConditionValueIsSpecific(fieldName, value) {
+			return nil
+		}
+		field = fieldName
+		values = append(values, regexp.QuoteMeta(value))
+	}
+	if field == "" || len(values) == 0 {
+		return nil
+	}
+	return []map[string]interface{}{{"field": field, "operator": "regex", "value": "(?i)(" + strings.Join(values, "|") + ")", "regex": true}}
+}
+
+func sigmaSelectionConditions(value interface{}) []map[string]interface{} {
+	switch typed := value.(type) {
+	case map[string]interface{}:
+		fields := make([]string, 0, len(typed))
+		for field := range typed {
+			fields = append(fields, field)
+		}
+		sort.Strings(fields)
+		out := []map[string]interface{}{}
+		for _, field := range fields {
+			mapped := mapSigmaField(field)
+			if mapped == "" {
+				// Dropping an unmapped field would silently weaken the rule.
+				return nil
+			}
+			operator := sigmaOperator(field)
+			switch raw := typed[field].(type) {
+			case []interface{}:
+				values := sigmaStringList(raw)
+				if len(values) == 0 {
+					continue
+				}
+				if len(values) == 1 {
+					out = append(out, sigmaCondition(mapped, operator, values[0]))
+					continue
+				}
+				alternation, ok := sigmaValueAlternation(mapped, values)
+				if !ok {
+					return nil
+				}
+				out = append(out, alternation)
+			default:
+				value := strings.Trim(sigmaScalarString(raw), "*")
+				if value == "" || value == "*" {
+					continue
+				}
+				out = append(out, sigmaCondition(mapped, operator, value))
 			}
 		}
-	case map[string]interface{}:
-		for field, raw := range v {
-			mapped := mapSigmaField(field)
-			op := sigmaOperator(field)
-			switch x := raw.(type) {
-			case []interface{}:
-				for _, item := range x {
-					if s := asString(item); s != "" {
-						out = append(out, map[string]interface{}{"field": mapped, "operator": op, "value": s})
-					}
-				}
-			default:
-				if s := asString(x); s != "" && s != "*" {
-					out = append(out, map[string]interface{}{"field": mapped, "operator": op, "value": strings.Trim(s, "*")})
-				}
-			}
+		if len(out) == 0 {
+			return nil
+		}
+		return out
+	case []interface{}:
+		values := sigmaStringList(typed)
+		if len(values) == 0 {
+			return nil
+		}
+		if len(values) == 1 {
+			return []map[string]interface{}{sigmaCondition("message", "contains", values[0])}
+		}
+		alternation, ok := sigmaValueAlternation("message", values)
+		if !ok {
+			return nil
+		}
+		return []map[string]interface{}{alternation}
+	}
+	return nil
+}
+
+func sigmaCondition(field, operator, value string) map[string]interface{} {
+	return map[string]interface{}{"field": field, "operator": operator, "value": value}
+}
+
+func sigmaStringList(values []interface{}) []string {
+	out := []string{}
+	for _, item := range values {
+		if value := strings.Trim(sigmaScalarString(item), "*"); value != "" && value != "*" {
+			out = append(out, value)
 		}
 	}
 	return out
 }
+
+// sigmaScalarString stringifies Sigma scalar values. Status codes and event
+// IDs arrive as numbers; asString alone drops them and silently weakens a rule.
+func sigmaScalarString(value interface{}) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case int:
+		return strconv.Itoa(typed)
+	case int64:
+		return strconv.FormatInt(typed, 10)
+	case uint64:
+		return strconv.FormatUint(typed, 10)
+	case float64:
+		if typed == math.Trunc(typed) {
+			return strconv.FormatInt(int64(typed), 10)
+		}
+		return strconv.FormatFloat(typed, 'f', -1, 64)
+	case bool:
+		return strconv.FormatBool(typed)
+	}
+	return ""
+}
+
+func sigmaValueAlternation(field string, values []string) (map[string]interface{}, bool) {
+	branches := make([]string, 0, len(values))
+	for _, value := range values {
+		if !sigmaConditionValueIsSpecific(field, value) {
+			return nil, false
+		}
+		branches = append(branches, regexp.QuoteMeta(value))
+	}
+	if len(branches) == 0 {
+		return nil, false
+	}
+	return map[string]interface{}{"field": field, "operator": "regex", "value": "(?i)(" + strings.Join(branches, "|") + ")", "regex": true}, true
+}
+
+var genericLogValues = map[string]bool{
+	"get": true, "post": true, "put": true, "delete": true, "head": true,
+	"options": true, "patch": true, "http": true, "https": true, "ok": true,
+	"true": true, "false": true, "null": true, "none": true, "any": true,
+}
+
+var genericMessageWords = map[string]bool{
+	"root": true, "admin": true, "user": true, "sudo": true, "sshd": true,
+	"login": true, "error": true, "warning": true,
+}
+
+// sigmaConditionValueIsSpecific rejects values that would match almost every
+// log line. The check only applies to free-text fields: a structured field
+// such as user or status keeps its meaning even when the value is short.
+func sigmaConditionValueIsSpecific(field, value string) bool {
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return false
+	}
+	switch field {
+	case "message", "cmdline", "path", "query", "payload", "url":
+		lower := strings.ToLower(value)
+		if genericLogValues[lower] || commonConvertedTokens[lower] || len(value) < 4 {
+			return false
+		}
+		if field == "message" && (len(value) < 6 || genericMessageWords[lower] || isAllDigits(value)) {
+			return false
+		}
+	}
+	return true
+}
+
+// sigmaConditionHasWeakAlternation spots a regex that ORs a generic token into
+// the pattern. One such branch makes the whole condition match everything, so
+// the rule is dropped instead of being turned into a catch-all.
+func sigmaConditionHasWeakAlternation(condition map[string]interface{}) bool {
+	operator := strings.ToLower(strings.TrimSpace(asString(condition["operator"])))
+	isRegex, _ := condition["regex"].(bool)
+	if !isRegex && operator != "regex" {
+		return false
+	}
+	value := asString(condition["value"])
+	if !strings.Contains(value, "|") {
+		return false
+	}
+	for _, branch := range strings.Split(value, "|") {
+		for _, token := range alnumRunPattern.FindAllString(branch, -1) {
+			lower := strings.ToLower(token)
+			if genericLogValues[lower] || genericMessageWords[lower] || commonConvertedTokens[lower] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+var alnumRunPattern = regexp.MustCompile(`[A-Za-z0-9_]+`)
 
 func mapSigmaField(field string) string {
 	base := strings.Split(field, "|")[0]
 	switch strings.ToLower(base) {
 	case "commandline", "process.command_line", "command", "exe", "comm", "image", "process.executable":
 		return "cmdline"
-	case "pam_message", "message", "keywords":
+	case "pam_message", "message", "keywords", "cs-user-agent", "cs-host", "cs-referer", "http.user_agent":
+		return "message"
+	case "cs-method", "method", "http.method", "request.method":
+		// Web methods only appear inside the raw request line; keep them as a
+		// message condition so the other fields stay ANDed with them.
 		return "message"
 	case "user", "user.name", "username", "uid":
 		return "user"
-	case "src_ip", "source.ip", "sourceip", "ip_address":
+	case "src_ip", "source.ip", "sourceip", "ip_address", "c-ip", "client.ip":
 		return "src_ip"
-	case "dst_ip", "destination.ip", "dest_ip":
+	case "dst_ip", "destination.ip", "dest_ip", "s-ip":
 		return "dst_ip"
-	case "url", "request", "uri", "http.url", "cs-uri-stem":
+	case "url", "request", "uri", "http.url", "cs-uri-stem", "cs-uri", "c-uri", "c-uri-stem", "cs-uri-query":
 		return "path"
 	case "status", "http.status_code", "sc-status":
 		return "status"

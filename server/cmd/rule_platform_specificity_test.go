@@ -175,3 +175,45 @@ func TestRulePlatformContentDigestBindsParserVersion(t *testing.T) {
 		t.Fatal("digest must be deterministic")
 	}
 }
+
+func TestCompiledRuleIsOverBroad(t *testing.T) {
+	tests := []struct {
+		name string
+		rule compiledRuntimeRule
+		want bool
+	}{
+		{
+			name: "sigma alternation with generic verb",
+			rule: compiledRuntimeRule{ID: "sigma-7cb02516-6d95-4ffc-8eee-162075e111ac", Category: "log_audit", Conditions: []map[string]interface{}{
+				{"field": "message", "operator": "regex", "regex": true, "value": `(?i)(a\.aspx|GET|OPTIONS|~1)`},
+			}},
+			want: true,
+		},
+		{
+			name: "sigma specific path condition",
+			rule: compiledRuntimeRule{ID: "sigma-11111111-2222-3333-4444-555555555555", Category: "log_audit", Conditions: []map[string]interface{}{
+				{"field": "path", "operator": "contains", "value": "/wp-json/wp/v2/users"},
+			}},
+			want: false,
+		},
+		{
+			name: "sigma only weak conditions",
+			rule: compiledRuntimeRule{ID: "sigma-22222222-3333-4444-5555-666666666666", Category: "log_audit", Conditions: []map[string]interface{}{
+				{"field": "message", "operator": "contains", "value": "error"},
+			}},
+			want: true,
+		},
+		{
+			name: "curated default rule is never filtered",
+			rule: compiledRuntimeRule{ID: "lyflow-default-log-1", Category: "log_audit", Field: "message", Operator: "contains", Value: "error"},
+			want: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := compiledRuleIsOverBroad(test.rule); got != test.want {
+				t.Fatalf("compiledRuleIsOverBroad()=%v, want %v", got, test.want)
+			}
+		})
+	}
+}
