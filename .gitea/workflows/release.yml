@@ -13,7 +13,7 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
     steps:
       - name: Checkout
         run: |
@@ -34,33 +34,26 @@ jobs:
           (cd security-engine && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -buildvcs=false -o dist/linux/amd64/ly-security-engine ./cmd)
           (cd agent && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -buildvcs=false -o dist/linux/amd64/ly-agent ./cmd)
           (cd frontend && npm ci --no-audit --no-fund && npm run build)
-      - name: Package
+      - name: Build images
         run: |
           set -euo pipefail
-          version="${GITHUB_REF_NAME#v}"
-          [ "$version" != "$GITHUB_REF_NAME" ] || version="dev-${GITHUB_SHA:0:8}"
-          stage="release/lyflow-${version}-linux-amd64"
-          rm -rf "$stage" && mkdir -p "$stage/bin" "$stage/web"
-          cp server/dist/linux/amd64/ly-server server/dist/linux/amd64/ly-agent-center "$stage/bin/"
-          cp security-engine/dist/linux/amd64/ly-security-engine "$stage/bin/"
-          cp agent/dist/linux/amd64/ly-agent "$stage/bin/"
-          cp -a frontend/dist/. "$stage/web/"
-          cp -a rules "$stage/rules"
-          cp docker-compose.yml scripts/init-db.sql "$stage/"
-          cat > "$stage/README.md" <<EOF
-          # 流影 LyFlow ${version} 构建产物（linux/amd64）
-
-          由内网 Gitea Actions 在 ${GITHUB_SHA} 构建，包含：
-          - bin/ly-server, ly-agent-center, ly-security-engine, ly-agent
-          - web/ 前端静态文件
-          - rules/ 规则源与编译产物
-          - docker-compose.yml, init-db.sql
-
-          需要完整 Docker 一键安装包时使用 GitHub 的 latest-server 发布。
-          EOF
-          tar -C release -czf "release/lyflow-${version}-linux-amd64.tar.gz" "lyflow-${version}-linux-amd64"
-          (cd release && sha256sum "lyflow-${version}-linux-amd64.tar.gz" > "lyflow-${version}-linux-amd64.tar.gz.sha256")
-          ls -lh release/
+          arch=amd64
+          docker build --build-arg TARGETARCH=$arch --build-arg RUNTIME_IMAGE=redis:7-alpine -f deploy/docker/server.Dockerfile -t ly-flow/server:release-$arch .
+          docker build --build-arg TARGETARCH=$arch --build-arg RUNTIME_IMAGE=redis:7-alpine -f deploy/docker/security-engine.Dockerfile -t ly-flow/security-engine:release-$arch .
+          docker build --build-arg RUNTIME_IMAGE=nginx:1.27-alpine -f frontend/Dockerfile -t ly-flow/frontend:release-$arch .
+          docker build --build-arg TARGETARCH=$arch -f deploy/docker/local-mirror.Dockerfile -t ly-flow/local-mirror:release-$arch .
+          docker build -f deploy/docker/suricata.Dockerfile -t ly-flow/suricata-profile:release-$arch .
+          docker tag postgres:16-alpine ly-flow/vendor/postgres:16-alpine-$arch
+          docker tag redis:7-alpine ly-flow/vendor/redis:7-alpine-$arch
+          docker tag clickhouse/clickhouse-server:24.8-alpine ly-flow/vendor/clickhouse:24.8-alpine-$arch
+      - name: Build installer bundle
+        env:
+          LYFLOW_TARGET_ARCH: amd64
+        run: |
+          set -euo pipefail
+          bash scripts/build-docker-bundle.sh
+          ls -lh release/lyflow-server-amd64.tar.gz
+          gzip -t release/lyflow-server-amd64.tar.gz
       - name: Publish to Gitea release
         env:
           TOKEN: ${{ secrets.GITEA_TOKEN }}
@@ -68,8 +61,9 @@ jobs:
         run: |
           set -euo pipefail
           api="http://10.1.18.100:10000/api/v1/repos/${GITHUB_REPOSITORY}"
-          asset="release/lyflow-${VERSION#v}-linux-amd64.tar.gz"
-          body="内网 Gitea 自动构建：ly-server / ly-agent-center / ly-security-engine / ly-agent 与前端 dist。提交 ${GITHUB_SHA}。"
+          asset="release/lyflow-server-amd64.tar.gz"
+          sha=$(sha256sum "$asset" | cut -d' ' -f1)
+          body="一键部署包（amd64）：lyflow-server-amd64.tar.gz。sha256: ${sha}。提交 ${GITHUB_SHA}，内网 Gitea 构建。"
           resp=$(curl -sS -X POST -H "Authorization: token ${TOKEN}" -H "Content-Type: application/json" \
             -d "{\"tag_name\":\"${VERSION}\",\"name\":\"LyFlow ${VERSION} (Gitea build)\",\"body\":\"${body}\"}" \
             "${api}/releases")
@@ -79,6 +73,5 @@ jobs:
           fi
           [ -n "$id" ] || { echo "cannot resolve release id: $resp" >&2; exit 1; }
           curl -sS -X POST -H "Authorization: token ${TOKEN}" \
-            -F "attachment=@${asset}" "${api}/releases/${id}/assets?name=$(basename "$asset")" | jq -r '.name // .message'
-          curl -sS -X POST -H "Authorization: token ${TOKEN}" \
-            -F "attachment=@${asset}.sha256" "${api}/releases/${id}/assets?name=$(basename "$asset").sha256" | jq -r '.name // .message'
+            -F "attachment=@${asset}" "${api}/releases/${id}/assets?name=lyflow-server-amd64.tar.gz" | jq -r '.name // .message'
+          echo "sha256: ${sha}"
