@@ -425,3 +425,30 @@ Agent 的引擎健康曾出现矛盾行：Suricata 显示“未启用”，却�
 实测（`10.1.18.125`）：`engine-health` 返回 rasp/yara（ubuntu 主机）和
 suricata（流量镜像分析，running=true，规则包 `stamus-lateral-sync-20261030t094143z`），
 不再出现“未启用 + adapter”矛盾行。
+
+## LY-CS-003 第三轮：CDN 哈希标签（2026-10-30 晚）
+
+现场仍有 7 条高危 `[LY-CS-003] CobaltStrike DNS Beacon Long Subdomain`，
+实际查询名是：
+
+```text
+89e220d400894bf88313f51031763931.tgpa.imtmp.net
+b0aefed8d49d4d6ea73be3ef9bfde9be.tgpa.imtmp.net
+fcry4festctehknfxfi2lzidztq0ikbi64whbbcbfr8c0iqolz6acu22.xs.alibabachengdun.com
+```
+
+`*.tgpa.imtmp.net` 是腾讯 TGPA 性能分析 SDK 的遥测域名，
+`*.xs.alibabachengdun.com` 是阿里云内容安全的 CDN 域名；两者都用 32 位以上
+十六进制/base32 标签作为会话哈希，与 CobaltStrike 的 DNS beacon 形态一致，
+单看标签长度无法区分，属误报。
+
+处理：
+
+- 规则改为单条 pcre + 负向先行断言，排除 `sru.edu.cn`、`huaweicloudwaf.com`、
+  `footprintdns.com`、`imtmp.net`、`alibabachengdun.com`，`rev` 升到 4；
+- 已验证排除域名不匹配、随机 32 位标签仍然命中；
+- `10.1.18.125` 已热加载（58 条规则，0 失败）；
+- 删除 7 条误报事件，备份表 `threat_events_fp_dns_cdn_backup_20261030`。
+
+维护提示：CDN/遥测域名会持续出现，新增误报时把后缀加入同一负向断言即可，
+不要放宽“24 位以上带数字标签”这个基本条件。

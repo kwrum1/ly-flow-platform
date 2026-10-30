@@ -21,11 +21,16 @@ alert tls any any -> any any (msg:"[LY-CS-002] CobaltStrike Alt JA3 Fingerprint"
 # while still matching encoded beacon labels.
 # `content:!"sru.edu.cn"` excludes a retired domain whose authoritative DNS
 # (10.1.0.6) still receives historical/scan traffic; it has no real servers.
+# `sru.edu.cn` is a retired domain whose authoritative DNS still receives
+# historical/scan traffic. The CDN/telemetry suffixes are excluded because
+# their hashed labels are indistinguishable from a beacon: TGPA
+# (*.tgpa.imtmp.net) and Alibaba content-security (*.xs.alibabachengdun.com)
+# both use 32+ character hex/base32 labels.
 alert dns any any -> any any (msg:"[LY-CS-003] CobaltStrike DNS Beacon Long Subdomain"; \
-    flow:to_server; dns.query; content:!"sru.edu.cn"; content:!"huaweicloudwaf.com"; content:!"footprintdns.com"; \
-    pcre:"/^(?=[a-z0-9]{24,}\.)(?=[a-z0-9]*[0-9])[a-z0-9]+\./i"; \
+    flow:to_server; dns.query; \
+    pcre:"/^(?=[a-z0-9]{24,}\.)(?=[a-z0-9]*[0-9])(?![a-z0-9.-]*(?:sru\.edu\.cn|huaweicloudwaf\.com|footprintdns\.com|imtmp\.net|alibabachengdun\.com)$)[a-z0-9]+\./i"; \
     threshold:type threshold, track by_src, count 5, seconds 60; \
-    classtype:trojan-activity; sid:9002003; rev:3;)
+    classtype:trojan-activity; sid:9002003; rev:4;)
 
 # CobaltStrike POST to /identity
 alert http any any -> any any (msg:"[LY-CS-004] CobaltStrike /identity Endpoint"; \
