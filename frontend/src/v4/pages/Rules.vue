@@ -181,8 +181,8 @@ const rulePageSize = 10
 const rulePageCount = computed(() => Math.max(1, Math.ceil(detailRules.value.length / rulePageSize)))
 const pagedDetailRules = computed(() => {
   const maxPage = rulePageCount.value
-  if (rulePage.value > maxPage) rulePage.value = maxPage
-  const start = (rulePage.value - 1) * rulePageSize
+  const page = Math.min(Math.max(1, rulePage.value), maxPage)
+  const start = (page - 1) * rulePageSize
   return detailRules.value.slice(start, start + rulePageSize)
 })
 

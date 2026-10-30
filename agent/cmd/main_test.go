@@ -370,7 +370,7 @@ func TestApplyPulledConfigUpdatesCollectorDesiredState(t *testing.T) {
 		},
 	})
 
-	if agent.cfg.TrafficEnabled || agent.cfg.HIDSEnabled || !agent.cfg.RASPEnabled {
+	if agent.cfg.TrafficEnabled || agent.cfg.HIDSEnabled || agent.cfg.RASPEnabled {
 		t.Fatalf("collector desired state not disabled: traffic=%v hids=%v rasp=%v", agent.cfg.TrafficEnabled, agent.cfg.HIDSEnabled, agent.cfg.RASPEnabled)
 	}
 	if agent.cfg.TrafficInterface != "ens33" {

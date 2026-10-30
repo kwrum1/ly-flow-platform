@@ -250,7 +250,7 @@ const ruleDrafts = reactive({})
 const savingRules = reactive({})
 const ruleMessages = reactive({})
 const sourceMessages = reactive({})
-const whitelistPolicy = ref<any>({ suppressions: [] })
+const whitelistPolicy = ref({ suppressions: [] })
 const whitelistLoading = ref(false)
 const whitelistSaving = ref(false)
 const whitelistRemoving = ref('')
@@ -266,7 +266,7 @@ const severityOptions = [
 ]
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
-const whitelistItems = computed<any[]>(() => Array.isArray(whitelistPolicy.value?.suppressions) ? whitelistPolicy.value.suppressions : [])
+const whitelistItems = computed(() => Array.isArray(whitelistPolicy.value?.suppressions) ? whitelistPolicy.value.suppressions : [])
 const totalNativeCount = computed(() => total.value)
 const engineDefinitions = {
   'security-engine': { label: 'LyFlow 安全引擎', short: 'LY', order: 0 },
@@ -474,11 +474,11 @@ function formatSourceTime(value) {
   return Number.isNaN(date.getTime()) ? String(value) : date.toLocaleString('zh-CN', { hour12: false })
 }
 
-function whitelistScopeLabel(scope: string) {
-  return ({ rule: '规则', source: '来源 IP', victim: '资产 / 实体', agent: '资产 / 实体' } as Record<string, string>)[scope] || scope || '-'
+function whitelistScopeLabel(scope) {
+  return ({ rule: '规则', source: '来源 IP', victim: '资产 / 实体', agent: '资产 / 实体' })[scope] || scope || '-'
 }
 
-function formatWhitelistTime(value: string) {
+function formatWhitelistTime(value) {
   return value ? formatSourceTime(value) : '未设置'
 }
 
@@ -487,7 +487,7 @@ async function loadWhitelist() {
   whitelistMessage.value = ''
   try {
     whitelistPolicy.value = unwrap(await responseClient.policy())
-  } catch (err: any) {
+  } catch (err) {
     whitelistMessage.value = err?.message || '白名单读取失败。'
   } finally {
     whitelistLoading.value = false
@@ -509,23 +509,23 @@ async function addWhitelist() {
     whitelistForm.reason = ''
     whitelistMessage.value = '已加入白名单，到期后自动恢复检测。'
     await loadWhitelist()
-  } catch (err: any) {
+  } catch (err) {
     whitelistMessage.value = err?.message || '白名单保存失败。'
   } finally {
     whitelistSaving.value = false
   }
 }
 
-async function removeWhitelist(entry: any) {
+async function removeWhitelist(entry) {
   whitelistRemoving.value = entry.id
   whitelistMessage.value = ''
   try {
     const policy = unwrap(await responseClient.policy())
-    const suppressions = (policy.suppressions || []).filter((item: any) => item.id !== entry.id)
+    const suppressions = (policy.suppressions || []).filter((item) => item.id !== entry.id)
     await responseClient.updatePolicy({ ...policy, suppressions })
     whitelistMessage.value = '白名单已移除，该范围立即恢复检测。'
     await loadWhitelist()
-  } catch (err: any) {
+  } catch (err) {
     whitelistMessage.value = err?.message || '白名单移除失败。'
   } finally {
     whitelistRemoving.value = ''

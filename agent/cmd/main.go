@@ -233,6 +233,7 @@ func NewAgent(cfg *Config) *Agent {
 	a.runtimePublisher = NewHTTPRuntimePublisher(a)
 	a.engines = NewEngineRegistry(
 		newSuricataSupervisor(),
+		newWazuhSupervisor(),
 		newYARASupervisor(),
 		newRASPSupervisor(),
 	)

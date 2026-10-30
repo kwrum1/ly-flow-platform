@@ -116,6 +116,31 @@
       ]
     },
     {
+      "id": "adapter:agent/cmd/log_sources.go",
+      "kind": "adapter",
+      "path": "agent/cmd/log_sources.go",
+      "symbols": [
+        "collectLogSources",
+        "parseLogSources",
+        "publishLogLine",
+        "runLogSources"
+      ],
+      "roles": [
+        "adapter"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "agent",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
       "id": "adapter:agent/cmd/main.go",
       "kind": "adapter",
       "path": "agent/cmd/main.go",
@@ -227,6 +252,7 @@
         "readLoadAvg",
         "readMemInfo",
         "readProcessSnapshot",
+        "readUptimeSeconds",
         "readWindowsCPUPercent",
         "readWindowsMemoryInfo",
         "readWindowsMemoryInfoPowerShell",
@@ -399,6 +425,7 @@
         "delivery",
         "knownRASPBridgeEventType",
         "knownRASPBridgeSeverity",
+        "legacyBool",
         "legacyEventType",
         "legacyLanguage",
         "legacyString",
@@ -868,6 +895,40 @@
       ]
     },
     {
+      "id": "adapter:prototype/traffic-fanout/fanout.go",
+      "kind": "adapter",
+      "path": "prototype/traffic-fanout/fanout.go",
+      "symbols": [
+        "Canonical",
+        "Distribution",
+        "FanoutArg",
+        "Hash",
+        "Imbalance",
+        "NewGroup",
+        "NewKey",
+        "Reverse",
+        "Shard",
+        "Worker",
+        "Workers",
+        "encodeCanonical",
+        "endpointLess"
+      ],
+      "roles": [
+        "adapter"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "prototype",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
       "id": "adapter:security-engine/engine/bundle.go",
       "kind": "adapter",
       "path": "security-engine/engine/bundle.go",
@@ -877,8 +938,10 @@
         "Match",
         "NewBundle",
         "applyTrafficNoisePolicy",
+        "betterRASPAlert",
         "fieldValue",
         "firstNonEmpty",
+        "isRASPHealthEvent",
         "mapFieldValue",
         "matches",
         "toString"
@@ -1066,6 +1129,95 @@
       ]
     },
     {
+      "id": "adapter:server/cmd/agent_tags.go",
+      "kind": "adapter",
+      "path": "server/cmd/agent_tags.go",
+      "symbols": [
+        "agentTagsHandler",
+        "normalizeAgentTags"
+      ],
+      "roles": [
+        "adapter"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
+      "id": "adapter:server/cmd/defense_runtime.go",
+      "kind": "adapter",
+      "path": "server/cmd/defense_runtime.go",
+      "symbols": [
+        "Audit",
+        "CreateSchedule",
+        "CreateSession",
+        "DeleteSchedule",
+        "InitDefenseRuntime",
+        "ListSchedules",
+        "ListSessions",
+        "NewDefenseRuntime",
+        "Schedule",
+        "Session",
+        "Start",
+        "Status",
+        "Stop",
+        "StopSession",
+        "Tick",
+        "UpdateSchedule",
+        "advanceDryRun",
+        "applyDefenseScheduleRequest",
+        "createSessionLocked",
+        "defenseCandidateBetter",
+        "defenseDefaultLocation",
+        "defenseDefaultTimezone",
+        "defenseParseClock",
+        "defenseProblems",
+        "defenseRemainingSeconds",
+        "defenseRuntimeFor",
+        "defenseScheduleWindow",
+        "defenseTickInterval",
+        "evaluateSchedules",
+        "failSession",
+        "getOrCreateDefenseRuntime",
+        "hasRecentDefenseEvent",
+        "liveManualMonitor",
+        "liveMonitorSession",
+        "loop",
+        "newDefenseID",
+        "normalizeDefenseSessionRequest",
+        "pickSchedule",
+        "record",
+        "resolveAgents",
+        "retryRollback",
+        "scheduleLocation",
+        "scheduleView",
+        "startBlockSession",
+        "stopSessionLocked"
+      ],
+      "roles": [
+        "adapter"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
       "id": "adapter:server/cmd/event_migration_adapter.go",
       "kind": "adapter",
       "path": "server/cmd/event_migration_adapter.go",
@@ -1177,6 +1329,33 @@
       ]
     },
     {
+      "id": "adapter:server/cmd/false_positive_feedback.go",
+      "kind": "adapter",
+      "path": "server/cmd/false_positive_feedback.go",
+      "symbols": [
+        "adjustmentFromFeedback",
+        "feedbackActive",
+        "feedbackAdjustmentActive",
+        "feedbackAppliesTo",
+        "normalizeFeedbackScope",
+        "validateFeedbackScope"
+      ],
+      "roles": [
+        "adapter"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
       "id": "adapter:server/cmd/main.go",
       "kind": "adapter",
       "path": "server/cmd/main.go",
@@ -1203,6 +1382,7 @@
         "agentRASPJavaSourceHandler",
         "agentRASPPolicyRootHandler",
         "agentRASPProbeHandler",
+        "agentRecordKind",
         "agentRenameHandler",
         "agentRuntimeEventHandler",
         "agentSnapshotHandler",
@@ -1249,6 +1429,7 @@
         "classifyXDRStage",
         "cleanupPostgresEvents",
         "cleanupRedisStreams",
+        "cleanupTrafficSessions",
         "commonPortProtocol",
         "compactRuleBundleResponse",
         "compactRuleSyncResponse",
@@ -1306,6 +1487,7 @@
         "incidentCorrelationKey",
         "incidentStage",
         "incidentStageGroups",
+        "incidentStageOrder",
         "incidentStatusLabel",
         "incidentSummary",
         "incidentTitle",
@@ -1318,6 +1500,7 @@
         "isConfiguredMirrorInterfaceItem",
         "isContainerBridgeTrafficItem",
         "isMirrorCaptureItem",
+        "isPrivateAddress",
         "isPublicAttackIP",
         "isTrafficNoiseRule",
         "loadAgentDesiredFlags",
@@ -1356,6 +1539,7 @@
         "loadXDRResponsePolicy",
         "loadXDRRulePack",
         "loginHandler",
+        "looksLikeUUID",
         "lookupPublicIPGeo",
         "main",
         "mapUnifiedEventFromXDR",
@@ -1380,8 +1564,10 @@
         "normalizeChinaLocationKey",
         "normalizeComponentAlertStreamEvent",
         "normalizeComponentCategory",
+        "normalizeRASPEnforcementFields",
         "normalizeTargetLocationConfig",
         "normalizeXDRStage",
+        "optionalHint",
         "parseEventTime",
         "parseOptionalTime",
         "parsePolicyTime",
@@ -1403,6 +1589,8 @@
         "processMessage",
         "publicGlobalSituationHandler",
         "raspAgentsHandler",
+        "raspBlockPolicyConfig",
+        "raspBlockPolicySnapshot",
         "raspDisableProtectionHandler",
         "raspElkeidRulesHandler",
         "raspEnableProtectionHandler",
@@ -1526,6 +1714,7 @@
         "trafficNoiseRuleKey",
         "trafficNoiseRuleName",
         "trafficSessionQueryTokens",
+        "trafficSessionRetentionDays",
         "trafficSessionsHandler",
         "trafficStreamHandler",
         "trafficThreatFromXDREvent",
@@ -1543,12 +1732,14 @@
         "updateRulesHandler",
         "upsertAgent",
         "upsertHostControlRecord",
+        "validRuleID",
         "warmTrafficSessionQuery",
         "writeJSONError",
         "xdrAttackerIP",
         "xdrChainIsCorrelated",
         "xdrChainRow",
         "xdrChainScore",
+        "xdrChainScoreDetail",
         "xdrChainSummary",
         "xdrChainsHandler",
         "xdrCorrelationKey",
@@ -1564,6 +1755,7 @@
         "xdrEventThreatHaystack",
         "xdrEventsHandler",
         "xdrEvidenceSummaryText",
+        "xdrInternalLateralCandidate",
         "xdrLogHandler",
         "xdrLookup",
         "xdrMissingStages",
@@ -1640,9 +1832,13 @@
         "compileDetectionRule",
         "compileRuleEnvelope",
         "compiledRuntimeRuleValid",
+        "compiledTrafficRuleIsGeneric",
         "convertRulePlatformRules",
+        "convertedTrafficRuleID",
+        "convertedTrafficRuleRejection",
         "decodeRuleSourceBody",
         "defaultRuleField",
+        "enabledRuntimeRuleIDs",
         "ensureDefaultDetectionRules",
         "ensureRuleSourceCatalog",
         "externalSourceURL",
@@ -1653,10 +1849,13 @@
         "fieldForRASPHook",
         "firstKeyword",
         "firstNonZero",
+        "githubMirrorEndpoints",
         "hydrateActiveBundleDetails",
         "inferRuleStage",
         "inlineFailureCode",
         "inlineFailureStage",
+        "isAllDigits",
+        "isMatchAllRegex",
         "isRestrictedRuleLicense",
         "loadActiveLifecycleRules",
         "loadActiveRuleBundle",
@@ -1668,12 +1867,14 @@
         "loadRulePlatformSources",
         "loadRulePlatformVersions",
         "localCompiledRuleToRaw",
+        "longestAlnumRun",
         "looksLikeRegexAlternation",
         "mapLocalCompiledField",
         "mapSigmaField",
         "mapSlice",
         "mapValue",
         "mergeCompiledRuntimeRules",
+        "nextModSecurityToken",
         "normalizeLocalCompiledCategory",
         "normalizeRulePlatformRule",
         "oneOfConditionsRegex",
@@ -1687,17 +1888,25 @@
         "previewSecurityBundle",
         "readRuleTarText",
         "recordRuleInlineFailure",
+        "regexLiteralRun",
+        "retiredDefaultRuleID",
         "rollbackRulePlatformBundle",
+        "rulePatternIsSpecific",
         "rulePlatformActiveBundleHandler",
         "rulePlatformBundlesHandler",
         "rulePlatformCompilePreviewHandler",
+        "rulePlatformContentDigest",
         "rulePlatformDedupKey",
+        "rulePlatformFreshness",
         "rulePlatformRollbackHandler",
         "rulePlatformSourceMaterial",
         "rulePlatformSourcesHandler",
         "rulePlatformStringSlice",
         "rulePlatformSyncHandler",
+        "rulePlatformSyncStatus",
         "rulePlatformVersionsHandler",
+        "ruleSyncJobViewLocked",
+        "runRulePlatformSyncAll",
         "runtimeConditionValid",
         "severityFromCRS",
         "sigmaConditions",
@@ -1708,8 +1917,12 @@
         "slugifyRulePlatformID",
         "splitYAMLDocuments",
         "stageSecurityBundlePreview",
+        "startRulePlatformSyncAll",
+        "startRuleSyncScheduler",
         "stringSliceFromInterface",
+        "stringSliceValue",
         "suricataContentForTelemetry",
+        "syncAllRulePlatformSources",
         "syncRulePlatformSource",
         "upsertConvertedDetectionRules",
         "upsertRulePlatformSource",
@@ -1764,6 +1977,7 @@
         "Delete",
         "GetEventV2",
         "QueryEventsV2",
+        "QueryRetention",
         "Read",
         "ReadCanonicalPayloads",
         "TrafficSessionCount",
@@ -1772,7 +1986,8 @@
         "WriteEventsV2",
         "WriteTrafficSession",
         "newProductionStorageEventRuntime",
-        "normalizeStoredCanonicalPayload"
+        "normalizeStoredCanonicalPayload",
+        "projectionRetryStats"
       ],
       "roles": [
         "adapter"
@@ -1868,6 +2083,30 @@
       "symbols": [
         "canonicalXDRInformational",
         "inferCanonicalAttackMapping"
+      ],
+      "roles": [
+        "adapter"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
+      "id": "adapter:server/cmd/xdr_edge_index.go",
+      "kind": "adapter",
+      "path": "server/cmd/xdr_edge_index.go",
+      "symbols": [
+        "defaultEdgeIndexConfig",
+        "indexedEdgePairs",
+        "withinEdgeWindow"
       ],
       "roles": [
         "adapter"
@@ -2059,7 +2298,6 @@
       "kind": "adapter",
       "path": "server/cmd/xdr_v2_path_search.go",
       "symbols": [
-        "ScoreDetail",
         "boundedPathSearch",
         "buildAdjacency",
         "buildPathEvidence",
@@ -2067,6 +2305,7 @@
         "containsIndex",
         "deduceHypotheses",
         "eventIndexByUID",
+        "eventScoreDetail",
         "nodeToEventUID",
         "pathToHypothesis"
       ],
@@ -2090,11 +2329,15 @@
       "kind": "adapter",
       "path": "server/cmd/xdr_v2_scoring.go",
       "symbols": [
+        "buildScoreDetail",
         "computeConfidenceScore",
         "computeContinuityScore",
         "computeImpactScore",
         "computeRiskScore",
         "computeTemporalDecay",
+        "defaultScoringWeights",
+        "normalized",
+        "roundScore",
         "scoreChainHypothesisV2",
         "validatePathContinuity"
       ],
@@ -2330,16 +2573,41 @@
       ]
     },
     {
+      "id": "adapter:server/modules/rasp/block_policy.go",
+      "kind": "adapter",
+      "path": "server/modules/rasp/block_policy.go",
+      "symbols": [
+        "Decide",
+        "normalizeBlockMode"
+      ],
+      "roles": [
+        "adapter"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
       "id": "adapter:server/modules/rasp/models.go",
       "kind": "adapter",
       "path": "server/modules/rasp/models.go",
       "symbols": [
         "FromJSON",
         "NormalizeEventMap",
+        "NormalizeRuntimeContext",
         "ToJSON",
         "ToRASPEvent",
         "getMapString",
-        "getString"
+        "getString",
+        "normalizeRuntimeFrames"
       ],
       "roles": [
         "adapter"
@@ -2958,6 +3226,7 @@
         "readLoadAvg",
         "readMemInfo",
         "readProcessSnapshot",
+        "readUptimeSeconds",
         "readWindowsCPUPercent",
         "readWindowsMemoryInfo",
         "readWindowsMemoryInfoPowerShell",
@@ -3076,6 +3345,7 @@
         "delivery",
         "knownRASPBridgeEventType",
         "knownRASPBridgeSeverity",
+        "legacyBool",
         "legacyEventType",
         "legacyLanguage",
         "legacyString",
@@ -3497,6 +3767,7 @@
         "agentRASPJavaSourceHandler",
         "agentRASPPolicyRootHandler",
         "agentRASPProbeHandler",
+        "agentRecordKind",
         "agentRenameHandler",
         "agentRuntimeEventHandler",
         "agentSnapshotHandler",
@@ -3543,6 +3814,7 @@
         "classifyXDRStage",
         "cleanupPostgresEvents",
         "cleanupRedisStreams",
+        "cleanupTrafficSessions",
         "commonPortProtocol",
         "compactRuleBundleResponse",
         "compactRuleSyncResponse",
@@ -3600,6 +3872,7 @@
         "incidentCorrelationKey",
         "incidentStage",
         "incidentStageGroups",
+        "incidentStageOrder",
         "incidentStatusLabel",
         "incidentSummary",
         "incidentTitle",
@@ -3612,6 +3885,7 @@
         "isConfiguredMirrorInterfaceItem",
         "isContainerBridgeTrafficItem",
         "isMirrorCaptureItem",
+        "isPrivateAddress",
         "isPublicAttackIP",
         "isTrafficNoiseRule",
         "loadAgentDesiredFlags",
@@ -3650,6 +3924,7 @@
         "loadXDRResponsePolicy",
         "loadXDRRulePack",
         "loginHandler",
+        "looksLikeUUID",
         "lookupPublicIPGeo",
         "main",
         "mapUnifiedEventFromXDR",
@@ -3674,8 +3949,10 @@
         "normalizeChinaLocationKey",
         "normalizeComponentAlertStreamEvent",
         "normalizeComponentCategory",
+        "normalizeRASPEnforcementFields",
         "normalizeTargetLocationConfig",
         "normalizeXDRStage",
+        "optionalHint",
         "parseEventTime",
         "parseOptionalTime",
         "parsePolicyTime",
@@ -3697,6 +3974,8 @@
         "processMessage",
         "publicGlobalSituationHandler",
         "raspAgentsHandler",
+        "raspBlockPolicyConfig",
+        "raspBlockPolicySnapshot",
         "raspDisableProtectionHandler",
         "raspElkeidRulesHandler",
         "raspEnableProtectionHandler",
@@ -3820,6 +4099,7 @@
         "trafficNoiseRuleKey",
         "trafficNoiseRuleName",
         "trafficSessionQueryTokens",
+        "trafficSessionRetentionDays",
         "trafficSessionsHandler",
         "trafficStreamHandler",
         "trafficThreatFromXDREvent",
@@ -3837,12 +4117,14 @@
         "updateRulesHandler",
         "upsertAgent",
         "upsertHostControlRecord",
+        "validRuleID",
         "warmTrafficSessionQuery",
         "writeJSONError",
         "xdrAttackerIP",
         "xdrChainIsCorrelated",
         "xdrChainRow",
         "xdrChainScore",
+        "xdrChainScoreDetail",
         "xdrChainSummary",
         "xdrChainsHandler",
         "xdrCorrelationKey",
@@ -3858,6 +4140,7 @@
         "xdrEventThreatHaystack",
         "xdrEventsHandler",
         "xdrEvidenceSummaryText",
+        "xdrInternalLateralCandidate",
         "xdrLogHandler",
         "xdrLookup",
         "xdrMissingStages",
@@ -3934,9 +4217,13 @@
         "compileDetectionRule",
         "compileRuleEnvelope",
         "compiledRuntimeRuleValid",
+        "compiledTrafficRuleIsGeneric",
         "convertRulePlatformRules",
+        "convertedTrafficRuleID",
+        "convertedTrafficRuleRejection",
         "decodeRuleSourceBody",
         "defaultRuleField",
+        "enabledRuntimeRuleIDs",
         "ensureDefaultDetectionRules",
         "ensureRuleSourceCatalog",
         "externalSourceURL",
@@ -3947,10 +4234,13 @@
         "fieldForRASPHook",
         "firstKeyword",
         "firstNonZero",
+        "githubMirrorEndpoints",
         "hydrateActiveBundleDetails",
         "inferRuleStage",
         "inlineFailureCode",
         "inlineFailureStage",
+        "isAllDigits",
+        "isMatchAllRegex",
         "isRestrictedRuleLicense",
         "loadActiveLifecycleRules",
         "loadActiveRuleBundle",
@@ -3962,12 +4252,14 @@
         "loadRulePlatformSources",
         "loadRulePlatformVersions",
         "localCompiledRuleToRaw",
+        "longestAlnumRun",
         "looksLikeRegexAlternation",
         "mapLocalCompiledField",
         "mapSigmaField",
         "mapSlice",
         "mapValue",
         "mergeCompiledRuntimeRules",
+        "nextModSecurityToken",
         "normalizeLocalCompiledCategory",
         "normalizeRulePlatformRule",
         "oneOfConditionsRegex",
@@ -3981,17 +4273,25 @@
         "previewSecurityBundle",
         "readRuleTarText",
         "recordRuleInlineFailure",
+        "regexLiteralRun",
+        "retiredDefaultRuleID",
         "rollbackRulePlatformBundle",
+        "rulePatternIsSpecific",
         "rulePlatformActiveBundleHandler",
         "rulePlatformBundlesHandler",
         "rulePlatformCompilePreviewHandler",
+        "rulePlatformContentDigest",
         "rulePlatformDedupKey",
+        "rulePlatformFreshness",
         "rulePlatformRollbackHandler",
         "rulePlatformSourceMaterial",
         "rulePlatformSourcesHandler",
         "rulePlatformStringSlice",
         "rulePlatformSyncHandler",
+        "rulePlatformSyncStatus",
         "rulePlatformVersionsHandler",
+        "ruleSyncJobViewLocked",
+        "runRulePlatformSyncAll",
         "runtimeConditionValid",
         "severityFromCRS",
         "sigmaConditions",
@@ -4002,8 +4302,12 @@
         "slugifyRulePlatformID",
         "splitYAMLDocuments",
         "stageSecurityBundlePreview",
+        "startRulePlatformSyncAll",
+        "startRuleSyncScheduler",
         "stringSliceFromInterface",
+        "stringSliceValue",
         "suricataContentForTelemetry",
+        "syncAllRulePlatformSources",
         "syncRulePlatformSource",
         "upsertConvertedDetectionRules",
         "upsertRulePlatformSource",
@@ -4058,6 +4362,7 @@
         "Delete",
         "GetEventV2",
         "QueryEventsV2",
+        "QueryRetention",
         "Read",
         "ReadCanonicalPayloads",
         "TrafficSessionCount",
@@ -4066,7 +4371,8 @@
         "WriteEventsV2",
         "WriteTrafficSession",
         "newProductionStorageEventRuntime",
-        "normalizeStoredCanonicalPayload"
+        "normalizeStoredCanonicalPayload",
+        "projectionRetryStats"
       ],
       "roles": [
         "consumer"
@@ -4091,6 +4397,36 @@
         "deleteStoredEvent",
         "readStoredEvents",
         "securityEventsHandler"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
+      "id": "consumer:server/cmd/suricata_eve_ingest.go",
+      "kind": "consumer",
+      "path": "server/cmd/suricata_eve_ingest.go",
+      "symbols": [
+        "ingestSuricataEVELine",
+        "loadSuricataEVEState",
+        "parseSuricataTimestamp",
+        "sanitizeSuricataAlert",
+        "saveSuricataEVEState",
+        "startSuricataEVEIngest",
+        "suricataAlertUID",
+        "suricataEVEInode",
+        "suricataSeverity"
       ],
       "roles": [
         "consumer"
@@ -4465,6 +4801,7 @@
         "readLoadAvg",
         "readMemInfo",
         "readProcessSnapshot",
+        "readUptimeSeconds",
         "readWindowsCPUPercent",
         "readWindowsMemoryInfo",
         "readWindowsMemoryInfoPowerShell",
@@ -4613,6 +4950,29 @@
         "Write",
         "flushPending",
         "recordBackpressure"
+      ],
+      "roles": [
+        "observer"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reconcile",
+        "observe"
+      ]
+    },
+    {
+      "id": "observer:server/cmd/behavior_baseline.go",
+      "kind": "observer",
+      "path": "server/cmd/behavior_baseline.go",
+      "symbols": [
+        "Observe",
+        "annotateBehaviorBaseline",
+        "behaviorBaselineModeFromEnv",
+        "newBehaviorBaseline",
+        "resolveBehaviorBaselineMode"
       ],
       "roles": [
         "observer"
@@ -4788,6 +5148,7 @@
         "readLoadAvg",
         "readMemInfo",
         "readProcessSnapshot",
+        "readUptimeSeconds",
         "readWindowsCPUPercent",
         "readWindowsMemoryInfo",
         "readWindowsMemoryInfoPowerShell",
@@ -5024,6 +5385,7 @@
         "agentRASPJavaSourceHandler",
         "agentRASPPolicyRootHandler",
         "agentRASPProbeHandler",
+        "agentRecordKind",
         "agentRenameHandler",
         "agentRuntimeEventHandler",
         "agentSnapshotHandler",
@@ -5070,6 +5432,7 @@
         "classifyXDRStage",
         "cleanupPostgresEvents",
         "cleanupRedisStreams",
+        "cleanupTrafficSessions",
         "commonPortProtocol",
         "compactRuleBundleResponse",
         "compactRuleSyncResponse",
@@ -5127,6 +5490,7 @@
         "incidentCorrelationKey",
         "incidentStage",
         "incidentStageGroups",
+        "incidentStageOrder",
         "incidentStatusLabel",
         "incidentSummary",
         "incidentTitle",
@@ -5139,6 +5503,7 @@
         "isConfiguredMirrorInterfaceItem",
         "isContainerBridgeTrafficItem",
         "isMirrorCaptureItem",
+        "isPrivateAddress",
         "isPublicAttackIP",
         "isTrafficNoiseRule",
         "loadAgentDesiredFlags",
@@ -5177,6 +5542,7 @@
         "loadXDRResponsePolicy",
         "loadXDRRulePack",
         "loginHandler",
+        "looksLikeUUID",
         "lookupPublicIPGeo",
         "main",
         "mapUnifiedEventFromXDR",
@@ -5201,8 +5567,10 @@
         "normalizeChinaLocationKey",
         "normalizeComponentAlertStreamEvent",
         "normalizeComponentCategory",
+        "normalizeRASPEnforcementFields",
         "normalizeTargetLocationConfig",
         "normalizeXDRStage",
+        "optionalHint",
         "parseEventTime",
         "parseOptionalTime",
         "parsePolicyTime",
@@ -5224,6 +5592,8 @@
         "processMessage",
         "publicGlobalSituationHandler",
         "raspAgentsHandler",
+        "raspBlockPolicyConfig",
+        "raspBlockPolicySnapshot",
         "raspDisableProtectionHandler",
         "raspElkeidRulesHandler",
         "raspEnableProtectionHandler",
@@ -5347,6 +5717,7 @@
         "trafficNoiseRuleKey",
         "trafficNoiseRuleName",
         "trafficSessionQueryTokens",
+        "trafficSessionRetentionDays",
         "trafficSessionsHandler",
         "trafficStreamHandler",
         "trafficThreatFromXDREvent",
@@ -5364,12 +5735,14 @@
         "updateRulesHandler",
         "upsertAgent",
         "upsertHostControlRecord",
+        "validRuleID",
         "warmTrafficSessionQuery",
         "writeJSONError",
         "xdrAttackerIP",
         "xdrChainIsCorrelated",
         "xdrChainRow",
         "xdrChainScore",
+        "xdrChainScoreDetail",
         "xdrChainSummary",
         "xdrChainsHandler",
         "xdrCorrelationKey",
@@ -5385,6 +5758,7 @@
         "xdrEventThreatHaystack",
         "xdrEventsHandler",
         "xdrEvidenceSummaryText",
+        "xdrInternalLateralCandidate",
         "xdrLogHandler",
         "xdrLookup",
         "xdrMissingStages",
@@ -5704,6 +6078,31 @@
       ]
     },
     {
+      "id": "producer:agent/cmd/log_sources.go",
+      "kind": "producer",
+      "path": "agent/cmd/log_sources.go",
+      "symbols": [
+        "collectLogSources",
+        "parseLogSources",
+        "publishLogLine",
+        "runLogSources"
+      ],
+      "roles": [
+        "producer"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "agent",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
       "id": "producer:agent/cmd/main.go",
       "kind": "producer",
       "path": "agent/cmd/main.go",
@@ -5815,6 +6214,7 @@
         "readLoadAvg",
         "readMemInfo",
         "readProcessSnapshot",
+        "readUptimeSeconds",
         "readWindowsCPUPercent",
         "readWindowsMemoryInfo",
         "readWindowsMemoryInfoPowerShell",
@@ -6278,6 +6678,7 @@
         "agentRASPJavaSourceHandler",
         "agentRASPPolicyRootHandler",
         "agentRASPProbeHandler",
+        "agentRecordKind",
         "agentRenameHandler",
         "agentRuntimeEventHandler",
         "agentSnapshotHandler",
@@ -6324,6 +6725,7 @@
         "classifyXDRStage",
         "cleanupPostgresEvents",
         "cleanupRedisStreams",
+        "cleanupTrafficSessions",
         "commonPortProtocol",
         "compactRuleBundleResponse",
         "compactRuleSyncResponse",
@@ -6381,6 +6783,7 @@
         "incidentCorrelationKey",
         "incidentStage",
         "incidentStageGroups",
+        "incidentStageOrder",
         "incidentStatusLabel",
         "incidentSummary",
         "incidentTitle",
@@ -6393,6 +6796,7 @@
         "isConfiguredMirrorInterfaceItem",
         "isContainerBridgeTrafficItem",
         "isMirrorCaptureItem",
+        "isPrivateAddress",
         "isPublicAttackIP",
         "isTrafficNoiseRule",
         "loadAgentDesiredFlags",
@@ -6431,6 +6835,7 @@
         "loadXDRResponsePolicy",
         "loadXDRRulePack",
         "loginHandler",
+        "looksLikeUUID",
         "lookupPublicIPGeo",
         "main",
         "mapUnifiedEventFromXDR",
@@ -6455,8 +6860,10 @@
         "normalizeChinaLocationKey",
         "normalizeComponentAlertStreamEvent",
         "normalizeComponentCategory",
+        "normalizeRASPEnforcementFields",
         "normalizeTargetLocationConfig",
         "normalizeXDRStage",
+        "optionalHint",
         "parseEventTime",
         "parseOptionalTime",
         "parsePolicyTime",
@@ -6478,6 +6885,8 @@
         "processMessage",
         "publicGlobalSituationHandler",
         "raspAgentsHandler",
+        "raspBlockPolicyConfig",
+        "raspBlockPolicySnapshot",
         "raspDisableProtectionHandler",
         "raspElkeidRulesHandler",
         "raspEnableProtectionHandler",
@@ -6601,6 +7010,7 @@
         "trafficNoiseRuleKey",
         "trafficNoiseRuleName",
         "trafficSessionQueryTokens",
+        "trafficSessionRetentionDays",
         "trafficSessionsHandler",
         "trafficStreamHandler",
         "trafficThreatFromXDREvent",
@@ -6618,12 +7028,14 @@
         "updateRulesHandler",
         "upsertAgent",
         "upsertHostControlRecord",
+        "validRuleID",
         "warmTrafficSessionQuery",
         "writeJSONError",
         "xdrAttackerIP",
         "xdrChainIsCorrelated",
         "xdrChainRow",
         "xdrChainScore",
+        "xdrChainScoreDetail",
         "xdrChainSummary",
         "xdrChainsHandler",
         "xdrCorrelationKey",
@@ -6639,6 +7051,7 @@
         "xdrEventThreatHaystack",
         "xdrEventsHandler",
         "xdrEvidenceSummaryText",
+        "xdrInternalLateralCandidate",
         "xdrLogHandler",
         "xdrLookup",
         "xdrMissingStages",
@@ -6705,6 +7118,7 @@
       "kind": "producer",
       "path": "server/cmd/netflow-collector/main.go",
       "symbols": [
+        "applyCachedThreat",
         "env",
         "flowPayload",
         "handle",
@@ -6715,8 +7129,10 @@
         "postWithRetry",
         "protocolName",
         "publish",
+        "rememberThreat",
         "startWorkers",
         "stringValue",
+        "threatFlowKey",
         "threatPayload"
       ],
       "roles": [
@@ -6775,6 +7191,7 @@
         "Delete",
         "GetEventV2",
         "QueryEventsV2",
+        "QueryRetention",
         "Read",
         "ReadCanonicalPayloads",
         "TrafficSessionCount",
@@ -6783,7 +7200,8 @@
         "WriteEventsV2",
         "WriteTrafficSession",
         "newProductionStorageEventRuntime",
-        "normalizeStoredCanonicalPayload"
+        "normalizeStoredCanonicalPayload",
+        "projectionRetryStats"
       ],
       "roles": [
         "producer"
@@ -6865,7 +7283,8 @@
         "ServeHTTP",
         "eventErrorMessage",
         "writeError",
-        "writeJSON"
+        "writeJSON",
+        "writeValidationError"
       ],
       "roles": [
         "producer"
@@ -7573,6 +7992,7 @@
         "readLoadAvg",
         "readMemInfo",
         "readProcessSnapshot",
+        "readUptimeSeconds",
         "readWindowsCPUPercent",
         "readWindowsMemoryInfo",
         "readWindowsMemoryInfoPowerShell",
@@ -7833,6 +8253,9 @@
       "kind": "stream",
       "path": "server/cmd/debug.go",
       "symbols": [
+        "backupDirectoryReport",
+        "buildVersionInfo",
+        "checkBackupDirectory",
         "checkMigrationFlags",
         "checkPostgres",
         "checkRedis",
@@ -8006,6 +8429,7 @@
         "agentRASPJavaSourceHandler",
         "agentRASPPolicyRootHandler",
         "agentRASPProbeHandler",
+        "agentRecordKind",
         "agentRenameHandler",
         "agentRuntimeEventHandler",
         "agentSnapshotHandler",
@@ -8052,6 +8476,7 @@
         "classifyXDRStage",
         "cleanupPostgresEvents",
         "cleanupRedisStreams",
+        "cleanupTrafficSessions",
         "commonPortProtocol",
         "compactRuleBundleResponse",
         "compactRuleSyncResponse",
@@ -8109,6 +8534,7 @@
         "incidentCorrelationKey",
         "incidentStage",
         "incidentStageGroups",
+        "incidentStageOrder",
         "incidentStatusLabel",
         "incidentSummary",
         "incidentTitle",
@@ -8121,6 +8547,7 @@
         "isConfiguredMirrorInterfaceItem",
         "isContainerBridgeTrafficItem",
         "isMirrorCaptureItem",
+        "isPrivateAddress",
         "isPublicAttackIP",
         "isTrafficNoiseRule",
         "loadAgentDesiredFlags",
@@ -8159,6 +8586,7 @@
         "loadXDRResponsePolicy",
         "loadXDRRulePack",
         "loginHandler",
+        "looksLikeUUID",
         "lookupPublicIPGeo",
         "main",
         "mapUnifiedEventFromXDR",
@@ -8183,8 +8611,10 @@
         "normalizeChinaLocationKey",
         "normalizeComponentAlertStreamEvent",
         "normalizeComponentCategory",
+        "normalizeRASPEnforcementFields",
         "normalizeTargetLocationConfig",
         "normalizeXDRStage",
+        "optionalHint",
         "parseEventTime",
         "parseOptionalTime",
         "parsePolicyTime",
@@ -8206,6 +8636,8 @@
         "processMessage",
         "publicGlobalSituationHandler",
         "raspAgentsHandler",
+        "raspBlockPolicyConfig",
+        "raspBlockPolicySnapshot",
         "raspDisableProtectionHandler",
         "raspElkeidRulesHandler",
         "raspEnableProtectionHandler",
@@ -8329,6 +8761,7 @@
         "trafficNoiseRuleKey",
         "trafficNoiseRuleName",
         "trafficSessionQueryTokens",
+        "trafficSessionRetentionDays",
         "trafficSessionsHandler",
         "trafficStreamHandler",
         "trafficThreatFromXDREvent",
@@ -8346,12 +8779,14 @@
         "updateRulesHandler",
         "upsertAgent",
         "upsertHostControlRecord",
+        "validRuleID",
         "warmTrafficSessionQuery",
         "writeJSONError",
         "xdrAttackerIP",
         "xdrChainIsCorrelated",
         "xdrChainRow",
         "xdrChainScore",
+        "xdrChainScoreDetail",
         "xdrChainSummary",
         "xdrChainsHandler",
         "xdrCorrelationKey",
@@ -8367,6 +8802,7 @@
         "xdrEventThreatHaystack",
         "xdrEventsHandler",
         "xdrEvidenceSummaryText",
+        "xdrInternalLateralCandidate",
         "xdrLogHandler",
         "xdrLookup",
         "xdrMissingStages",
@@ -8433,6 +8869,7 @@
       "kind": "stream",
       "path": "server/cmd/netflow-collector/main.go",
       "symbols": [
+        "applyCachedThreat",
         "env",
         "flowPayload",
         "handle",
@@ -8443,8 +8880,10 @@
         "postWithRetry",
         "protocolName",
         "publish",
+        "rememberThreat",
         "startWorkers",
         "stringValue",
+        "threatFlowKey",
         "threatPayload"
       ],
       "roles": [

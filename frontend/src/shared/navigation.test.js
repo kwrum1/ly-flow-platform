@@ -6,7 +6,7 @@ describe('流影 v4 导航', () => {
     expect(V4_NAVIGATION.map((group) => group.title)).toEqual(['运营', '检测', '资产与数据', '系统'])
     expect(V4_NAVIGATION[0].items.map((item) => item.label)).toEqual(['态势总览', '攻击链处置', '事件检索'])
     expect(V4_NAVIGATION[1].items.map((item) => item.label)).toEqual(['检测面'])
-    expect(V4_NAVIGATION[2].items.map((item) => item.label)).toEqual(['资产运维', '数据与健康', '规则中心'])
+    expect(V4_NAVIGATION[2].items.map((item) => item.label)).toEqual(['资产运维', '规则中心'])
     expect(V4_NAVIGATION[3].items.map((item) => item.label)).toEqual(['系统管理'])
   })
 

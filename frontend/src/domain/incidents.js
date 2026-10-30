@@ -125,7 +125,7 @@ function readableIncidentTitle(raw = {}, fallbackAsset = '', stageLabel = '') {
   return parts.length ? parts.join(' · ') : '关联安全事件'
 }
 
-function normalizeIncident(raw = {}) {
+export function normalizeIncident(raw = {}) {
   const attackChain = Array.isArray(raw.attack_chain) ? raw.attack_chain : []
   const stages = Array.isArray(raw.stages) ? raw.stages : attackChain
   const evidence = Array.isArray(raw.evidence) ? raw.evidence : Array.isArray(raw.events) ? raw.events : attackChain
