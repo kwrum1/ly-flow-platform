@@ -1,0 +1,31 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fast-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    steps:
+      - name: Environment
+        run: |
+          set -euo pipefail
+          pwd
+          git rev-parse --short HEAD
+          go version
+          node --version
+          python3 --version
+      - name: Fast checks
+        env:
+          GOPROXY: https://goproxy.cn,direct
+          GOTOOLCHAIN: local
+          PYTHONIOENCODING: utf-8
+        run: bash scripts/dev/test-all.sh fast
