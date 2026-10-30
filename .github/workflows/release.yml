@@ -147,8 +147,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          gh api --paginate "/repos/$GITHUB_REPOSITORY/actions/runs?per_page=100" \
-            --jq '.workflow_runs[] | select(.status == "completed") | .id' |
+          # Only prune previous runs of this release workflow. CI runs must stay
+          # for traceability and must never be deleted by a release.
+          workflow_id=$(gh api "/repos/$GITHUB_REPOSITORY/actions/workflows" \
+            --jq '.workflows[] | select(.path == ".github/workflows/release.yml") | .id')
+          test -n "$workflow_id"
+          gh api --paginate "/repos/$GITHUB_REPOSITORY/actions/workflows/$workflow_id/runs?per_page=100" \
+            --jq ".workflow_runs[] | select(.status == \"completed\" and .id != $GITHUB_RUN_ID) | .id" |
           while read -r run_id; do
             gh api --method DELETE "/repos/$GITHUB_REPOSITORY/actions/runs/$run_id" || true
           done
