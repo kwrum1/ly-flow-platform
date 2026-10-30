@@ -177,3 +177,44 @@ func TestSigmaWeakAlternationDetection(t *testing.T) {
 		t.Fatalf("specific alternation was rejected: %q", specific["value"])
 	}
 }
+
+func TestRetiredConvertedRules(t *testing.T) {
+	for _, id := range retiredConvertedRuleIDs {
+		if !retiredDetectionRuleID(id) {
+			t.Fatalf("converted rule %s must stay retired", id)
+		}
+	}
+	if retiredDetectionRuleID("snort-community-1000000") {
+		t.Fatal("unrelated converted rule must not be retired")
+	}
+	if retiredDetectionRuleID("lyflow-default-scan-default") {
+		t.Fatal("curated default rule must not be treated as a retired conversion")
+	}
+}
+
+func TestMergeSkipsRetiredAndOverBroadUpdates(t *testing.T) {
+	base := []compiledRuntimeRule{
+		{ID: "lyflow-default-a", Category: "log_audit", Field: "message", Operator: "contains", Value: "specific-literal"},
+	}
+	updates := []compiledRuntimeRule{
+		{ID: "snort-community-51544", Category: "traffic", Field: "http_path", Operator: "contains", Value: "/upload_files"},
+		{ID: "sigma-7cb02516-0000", Category: "log_audit", Conditions: []map[string]interface{}{
+			{"field": "message", "operator": "regex", "regex": true, "value": `(?i)(a\.aspx|GET)`},
+		}},
+		{ID: "sigma-keep-0000", Category: "log_audit", Conditions: []map[string]interface{}{
+			{"field": "path", "operator": "contains", "value": "/wp-json/wp/v2/users"},
+		}},
+	}
+
+	merged := mergeCompiledRuntimeRules(base, updates)
+	ids := map[string]bool{}
+	for _, rule := range merged {
+		ids[rule.ID] = true
+	}
+	if ids["snort-community-51544"] || ids["sigma-7cb02516-0000"] {
+		t.Fatalf("retired or over-broad update survived merge: %#v", ids)
+	}
+	if !ids["sigma-keep-0000"] || !ids["lyflow-default-a"] {
+		t.Fatalf("valid rules were dropped: %#v", ids)
+	}
+}

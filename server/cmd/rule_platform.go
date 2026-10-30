@@ -38,7 +38,7 @@ const rulePlatformSyncBodyLimit int64 = 65 << 20
 // rulePlatformParserVersion is bumped whenever the conversion quality rules
 // change. It is mixed into the stored source digest so an unchanged upstream
 // feed can never keep an active bundle produced by an older parser.
-const rulePlatformParserVersion = "2026-10-30.7"
+const rulePlatformParserVersion = "2026-10-30.9"
 
 // retiredDefaultDetectionRuleIDs are bundled rules that produced more noise
 // than signal. They are removed from the shipped bundle and are also disabled
@@ -51,6 +51,29 @@ var retiredDefaultDetectionRuleIDs = []string{
 func retiredDefaultRuleID(id string) bool {
 	trimmed := strings.TrimSpace(id)
 	for _, retired := range retiredDefaultDetectionRuleIDs {
+		if trimmed == retired {
+			return true
+		}
+	}
+	return false
+}
+
+// retiredConvertedRuleIDs are upstream conversions whose surviving pattern is
+// only a common URL fragment. snort-community-51544 for example matches any
+// request whose path contains "/upload_files", which fired on the benign asset
+// /statics/admin/js/upload/upload_Files.js.
+var retiredConvertedRuleIDs = []string{
+	"snort-community-51542",
+	"snort-community-51544",
+	"snort-community-51546",
+}
+
+func retiredDetectionRuleID(id string) bool {
+	if retiredDefaultRuleID(id) {
+		return true
+	}
+	trimmed := strings.TrimSpace(id)
+	for _, retired := range retiredConvertedRuleIDs {
 		if trimmed == retired {
 			return true
 		}
@@ -586,7 +609,7 @@ func loadEnabledDetectionRules(ctx context.Context, cfg *Config) ([]compiledRunt
 		if support == "unsupported" {
 			continue
 		}
-		if retiredDefaultRuleID(id) {
+		if retiredDetectionRuleID(id) {
 			continue
 		}
 		rule, err := compileDetectionRule(id, category, name, raw)
@@ -624,7 +647,7 @@ func loadEnabledDetectionRulesExcludingSource(ctx context.Context, cfg *Config, 
 		if support == "unsupported" {
 			continue
 		}
-		if retiredDefaultRuleID(id) {
+		if retiredDetectionRuleID(id) {
 			continue
 		}
 		rule, err := compileDetectionRule(id, category, name, raw)
@@ -861,9 +884,18 @@ func compiledTrafficRuleIsGeneric(rule compiledRuntimeRule) bool {
 func mergeCompiledRuntimeRules(base, updates []compiledRuntimeRule) []compiledRuntimeRule {
 	byID := make(map[string]compiledRuntimeRule, len(base)+len(updates))
 	for _, rule := range base {
+		if retiredDetectionRuleID(rule.ID) || compiledRuleIsOverBroad(rule) {
+			continue
+		}
 		byID[rule.ID] = rule
 	}
+	// Freshly converted rules take the same gate as database rules; otherwise a
+	// sync reintroduces exactly the catch-alls the gate was added to stop.
 	for _, rule := range updates {
+		if retiredDetectionRuleID(rule.ID) || compiledRuleIsOverBroad(rule) {
+			delete(byID, rule.ID)
+			continue
+		}
 		byID[rule.ID] = rule
 	}
 	merged := make([]compiledRuntimeRule, 0, len(byID))
