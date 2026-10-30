@@ -81,19 +81,36 @@
             <dt>最近更新</dt><dd>{{ shortTime(selected.updatedAt) }}</dd>
           </dl>
 
-          <section v-if="statusGroup(selected.status) !== 'closed'">
-            <h3>处理</h3>
-            <label class="v-field"><span>处理人</span><input v-model.trim="handler" class="v-input" placeholder="填写实际处理人姓名"></label>
-            <label v-if="statusGroup(selected.status) === 'triage'" class="v-field"><span>处理意见</span><textarea v-model.trim="opinion" class="v-input" rows="3" placeholder="填写判断依据、处置思路或交接信息"></textarea></label>
-            <label v-else class="v-field"><span>关闭原因</span><input v-model.trim="closeReason" class="v-input" placeholder="误报 / 已修复 / 风险接受 / 重复告警"></label>
-            <div class="disposition">
-              <span class="disposition-label">处置动作</span>
-              <button class="v-btn sm" :class="{ primary: disposition === 'protect' }" type="button" @click="disposition = 'protect'">开启防护</button>
-              <button class="v-btn sm" :class="{ primary: disposition === 'observe' }" type="button" @click="disposition = 'observe'">观察</button>
-            </div>
-            <button class="v-btn primary save-btn" type="button" :disabled="saving" @click="save">
-              {{ saving ? '保存中…' : statusGroup(selected.status) === 'triage' ? '保存并转处理中' : '保存并闭环' }}
-            </button>
+          <section v-if="stage(selected.status) !== 'closed'">
+            <h3>{{ stageTitle(selected.status) }}</h3>
+
+            <template v-if="stage(selected.status) === 'new'">
+              <p class="v-dim">确认该情报后进入分诊。</p>
+              <button class="v-btn primary save-btn" type="button" :disabled="saving" @click="confirmIntel">
+                {{ saving ? '提交中…' : '确认该情报' }}
+              </button>
+            </template>
+
+            <template v-else-if="stage(selected.status) === 'triage'">
+              <label class="v-field"><span>诊断人</span><input v-model.trim="diagnostician" class="v-input" placeholder="填写诊断人姓名"></label>
+              <label class="v-field"><span>诊断意见</span><textarea v-model.trim="diagnosis" class="v-input" rows="3" placeholder="填写判断依据与结论"></textarea></label>
+              <button class="v-btn primary save-btn" type="button" :disabled="saving" @click="confirmDiagnosis">
+                {{ saving ? '提交中…' : '确认诊断' }}
+              </button>
+            </template>
+
+            <template v-else>
+              <label class="v-field"><span>处理人</span><input v-model.trim="handler" class="v-input" placeholder="填写实际处理人姓名"></label>
+              <div class="disposition">
+                <span class="disposition-label">处理结果</span>
+                <button class="v-btn sm" :class="{ primary: outcome === 'handled' }" type="button" @click="outcome = 'handled'">已处理</button>
+                <button class="v-btn sm" :class="{ primary: outcome === 'ignored' }" type="button" @click="outcome = 'ignored'">不需要处理</button>
+              </div>
+              <label v-if="outcome === 'handled'" class="v-field"><span>处理意见</span><textarea v-model.trim="resolution" class="v-input" rows="3" placeholder="填写处置动作与结果"></textarea></label>
+              <button class="v-btn primary save-btn" type="button" :disabled="saving" @click="submitProcessing">
+                {{ saving ? '提交中…' : outcome === 'ignored' ? '直接闭环' : '确认闭环' }}
+              </button>
+            </template>
           </section>
 
           <section v-else>
@@ -158,10 +175,11 @@ const severityFilter = ref('')
 const selected = ref(null)
 const stageGroups = ref([])
 const notes = ref([])
+const diagnostician = ref('')
+const diagnosis = ref('')
 const handler = ref('')
-const opinion = ref('')
-const closeReason = ref('')
-const disposition = ref('')
+const outcome = ref('')
+const resolution = ref('')
 const saving = ref(false)
 
 const agentNameById = computed(() => {
@@ -187,6 +205,20 @@ function statusGroup(status) {
   return 'triage'
 }
 
+// The drawer walks new -> triage -> processing -> closed. The list keeps the
+// coarser triage/processing/closed grouping for counters and filters.
+function stage(status) {
+  const value = String(status || '').toLowerCase()
+  if (['resolved', 'closed'].includes(value)) return 'closed'
+  if (value === 'processing') return 'processing'
+  if (value === 'triaged') return 'triage'
+  return 'new'
+}
+
+function stageTitle(status) {
+  return ({ new: '确认情报', triage: '分诊', processing: '处理' })[stage(status)] || '处理'
+}
+
 const counts = computed(() => {
   const result = { triage: 0, processing: 0, closed: 0, high: 0 }
   for (const item of normalized.value) {
@@ -210,7 +242,7 @@ const filtered = computed(() => {
 })
 
 function statusLabel(value) {
-  return ({ new: '已分诊', open: '已分诊', triaged: '已分诊', processing: '处理中', resolved: '闭环', closed: '闭环' })[value] || value || '-'
+  return ({ new: '新发', open: '新发', triaged: '分诊', processing: '处理中', resolved: '闭环', closed: '闭环' })[value] || value || '-'
 }
 function statusTone(value) {
   const group = statusGroup(value)
@@ -242,9 +274,10 @@ async function load() {
 async function open(row) {
   selected.value = row
   handler.value = row.assignee || ''
-  opinion.value = ''
-  closeReason.value = ''
-  disposition.value = ''
+  diagnostician.value = row.assignee || currentUser()
+  diagnosis.value = ''
+  outcome.value = ''
+  resolution.value = ''
   stageGroups.value = []
   notes.value = []
   try {
@@ -264,46 +297,74 @@ async function open(row) {
   }
 }
 
-function actionLabel(value) {
-  return ({ protect: '开启防护', observe: '观察' })[value] || value || ''
+function currentUser() {
+  try {
+    return localStorage.getItem('username') || 'admin'
+  } catch {
+    return 'admin'
+  }
 }
 
-async function save() {
-  if (!selected.value) return
-  const group = statusGroup(selected.value.status)
-  if (!handler.value.trim()) {
-    error.value = '请填写处理人'
-    return
-  }
-  if (!disposition.value) {
-    error.value = '请选择处置动作：开启防护或观察'
-    return
-  }
-  if (group === 'triage' && !opinion.value.trim()) {
-    error.value = '请填写处理意见'
-    return
-  }
-  if (group === 'processing' && !closeReason.value.trim()) {
-    error.value = '请填写关闭原因'
-    return
-  }
+async function refreshSelected() {
+  await load()
+  const updated = normalized.value.find((item) => item.id === selected.value?.id)
+  if (updated) await open(updated)
+}
+
+async function runAction(action) {
   saving.value = true
   error.value = ''
   try {
-    await incidentsAPI.assign(selected.value.id, handler.value.trim())
-    if (group === 'triage') {
-      await incidentsAPI.addNote(selected.value.id, `处置动作：${actionLabel(disposition.value)}。${opinion.value.trim()}`)
-    } else {
-      await incidentsAPI.updateStatus(selected.value.id, 'closed', { reason: closeReason.value.trim() })
-    }
-    await load()
-    const updated = normalized.value.find((item) => item.id === selected.value.id)
-    if (updated) await open(updated)
+    await action()
+    await refreshSelected()
   } catch (e) {
     error.value = e?.message || '保存失败'
   } finally {
     saving.value = false
   }
+}
+
+async function confirmIntel() {
+  if (!selected.value) return
+  await runAction(() => incidentsAPI.updateStatus(selected.value.id, 'triaged'))
+}
+
+async function confirmDiagnosis() {
+  if (!selected.value) return
+  if (!diagnostician.value.trim()) {
+    error.value = '请填写诊断人'
+    return
+  }
+  if (!diagnosis.value.trim()) {
+    error.value = '请填写诊断意见'
+    return
+  }
+  await runAction(async () => {
+    await incidentsAPI.assign(selected.value.id, diagnostician.value.trim())
+    await incidentsAPI.updateStatus(selected.value.id, 'processing', { reason: diagnosis.value.trim() })
+  })
+}
+
+async function submitProcessing() {
+  if (!selected.value) return
+  if (!handler.value.trim()) {
+    error.value = '请填写处理人'
+    return
+  }
+  if (!outcome.value) {
+    error.value = '请选择已处理或不需要处理'
+    return
+  }
+  if (outcome.value === 'handled' && !resolution.value.trim()) {
+    error.value = '请填写处理意见'
+    return
+  }
+  const reason = outcome.value === 'ignored' ? '不需要处理' : resolution.value.trim()
+  const disposition = outcome.value === 'ignored' ? 'ignored' : 'resolved'
+  await runAction(async () => {
+    await incidentsAPI.assign(selected.value.id, handler.value.trim())
+    await incidentsAPI.updateStatus(selected.value.id, 'closed', { reason, disposition })
+  })
 }
 
 onMounted(load)

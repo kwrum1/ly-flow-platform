@@ -60,3 +60,33 @@ func TestSuricataSignatureSeverity(t *testing.T) {
 		}
 	}
 }
+
+func TestSanitizeSuricataAlertCarriesSignatureIdentity(t *testing.T) {
+	event := map[string]interface{}{
+		"timestamp": "2026-10-30T17:02:01.429503+0000",
+		"src_ip":    "10.1.1.181",
+		"dest_ip":   "113.194.3.11",
+		"src_port":  float64(55214),
+		"dest_port": float64(80),
+		"proto":     "TCP",
+		"alert": map[string]interface{}{
+			"signature_id": float64(2008518),
+			"signature":    "ET EXPLOIT SQL sp_configure attempt",
+			"category":     "Attempted Administrator Privilege Gain",
+			"severity":     float64(1),
+		},
+	}
+	out := sanitizeSuricataAlert(event, "ET EXPLOIT SQL sp_configure attempt", "high")
+	if got := out["component_rule_id"]; got != "2008518" {
+		t.Fatalf("component_rule_id=%v", got)
+	}
+	if got := out["rule_id"]; got != 2008518 {
+		t.Fatalf("rule_id=%v", got)
+	}
+	if got := out["rule_family"]; got != "ET EXPLOIT" {
+		t.Fatalf("rule_family=%v", got)
+	}
+	if got := out["classtype"]; got != "Attempted Administrator Privilege Gain" {
+		t.Fatalf("classtype=%v", got)
+	}
+}

@@ -255,28 +255,23 @@ function buildEngineRows(payload) {
     { key: 'traffic', label: '流量聚合引擎', engines: ['suricata', 'lyprobe'] },
     { key: 'virus', label: '病毒扫描引擎', engines: ['yara', 'artifact'] },
   ]
+  const sensor = engineRuntime.value?.engines?.suricata || {}
   const rows = groups.map((group) => {
     const present = group.engines.filter((engine) => engine in counts)
-    const count = present.reduce((sum, engine) => sum + (Number(counts[engine]) || 0), 0)
+    let count = present.reduce((sum, engine) => sum + (Number(counts[engine]) || 0), 0)
+    // The traffic group is every traffic DPI rule: converted flow rules plus
+    // the signatures the Suricata sensor loads directly.
+    if (group.key === 'traffic') count += Number(sensor.signature_count) || 0
     const suricata = semantics.suricata || {}
     return {
       engine: group.label,
       engines: present.length ? present.join(' / ') : '暂无上报',
       count,
-      version: group.key === 'traffic' && suricata.ledger_digest ? `ledger-${String(suricata.ledger_digest).slice(0, 12)}` : '',
+      version: group.key === 'traffic' && sensor.ruleset_updated_at
+        ? `et-open ${String(sensor.ruleset_updated_at).slice(0, 10)}`
+        : (group.key === 'traffic' && suricata.ledger_digest ? `ledger-${String(suricata.ledger_digest).slice(0, 12)}` : ''),
     }
   })
-  // The sensor loads ET Open directly; the converted flow rules above are a
-  // much smaller set and must not be presented as the signature inventory.
-  const sensor = engineRuntime.value?.engines?.suricata || {}
-  if (sensor.signature_count) {
-    rows.push({
-      engine: 'Suricata 传感器',
-      engines: 'et-open + 自写规则',
-      count: sensor.signature_count,
-      version: sensor.ruleset_updated_at ? String(sensor.ruleset_updated_at).slice(0, 10) : '',
-    })
-  }
   return rows
 }
 
@@ -335,15 +330,15 @@ async function load() {
     const p = unwrap(q.value)
     quarantine.value = p.items || (Array.isArray(p) ? p : [])
   }
-  if (er.status === 'fulfilled') {
-    const p = unwrap(er.value)
-    engineRules.value = p.items && p.counts ? buildEngineRows(p) : (p.engines || [])
-  }
   if (yp.status === 'fulfilled') {
     yaraPack.value = unwrap(yp.value) || {}
   }
   if (rt.status === 'fulfilled') {
     engineRuntime.value = unwrap(rt.value) || {}
+  }
+  if (er.status === 'fulfilled') {
+    const p = unwrap(er.value)
+    engineRules.value = p.items && p.counts ? buildEngineRows(p) : (p.engines || [])
   }
   const detailSources = await Promise.allSettled([
     ruleClient.engineRules({ engine: 'log_audit', limit: 200 }),

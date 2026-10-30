@@ -182,21 +182,32 @@ func ingestSuricataEVELine(ctx context.Context, cfg *Config, line string) error 
 }
 
 func sanitizeSuricataAlert(event map[string]interface{}, signature, severity string) map[string]interface{} {
+	alert := asMap(event["alert"])
+	signatureID := asInt(alert["signature_id"])
+	ruleFamily := signature
+	if fields := strings.Fields(signature); len(fields) >= 2 {
+		ruleFamily = fields[0] + " " + fields[1]
+	}
 	out := map[string]interface{}{
-		"category":      "traffic",
-		"severity":      severity,
-		"source_engine": "suricata",
-		"event_type":    signature,
-		"message":       signature,
-		"agent_id":      "local",
-		"src_ip":        asString(event["src_ip"]),
-		"dst_ip":        asString(event["dest_ip"]),
-		"src_port":      asInt(event["src_port"]),
-		"dst_port":      asInt(event["dest_port"]),
-		"protocol":      asString(event["proto"]),
-		"app_proto":     asString(event["app_proto"]),
-		"timestamp":     asString(event["timestamp"]),
-		"eve":           event,
+		"category":          "traffic",
+		"severity":          severity,
+		"source_engine":     "suricata",
+		"event_type":        signature,
+		"message":           signature,
+		"agent_id":          "local",
+		"src_ip":            asString(event["src_ip"]),
+		"dst_ip":            asString(event["dest_ip"]),
+		"src_port":          asInt(event["src_port"]),
+		"dst_port":          asInt(event["dest_port"]),
+		"protocol":          asString(event["proto"]),
+		"app_proto":         asString(event["app_proto"]),
+		"timestamp":         asString(event["timestamp"]),
+		"rule_id":           signatureID,
+		"component_rule_id": fmt.Sprintf("%d", signatureID),
+		"rule_name":         signature,
+		"rule_family":       ruleFamily,
+		"classtype":         asString(alert["category"]),
+		"eve":               event,
 	}
 	if dns := asMap(event["dns"]); len(dns) > 0 {
 		out["dns"] = dns

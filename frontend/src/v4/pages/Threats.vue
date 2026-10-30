@@ -4,7 +4,7 @@
       <div>
         <p class="v-eyebrow">DETECTION SURFACE</p>
         <h1>检测面</h1>
-        <p>流量、主机运行时与应用 RASP 三类检测结果。阻断状态以端侧证据为准；monitor 模式不等同于已阻断。</p>
+        <p>流量、主机运行时、应用 RASP 与 YARA 四类检测结果。阻断状态以端侧证据为准；monitor 模式不等同于已阻断。</p>
       </div>
       <div class="v-head-actions">
         <div class="v-tabs">
@@ -39,7 +39,7 @@
       </div>
       <div class="v-table-wrap">
         <table class="v-table">
-          <thead><tr><th>时间</th><th>等级</th><th>引擎</th><th>威胁</th><th>源 → 目标</th><th>受害服务器</th><th>次数</th><th class="actions" /></tr></thead>
+          <thead><tr><th>时间</th><th>等级</th><th>引擎</th><th>威胁</th><th>源 → 目标</th><th v-if="tab !== 'traffic'">受害服务器</th><th>次数</th><th class="actions" /></tr></thead>
           <tbody>
             <tr v-for="t in items" :key="t.aggregate_key || t.id || t.message_id" class="clickable" @click="selected = t">
               <td class="num">{{ shortTime(t.last_seen || t.timestamp || t.first_seen) }}</td>
@@ -47,7 +47,7 @@
               <td>{{ t.source_engine || t.source || '-' }}</td>
               <td class="th-main"><b>{{ t.rule_name || t.rule_id || t.event_type || '安全告警' }}</b><small>{{ t.rule_id || '' }}</small></td>
               <td class="v-mono">{{ (t.entities?.source_ip || t.src_ip || '-') }} → {{ (t.entities?.target_ip || t.dst_ip || '-') }}</td>
-              <td>{{ agentName(t) }}</td>
+              <td v-if="tab !== 'traffic'">{{ agentName(t) }}</td>
               <td class="num">{{ t.count || t.occurrence_count || 1 }}</td>
               <td class="actions"><button class="v-btn sm" type="button" @click.stop="selected = t">详情</button></td>
             </tr>
@@ -76,7 +76,7 @@
             <dt>端口</dt><dd class="v-mono">{{ selected.src_port || '未知' }} → {{ selected.dst_port || '未知' }}</dd>
             <dt>引擎</dt><dd>{{ selected.source_engine || selected.source || '-' }}</dd>
             <dt>规则</dt><dd class="v-mono">{{ selected.rule_id || selected.component_rule_id || '-' }}</dd>
-            <dt>受害服务器</dt><dd>{{ agentName(selected) }}</dd>
+            <dt v-if="tab !== 'traffic'">受害服务器</dt><dd v-if="tab !== 'traffic'">{{ agentName(selected) }}</dd>
             <dt>次数</dt><dd>{{ selected.count || selected.occurrence_count || 1 }}</dd>
             <dt>摘要</dt><dd>{{ selected.summary || selected.message || '-' }}</dd>
           </dl>
