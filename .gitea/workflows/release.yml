@@ -11,72 +11,58 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  build:
+  mirror:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 90
     steps:
-      - name: Checkout
-        run: |
-          set -euo pipefail
-          git init -q .
-          git remote add origin "http://10.1.18.100:10000/${GITHUB_REPOSITORY}.git"
-          git fetch --depth 1 origin "${GITHUB_REF}"
-          git checkout -q FETCH_HEAD
-      - name: Build binaries and frontend
-        env:
-          GOPROXY: https://goproxy.cn,direct
-          GOTOOLCHAIN: local
-        run: |
-          set -euo pipefail
-          mkdir -p server/dist/linux/amd64 security-engine/dist/linux/amd64 agent/dist/linux/amd64
-          (cd server && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -buildvcs=false -o dist/linux/amd64/ly-server ./cmd)
-          (cd server && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -buildvcs=false -o dist/linux/amd64/ly-agent-center ./agentcenter)
-          (cd security-engine && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -buildvcs=false -o dist/linux/amd64/ly-security-engine ./cmd)
-          (cd agent && GOWORK=off CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -trimpath -buildvcs=false -o dist/linux/amd64/ly-agent ./cmd)
-          (cd frontend && npm ci --no-audit --no-fund && npm run build)
-      - name: Build images
-        run: |
-          set -euo pipefail
-          arch=amd64
-          docker build --build-arg TARGETARCH=$arch --build-arg RUNTIME_IMAGE=redis:7-alpine -f deploy/docker/server.Dockerfile -t ly-flow/server:release-$arch .
-          docker build --build-arg TARGETARCH=$arch --build-arg RUNTIME_IMAGE=redis:7-alpine -f deploy/docker/security-engine.Dockerfile -t ly-flow/security-engine:release-$arch .
-          docker build --build-arg RUNTIME_IMAGE=nginx:1.27-alpine -f frontend/Dockerfile -t ly-flow/frontend:release-$arch .
-          docker build --build-arg TARGETARCH=$arch -f deploy/docker/local-mirror.Dockerfile -t ly-flow/local-mirror:release-$arch .
-          docker build -f deploy/docker/suricata.Dockerfile -t ly-flow/suricata-profile:release-$arch .
-          docker tag postgres:16-alpine ly-flow/vendor/postgres:16-alpine-$arch
-          docker tag redis:7-alpine ly-flow/vendor/redis:7-alpine-$arch
-          docker tag clickhouse/clickhouse-server:24.8-alpine ly-flow/vendor/clickhouse:24.8-alpine-$arch
-      - name: Build installer bundle
-        env:
-          LYFLOW_TARGET_ARCH: amd64
-          TMPDIR: /var/tmp/lyflow-bundle
-        run: |
-          set -euo pipefail
-          # /tmp is a 32G tmpfs shared with other builds; stage on the data disk.
-          mkdir -p "$TMPDIR"
-          trap 'rm -rf "$TMPDIR"' EXIT
-          docker builder prune -f >/dev/null 2>&1 || true
-          bash scripts/build-docker-bundle.sh
-          ls -lh release/lyflow-server-amd64.tar.gz
-          gzip -t release/lyflow-server-amd64.tar.gz
-      - name: Publish to Gitea release
+      # Publish exactly the GitHub release artifacts (same bytes, same digests).
+      # api.github.com and release downloads work from this host; gh-proxy.com
+      # is the fallback when GitHub stalls.
+      - name: Mirror GitHub release assets
         env:
           TOKEN: ${{ secrets.GITEA_TOKEN }}
           VERSION: ${{ github.ref_name }}
         run: |
           set -euo pipefail
           api="http://10.1.18.100:10000/api/v1/repos/${GITHUB_REPOSITORY}"
-          asset="release/lyflow-server-amd64.tar.gz"
-          sha=$(sha256sum "$asset" | cut -d' ' -f1)
-          body="一键部署包（amd64）：lyflow-server-amd64.tar.gz。sha256: ${sha}。提交 ${GITHUB_SHA}，内网 Gitea 构建。"
+          mkdir -p release
+          curl -fsS --max-time 60 -H 'Accept: application/vnd.github+json' \
+            "https://api.github.com/repos/kwrum1/ly-flow-platform/releases/tags/latest-server" \
+            -o /tmp/gh-release.json
+          jq -r '.assets[] | [.name, .browser_download_url, .digest] | @tsv' /tmp/gh-release.json |
+          while IFS=$'\t' read -r name url digest; do
+            echo "downloading ${name}"
+            if ! curl -fsSL --max-time 1800 --retry 3 --retry-delay 5 -o "release/${name}" "${url}"; then
+              echo "direct download failed, retrying through gh-proxy.com"
+              curl -fsSL --max-time 1800 --retry 3 --retry-delay 5 -o "release/${name}" "https://gh-proxy.com/${url}"
+            fi
+            want="${digest#sha256:}"
+            got=$(sha256sum "release/${name}" | cut -d' ' -f1)
+            [ "${want}" = "${got}" ] || { echo "digest mismatch for ${name}: want ${want} got ${got}" >&2; exit 1; }
+            gzip -t "release/${name}"
+            echo "${name} ok $(stat -c%s "release/${name}") bytes"
+          done
+
           resp=$(curl -sS -X POST -H "Authorization: token ${TOKEN}" -H "Content-Type: application/json" \
-            -d "{\"tag_name\":\"${VERSION}\",\"name\":\"LyFlow ${VERSION} (Gitea build)\",\"body\":\"${body}\"}" \
+            -d "{\"tag_name\":\"${VERSION}\",\"name\":\"LyFlow ${VERSION}\",\"body\":\"与 GitHub latest-server 一致的 AMD64/ARM64 一键部署包。\"}" \
             "${api}/releases")
           id=$(printf '%s' "$resp" | jq -r '.id // empty')
           if [ -z "$id" ]; then
             id=$(curl -sS -H "Authorization: token ${TOKEN}" "${api}/releases/tags/${VERSION}" | jq -r '.id // empty')
           fi
-          [ -n "$id" ] || { echo "cannot resolve release id: $resp" >&2; exit 1; }
-          curl -sS -X POST -H "Authorization: token ${TOKEN}" \
-            -F "attachment=@${asset}" "${api}/releases/${id}/assets?name=lyflow-server-amd64.tar.gz" | jq -r '.name // .message'
-          echo "sha256: ${sha}"
+          [ -n "$id" ] || { echo "cannot resolve release: $resp" >&2; exit 1; }
+
+          curl -sS -H "Authorization: token ${TOKEN}" "${api}/releases/${id}" |
+            jq -r '.assets[] | [.id, .name] | @tsv' |
+          while IFS=$'\t' read -r aid aname; do
+            case "${aname}" in
+              lyflow-server-amd64.tar.gz|lyflow-server-arm64.tar.gz)
+                curl -sS -X DELETE -H "Authorization: token ${TOKEN}" "${api}/releases/${id}/assets/${aid}" >/dev/null
+                echo "removed old asset ${aname}" ;;
+            esac
+          done
+
+          for name in lyflow-server-amd64.tar.gz lyflow-server-arm64.tar.gz; do
+            curl -sS -X POST -H "Authorization: token ${TOKEN}" \
+              -F "attachment=@release/${name}" "${api}/releases/${id}/assets?name=${name}" | jq -r '.name // .message'
+          done
