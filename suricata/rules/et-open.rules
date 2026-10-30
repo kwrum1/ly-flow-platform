@@ -1,0 +1,6 @@
+# Placeholder for the ET Open ruleset.
+#
+# The shipped sensor profile loads `et-open/et-open.rules` when present. This
+# file keeps a default install valid (0 rules) until the operator drops a real
+# ruleset here or runs `deploy/suricata/et-open-refresh.sh`, which downloads
+# upstream (or imports ET_OPEN_LOCAL_FILE) and reloads Suricata.

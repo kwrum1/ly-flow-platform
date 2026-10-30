@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily LyFlow ET Open ruleset refresh
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+RandomizedDelaySec=20m
+Persistent=true
+Unit=lyflow-et-open-refresh.service
+
+[Install]
+WantedBy=timers.target

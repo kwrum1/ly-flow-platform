@@ -2,8 +2,8 @@
 ---
 vars:
   address-groups:
-    HOME_NET: "[10.0.0.0/8,172.16.0.0/12,192.168.0.0/16]"
-    EXTERNAL_NET: "!$HOME_NET"
+    HOME_NET: "any"
+    EXTERNAL_NET: "any"
   port-groups:
     HTTP_PORTS: "80"
     SHELLCODE_PORTS: "!80"
@@ -14,6 +14,8 @@ default-log-dir: /var/log/suricata
 default-rule-path: /var/lib/suricata/rules
 rule-files:
   - lyflow-suricata.rules
+  - server-zone/suricata.rules
+  - et-open/et-open.rules
 
 stream:
   checksum-validation: yes

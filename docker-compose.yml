@@ -284,6 +284,7 @@ services:
     command: ["-c", "/etc/suricata/lyflow-suricata-profile.yaml", "-i", "${SURICATA_INTERFACE:-ens35}"]
     volumes:
       - ./.sisyphus/runtime/engine-outputs/suricata-profile:/var/log/suricata
+      - ./suricata/rules:/var/lib/suricata/rules/et-open
     healthcheck:
       interval: 20s
       timeout: 5s

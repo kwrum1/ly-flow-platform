@@ -1,0 +1,12 @@
+[Unit]
+Description=LyFlow ET Open ruleset refresh
+After=docker.service
+Requires=docker.service
+
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/lyflow/et-open.env
+ExecStart=/opt/ly-flow-platform/scripts/et-open-refresh.sh
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=3600
