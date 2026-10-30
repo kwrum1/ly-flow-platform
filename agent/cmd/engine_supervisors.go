@@ -20,7 +20,10 @@ type externalEngineSupervisor struct {
 	name          EngineName
 	binary        string
 	defaultOutput string
-	status        EngineStatus
+	// inProcess engines (the RASP bridge) run inside the agent and have no
+	// external executable to probe.
+	inProcess bool
+	status    EngineStatus
 }
 
 func newExternalEngineSupervisor(name EngineName, binary, outputPath string) *externalEngineSupervisor {
@@ -40,7 +43,9 @@ func newYARASupervisor() EngineSupervisor {
 }
 
 func newRASPSupervisor() EngineSupervisor {
-	return newExternalEngineSupervisor(EngineRASP, "ly-rasp-bridge", "/opt/ly-agent/rasp/events.jsonl")
+	supervisor := newExternalEngineSupervisor(EngineRASP, "ly-rasp-bridge", "/opt/ly-agent/rasp/events.jsonl")
+	supervisor.inProcess = true
+	return supervisor
 }
 
 func (s *externalEngineSupervisor) Name() EngineName { return s.name }
@@ -48,24 +53,26 @@ func (s *externalEngineSupervisor) Name() EngineName { return s.name }
 func (s *externalEngineSupervisor) Apply(ctx context.Context, desired EngineDesiredState) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.status.Name = s.name
-	s.status.OutputPath = firstNonEmpty(desired.Settings["output_path"], s.defaultOutput)
-	s.status.RulePackVersion = desired.RulePackVersion
-	s.status.ConfigHash = configHash(desired)
-	s.status.Installed = commandExists(s.binary)
-	s.status.Running = desired.Enabled && s.status.Installed
-	s.status.LastError = ""
-	if desired.Enabled && !s.status.Installed {
-		if s.name == EngineYARA {
-			s.status.LastError = "native yara executable is unavailable"
-		} else {
-			s.status.Installed = true
-			s.status.Running = true
-			s.status.Version = "ly-agent-adapter"
-		}
+	// Rebuild the status from the probe. Keeping stale version/rule-pack values
+	// from an earlier run is what made a disabled engine look configured.
+	s.status = EngineStatus{
+		Name:       s.name,
+		OutputPath: firstNonEmpty(desired.Settings["output_path"], s.defaultOutput),
+		ConfigHash: configHash(desired),
+		Installed:  s.inProcess || commandExists(s.binary),
 	}
-	if version := commandVersion(ctx, s.binary); version != "" {
-		s.status.Version = version
+	s.status.Running = desired.Enabled && s.status.Installed
+	if s.inProcess {
+		s.status.Version = "ly-agent-adapter"
+	} else if s.status.Installed {
+		s.status.Version = commandVersion(ctx, s.binary)
+	}
+	if s.status.Installed {
+		s.status.RulePackVersion = desired.RulePackVersion
+	}
+	if desired.Enabled && !s.status.Installed {
+		// Report the truth: an enabled engine with no executable is not running.
+		s.status.LastError = s.binary + " executable is unavailable"
 	}
 	if s.status.OutputPath != "" {
 		if info, err := os.Stat(s.status.OutputPath); err == nil {
@@ -93,10 +100,11 @@ func (s *externalEngineSupervisor) Status(ctx context.Context) EngineStatus {
 		}
 		return status
 	}
-	status.Installed = commandExists(s.binary)
-	if !status.Installed && status.Running {
-		status.Installed = true
-		status.Version = firstNonEmpty(status.Version, "ly-agent-adapter")
+	status.Installed = s.inProcess || commandExists(s.binary)
+	if !status.Installed {
+		status.Running = false
+		status.Version = ""
+		status.RulePackVersion = ""
 	}
 	if status.OutputPath != "" {
 		if info, err := os.Stat(status.OutputPath); err == nil {
