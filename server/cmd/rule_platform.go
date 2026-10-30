@@ -68,6 +68,15 @@ var retiredConvertedRuleIDs = []string{
 	"snort-community-51546",
 }
 
+// retiredRuleSourceIDs are upstream catalog entries that never produced
+// runnable detection rules. They are removed from the catalog and their rows
+// are deleted on startup so "sync all" only reports real sources.
+var retiredRuleSourceIDs = []string{
+	"ip-geo-attribution",
+	"oisf-trafficid",
+	"sigma-connector",
+}
+
 func retiredDetectionRuleID(id string) bool {
 	if retiredDefaultRuleID(id) {
 		return true
@@ -1703,11 +1712,9 @@ func ensureRuleSourceCatalog(ctx context.Context, cfg *Config) error {
 		{"id": "openrasp-derived", "name": "OpenRASP-derived Application Rules", "category": "rasp", "origin": "external_reference", "license": "Apache-2.0", "url": "https://raw.githubusercontent.com/baidu/openrasp/master/plugins/official/plugin.js", "bundled": false, "connector": true, "restricted": false, "updatable": false},
 		{"id": "owasp-crs-connector", "name": "OWASP CRS Connector", "category": "rasp", "origin": "external_subscription", "license": "Apache-2.0", "url": "https://raw.githubusercontent.com/coreruleset/coreruleset/main/rules/REQUEST-942-APPLICATION-ATTACK-SQLI.conf", "bundled": false, "connector": true, "restricted": false, "updatable": true},
 		{"id": "custom-rasp-rules", "name": "Custom RASP Rules", "category": "rasp", "origin": "user_provided", "license": "User-Provided", "url": "", "bundled": false, "connector": false, "restricted": false, "updatable": false},
-		{"id": "sigma-connector", "name": "Sigma Rules Connector", "category": "log_audit", "origin": "external_subscription", "license": "Detection Rule License", "url": "https://raw.githubusercontent.com/SigmaHQ/sigma/master/rules/linux/builtin/sshd/lnx_sshd_susp_ssh.yml", "bundled": false, "connector": true, "restricted": false, "updatable": true},
 		{"id": "sigma-full", "name": "SigmaHQ Sigma (full, medium+)", "category": "log_audit", "origin": "external_subscription", "license": "Detection Rule License", "url": "https://codeload.github.com/SigmaHQ/sigma/tar.gz/refs/heads/master", "bundled": false, "connector": true, "restricted": false, "updatable": true},
 		{"id": "falco-connector", "name": "Falco Rules Connector", "category": "runtime", "origin": "external_subscription", "license": "Apache-2.0", "url": "https://raw.githubusercontent.com/falcosecurity/rules/main/rules/falco_rules.yaml", "bundled": false, "connector": true, "restricted": false, "updatable": true},
 		{"id": "et-open-connector", "name": "Emerging Threats Open Connector", "category": "traffic", "origin": "external_subscription", "license": "ET Open", "url": "https://rules.emergingthreats.net/open/suricata-7.0/emerging-all.rules", "bundled": false, "connector": true, "restricted": false, "updatable": true},
-		{"id": "oisf-trafficid", "name": "OISF Traffic ID", "category": "traffic", "origin": "external_subscription", "license": "MIT", "url": "https://openinfosecfoundation.org/rules/trafficid/trafficid.rules", "bundled": false, "connector": true, "restricted": false, "updatable": true},
 		{"id": "stamus-lateral", "name": "Stamus Lateral Movement Rules", "category": "traffic", "origin": "external_subscription", "license": "GPL-3.0-or-later", "url": "https://ti.stamus-networks.io/open/stamus-lateral-rules.tar.gz", "bundled": false, "connector": true, "restricted": false, "updatable": true},
 	}
 	for _, row := range catalog {
@@ -1723,6 +1730,17 @@ func ensureRuleSourceCatalog(ctx context.Context, cfg *Config) error {
 		hash := hex.EncodeToString(sum[:])
 		snapshotPath := firstNonEmpty(asString(row["url"]), "lyflow://rules/source/"+asString(row["id"]))
 		if _, err := cfg.DBPool.Exec(ctx, `INSERT INTO rule_source_versions (source_id, version, content_hash, snapshot_path, sync_status, synced_at) VALUES ($1,$2,$3,$4,'synced',NOW()) ON CONFLICT (source_id, version) DO NOTHING`, row["id"], version, hash, snapshotPath); err != nil {
+			return err
+		}
+	}
+	for _, retired := range retiredRuleSourceIDs {
+		if _, err := cfg.DBPool.Exec(ctx, `DELETE FROM detection_rules WHERE source_id=$1`, retired); err != nil {
+			return err
+		}
+		if _, err := cfg.DBPool.Exec(ctx, `DELETE FROM rule_source_versions WHERE source_id=$1`, retired); err != nil {
+			return err
+		}
+		if _, err := cfg.DBPool.Exec(ctx, `DELETE FROM rule_sources WHERE id=$1`, retired); err != nil {
 			return err
 		}
 	}
