@@ -28,9 +28,9 @@ alert tls any any -> any any (msg:"[LY-CS-002] CobaltStrike Alt JA3 Fingerprint"
 # both use 32+ character hex/base32 labels.
 alert dns any any -> any any (msg:"[LY-CS-003] CobaltStrike DNS Beacon Long Subdomain"; \
     flow:to_server; dns.query; \
-    pcre:"/^(?=[a-z0-9]{24,}\.)(?=[a-z0-9]*[0-9])(?![a-z0-9.-]*(?:sru\.edu\.cn|huaweicloudwaf\.com|footprintdns\.com|imtmp\.net|alibabachengdun\.com)$)[a-z0-9]+\./i"; \
+    pcre:"/^(?=[a-z0-9]{24,}\.)(?=[a-z0-9]*[0-9])(?![a-z0-9.-]*(?:sru\.edu\.cn|huaweicloudwaf\.com|footprintdns\.com|imtmp\.net|alibabachengdun\.com|cloudcsp\.com)$)[a-z0-9]+\./i"; \
     threshold:type threshold, track by_src, count 5, seconds 60; \
-    classtype:trojan-activity; sid:9002003; rev:4;)
+    classtype:trojan-activity; sid:9002003; rev:5;)
 
 # CobaltStrike POST to /identity
 alert http any any -> any any (msg:"[LY-CS-004] CobaltStrike /identity Endpoint"; \
