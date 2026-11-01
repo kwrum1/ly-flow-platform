@@ -51,7 +51,7 @@ fi
 
 # Drop low-value rule families before validation. ET INFO/POLICY/HUNTING
 # fire on ordinary traffic and drown the attack signatures.
-DROP_PREFIXES="${ET_OPEN_DROP_PREFIXES:-ET INFO,ET POLICY,ET HUNTING,ET USER_AGENTS,ET CURRENT_EVENTS,ET GAMES,ET P2P,ET CHAT,ET SNMP,ET DNS Query for,ET DNS Query to a ,ET ADWARE_PUP ,ET SCAN NMAP OS Detection Probe,GPL WEB_SERVER 403 Forbidden,GPL WEB_SERVER 404 Not Found,GPL DNS named version attempt}"
+DROP_PREFIXES="${ET_OPEN_DROP_PREFIXES:-ET INFO,ET POLICY,ET HUNTING,ET USER_AGENTS,ET CURRENT_EVENTS,ET GAMES,ET P2P,ET CHAT,ET SNMP,ET DNS Query for,ET DNS Query to a ,ET ADWARE_PUP ,ET SCAN NMAP OS Detection Probe,GPL WEB_SERVER 403 Forbidden,GPL WEB_SERVER 404 Not Found,GPL DNS named version attempt,ET WEB_SERVER Possible HTTP 403 XSS Attempt,ET WEB_CLIENT Possible HTTP 403 XSS Attempt}"
 old_ifs=$IFS
 IFS=','
 for prefix in $DROP_PREFIXES; do

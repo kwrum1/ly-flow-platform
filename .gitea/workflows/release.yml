@@ -5,6 +5,9 @@ on:
     tags:
       - "v*"
   workflow_dispatch:
+  schedule:
+    # 03:30 Asia/Shanghai (19:30 UTC), after the GitHub build finishes
+    - cron: '30 19 * * *'
 
 concurrency:
   group: release-gitea-${{ github.ref }}
@@ -21,9 +24,13 @@ jobs:
       - name: Mirror GitHub release assets
         env:
           TOKEN: ${{ secrets.GITEA_TOKEN }}
-          VERSION: ${{ github.ref_name }}
         run: |
           set -euo pipefail
+          if [ "${GITHUB_EVENT_NAME}" = "schedule" ] || [ "${GITHUB_REF_NAME}" = "main" ]; then
+            VERSION=latest-server
+          else
+            VERSION="${GITHUB_REF_NAME}"
+          fi
           api="http://10.1.18.100:10000/api/v1/repos/${GITHUB_REPOSITORY}"
           mkdir -p release
           curl -fsS --max-time 60 -H 'Accept: application/vnd.github+json' \
