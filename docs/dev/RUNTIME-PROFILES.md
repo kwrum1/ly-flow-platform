@@ -41,3 +41,16 @@ sudo scripts/apply-runtime-profile.sh             # 应用并重建容器
 ```
 
 ARM 机器建议 4 GB 内存配 2 线程 + 1 GB Redis；8 GB 内存自动升到 ring-size 4096。
+
+## 抓包基线
+
+除态势感知平台自身地址外，**全部抓取**，包括服务器区内网互访：
+
+```
+bpf-filter: "not ( host 10.1.18.125)"
+```
+
+- 自身地址通过 `SURICATA_SELF_IPS`（或 `LYFLOW_SENSOR_SELF_IPS`）配置，逗号或空格分隔；
+- 这样端口扫描、横向移动、内网 Web 攻击都会进入 Suricata 检测；
+- 只排除平台自身，避免它访问其他主机时产生自噪声；
+- 改完必须重建容器（脚本会 `--force-recreate`），否则 bind mount 的配置不会重新加载。
