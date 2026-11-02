@@ -50,8 +50,10 @@ else
 fi
 
 # Drop low-value rule families before validation. ET INFO/POLICY/HUNTING
-# fire on ordinary traffic and drown the attack signatures.
-DROP_PREFIXES="${ET_OPEN_DROP_PREFIXES:-ET INFO,ET POLICY,ET HUNTING,ET USER_AGENTS,ET CURRENT_EVENTS,ET GAMES,ET P2P,ET CHAT,ET SNMP,ET DNS Query for,ET DNS Query to a ,ET ADWARE_PUP ,ET SCAN NMAP OS Detection Probe,GPL WEB_SERVER 403 Forbidden,GPL WEB_SERVER 404 Not Found,GPL DNS named version attempt,ET WEB_SERVER Possible HTTP 403 XSS Attempt,ET WEB_CLIENT Possible HTTP 403 XSS Attempt,GPL POLICY PCAnywhere Attempted Administrator Login,ET SCAN MS Terminal Server Traffic on Non-standard Port,GPL ICMP_INFO }"
+# fire on ordinary traffic and drown the attack signatures. The 1433 family is
+# normal application traffic to the SQL server; the webcrawler UAs are search
+# engine bots, not reconnaissance.
+DROP_PREFIXES="${ET_OPEN_DROP_PREFIXES:-ET INFO,ET POLICY,ET HUNTING,ET USER_AGENTS,ET CURRENT_EVENTS,ET GAMES,ET P2P,ET CHAT,ET SNMP,ET DNS Query for,ET DNS Query to a ,ET ADWARE_PUP ,ET SCAN NMAP OS Detection Probe,GPL WEB_SERVER 403 Forbidden,GPL WEB_SERVER 404 Not Found,GPL DNS named version attempt,ET WEB_SERVER Possible HTTP 403 XSS Attempt,ET WEB_CLIENT Possible HTTP 403 XSS Attempt,GPL POLICY PCAnywhere Attempted Administrator Login,ET SCAN MS Terminal Server Traffic on Non-standard Port,GPL ICMP_INFO,ET SCAN Suspicious inbound to MSSQL port 1433,ET SCAN Behavioral Unusual Port 1433 traffic Potential Scan or Infection,ET SCAN DuckDuckGo Webcrawler User-Agent,ET SCAN AOL Webcrawler User-Agent,ET SCAN Naver Webcrawler User-Agent,ET SCAN Google Webcrawler User-Agent,ET SCAN Yandex Webcrawler User-Agent,ET SCAN Bing Webcrawler User-Agent}"
 old_ifs=$IFS
 IFS=','
 for prefix in $DROP_PREFIXES; do
