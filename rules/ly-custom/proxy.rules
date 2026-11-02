@@ -91,11 +91,10 @@ alert http any any -> any any (msg:"[LY-PROXY-042] GOST HTTP Proxy"; \
 
 # SecureSocketFunnel (SSF)
 alert tcp any any -> any any (msg:"[LY-PROXY-051] SSF Encrypted Tunnel Pattern"; \
-    content:"ssf"; nocase; \
-    content:"secure"; nocase; \
+    content:"SecureSocketFunnel"; nocase; \
     flow:established; \
     threshold:type threshold, track by_src, count 5, seconds 30; \
-    classtype:trojan-activity; sid:9007051; rev:1;)
+    classtype:trojan-activity; sid:9007051; rev:2;)
 
 # ============ ProxyChains ============
 

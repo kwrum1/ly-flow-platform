@@ -62,9 +62,25 @@ printf 'profile=%s arch=%s cpus=%s mem=%sGB threads=%s ring=%s buffer=%s redis=%
 [ -f "$profile" ] || { echo "missing profile: $profile" >&2; exit 1; }
 cp -a "$profile" "$profile.bak.$(date +%s)"
 
-python3 - "$profile" "$threads" "$ring_size" "$buffer_size" <<'PY'
+# Inspect everything (including server-zone lateral traffic) except the
+# platform's own addresses, which only produce self-noise.
+self_ips=${SURICATA_SELF_IPS:-${LYFLOW_SENSOR_SELF_IPS:-10.1.18.125}}
+bpf="not ("
+first=1
+for ip in $(printf '%s' "$self_ips" | tr ',' ' '); do
+  [ -n "$ip" ] || continue
+  [ "$first" -eq 0 ] && bpf="$bpf or "
+  bpf="$bpf host $ip"
+  first=0
+done
+bpf="$bpf)"
+if [ "$first" -eq 1 ]; then
+  bpf="not (src net 10.0.0.0/8 and dst net 10.0.0.0/8)"
+fi
+
+python3 - "$profile" "$threads" "$ring_size" "$buffer_size" "$bpf" <<'PY'
 import io, re, sys
-path, threads, ring, buf = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+path, threads, ring, buf, bpf = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4], sys.argv[5]
 text = io.open(path, encoding="utf-8").read()
 start = text.find("af-packet:")
 if start < 0:
@@ -83,7 +99,7 @@ block = (
     "    defrag: yes\n"
     f"    ring-size: {ring}\n"
     f"    buffer-size: {buf}\n"
-    "    bpf-filter: \"not (src net 10.0.0.0/8 and dst net 10.0.0.0/8)\"\n"
+    f"    bpf-filter: \"{bpf}\"\n"
 )
 iface = re.search(r"interface:\s*(\S+)", text[start:end])
 iface = iface.group(1) if iface else "mirror0"
