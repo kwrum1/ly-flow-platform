@@ -56,13 +56,18 @@ alert tcp any any -> any 7000 (msg:"[LY-FRP-008] FRP Version 0.48 Detection"; \
 # FRP HTTP Proxy Basic Auth
 # Only client->server proxy requests carry Proxy-Authorization. The previous
 # rule had no direction and also matched server responses and normal proxy
-# traffic, producing false positives on internal proxy auth.
+# traffic, producing false positives on internal proxy auth. A reverse proxy
+# forwarding a normal page also passes Proxy-Authorization to the backend but
+# adds X-Forwarded-For / X-Real-IP; skip those forwarded requests so only a
+# direct frp client (which does not add these headers) is reported.
 alert http any any -> any any (msg:"[LY-FRP-009] FRP HTTP Proxy Basic Auth"; \
     flow:established,to_server; \
     http.request_header; content:"Proxy-Authorization"; nocase; \
     http.request_header; content:"Basic"; nocase; \
+    http.header_names; content:!"X-Forwarded-For"; nocase; \
+    http.header_names; content:!"X-Real-IP"; nocase; \
     threshold:type limit, track by_src, count 1, seconds 60; \
-    classtype:trojan-activity; sid:9001009; rev:2;)
+    classtype:trojan-activity; sid:9001009; rev:3;)
 
 # FRP Custom Subdomain
 alert tcp any any -> any any (msg:"[LY-FRP-010] FRP Custom Subdomain Pattern"; \
