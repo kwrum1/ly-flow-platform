@@ -156,11 +156,14 @@ alert icmp any any -> any any (msg:"[LY-PROXY-101] ptunnel ICMP Proxy Pattern"; 
 # ============ Oport ============
 
 # Oport Tunnel Tool
+# The generic "oport" + "connect" pair also appears in normal proxy response
+# pages. Only client->server requests can be the tunnel tool.
 alert tcp any any -> any any (msg:"[LY-PROXY-111] Oport Tunnel Tool Pattern"; \
+    flow:established,to_server; \
     content:"oport"; nocase; \
     content:"connect"; nocase; \
     threshold:type threshold, track by_src, count 5, seconds 30; \
-    classtype:trojan-activity; sid:9007111; rev:1;)
+    classtype:trojan-activity; sid:9007111; rev:2;)
 
 # ============ Frpng ============
 

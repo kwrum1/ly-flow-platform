@@ -93,17 +93,25 @@ alert http any any -> any any (msg:"[LY-WSHELL-ASP-003] ASP Shell.Application Ob
 # Restrict to responses that actually serve a server-side script. The old rule
 # matched any HTTP payload containing "WScript.Shell", which fires on proxied
 # web pages (for example the CNKI proxy serving pages to 10.64.0.0/16 users).
+# A server-side webshell constructs the object from the server runtime
+# (Server.CreateObject / new COM / COMObject), while benign client-side print
+# helpers use new ActiveXObject. Requiring the server-side constructor keeps
+# the webshell signal and drops the ASP.NET print helper on 10.1.2.41:8099.
 alert http any any -> any any (msg:"[LY-WSHELL-CN-001] WScript.Shell in script response"; \
     flow:established,to_client; \
     file.name; pcre:"/\.(php|asp|aspx|jsp|jspx|ashx|asmx|cer)(\?|$)/i"; \
     file.data; content:"WScript.Shell"; nocase; \
-    classtype:web-application-attack; sid:9004301; rev:2;)
+    file.data; pcre:"/(?:Server\.CreateObject|new\s+COM|COMObject|\.Exec\s*\()/i"; \
+    classtype:web-application-attack; sid:9004301; rev:3;)
 
 # cmd.exe Shell
+# Only inspect client->server traffic: response pages that merely mention
+# "cmd.exe /c" (documentation, admin consoles) are not command execution.
 alert http any any -> any any (msg:"[LY-WSHELL-CN-002] cmd.exe Shell Execution"; \
+    flow:established,to_server; \
     content:"cmd.exe"; nocase; \
     content:"/c"; nocase; \
-    classtype:web-application-attack; sid:9004302; rev:1;)
+    classtype:web-application-attack; sid:9004302; rev:2;)
 
 # Shell.Application
 alert http any any -> any any (msg:"[LY-WSHELL-CN-003] Shell.Application Object"; \
