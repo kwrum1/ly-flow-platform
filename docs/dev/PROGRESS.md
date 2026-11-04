@@ -3,6 +3,20 @@
 > 每个 Task 完成后追加一条记录：日期 / Task / 变更 / 测试 / 风险 / 回滚。  
 > 更细的任务状态见 `WORKQUEUE.md`。
 
+## 2026-11-04
+
+### 反代 XFF 真实客户端归因（REVIEW）
+
+- 变更：Suricata 入库读取 `http.xff`，通过 `resolveSourceAttribution` 和
+  `xdr_trusted_proxies` 还原真实客户端；`threat_events.src_ip` 写客户端，
+  `raw_event` 保留 `proxy_ip`/`client_ip`/`source_attribution`。
+- 测试：`server/cmd/suricata_eve_attribution_test.go` 覆盖可信代理、
+  不可信远端、空 XFF、多跳链、无反代场景；待 CI 运行 `go test ./server/...`。
+- 风险：反代必须覆盖/追加 XFF；`lyflow_traffic_sessions` 无 HTTP 头，
+  流量会话页仍显示代理。
+- 回滚：回退 `server` 镜像；`xdr_trusted_proxies` 新增行可删除。
+- 文档：`docs/dev/XFF-ATTRIBUTION-2026-11-04.md`。
+
 ## 2026-10-19
 
 ### T0.0 环境接入与基线（IN_PROGRESS）
