@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net"
 	"os"
 	"strings"
 	"syscall"
@@ -66,6 +67,12 @@ func startSuricataEVEIngest(ctx context.Context, cfg *Config) {
 	path := strings.TrimSpace(getEnv("SURICATA_EVE_PATH", defaultSuricataEVEPath))
 	if path == "" {
 		return
+	}
+	trustedCIDRs, proxyErr := loadTrustedProxyCIDRs(cfg)
+	if proxyErr != nil {
+		// XFF attribution is best-effort: without trusted proxies the packet
+		// source is kept, so an empty/invalid table never breaks ingestion.
+		log.Printf("[suricata-eve] trusted proxy lookup failed: %v", proxyErr)
 	}
 	go func() {
 		statePath := strings.TrimSpace(getEnv("SURICATA_EVE_STATE_PATH", "/app/.sisyphus/runtime/suricata-eve-ingest.state"))
@@ -139,7 +146,7 @@ func startSuricataEVEIngest(ctx context.Context, cfg *Config) {
 				if line == "" {
 					continue
 				}
-				if err := ingestSuricataEVELine(ctx, cfg, line); err != nil {
+				if err := ingestSuricataEVELine(ctx, cfg, line, trustedCIDRs); err != nil {
 					// Keep the pipeline alive on malformed lines / transient DB
 					// errors. The line is dropped rather than blocking rotation.
 					log.Printf("[suricata-eve] ingest skipped: %v", err)
@@ -151,7 +158,7 @@ func startSuricataEVEIngest(ctx context.Context, cfg *Config) {
 	}()
 }
 
-func ingestSuricataEVELine(ctx context.Context, cfg *Config, line string) error {
+func ingestSuricataEVELine(ctx context.Context, cfg *Config, line string, trustedCIDRs []*net.IPNet) error {
 	var event map[string]interface{}
 	if err := json.Unmarshal([]byte(line), &event); err != nil {
 		return fmt.Errorf("decode eve line: %w", err)
@@ -167,14 +174,22 @@ func ingestSuricataEVELine(ctx context.Context, cfg *Config, line string) error 
 	severity := suricataSignatureSeverity(signature, suricataSeverity(asInt(alert["severity"])))
 	observed := parseSuricataTimestamp(asString(event["timestamp"]))
 	uid := suricataAlertUID(event)
-	raw, err := json.Marshal(sanitizeSuricataAlert(event, signature, severity))
+	clientIP, proxyIP, attribution := suricataSourceAttribution(event, trustedCIDRs)
+	rawEvent := sanitizeSuricataAlert(event, signature, severity)
+	rawEvent["src_ip"] = clientIP
+	rawEvent["proxy_ip"] = proxyIP
+	rawEvent["client_ip"] = clientIP
+	if attribution != nil {
+		rawEvent["source_attribution"] = attribution
+	}
+	raw, err := json.Marshal(rawEvent)
 	if err != nil {
 		return err
 	}
 	_, err = cfg.DBPool.Exec(ctx, `INSERT INTO threat_events (event_uid, category, severity, source_engine, event_type, agent_id, src_ip, dst_ip, message, observed_at, raw_event, updated_at)
 		VALUES ($1,'traffic',$2,'suricata',$3,'local',$4,$5,$6,$7,$8::jsonb,NOW())
 		ON CONFLICT (event_uid) DO NOTHING`,
-		uid, severity, signature, asString(event["src_ip"]), asString(event["dest_ip"]), signature, observed, string(raw))
+		uid, severity, signature, clientIP, asString(event["dest_ip"]), signature, observed, string(raw))
 	if err != nil {
 		return fmt.Errorf("insert suricata alert uid=%s: %w", uid, err)
 	}
