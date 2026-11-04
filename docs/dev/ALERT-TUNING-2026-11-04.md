@@ -13,10 +13,15 @@
 - 处置：把 `.env` 的 `REDIS_MAXMEMORY` 恢复为 profile 计算的 `5gb`，
   重建 Redis，安全引擎恢复 `healthy`；Redis 载入后 used_memory ≈ 4.01G，
   仍有约 1GB 余量。
-- 仍需处理：`transport_reliability:*` 是无界增长（本次约 3.9GB），
-  1GB 余量只能撑数天。建议下一轮加保留期/定期裁剪，按 message ID
-  时间戳删除超过 24 小时的条目；或先清理 `transport_reliability:accounting:*:seen`
-  与 `:materialized`（约 2.1GB，需先快照）。
+- 已做：先快照 Redis，再 `UNLINK` 六个
+  `transport_reliability:accounting:*:{seen,materialized}` 键；安全引擎保持
+  healthy，内存回收后继续下降。
+- 已加：`deploy/redis/prune-transport-reliability.sh` +
+  `lyflow-redis-prune.timer`，每天 04:10 按 message ID 时间戳删除超过
+  24 小时的 `transport_reliability:*` 条目；默认 dry-run，systemd 以
+  `RUN=1` 执行。
+- 建议：观察一周内存曲线；如果仍增长，把 retention 降到 12h，或把
+  `transport_reliability` 去重改成带 TTL 的实现。
 
 ### 其他
 

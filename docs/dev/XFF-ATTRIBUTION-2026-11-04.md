@@ -35,17 +35,23 @@
 - `server/cmd/suricata_eve_attribution_test.go`：可信代理、不可信远端、
   空 XFF、多跳链、无反代场景。
 
-## 部署
+## 部署与新增反代
 
 - 需要重新构建 `ly-flow/server` 镜像；
-- 启动前写入可信代理表（已在本环境执行）：
-  ```sql
-  INSERT INTO xdr_trusted_proxies (tenant_id, cidr, description, priority)
-  VALUES ('default','10.1.18.251/32','reverse proxy',100),
-         ('default','10.1.18.252/32','reverse proxy',100)
-  ON CONFLICT (tenant_id, cidr) DO NOTHING;
+- 反代地址不写死在代码里。在 `.env` 配置：
+  ```sh
+  XDR_TRUSTED_PROXY_CIDRS="10.1.18.251/32 10.1.18.252/32"
+  # 或者每行一个 CIDR：
+  # XDR_TRUSTED_PROXY_FILE=/opt/ly-flow-platform/trusted-proxies.txt
   ```
-- 重启 `ly-server` 后生效。
+  然后执行：
+  ```sh
+  sudo bash deploy/redis/sync-trusted-proxies.sh --restart
+  ```
+  脚本会把地址 upsert 到 `xdr_trusted_proxies` 并重启 `ly-server`，
+  不需要改代码或重新构建镜像。
+- `xdr_trusted_proxies` 仍是唯一事实来源；平台/DB 直接维护的行不会被脚本删除。
+- 换环境或新增反代：只改 `.env`（或 CIDR 文件）并执行上面的脚本。
 
 ## 验证
 
