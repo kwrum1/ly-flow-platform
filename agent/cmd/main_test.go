@@ -743,6 +743,9 @@ func TestHIDSAuthSignalCoversPrivilegeAndAccountChanges(t *testing.T) {
 		{"sudo: pam_unix(sudo:auth): authentication failure", "runtime.auth.sudo_failure", "medium", true},
 		{"sshd[1]: Failed password for invalid user test from 1.1.1.1", "runtime.auth.failure", "medium", true},
 		{"useradd[1]: new user: name=attacker, UID=1001", "runtime.auth.account_change", "high", true},
+		{"CRON[123]: pam_unix(cron:session): session opened for user root(uid=0) by root(uid=0)", "", "", false},
+		{"sudo: session opened for user root by admin(uid=1000)", "runtime.auth.privilege", "medium", true},
+		{"su: pam_unix(su:session): session opened for user root by admin(uid=1000)", "runtime.auth.privilege", "medium", true},
 		{"kernel: ordinary line", "", "", false},
 	}
 	for _, tt := range tests {

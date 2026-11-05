@@ -3,6 +3,21 @@
 > 每个 Task 完成后追加一条记录：日期 / Task / 变更 / 测试 / 风险 / 回滚。  
 > 更细的任务状态见 `WORKQUEUE.md`。
 
+## 2026-11-06
+
+### 巡检降噪 + Agent cron 修复（REVIEW）
+
+- 变更：`LY-CS-003` 排除 `jddebug.com`（rev 8）；ET Open 删除
+  `ET PHISHING Successful Generic .EDU Phish`；Agent `classifyAuthSignal`
+  忽略 cron session，避免 root cron 产生 `privilege-use`。
+- 测试：`agent/cmd/main_test.go` 增加 CRON 反例、sudo/su 正例；
+  待 CI 运行 `scripts/dev/test-all.sh fast`。
+- 风险：Agent 二进制需更新后才会停止新增 privilege-use；Kernel Ring
+  Sigma 误报仍在安全引擎规则包内。
+- 回滚：回退 `agent` 二进制/规则文件；历史事件备份表
+  `threat_events_noise_20261106_backup`。
+- 文档：`docs/dev/ALERT-TUNING-2026-11-06.md`。
+
 ## 2026-11-04
 
 ### 反代 XFF 真实客户端归因（REVIEW）

@@ -3255,6 +3255,12 @@ func readAppendedLines(path string, offset int64, limit int64) ([]string, int64,
 
 func classifyAuthSignal(line string) (eventType, severity, signal string, ok bool) {
 	l := strings.ToLower(line)
+	// A cron session-open line is a routine root job, not privilege use and
+	// not scheduler persistence. Without this guard every hourly root cron
+	// produces a privilege-use event.
+	if strings.Contains(l, "pam_unix(cron:session)") || (strings.Contains(l, "cron[") && strings.Contains(l, "session opened")) {
+		return "", "", "", false
+	}
 	switch {
 	case hidsContainsAny(l, []string{"sudo: pam_unix", "authentication failure", "incorrect password attempts"}) && strings.Contains(l, "sudo"):
 		return "runtime.auth.sudo_failure", "medium", "sudo-auth-failure", true
@@ -3262,7 +3268,7 @@ func classifyAuthSignal(line string) (eventType, severity, signal string, ok boo
 		return "runtime.auth.failure", "medium", "failed-auth", true
 	case hidsContainsAny(l, []string{"useradd", "usermod", "groupadd", "gpasswd", "added user", "new user", "delete user", "userdel"}):
 		return "runtime.auth.account_change", "high", "account-change", true
-	case hidsContainsAny(l, []string{"sudo:", "session opened for user root", "su: pam_unix", "sudo su", "sudo -i"}):
+	case hidsContainsAny(l, []string{"sudo:", "su: pam_unix", "sudo su", "sudo -i"}):
 		return "runtime.auth.privilege", "medium", "privilege-use", true
 	case hidsContainsAny(l, []string{"cron", "crontab", "systemd", "timer"}) && hidsContainsAny(l, []string{"install", "reload", "started", "modified", "opened"}):
 		return "runtime.auth.persistence", "medium", "persistence-scheduler", true
