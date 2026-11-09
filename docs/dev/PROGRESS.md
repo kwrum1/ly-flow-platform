@@ -3,6 +3,19 @@
 > 每个 Task 完成后追加一条记录：日期 / Task / 变更 / 测试 / 风险 / 回滚。  
 > 更细的任务状态见 `WORKQUEUE.md`。
 
+## 2026-11-09
+
+### 巡检优化与降噪（REVIEW）
+
+- 变更：Bare IP 下载规则增加 Microsoft BITS/Windows Update UA 例外（rev 4）；
+  `.125` 安全引擎 compose 补上 `SECURITY_ENGINE_CPU_BUDGET_MS=1000`。
+- 测试：Bare IP 规则已加载（37,967 条，0 failed）；安全引擎
+  `Status=running Restarts=0`。
+- 风险：privilege-use 来源是 DNS-8（10.1.18.8）Agent v2.0.0，需更新远端
+  Agent；历史 82 条已备份清理。
+- 回滚：恢复 `rules/suricata/et-open.rules` 原规则；移除 CPU 预算环境变量。
+- 文档：`docs/dev/ALERT-TUNING-2026-11-09.md`。
+
 ## 2026-11-06
 
 ### 巡检降噪 + Agent cron 修复（REVIEW）

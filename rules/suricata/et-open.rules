@@ -19,8 +19,8 @@ alert tls $HOME_NET any -> $EXTERNAL_NET any (msg:"ET MALWARE Suspicious TLS SNI
 alert dns $HOME_NET any -> $EXTERNAL_NET any (msg:"ET TROJAN Possible DGA Domain"; dns.query; pcre:"/^[a-z]+-[a-z]+-[a-z]+\.(com|net|org)$/"; sid:1000030; rev:1;)
 
 # HTTP可疑下载
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET MALWARE Suspicious Download from Bare IP"; flow:established,to_server; http.host; pcre:"/^[0-9]{1,3}(\.[0-9]{1,3}){3}(:[0-9]+)?$/"; http.uri; pcre:"/\.exe(\?|$)/i"; sid:1000040; rev:3;)
-alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET MALWARE Suspicious Download from Bare IP"; flow:established,to_server; http.host; pcre:"/^[0-9]{1,3}(\.[0-9]{1,3}){3}(:[0-9]+)?$/"; http.uri; pcre:"/\.zip(\?|$)/i"; sid:1000041; rev:3;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET MALWARE Suspicious Download from Bare IP"; flow:established,to_server; http.host; pcre:"/^[0-9]{1,3}(\.[0-9]{1,3}){3}(:[0-9]+)?$/"; http.uri; pcre:"/\.exe(\?|$)/i"; http.user_agent; content:!"Microsoft BITS"; nocase; http.user_agent; content:!"Microsoft-Delivery-Optimization"; nocase; http.user_agent; content:!"Windows-Update-Agent"; nocase; sid:1000040; rev:4;)
+alert http $HOME_NET any -> $EXTERNAL_NET any (msg:"ET MALWARE Suspicious Download from Bare IP"; flow:established,to_server; http.host; pcre:"/^[0-9]{1,3}(\.[0-9]{1,3}){3}(:[0-9]+)?$/"; http.uri; pcre:"/\.zip(\?|$)/i"; http.user_agent; content:!"Microsoft BITS"; nocase; http.user_agent; content:!"Microsoft-Delivery-Optimization"; nocase; http.user_agent; content:!"Windows-Update-Agent"; nocase; sid:1000041; rev:4;)
 
 
 alert dns $HOME_NET any -> $EXTERNAL_NET 53 (msg:"LYFLOW INERT pinned profile verification"; dns.query; content:"profile.test"; nocase; classtype:misc-activity; sid:9000001; rev:1;)
