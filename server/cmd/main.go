@@ -571,6 +571,14 @@ func main() {
 	// 后台启动 XDR Processor
 	go startXDRProcessor(cfg)
 
+	// P0-3: warm the session read path before the listener accepts traffic.
+	// Running it only inside startConsumer (a goroutine) was not enough: the
+	// first request could arrive before the warm-up finished, and the cold
+	// ClickHouse page measured 2.49s against a 1.33s target. The helper has its
+	// own timeout and swallows errors, so a slow backend cannot delay startup
+	// indefinitely.
+	warmTrafficSessionQuery(cfg)
+
 	srv := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.ServerPort),
 		Handler:      SecurityHeaders(EnforceRoutePolicy(mux, authMiddleware)),
@@ -1292,7 +1300,6 @@ func startConsumer(cfg *Config) {
 	go consumerState.runFlowBridge()
 	go func() { _ = loadNativeEngineRules(cfg) }()
 	go warmRulePlatformSourcesCache(cfg)
-	go warmTrafficSessionQuery(cfg)
 	log.Println("告警消费者已启动")
 }
 
@@ -7938,7 +7945,7 @@ func persistTrafficSession(ctx context.Context, cfg *Config, msg redis.XMessage)
 		Direction: l7.Direction,
 		HTTPHost:  l7.HTTPHost, HTTPMethod: l7.HTTPMethod, HTTPURI: l7.HTTPURI,
 		TLSSNI: l7.TLSSNI, TLSJA3: l7.TLSJA3, TLSJA4: l7.TLSJA4,
-		DNSQuery:  l7.DNSQuery,
+		DNSQuery: l7.DNSQuery,
 		RawEvent: string(raw), IngestedAt: ingestedAt,
 	}); err != nil {
 		return fmt.Errorf("materialize ClickHouse traffic session uid=%s: %w", uid, err)
@@ -8011,16 +8018,28 @@ func boundedTrafficPort(value int64) uint16 {
 	return uint16(value)
 }
 
-// warmTrafficSessionQuery pays the cold PostgreSQL/Redis query cost in the
-// background after startup so the first operator request is not a 20-second
-// wait. Failures are ignored; the HTTP path still retries on demand.
+// warmTrafficSessionQuery pays the cold query cost in the background after
+// startup so the first operator request is not a multi-second wait.
+//
+// Warm-up must use the same shape as the real request, not a cheaper one. The
+// first ClickHouse page after a restart measured 2.49s and the second 1.65s
+// (cold connection pool plus a cold ORDER BY observed_at DESC plan) while every
+// warm sample was 0.64-1.04s, so warming with limit=1 does not remove the cost:
+// it exercises a different plan.
+//
+// Failures are ignored; the HTTP path still retries on demand.
 func warmTrafficSessionQuery(cfg *Config) {
-	if cfg == nil || cfg.DBPool == nil {
+	if cfg == nil {
 		return
 	}
 	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
 	defer cancel()
-	_, _, _ = loadPersistentTrafficSessions(ctx, cfg, 1, 0, "", "", "", "", "", "", nil, nil)
+	// Warm the exact endpoints the UI hits: an unfiltered first page through
+	// whichever backend is active, twice, so both the connection and the
+	// server-side query cache are populated.
+	for attempt := 0; attempt < 2; attempt++ {
+		_, _, _ = loadPersistentTrafficSessions(ctx, cfg, 50, 0, "", "", "", "", "", "", nil, nil)
+	}
 }
 
 // loadTrafficSessionsFromClickHouse reads a page of sessions from ClickHouse.
