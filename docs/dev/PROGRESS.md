@@ -3,6 +3,20 @@
 > 每个 Task 完成后追加一条记录：日期 / Task / 变更 / 测试 / 风险 / 回滚。  
 > 更细的任务状态见 `WORKQUEUE.md`。
 
+## 2026-11-10
+
+### 巡检优化与降噪（REVIEW）
+
+- 变更：ET Open 刷新脚本删除 Meta Refresh 钓鱼家族和 iebar UA 家族；
+  `LY-CS-003` 排除 `chinacloudapi.cn`（rev 9）。
+- 验证：Suricata 37,965 条，0 failed；安全引擎
+  `RestartCount=0`、连续 30 小时无重启，CPU 预算 1000ms 生效。
+- 风险：privilege-use 来源为 DNS-8 Agent v2.0.0，需更新远端 Agent；
+  EVE/会话保留期未调整（950G 可用）。
+- 回滚：恢复 `rules/suricata/et-open.rules` / `rules/ly-custom/c2.rules`；
+  历史事件备份 `threat_events_noise_20261110_backup`。
+- 文档：`docs/dev/ALERT-TUNING-2026-11-10.md`。
+
 ## 2026-11-09
 
 ### 巡检优化与降噪（REVIEW）
