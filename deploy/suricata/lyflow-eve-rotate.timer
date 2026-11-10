@@ -1,0 +1,14 @@
+[Unit]
+Description=LyFlow Suricata EVE retention (every 10 minutes)
+
+[Timer]
+# Size-triggered rotation means the schedule only controls reaction latency for
+# the 200M file cap and for the disk watermark. 10 minutes bounds growth to
+# ~40 MB per tick at the observed peak rate.
+OnCalendar=*:0/10
+AccuracySec=30s
+Persistent=true
+Unit=lyflow-eve-rotate.service
+
+[Install]
+WantedBy=timers.target

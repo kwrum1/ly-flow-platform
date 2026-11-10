@@ -53,7 +53,7 @@
             </tr>
           </tbody>
         </table>
-        <div v-if="!items.length" class="v-table-empty"><strong>{{ loading ? '正在读取' : '暂无情报' }}</strong></div>
+        <div v-if="!items.length" class="v-table-empty"><strong>{{ loading ? '正在读取' : '暂无检测结果' }}</strong></div>
       </div>
     </article>
 
@@ -123,7 +123,7 @@ function agentName(event) {
 
 const tabLabel = computed(() => ({ traffic: '流量检测', runtime: '主机运行时', rasp: '应用 RASP', yara: 'YARA 命中' })[tab.value])
 const tabHint = computed(() => ({ traffic: 'Suricata / lyprobe', runtime: 'eBPF / auditd', rasp: 'Agent RASP', yara: 'YARA 文件扫描' })[tab.value])
-const emptyText = computed(() => '暂无情报')
+const emptyText = computed(() => '暂无检测结果')
 
 const highCount = computed(() => items.value.filter((t) => ['high', 'critical'].includes(t.severity)).length)
 const occurrences = computed(() => items.value.reduce((s, t) => s + (Number(t.count || t.occurrence_count) || 1), 0))

@@ -4,7 +4,7 @@
       <div>
         <p class="v-eyebrow">EVENT SEARCH</p>
         <h1>事件检索</h1>
-        <p>同源、同目的、同情报的事件按滚动 1 小时聚合。主机运行时、RASP、日志只显示受害服务器，不显示空白的源/目标。</p>
+        <p>同源、同目的、同规则的事件按滚动 1 小时聚合。主机运行时、RASP、日志只显示受害服务器，不显示空白的源/目标。</p>
       </div>
       <div class="v-head-actions">
         <div class="v-tabs">
@@ -38,7 +38,7 @@
       </div>
       <div class="v-table-wrap">
         <table class="v-table">
-          <thead><tr><th>时间</th><th>等级</th><th>类别</th><th>事件</th><th>情报源 → 受害服务器</th><th>受害服务器</th><th>次数</th><th class="actions" /></tr></thead>
+          <thead><tr><th>时间</th><th>等级</th><th>类别</th><th>事件</th><th>来源 → 受害服务器</th><th>受害服务器</th><th>次数</th><th class="actions" /></tr></thead>
           <tbody>
             <tr v-for="e in displayItems" :key="e.event_uid" class="clickable" @click="selected = e">
               <td class="num">{{ shortTime(e.last_seen || e.event_at || e.timestamp) }}</td>
@@ -53,7 +53,7 @@
           </tbody>
         </table>
         <div v-if="!displayItems.length" class="v-table-empty">
-          <strong>{{ loading ? '正在查询' : '暂无情报' }}</strong>
+          <strong>{{ loading ? '正在查询' : '暂无事件' }}</strong>
           <span v-if="!loading">尝试扩大时间窗口或清除筛选。</span>
         </div>
       </div>
@@ -76,7 +76,7 @@
             <dt>首次 / 最近</dt><dd>{{ shortTime(selected.first_seen) }} / {{ shortTime(selected.last_seen) }}</dd>
             <dt>受害服务器</dt><dd>{{ destLabel(selected) }}</dd>
             <dt v-if="hasPair(selected)">来源 → 目的</dt><dd v-if="hasPair(selected)" class="v-mono">{{ pairText(selected) }}</dd>
-            <dt>情报 / 规则</dt><dd class="v-mono">{{ selected.rule_name || selected.rule_id || '-' }}</dd>
+            <dt>命中规则</dt><dd class="v-mono">{{ selected.rule_name || selected.rule_id || '-' }}</dd>
             <dt>来源</dt><dd>{{ sourceLabel(selected) }}</dd>
             <dt>命中次数</dt><dd>{{ selected.count || 1 }}</dd>
             <dt>摘要</dt><dd>{{ selected.summary || '-' }}</dd>

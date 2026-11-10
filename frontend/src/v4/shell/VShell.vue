@@ -118,6 +118,7 @@ import {
 import { opsClient, overviewClient } from '../../api/domain'
 import { formatChinaTime, refreshPlatformTimeOffset } from '../../shared/time'
 import { useAuthStore } from '../../stores/auth'
+import { canAccessRoles } from '../../router/roles'
 import { V4_NAVIGATION } from '../navigation'
 
 const route = useRoute()
@@ -142,11 +143,16 @@ const truth = reactive({
 let clockTimer = null
 let truthTimer = null
 
-const groups = computed(() => V4_NAVIGATION)
+const groups = computed(() => {
+  const role = authStore.user?.role || 'viewer'
+  return V4_NAVIGATION
+    .map((group) => ({ ...group, items: group.items.filter((item) => canAccessRoles(item.roles, role)) }))
+    .filter((group) => group.items.length > 0)
+})
 const activeGroup = computed(() => groups.value.find((g) => g.items.some((i) => isActive(i.path))) || groups.value[0])
 const activeItem = computed(() => activeGroup.value?.items.find((i) => isActive(i.path)) || activeGroup.value?.items[0])
 const userInitial = computed(() => String(authStore.user?.username || 'A').slice(0, 1).toUpperCase())
-const roleLabel = computed(() => ({ admin: '管理员', analyst: '分析员', viewer: '只读' })[authStore.user?.role] || '管理员')
+const roleLabel = computed(() => ({ admin: '管理员', analyst: '分析员', viewer: '只读' })[authStore.user?.role] || '未识别')
 
 const iconMap = {
   '/overview': Monitor,
@@ -234,8 +240,12 @@ function submitSearch() {
 }
 
 async function loadTruth() {
+  // GET /debug/components is adminOnly in the backend route registry. Only
+  // poll it when the signed-in role may call it; otherwise report "unknown"
+  // instead of hammering a 403 every 45s and implying a false healthy state.
+  const canReadComponents = (authStore.user?.role || 'viewer') === 'admin'
   const [components, agents, systemTime] = await Promise.allSettled([
-    opsClient.components(),
+    canReadComponents ? opsClient.components() : Promise.reject(new Error('components requires admin')),
     opsClient.agents({ limit: 200 }),
     opsClient.systemTime(),
   ])

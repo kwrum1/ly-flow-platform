@@ -153,3 +153,19 @@
 - 原因：逐事件 Incident 在扫描流量下产生数百条重复队列；Redis 保存 180 天实时流导致 maxmemory OOM；100ms CPU 预算无法处理正常镜像流量。
 - 实现：候选按三维键聚合，事件作为证据时间线；Redis 清理覆盖全部流并 15 分钟执行；生产 compose 设置 CPU 预算。
 - 后果：活动 Incident 数量可解释；Redis 不再因历史流撑满；引擎可在正常负载下稳定运行。
+
+## D-019 HOME_NET 表示"受保护资产"，不是"整个内网"
+
+- 日期：2026-11-10
+- 决策：Suricata profile 的 `HOME_NET` 取"本传感器保护的资产集合"（当前为服务器区 `10.1.18.0/24` 加公网 NAT `113.194.3.11/32`），`EXTERNAL_NET` 由 `!$HOME_NET` 推导；两者都不允许是 `any`。profile 由 `deploy/suricata/render-profile.sh` 从模板渲染，`SURICATA_HOME_NET` 必须显式指定，无默认值。
+- 原因：`30e114a` 为检测"服务器区发起的外联攻击"把方向变量改成 `any/any`，导致 `$EXTERNAL_NET -> $HOME_NET` 的入站规则同时命中内网到内网、内网到外网流量。7 天 9,413 条告警中 **90.4% 是方向误报**（8,508 条），其中单源 `10.1.1.181` 占 85%。但把 `HOME_NET` 直接改成 RFC1918 全网段几乎同样错：它把真正的攻击者（内网扫描源）判定为"自己人"，只保留 8.4% 告警。
+- 实测对比（7 天真实告警，同一批规则）：
+  - `HOME_NET = any` → 保留 7.6%（且包含非受保护主机的噪声）
+  - `HOME_NET = RFC1918` → 保留 8.4%
+  - `HOME_NET = 10.1.18.0/24` → 保留 49.9%
+  - `HOME_NET = 服务器区 + 公网 NAT` → 保留 **90.1%**
+- 替代方案：`HOME_NET` 保留 `any` 并用 BPF 过滤内网 → 被否，BPF 只能丢包不能恢复方向语义，且丢包会连会话统计一起丢。
+- 实现：`lyflow-suricata-profile.tmpl.yaml` + `render-profile.sh`（拒绝 `any`、拒绝未设置的 `SURICATA_HOME_NET`、原地重写以保持单文件 bind mount 生效）；`et-open-refresh.sh` 每次同步前调用 `render-profile.sh --check`，方向语义不合法就拒绝刷新，避免每日同步把修复冲掉。
+- 验收：`scripts/qa/suricata-direction_test.sh`（方向门控）、`scripts/qa/suricata-asset-scope_test.sh`（资产范围，用真实告警载荷回放）、`scripts/qa/render-profile_test.sh`（渲染器单元测试），共 20 项断言，全部通过。
+- 后果：告警量下降但**保留的是真实攻击**；方向语义成为可测试的硬约束，不再依赖人工理解 YAML。新增部署动作：改资产范围必须改 `.env` 再重渲染，不能手改 profile。
+

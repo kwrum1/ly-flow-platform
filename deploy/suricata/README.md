@@ -5,6 +5,12 @@
 - `lyflow-suricata.rules`：LyFlow 自定义规则。
 - `rules/suricata/et-open.manifest.json`：ET Open 源元数据。
 
+## 方向语义（必读）
+
+`HOME_NET` 表示"本传感器保护的资产"，**不是**整个内网，更不能是 `any`。
+生产 profile 由 `lyflow-suricata-profile.tmpl.yaml` + `render-profile.sh` 渲染生成，
+禁止手改。原因、实测数据和变更流程见 `README-DIRECTION.md`。
+
 ## 测试 VM 验证
 
 ```bash

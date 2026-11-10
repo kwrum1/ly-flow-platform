@@ -1,9 +1,16 @@
 %YAML 1.1
 ---
+# Suricata profile for the pinned 7.0.11 fixture replay (CI).
+#
+# HOME_NET describes the assets under test, not the whole intranet. It must never
+# be "any": that collapses direction semantics and makes every inbound-only
+# signature fire on internal-to-internal and outbound traffic. The fixture client
+# is 10.0.0.11 and the server is 203.0.113.53, so the private ranges below keep
+# the outbound test alert intact while restoring real direction behaviour.
 vars:
   address-groups:
-    HOME_NET: "any"
-    EXTERNAL_NET: "any"
+    HOME_NET: "[10.0.0.0/8,172.16.0.0/12,192.168.0.0/16]"
+    EXTERNAL_NET: "!$HOME_NET"
   port-groups:
     HTTP_PORTS: "80"
     SHELLCODE_PORTS: "!80"

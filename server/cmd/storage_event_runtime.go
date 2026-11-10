@@ -142,6 +142,28 @@ func (runtime *StorageEventRuntime) TrafficSessionCount(ctx context.Context) (ui
 	return runtime.clickhouse.TrafficSessionCount(ctx)
 }
 
+// QueryTrafficSessions reads the full-session history from ClickHouse.
+//
+// P0-3: the read path used to scan Postgres traffic_sessions (15 GB, 4.3M rows,
+// 3-day retention). ClickHouse holds the same content at a fraction of the size
+// with a proper retention TTL, and the promoted community_id / flow_id / L7
+// columns make the filters index-friendly.
+func (runtime *StorageEventRuntime) QueryTrafficSessions(ctx context.Context, query analytics.TrafficSessionQuery) (analytics.TrafficSessionPage, error) {
+	if runtime == nil || runtime.clickhouse == nil {
+		return analytics.TrafficSessionPage{}, fmt.Errorf("ClickHouse full-session storage unavailable")
+	}
+	return runtime.clickhouse.QueryTrafficSessions(ctx, query)
+}
+
+// TrafficSessionTTL reports the deployed retention expression, so an operator
+// can verify expiry without reading the DDL.
+func (runtime *StorageEventRuntime) TrafficSessionTTL(ctx context.Context) (string, error) {
+	if runtime == nil || runtime.clickhouse == nil {
+		return "", fmt.Errorf("ClickHouse full-session storage unavailable")
+	}
+	return runtime.clickhouse.TrafficSessionTTLStatus(ctx)
+}
+
 func (runtime *StorageEventRuntime) WriteComponentAlert(ctx context.Context, alert contracts.ComponentAlert, ingestedAt time.Time) (MigrationWriteReceipt, error) {
 	event, _, err := canonicalComponentAlertPayload(alert, ingestedAt)
 	if err != nil {

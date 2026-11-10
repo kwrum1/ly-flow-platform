@@ -38,3 +38,13 @@ jobs:
 
       - name: Run fast checks
         run: bash scripts/dev/test-all.sh fast
+
+      - name: Suricata direction and asset scope replay
+        env:
+          LYFLOW_SURICATA_REPLAY: "1"
+          SURICATA_IMAGE: ly-flow/suricata-profile:v67
+        run: |
+          set -euo pipefail
+          docker image inspect "$SURICATA_IMAGE" >/dev/null
+          bash scripts/qa/suricata-direction_test.sh
+          bash scripts/qa/suricata-asset-scope_test.sh
