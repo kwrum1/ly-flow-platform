@@ -27,7 +27,7 @@
   "vendored_source_commit": "367ca7f430f85be01a6cdc65ddaa1636a50ddefc",
   "vendored_source_role": "reference-only; runtime uses the pinned release image",
   "config_path": "rules/suricata/suricata-profile.yaml",
-  "config_sha256": "235349b1944b1e9c14d33bc73c2459de92852af9612cf4684e877a7aaee7ea05",
+  "config_sha256": "6a144bd2de884fe1707188384ba0ca803125972367794f73f6e4a46def41a8e9",
   "rules_path": "rules/suricata/et-open.rules",
   "rules_sha256": "0845b83497f89690acfe1af2e2c11ae6972c24392d765ea87c1766391c8fd352",
   "pcap_path": "agent/cmd/testdata/suricata/7.0.11/inert.pcap",

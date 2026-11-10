@@ -85,9 +85,9 @@
             <h3>{{ stageTitle(selected.status) }}</h3>
 
             <template v-if="stage(selected.status) === 'new'">
-              <p class="v-dim">确认该情报后进入分诊。</p>
+              <p class="v-dim">确认该事件后进入分诊。</p>
               <button class="v-btn primary save-btn" type="button" :disabled="saving" @click="confirmIntel">
-                {{ saving ? '提交中…' : '确认该情报' }}
+                {{ saving ? '提交中…' : '确认该事件' }}
               </button>
             </template>
 
@@ -216,7 +216,7 @@ function stage(status) {
 }
 
 function stageTitle(status) {
-  return ({ new: '确认情报', triage: '分诊', processing: '处理' })[stage(status)] || '处理'
+  return ({ new: '确认事件', triage: '分诊', processing: '处理' })[stage(status)] || '处理'
 }
 
 const counts = computed(() => {

@@ -86,8 +86,8 @@
         <div class="v-panel-body"><div v-if="topRules.length" class="ranks"><div v-for="r in topRules" :key="r.key" class="rank"><span class="rank-label" :title="r.key">{{ r.label }}</span><span class="rank-track"><i :style="{ width: r.percent + '%' }" /></span><b>{{ formatNumber(r.count) }}</b></div></div><div v-else class="v-empty"><div><strong>{{ eventsReady ? '窗口内没有命中' : '正在读取样本' }}</strong></div></div></div>
       </article>
       <article class="v-panel">
-        <div class="v-panel-head"><div class="v-panel-title">情报源 → 受害服务器</div><span class="v-panel-meta">Top 8 · 按命中次数</span></div>
-        <div class="v-panel-body"><div v-if="topPairs.length" class="ranks"><div v-for="r in topPairs" :key="r.key" class="rank"><span class="rank-label" :title="r.key">{{ r.label }}</span><span class="rank-track"><i :style="{ width: r.percent + '%' }" /></span><b>{{ formatNumber(r.count) }}</b></div></div><div v-else class="v-empty"><div><strong>{{ eventsReady ? '暂无可归因的情报源' : '正在读取样本' }}</strong></div></div></div>
+        <div class="v-panel-head"><div class="v-panel-title">来源 → 受害服务器</div><span class="v-panel-meta">Top 8 · 按命中次数</span></div>
+        <div class="v-panel-body"><div v-if="topPairs.length" class="ranks"><div v-for="r in topPairs" :key="r.key" class="rank"><span class="rank-label" :title="r.key">{{ r.label }}</span><span class="rank-track"><i :style="{ width: r.percent + '%' }" /></span><b>{{ formatNumber(r.count) }}</b></div></div><div v-else class="v-empty"><div><strong>{{ eventsReady ? '暂无可归因的来源' : '正在读取样本' }}</strong></div></div></div>
       </article>
     </section>
 
@@ -249,7 +249,7 @@ const agentNameByHost = computed(() => {
   return map
 })
 
-function intelSourceLabel(category) {
+function sourceCategoryLabel(category) {
   return ({ rasp: 'RASP', runtime: '运行时', log_audit: '日志', traffic: '流量' })[category] || '未知来源'
 }
 
@@ -261,7 +261,7 @@ function resolveAgentName(event) {
 }
 
 function pairSource(event, category) {
-  if (['rasp', 'runtime', 'log_audit'].includes(category)) return intelSourceLabel(category)
+  if (['rasp', 'runtime', 'log_audit'].includes(category)) return sourceCategoryLabel(category)
   const src = String(event.src_ip || '')
   if (!src) return '未知来源'
   return agentNameByIP.value.get(src) || src

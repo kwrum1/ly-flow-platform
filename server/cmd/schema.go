@@ -327,8 +327,23 @@ CREATE INDEX IF NOT EXISTS idx_traffic_sessions_time ON traffic_sessions(observe
 CREATE INDEX IF NOT EXISTS idx_traffic_sessions_agent ON traffic_sessions(agent_id);
 CREATE INDEX IF NOT EXISTS idx_traffic_sessions_src_ip ON traffic_sessions(src_ip);
 CREATE INDEX IF NOT EXISTS idx_traffic_sessions_dst_ip ON traffic_sessions(dst_ip);
-CREATE INDEX IF NOT EXISTS idx_traffic_sessions_raw ON traffic_sessions USING GIN(raw_event);
-CREATE INDEX IF NOT EXISTS idx_traffic_sessions_raw_text_trgm ON traffic_sessions USING GIN ((raw_event::text) gin_trgm_ops);
+-- P0-3: the two GIN indexes below were removed deliberately.
+--
+-- Measured on the mirror sensor: both had idx_scan = 0 since database creation
+-- (pg_stat_database.stats_reset was NULL) while occupying 8.5 GB of a 15 GB
+-- table, and no query in the codebase can use them: the JSON filters read
+-- raw_event->>'key', which a GIN index on raw_event or on (raw_event)::text
+-- cannot satisfy.
+--
+-- Worse, leaving them here made startup prohibitively expensive: once dropped,
+-- this bootstrap recreated them on a 6.6 GB table with continuous writes, and
+-- the non-concurrent CREATE INDEX kept failing at 100% and restarting from
+-- zero, so ly-server never reached its listen state.
+--
+-- Re-adding either index requires a measured query that needs it plus an
+-- out-of-band CONCURRENTLY build; it must not live in the startup path.
+--   CREATE INDEX CONCURRENTLY idx_traffic_sessions_raw ON traffic_sessions USING GIN(raw_event);
+--   CREATE INDEX CONCURRENTLY idx_traffic_sessions_raw_text_trgm ON traffic_sessions USING GIN ((raw_event::text) gin_trgm_ops);
 
 CREATE TABLE IF NOT EXISTS xdr_attack_transitions (
     id BIGSERIAL PRIMARY KEY,

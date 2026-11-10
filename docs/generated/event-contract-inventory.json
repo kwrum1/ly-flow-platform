@@ -4448,11 +4448,55 @@
         "startSuricataEVEIngest",
         "suricataAlertUID",
         "suricataEVEInode",
+        "suricataEVEIsSpace",
+        "suricataEVELineIsAlert",
         "suricataSeverity",
         "suricataSignatureSeverity"
       ],
       "roles": [
         "consumer"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
+      "id": "consumer:server/cmd/webhook_runtime.go",
+      "kind": "consumer",
+      "path": "server/cmd/webhook_runtime.go",
+      "symbols": [
+        "Channels",
+        "Enabled",
+        "dailyReportTime",
+        "deliverDailyReport",
+        "loadWebhookDailyReport",
+        "loadWebhookRuntimeConfig",
+        "nextWebhookReportTime",
+        "parseWebhookReportTime",
+        "runAlertNotifications",
+        "runDailyReports",
+        "startWebhookRuntime",
+        "startWebhookRuntimeWithLauncher",
+        "validateWebhookURL",
+        "webhookAlertFromStream",
+        "webhookAllDigits",
+        "webhookChannelEnvValues",
+        "webhookEnvBool",
+        "webhookSeverityUint8"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "streams": [
+        "alerts:xdr"
       ],
       "schemas": [
         "lyflow.security_event.v1"
@@ -8924,6 +8968,48 @@
       ],
       "schemas": [
         "lyflow.component_alert.v1",
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
+      "id": "stream:server/cmd/webhook_runtime.go",
+      "kind": "stream",
+      "path": "server/cmd/webhook_runtime.go",
+      "symbols": [
+        "Channels",
+        "Enabled",
+        "dailyReportTime",
+        "deliverDailyReport",
+        "loadWebhookDailyReport",
+        "loadWebhookRuntimeConfig",
+        "nextWebhookReportTime",
+        "parseWebhookReportTime",
+        "runAlertNotifications",
+        "runDailyReports",
+        "startWebhookRuntime",
+        "startWebhookRuntimeWithLauncher",
+        "validateWebhookURL",
+        "webhookAlertFromStream",
+        "webhookAllDigits",
+        "webhookChannelEnvValues",
+        "webhookEnvBool",
+        "webhookSeverityUint8"
+      ],
+      "roles": [
+        "stream"
+      ],
+      "streams": [
+        "alerts:xdr"
+      ],
+      "schemas": [
         "lyflow.security_event.v1"
       ],
       "owner": "server",

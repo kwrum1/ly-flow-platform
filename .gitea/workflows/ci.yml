@@ -38,3 +38,17 @@ jobs:
           GOTOOLCHAIN: local
           PYTHONIOENCODING: utf-8
         run: bash scripts/dev/test-all.sh fast
+      # The replay acceptance tests need a Suricata binary. Docker Hub and
+      # GitHub are blocked on this network, so the runner uses the same locally
+      # built image the sensor runs. The runner is registered as
+      # `ubuntu-latest:host`, so this job executes on the host and sees the
+      # host's docker daemon directly.
+      - name: Suricata direction and asset scope replay
+        env:
+          LYFLOW_SURICATA_REPLAY: "1"
+          SURICATA_IMAGE: ly-flow/suricata-profile:v67
+        run: |
+          set -euo pipefail
+          docker image inspect "$SURICATA_IMAGE" >/dev/null
+          bash scripts/qa/suricata-direction_test.sh
+          bash scripts/qa/suricata-asset-scope_test.sh

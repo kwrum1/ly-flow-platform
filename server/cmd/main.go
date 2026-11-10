@@ -266,6 +266,16 @@ func loadConfig() *Config {
 	if err = initializeIncidentLifecycleRuntime(ctx, cfg); err != nil {
 		log.Fatalf("无法初始化持久化 Incident 生命周期: %v", err)
 	}
+	// P0-7: event triage and asset binding columns. Failing here would silently
+	// disable review state, so it aborts startup like the other schema steps.
+	if err = EnsureThreatEventTriageSchema(ctx, cfg); err != nil {
+		log.Fatalf("无法初始化事件分诊表结构: %v", err)
+	}
+	// 响应审批（advisories）只读/审批入口；初始化失败不阻塞主服务启动，
+	// 由 handler 统一返回 503，避免单个可选能力拖垮采集主链。
+	if err = initializeAdvisoryResponseRuntime(cfg); err != nil {
+		log.Printf("警告: 初始化响应审批存储失败（接口将返回 503）: %v", err)
+	}
 	return cfg
 }
 
@@ -328,6 +338,8 @@ func main() {
 	go startSuricataEVEIngest(context.Background(), cfg)
 	go startAgentStaleCleanup(cfg)
 	go startRuleSyncScheduler(cfg)
+	startIncidentLifecycleWorker(cfg)
+	startWebhookRuntime(context.Background(), cfg)
 
 	// 初始化Auth模块
 	authService := auth.NewService(
@@ -421,6 +433,8 @@ func main() {
 	mux.HandleFunc("/api/v1/response/actions/", responseActionHandler(cfg))
 	mux.HandleFunc("/api/v1/response/automation", responseAutomationHandler(cfg))
 	mux.HandleFunc("/api/v1/response/policy", responsePolicyHandler(cfg))
+	mux.HandleFunc("/api/v1/response/advisories", advisoryResponseHandler(cfg))
+	mux.HandleFunc("/api/v1/response/advisories/", advisoryResponseHandler(cfg))
 	mux.HandleFunc("/api/v1/evidence/bundles", evidenceHandler(cfg))
 	mux.HandleFunc("/api/v1/evidence/bundles/", evidenceHandler(cfg))
 	mux.HandleFunc("/api/v1/evidence/artifacts", evidenceHandler(cfg))
@@ -445,6 +459,7 @@ func main() {
 	mux.HandleFunc("/api/v1/unified/stats", unifiedStatsHandler(cfg))
 	mux.HandleFunc("/api/v1/unified/events", unifiedEventsHandler(cfg))
 	mux.HandleFunc("/api/v1/unified/events/search", unifiedSearchHandler(cfg))
+	mux.HandleFunc("/api/v1/events/triage", eventsTriageHandler(cfg))
 	mux.HandleFunc("/api/v1/engine-health", engineHealthHandler(cfg))
 	mux.HandleFunc("/api/v1/engine-runtime/status", nativeEngineStatusHandler(cfg))
 	mux.HandleFunc("/api/v1/engine-rules", nativeEngineRulesHandler(cfg))
@@ -7307,7 +7322,12 @@ func loadPersistentThreatEvents(ctx context.Context, cfg *Config, category strin
 		"COALESCE(NULLIF(src_ip,''), NULLIF(raw_event->'entities'->>'source_ip',''), '') AS aggregate_src, " +
 		"COALESCE(NULLIF(dst_ip,''), NULLIF(raw_event->'entities'->>'target_ip',''), '') AS aggregate_dst, " +
 		"COALESCE(NULLIF(raw_event->'native_rule'->>'source',''), '') AS aggregate_native_source, " +
-		"COALESCE(NULLIF(raw_event->'native_rule'->>'id',''), '') AS aggregate_native_id " +
+		"COALESCE(NULLIF(raw_event->'native_rule'->>'id',''), '') AS aggregate_native_id, " +
+		// P0-7: triage and asset binding are per event, but the list is grouped.
+		// Surface the newest event's state so a reviewed group is not shown as
+		// unreviewed just because an older member predates the decision.
+		"COALESCE(NULLIF(triage_status,''), 'new') AS triage_status, " +
+		"triage_reason, triage_actor, triaged_at, asset_id, asset_binding_source " +
 		"FROM threat_events WHERE " + where
 	groupBySQL := "category, aggregate_type, aggregate_src, aggregate_dst, aggregate_native_source, aggregate_native_id, COALESCE(source_engine,''), COALESCE(agent_id,'')"
 	countSQL := "WITH filtered AS (" + filteredSQL + ") SELECT COUNT(*) FROM (SELECT 1 FROM filtered GROUP BY " + groupBySQL + ") grouped"
@@ -7319,8 +7339,14 @@ func loadPersistentThreatEvents(ctx context.Context, cfg *Config, category strin
 	queryArgs = append(queryArgs, limit, offset)
 	limitIdx := len(queryArgs) - 1
 	offsetIdx := len(queryArgs)
-	rows, err := cfg.DBPool.Query(ctx, "WITH filtered AS ("+filteredSQL+") SELECT raw_event::text, occurrence_count, first_seen, last_seen, aggregate_key FROM ("+
+	rows, err := cfg.DBPool.Query(ctx, "WITH filtered AS ("+filteredSQL+") SELECT raw_event::text, occurrence_count, first_seen, last_seen, aggregate_key, triage_status, triage_reason, triage_actor, triaged_at, asset_id, asset_binding_source FROM ("+
 		"SELECT (array_agg(raw_event ORDER BY observed_at DESC, created_at DESC))[1] AS raw_event, COUNT(*) AS occurrence_count, MIN(observed_at) AS first_seen, MAX(observed_at) AS last_seen, "+
+		"(array_agg(triage_status ORDER BY observed_at DESC, created_at DESC))[1] AS triage_status, "+
+		"(array_agg(triage_reason ORDER BY observed_at DESC, created_at DESC))[1] AS triage_reason, "+
+		"(array_agg(triage_actor ORDER BY observed_at DESC, created_at DESC))[1] AS triage_actor, "+
+		"(array_agg(triaged_at ORDER BY observed_at DESC, created_at DESC))[1] AS triaged_at, "+
+		"(array_agg(asset_id ORDER BY observed_at DESC, created_at DESC))[1] AS asset_id, "+
+		"(array_agg(asset_binding_source ORDER BY observed_at DESC, created_at DESC))[1] AS asset_binding_source, "+
 		"md5(concat_ws('|', category, aggregate_type, aggregate_src, aggregate_dst, aggregate_native_source, aggregate_native_id, COALESCE(source_engine,''), COALESCE(agent_id,''))) AS aggregate_key "+
 		"FROM filtered GROUP BY "+groupBySQL+") grouped ORDER BY last_seen DESC LIMIT $"+strconv.Itoa(limitIdx)+" OFFSET $"+strconv.Itoa(offsetIdx), queryArgs...)
 	if err != nil {
@@ -7333,7 +7359,10 @@ func loadPersistentThreatEvents(ctx context.Context, cfg *Config, category strin
 		var raw, aggregateKey string
 		var occurrenceCount int
 		var firstSeen, lastSeen time.Time
-		if err := rows.Scan(&raw, &occurrenceCount, &firstSeen, &lastSeen, &aggregateKey); err != nil {
+		var triageStatus, triageReason, triageActor, assetBindingSource string
+		var triagedAt, assetID *string
+		if err := rows.Scan(&raw, &occurrenceCount, &firstSeen, &lastSeen, &aggregateKey,
+			&triageStatus, &triageReason, &triageActor, &triagedAt, &assetID, &assetBindingSource); err != nil {
 			continue
 		}
 		var event map[string]interface{}
@@ -7349,6 +7378,17 @@ func loadPersistentThreatEvents(ctx context.Context, cfg *Config, category strin
 			threat["first_seen"] = firstSeen.UTC().Format(time.RFC3339)
 			threat["last_seen"] = lastSeen.UTC().Format(time.RFC3339)
 			threat["timestamp"] = lastSeen.UTC().Format(time.RFC3339)
+			// P0-7 review state, so a client can show and filter on it.
+			threat["triage_status"] = triageStatus
+			threat["triage_reason"] = triageReason
+			threat["triage_actor"] = triageActor
+			if triagedAt != nil {
+				threat["triaged_at"] = *triagedAt
+			}
+			if assetID != nil {
+				threat["asset_id"] = *assetID
+				threat["asset_binding_source"] = assetBindingSource
+			}
 			items = append(items, threat)
 		}
 	}
@@ -7874,6 +7914,11 @@ func persistTrafficSession(ctx context.Context, cfg *Config, msg redis.XMessage)
 	dstPort := boundedTrafficPort(xdrPickNumber(item, "dst_port", 0))
 	protocol := xdrPickString(item, "protocol")
 	ingestedAt := time.Now().UTC()
+	// P0-4 / P0-5: the session record already carries these facts (local-mirror
+	// emits http_host / tls_sni / dns_query and, when present, community_id and
+	// flow_id). Promote them to columns so the read path and alert correlation
+	// do not have to parse raw_event JSON.
+	join, l7 := trafficSessionJoinAndL7(item)
 	_, err = cfg.DBPool.Exec(ctx, `INSERT INTO traffic_sessions (session_uid, observed_at, agent_id, src_ip, dst_ip, src_port, dst_port, protocol, raw_event, updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10)
 		ON CONFLICT (session_uid) DO UPDATE SET observed_at=EXCLUDED.observed_at, agent_id=EXCLUDED.agent_id, src_ip=EXCLUDED.src_ip, dst_ip=EXCLUDED.dst_ip, src_port=EXCLUDED.src_port, dst_port=EXCLUDED.dst_port, protocol=EXCLUDED.protocol, raw_event=EXCLUDED.raw_event, updated_at=EXCLUDED.updated_at`, uid, observed, agentID, srcIP, dstIP, int(srcPort), int(dstPort), protocol, string(raw), ingestedAt)
@@ -7885,12 +7930,75 @@ func persistTrafficSession(ctx context.Context, cfg *Config, msg redis.XMessage)
 	}
 	if err := cfg.EventStorage.WriteTrafficSession(ctx, analytics.TrafficSessionRecord{
 		SessionUID: uid, Version: uint64(ingestedAt.UnixNano()), ObservedAt: observed,
-		AgentID: agentID, SrcIP: srcIP, DstIP: dstIP, SrcPort: srcPort, DstPort: dstPort,
-		Protocol: protocol, RawEvent: string(raw), IngestedAt: ingestedAt,
+		AgentID: agentID, Sensor: join.Sensor,
+		SrcIP: srcIP, DstIP: dstIP, SrcPort: srcPort, DstPort: dstPort,
+		Protocol: protocol,
+		AppProto: join.AppProto, VLAN: join.VLAN,
+		CommunityID: join.CommunityID, FlowID: join.FlowID,
+		Direction: l7.Direction,
+		HTTPHost:  l7.HTTPHost, HTTPMethod: l7.HTTPMethod, HTTPURI: l7.HTTPURI,
+		TLSSNI: l7.TLSSNI, TLSJA3: l7.TLSJA3, TLSJA4: l7.TLSJA4,
+		DNSQuery:  l7.DNSQuery,
+		RawEvent: string(raw), IngestedAt: ingestedAt,
 	}); err != nil {
 		return fmt.Errorf("materialize ClickHouse traffic session uid=%s: %w", uid, err)
 	}
 	return nil
+}
+
+// trafficSessionJoinAndL7 adapts a session item to the shared EVE extractors.
+//
+// Session items come from local-mirror, not from Suricata EVE, so the shape
+// differs: some deployments put the same facts at the top level and some nest
+// them under "content". Reading both keeps one extractor authoritative instead
+// of duplicating the mapping per producer.
+func trafficSessionJoinAndL7(item map[string]interface{}) (suricataEVEJoinKeyValues, suricataEVEL7Values) {
+	content := asMap(item["content"])
+	pick := func(keys ...string) interface{} {
+		for _, key := range keys {
+			if value, exists := item[key]; exists && value != nil && value != "" {
+				return value
+			}
+		}
+		for _, key := range keys {
+			if value, exists := content[key]; exists && value != nil && value != "" {
+				return value
+			}
+		}
+		return nil
+	}
+	flat := map[string]interface{}{
+		"community_id": pick("community_id"),
+		"flow_id":      pick("flow_id"),
+		"sensor":       pick("sensor", "sensor_id"),
+		"in_iface":     pick("interface", "in_iface"),
+		"vlan":         pick("vlan"),
+		"app_proto":    pick("app_proto", "app_protocol"),
+		"direction":    pick("direction"),
+	}
+	join := suricataEVEJoinKeys(flat)
+	// Sensor is the capture point, and "in_iface" only carries the interface
+	// name. Prefer the explicit sensor identifier when the producer supplies it.
+	if sensor := strings.TrimSpace(asString(pick("sensor", "sensor_id"))); sensor != "" {
+		join.Sensor = sensor
+	}
+	l7 := extractSuricataEVEL7(map[string]interface{}{
+		"http": map[string]interface{}{
+			"hostname":    pick("http_host"),
+			"http_method": pick("http_method"),
+			"url":         pick("http_path", "http_uri"),
+		},
+		"tls": map[string]interface{}{
+			"sni": pick("tls_sni"),
+			"ja3": map[string]interface{}{"hash": pick("tls_ja3")},
+			"ja4": map[string]interface{}{"hash": pick("tls_ja4")},
+		},
+		"dns":       map[string]interface{}{"rrname": pick("dns_query")},
+		"direction": pick("direction"),
+	})
+	// Empty maps would otherwise be treated as "no data" and blank the fields.
+	l7.Direction = strings.TrimSpace(asString(pick("direction")))
+	return join, l7
 }
 
 func boundedTrafficPort(value int64) uint16 {
@@ -7915,15 +8023,78 @@ func warmTrafficSessionQuery(cfg *Config) {
 	_, _, _ = loadPersistentTrafficSessions(ctx, cfg, 1, 0, "", "", "", "", "", "", nil, nil)
 }
 
+// loadTrafficSessionsFromClickHouse reads a page of sessions from ClickHouse.
+// The third return value reports whether the backend was usable; ok=false lets
+// the caller fall back to Postgres instead of failing the request.
+func loadTrafficSessionsFromClickHouse(ctx context.Context, cfg *Config, limit, offset int, query, agentID, srcIP, srcPort, dstIP, dstPort string, startTime, endTime *time.Time) ([]map[string]interface{}, int, bool) {
+	if cfg == nil || cfg.EventStorage == nil {
+		return nil, 0, false
+	}
+	page, err := cfg.EventStorage.QueryTrafficSessions(ctx, analytics.TrafficSessionQuery{
+		AgentID: agentID,
+		SrcIP:   srcIP,
+		DstIP:   dstIP,
+		SrcPort: srcPort,
+		DstPort: dstPort,
+		Keyword: query,
+		From:    startTime,
+		To:      endTime,
+		Limit:   limit,
+		Offset:  offset,
+	})
+	if err != nil {
+		log.Printf("[traffic-sessions] ClickHouse read unavailable, falling back to Postgres: %v", err)
+		return nil, 0, false
+	}
+	// An empty table is not an error, but an unpopulated ClickHouse while
+	// Postgres still holds the history must not make sessions vanish from the
+	// UI. Only fall back when the backend genuinely has no rows at all.
+	if page.Total == 0 {
+		if count, countErr := cfg.EventStorage.TrafficSessionCount(ctx); countErr == nil && count == 0 {
+			log.Printf("[traffic-sessions] ClickHouse session table is empty, falling back to Postgres")
+			return nil, 0, false
+		}
+	}
+
+	agentInfos := activeTrafficAgentInfos(ctx, cfg)
+	items := make([]map[string]interface{}, 0, len(page.Items))
+	for _, item := range page.Items {
+		if trafficItemBelongsToActiveAgent(item, agentInfos) {
+			attributeMirrorTrafficToAgent(item, agentInfos)
+			normalizeAgentSessionAggregate(item, agentInfos)
+		}
+		if isMirrorCaptureItem(item) {
+			applyMirrorCaptureLabel(item)
+			if agentName := trafficItemMatchedAgentName(item, agentInfos); agentName != "" {
+				item["attributed_agent_name"] = agentName
+			}
+		}
+		enrichTrafficItemDisplayName(item, agentInfos)
+		item["source"] = firstNonEmpty(xdrPickString(item, "source"), "clickhouse")
+		items = append(items, item)
+	}
+	return items, page.Total, true
+}
+
 func loadPersistentTrafficSessions(ctx context.Context, cfg *Config, limit, offset int, query, agentID, srcIP, srcPort, dstIP, dstPort string, startTime, endTime *time.Time) ([]map[string]interface{}, int, error) {
-	if cfg == nil || cfg.DBPool == nil {
+	if cfg == nil {
 		return nil, 0, fmt.Errorf("session store unavailable")
 	}
 	hasFilter := query != "" || agentID != "" || srcIP != "" || srcPort != "" || dstIP != "" || dstPort != "" || startTime != nil || endTime != nil
 	if hasFilter && cfg.Redis != nil {
 		return loadFilteredTrafficSessionsFromRedis(ctx, cfg, limit, offset, query, agentID, srcIP, srcPort, dstIP, dstPort, startTime, endTime)
 	}
-
+	// P0-3: read the full-session history from ClickHouse when it is available.
+	// Postgres traffic_sessions is the legacy store: 15 GB for 3 days of data,
+	// while ClickHouse holds the same content in an order of magnitude less
+	// space and has a retention TTL. Falling back keeps an upgraded binary
+	// working against an older deployment.
+	if items, total, ok := loadTrafficSessionsFromClickHouse(ctx, cfg, limit, offset, query, agentID, srcIP, srcPort, dstIP, dstPort, startTime, endTime); ok {
+		return items, total, nil
+	}
+	if cfg.DBPool == nil {
+		return nil, 0, fmt.Errorf("session store unavailable")
+	}
 	where := []string{"1=1"}
 	where = append(where, "(COALESCE(agent_id, '') IN ('', 'local', 'localhost') OR EXISTS (SELECT 1 FROM agents a WHERE a.uuid = traffic_sessions.agent_id AND COALESCE(a.traffic_enabled, false) = true))")
 	args := []interface{}{}

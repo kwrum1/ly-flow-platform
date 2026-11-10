@@ -24,6 +24,7 @@ MIRROR="${ET_OPEN_MIRROR_URL:-}"
 LOCAL="${ET_OPEN_LOCAL_FILE:-}"
 TIMEOUT="${ET_OPEN_TIMEOUT:-2400}"
 VALIDATE_LOG=/tmp/et-open-validate.log
+RENDER_PROFILE="${ET_OPEN_RENDER_PROFILE:-/opt/ly-flow-platform/scripts/render-profile.sh}"
 
 log() { printf '%s et-open-refresh: %s\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)" "$*"; }
 die() { log "ERROR: $*"; exit 1; }
@@ -31,6 +32,24 @@ die() { log "ERROR: $*"; exit 1; }
 [ -d "$RULES_DIR" ] || die "rules dir missing: $RULES_DIR"
 STAGE="$(mktemp "$RULES_DIR/.et-open.XXXXXX")"
 trap 'rm -f "$STAGE" "$STAGE.filtered"' EXIT
+
+# Direction semantics guard. A profile whose HOME_NET/EXTERNAL_NET collapsed to
+# "any" turns every inbound signature into a match on internal-to-internal and
+# outbound traffic: measured 90.4% of a week of alerts were direction misfires.
+# Refuse to refresh rules against a broken direction contract, because a new
+# ruleset only makes the misfires noisier.
+if [ -x "$RENDER_PROFILE" ]; then
+    if ! "$RENDER_PROFILE" --check "$PROFILE" >>"$VALIDATE_LOG" 2>&1; then
+        tail -n 4 "$VALIDATE_LOG" >&2 || true
+        die "suricata profile failed direction check: $PROFILE (fix HOME_NET/EXTERNAL_NET before refreshing)"
+    fi
+    log "direction check passed for $PROFILE"
+else
+    collapsed=$(grep -nE '^[[:space:]]*(HOME_NET|EXTERNAL_NET):[[:space:]]*"?any"?[[:space:]]*$' "$PROFILE" 2>/dev/null || true)
+    [ -z "$collapsed" ] || die "suricata profile has collapsed direction semantics and no render-profile.sh to fix it:
+$collapsed"
+    log "direction check skipped: $RENDER_PROFILE not executable"
+fi
 
 if [ -n "$LOCAL" ]; then
     [ -r "$LOCAL" ] || die "ET_OPEN_LOCAL_FILE not readable: $LOCAL"
