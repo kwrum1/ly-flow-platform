@@ -7,6 +7,7 @@
 | 文档 | 责任 |
 |---|---|
 | [`../README.md`](../README.md) | 项目入口、安装和默认拓扑 |
+| [`RELEASE-1.1.md`](RELEASE-1.1.md) | 1.1 正式版发布说明 |
 | [`RELEASE-1.0.md`](RELEASE-1.0.md) | 1.0 正式版发布说明 |
 | [`../ARCHITECTURE.md`](../ARCHITECTURE.md) | 当前生产架构、数据流和部署边界 |
 | [`API.md`](API.md) | 人工阅读的 API 摘要；机器契约优先级更高 |
