@@ -336,6 +336,7 @@ func incidentJSONRow(incident incidentlifecycle.Incident) map[string]interface{}
 	seenStages := map[string]struct{}{}
 	sourceIPs := map[string]struct{}{}
 	victimIPs := map[string]struct{}{}
+	requestedDomains := map[string]struct{}{}
 	firstAgentID := ""
 	firstHostname := ""
 	for _, item := range incident.Evidence {
@@ -412,7 +413,13 @@ func incidentJSONRow(incident incidentlifecycle.Incident) map[string]interface{}
 			if ip := xdrPickString(rawValue, "src_ip", "source_ip"); ip != "" {
 				sourceIPs[ip] = struct{}{}
 			}
-			if ip := xdrPickString(rawValue, "dst_ip", "target_ip"); ip != "" {
+			// Reuse the same explanation the threat console shows, so an
+			// incident's evidence is readable instead of just a rule message.
+			applyEventNarrative(row, rawValue)
+			if domain := xdrPickString(row, "requested_domain"); domain != "" {
+				requestedDomains[domain] = struct{}{}
+			}
+			if ip := firstNonEmpty(xdrPickString(row, "victim_ip"), pick("dst_ip"), pick("target_ip")); ip != "" {
 				victimIPs[ip] = struct{}{}
 			}
 		}
@@ -421,6 +428,16 @@ func incidentJSONRow(incident incidentlifecycle.Incident) map[string]interface{}
 		if _, exists := seenStages[item.Stage]; item.Stage != "" && !exists {
 			seenStages[item.Stage] = struct{}{}
 			stages = append(stages, item.Stage)
+		}
+	}
+	// Lead with the first explained evidence: an incident is a chain, and the
+	// first link is what an analyst needs to understand before the timeline.
+	incidentNarrative, incidentDetail := "", ""
+	for _, row := range evidence {
+		if value := xdrPickString(row, "narrative"); value != "" {
+			incidentNarrative = value
+			incidentDetail = xdrPickString(row, "narrative_detail")
+			break
 		}
 	}
 	displayTitle := incident.Title
@@ -444,6 +461,9 @@ func incidentJSONRow(incident incidentlifecycle.Incident) map[string]interface{}
 		"acknowledged_at": incident.AcknowledgedAt, "resolved_at": incident.ResolvedAt, "version": incident.Version,
 		"event_count": len(evidence), "stages": stages, "stage_labels": stageLabels(stages), "events": evidence,
 		"attack_chain": evidence, "stage_groups": incidentStageGroups(stages, evidenceValues), "source_ips": sortedKeys(sourceIPs),
-		"victim_ips": sortedKeys(victimIPs), "audit": incident.Audit,
+		"victim_ips": sortedKeys(victimIPs), "victim_display": strings.Join(sortedKeys(victimIPs), "、"),
+		"requested_domains": sortedKeys(requestedDomains),
+		"narrative":         incidentNarrative, "narrative_detail": incidentDetail,
+		"audit": incident.Audit,
 	}
 }

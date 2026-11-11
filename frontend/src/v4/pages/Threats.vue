@@ -39,7 +39,7 @@
       </div>
       <div class="v-table-wrap">
         <table class="v-table">
-          <thead><tr><th>时间</th><th>等级</th><th>引擎</th><th>威胁</th><th>源 → 目标</th><th v-if="tab !== 'traffic'">受害服务器</th><th>次数</th><th class="actions" /></tr></thead>
+          <thead><tr><th>时间</th><th>等级</th><th>引擎</th><th>威胁</th><th>源 → 目标</th><th v-if="tab !== 'traffic'">资产主机</th><th>次数</th><th class="actions" /></tr></thead>
           <tbody>
             <tr v-for="t in items" :key="t.aggregate_key || t.id || t.message_id" class="clickable" @click="selected = t">
               <td class="num">{{ shortTime(t.last_seen || t.timestamp || t.first_seen) }}</td>
@@ -83,20 +83,20 @@
             <dd class="v-mono">
               {{ selected.source_display || selected.entities?.source_ip || selected.src_ip || '-' }}
               <span v-if="selected.client_forwarded_for && selected.client_forwarded_for !== selected.src_ip" class="hint">
-                （代理地址 {{ selected.src_ip }}，真实客户端来自 X-Forwarded-For）
+                （X-Forwarded-For 自述客户端 {{ selected.client_forwarded_for }}，仅供参考，未经核实）
               </span>
             </dd>
             <dt>受害服务器</dt>
             <dd class="v-mono">
-              {{ selected.victim_display || selected.entities?.target_ip || selected.dst_ip || '-' }}
-              <span v-if="selected.victim_display && selected.dst_ip && selected.victim_display !== selected.dst_ip" class="hint">
-                （内网地址 {{ selected.dst_ip }}）
+              {{ selected.victim_ip || selected.entities?.target_ip || selected.dst_ip || '-' }}
+              <span v-if="selected.requested_domain" class="hint">
+                （请求域名 {{ selected.requested_domain }}；域名只说明客户端想访问谁，不等于被打的服务器）
               </span>
             </dd>
             <dt>端口</dt><dd class="v-mono">{{ selected.src_port || '未知' }} → {{ selected.dst_port || '未知' }}</dd>
             <dt>引擎</dt><dd>{{ selected.source_engine || selected.source || '-' }}</dd>
             <dt>规则</dt><dd class="v-mono">{{ selected.rule_name || selected.rule_id || selected.component_rule_id || '-' }}</dd>
-            <dt v-if="tab !== 'traffic'">受害服务器</dt><dd v-if="tab !== 'traffic'">{{ agentName(selected) }}</dd>
+            <dt v-if="tab !== 'traffic'">资产主机</dt><dd v-if="tab !== 'traffic'">{{ agentName(selected) }}</dd>
             <dt>次数</dt><dd>{{ selected.count || selected.occurrence_count || 1 }}</dd>
             <dt>分诊状态</dt><dd>{{ triageLabel(selected.triage_status) }}</dd>
           </dl>
@@ -168,12 +168,12 @@ function formatNumber(v) { return (Number(v) || 0).toLocaleString('zh-CN') }
 function shortTime(v) { return v ? formatChinaDateTime(v) : '-' }
 function pretty(v) { try { return JSON.stringify(v, null, 2) } catch { return String(v) } }
 
-// 列表里的「来源 → 目标」用可识别的名字，而不是两个 IP。
-// XFF 存在时来源是真实客户端；受害者优先显示站点名（http.hostname）。
+// 列表里的「来源 → 目标」用可识别的地址，而不是站点名。受害服务器就是报文
+// 目的地址；请求域名只作参考，不替代地址。
 function pairText(row) {
   if (!row) return '-'
   const src = row.source_display || row.entities?.source_ip || row.src_ip || '-'
-  const dst = row.victim_display || row.entities?.target_ip || row.dst_ip || '-'
+  const dst = row.victim_ip || row.entities?.target_ip || row.dst_ip || '-'
   if (src === '-' && dst === '-') return '-'
   return `${src} → ${dst}`
 }
@@ -189,21 +189,26 @@ function triageLabel(status) {
   })[status] || '未处置'
 }
 
-// 把请求细节拆成可直接阅读的行，只在有值时出现。
+// 把请求细节拆成可直接阅读的行，只在有值时出现。同一个域名只出现一次。
 function requestLines(row) {
   const lines = []
   if (!row) return lines
-  const host = row.victim_display || row.http_host
-  if (host) lines.push({ label: '目标站点', value: host })
+  const seen = new Set()
+  const add = (label, value) => {
+    if (!value || seen.has(value)) return
+    seen.add(value)
+    lines.push({ label, value })
+  }
+  add('请求域名', row.requested_domain || row.http_host || row.tls_sni || row.dns_query)
   const method = row.http_method
   const uri = row.http_uri || row.http_path
-  if (method || uri) lines.push({ label: '请求', value: `${method || ''} ${uri || ''}`.trim() })
-  if (row.tls_sni && row.tls_sni !== host) lines.push({ label: 'TLS SNI', value: row.tls_sni })
-  if (row.dns_query) lines.push({ label: 'DNS 查询', value: row.dns_query })
-  if (row.tls_ja3) lines.push({ label: 'TLS 指纹 JA3', value: row.tls_ja3 })
-  if (row.tls_ja4) lines.push({ label: 'TLS 指纹 JA4', value: row.tls_ja4 })
-  if (row.app_proto) lines.push({ label: '应用协议', value: String(row.app_proto).toUpperCase() })
-  if (row.client_forwarded_for) lines.push({ label: 'X-Forwarded-For', value: row.client_forwarded_for })
+  if (method || uri) add('请求', `${method || ''} ${uri || ''}`.trim())
+  add('TLS SNI', row.tls_sni)
+  add('DNS 查询', row.dns_query)
+  add('TLS 指纹 JA3', row.tls_ja3)
+  add('TLS 指纹 JA4', row.tls_ja4)
+  add('应用协议', row.app_proto ? String(row.app_proto).toUpperCase() : '')
+  add('X-Forwarded-For（自述，仅供参考）', row.client_forwarded_for)
   return lines
 }
 
@@ -250,9 +255,9 @@ onMounted(load)
 .threat-drawer { width: min(38vw, 520px); max-width: 520px; }
 .threat-drawer .v-kv dt, .threat-drawer .v-kv dd { padding: 8px 10px; font-size: 11.5px; }
 .threat-drawer .detail { gap: 14px; }
-.raw { margin: 0; max-height: 320px; padding: 12px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--v-line); border-radius: var(--v-radius-sm); background: var(--v-surface-3); color: var(--v-ink-2); font-family: var(--v-mono); font-size: 10.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word;
+.raw { margin: 0; max-height: 320px; padding: 12px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--v-line); border-radius: var(--v-radius-sm); background: var(--v-surface-3); color: var(--v-ink-2); font-family: var(--v-mono); font-size: 10.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
 .narrative { padding: 12px 14px; border: 1px solid var(--v-line); border-left: 3px solid var(--v-accent, #3b6fd4); border-radius: var(--v-radius-sm); background: var(--v-surface-2); }
 .narrative-text { margin: 0; color: var(--v-ink); font-size: 12.5px; line-height: 1.7; }
 .narrative-detail { margin: 8px 0 0; color: var(--v-ink-2); font-size: 11.5px; line-height: 1.7; }
-.hint { color: var(--v-ink-3); font-size: 10.5px; font-weight: 400; } }
+.hint { color: var(--v-ink-3); font-size: 10.5px; font-weight: 400; }
 </style>

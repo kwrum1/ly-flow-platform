@@ -6345,6 +6345,7 @@ func unifiedEventFromThreat(threat map[string]interface{}, category string) map[
 		uid = category + ":" + ts + ":" + ruleID
 	}
 	nativeRule := asMap(threat["native_rule"])
+	summary := firstNonEmpty(xdrPickString(threat, "narrative"), xdrPickString(threat, "summary"), xdrPickString(threat, "rule_name"))
 	return map[string]interface{}{
 		"event_uid": uid, "event_at": ts, "timestamp": ts,
 		"source":   firstNonEmpty(xdrPickString(threat, "source_engine"), xdrPickString(threat, "source"), category),
@@ -6353,8 +6354,20 @@ func unifiedEventFromThreat(threat map[string]interface{}, category string) map[
 		"rule_id": ruleID, "rule_source": xdrPickString(nativeRule, "source"), "confidence": threat["confidence"],
 		"count": xdrPickNumber(threat, "occurrence_count", 1), "first_seen": xdrPickString(threat, "first_seen"), "last_seen": xdrPickString(threat, "last_seen"),
 		"src_ip": xdrPickString(threat, "src_ip"), "dst_ip": xdrPickString(threat, "dst_ip"),
-		"src_port": threat["src_port"], "dst_port": threat["dst_port"], "protocol": xdrPickString(threat, "protocol"),
-		"summary": xdrPickString(threat, "summary", "rule_name"), "payload": threat,
+		// Endpoint identity, carried through so the events console explains the
+		// same facts as the threat console: the victim is the wire destination
+		// and the requested domain is reported separately. X-Forwarded-For is
+		// self-reported reference only.
+		"narrative":                 xdrPickString(threat, "narrative"),
+		"narrative_detail":          xdrPickString(threat, "narrative_detail"),
+		"victim_ip":                 xdrPickString(threat, "victim_ip"),
+		"victim_display":            xdrPickString(threat, "victim_display"),
+		"requested_domain":          xdrPickString(threat, "requested_domain"),
+		"source_display":            xdrPickString(threat, "source_display"),
+		"client_forwarded_for":      xdrPickString(threat, "client_forwarded_for"),
+		"client_forwarded_for_note": xdrPickString(threat, "client_forwarded_for_note"),
+		"src_port":                  threat["src_port"], "dst_port": threat["dst_port"], "protocol": xdrPickString(threat, "protocol"),
+		"summary": summary, "payload": threat,
 		"raw": map[string]interface{}{"native_schema": xdrPickString(nativeRule, "schema"), "native_event_id": xdrPickString(nativeRule, "id")},
 	}
 }
