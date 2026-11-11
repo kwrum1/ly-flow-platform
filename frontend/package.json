@@ -1,6 +1,6 @@
 {
   "name": "ly-flow-platform",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "流影安全态势感知平台",
   "private": true,
   "scripts": {
