@@ -4,7 +4,7 @@
       <div>
         <p class="v-eyebrow">EVENT SEARCH</p>
         <h1>事件检索</h1>
-        <p>同源、同目的、同情报的事件按滚动 1 小时聚合。主机运行时、RASP、日志只显示受害服务器，不显示空白的源/目标。</p>
+        <p>同源、同目的、同规则的事件按滚动 1 小时聚合。主机运行时、RASP、日志只显示受害服务器，不显示空白的源/目标。</p>
       </div>
       <div class="v-head-actions">
         <div class="v-tabs">
@@ -38,13 +38,13 @@
       </div>
       <div class="v-table-wrap">
         <table class="v-table">
-          <thead><tr><th>时间</th><th>等级</th><th>类别</th><th>事件</th><th>情报源 → 受害服务器</th><th>受害服务器</th><th>次数</th><th class="actions" /></tr></thead>
+          <thead><tr><th>时间</th><th>等级</th><th>类别</th><th>事件</th><th>来源 → 受害服务器</th><th>受害服务器</th><th>次数</th><th class="actions" /></tr></thead>
           <tbody>
             <tr v-for="e in displayItems" :key="e.event_uid" class="clickable" @click="selected = e">
               <td class="num">{{ shortTime(e.last_seen || e.event_at || e.timestamp) }}</td>
               <td><span class="v-badge" :class="e.severity">{{ severityLabel(e.severity) }}</span></td>
               <td>{{ categoryLabel(e.category) }}</td>
-              <td class="ev-main"><b>{{ eventTitle(e) }}</b><small>{{ e.rule_id || e.source || '-' }}</small></td>
+              <td class="ev-main"><b>{{ eventTitle(e) }}</b><small>{{ e.narrative || e.rule_id || e.source || '-' }}</small></td>
               <td class="v-mono">{{ pairText(e) }}</td>
               <td>{{ destLabel(e) }}</td>
               <td class="num">{{ e.count || 1 }}</td>
@@ -53,7 +53,7 @@
           </tbody>
         </table>
         <div v-if="!displayItems.length" class="v-table-empty">
-          <strong>{{ loading ? '正在查询' : '暂无情报' }}</strong>
+          <strong>{{ loading ? '正在查询' : '暂无事件' }}</strong>
           <span v-if="!loading">尝试扩大时间窗口或清除筛选。</span>
         </div>
       </div>
@@ -71,15 +71,32 @@
             <span class="v-badge info">{{ categoryLabel(selected.category) }}</span>
             <span class="v-badge muted">{{ shortId(selected.event_uid) }}</span>
           </div>
+          <section v-if="selected.narrative || selected.summary" class="narrative">
+            <h3>发生了什么</h3>
+            <p class="narrative-text">{{ selected.narrative || selected.summary }}</p>
+            <p v-if="selected.narrative_detail" class="narrative-detail">{{ selected.narrative_detail }}</p>
+          </section>
+
           <dl class="v-kv">
             <dt>发生时间</dt><dd>{{ shortTime(selected.event_at || selected.timestamp) }}</dd>
             <dt>首次 / 最近</dt><dd>{{ shortTime(selected.first_seen) }} / {{ shortTime(selected.last_seen) }}</dd>
-            <dt>受害服务器</dt><dd>{{ destLabel(selected) }}</dd>
+            <dt>受害服务器</dt>
+            <dd class="v-mono">
+              {{ selected.victim_ip || selected.dst_ip || selected.victim_display || '-' }}
+              <span v-if="selected.requested_domain" class="hint">
+                （请求域名 {{ selected.requested_domain }}；域名只说明客户端想访问谁，不等于被打的服务器）
+              </span>
+            </dd>
             <dt v-if="hasPair(selected)">来源 → 目的</dt><dd v-if="hasPair(selected)" class="v-mono">{{ pairText(selected) }}</dd>
-            <dt>情报 / 规则</dt><dd class="v-mono">{{ selected.rule_name || selected.rule_id || '-' }}</dd>
-            <dt>来源</dt><dd>{{ sourceLabel(selected) }}</dd>
+            <dt>命中规则</dt><dd class="v-mono">{{ selected.rule_name || selected.rule_id || '-' }}</dd>
+            <dt>来源</dt>
+            <dd>
+              {{ selected.source_display || sourceLabel(selected) }}
+              <span v-if="selected.client_forwarded_for && selected.client_forwarded_for !== selected.src_ip" class="hint">
+                （X-Forwarded-For 自述客户端 {{ selected.client_forwarded_for }}，仅供参考，未经核实）
+              </span>
+            </dd>
             <dt>命中次数</dt><dd>{{ selected.count || 1 }}</dd>
-            <dt>摘要</dt><dd>{{ selected.summary || '-' }}</dd>
           </dl>
           <details class="tech" open>
             <summary>技术详情 / 原始载荷</summary>
@@ -130,15 +147,6 @@ const agentNameById = computed(() => {
   return map
 })
 
-const agentNameByIP = computed(() => {
-  const map = new Map()
-  for (const agent of agents.value) {
-    const name = agent.display_name || agent.hostname || agent.agent_id
-    if (agent.ip && name) map.set(String(agent.ip), name)
-  }
-  return map
-})
-
 const agentNameByHost = computed(() => {
   const map = new Map()
   for (const agent of agents.value) {
@@ -181,24 +189,24 @@ function agentName(event) {
 function destLabel(event) {
   const cat = eventCategory(event)
   if (['runtime', 'rasp', 'log_audit'].includes(cat)) return agentName(event) || event.dst_ip || '未知服务器'
-  const dst = String(event.dst_ip || '')
-  if (dst) return agentNameByIP.value.get(dst) || dst
+  const dst = String(event.victim_ip || event.dst_ip || '')
+  if (dst) return dst
   return agentName(event) || '未知服务器'
 }
 
 function pairText(event) {
   const cat = eventCategory(event)
   if (['runtime', 'rasp', 'log_audit'].includes(cat)) return `${categoryLabel(cat)} → ${destLabel(event)}`
-  const src = String(event.src_ip || '')
-  const dst = String(event.dst_ip || '')
+  const src = String(event.source_display || event.src_ip || '')
+  const dst = String(event.victim_ip || event.dst_ip || '')
   if (!src && !dst) return `${sourceLabel(event)} → ${destLabel(event)}`
-  return `${agentNameByIP.value.get(src) || src || '未知来源'} → ${agentNameByIP.value.get(dst) || dst || destLabel(event)}`
+  return `${src || '未知来源'} → ${dst || destLabel(event)}`
 }
 
 function hasPair(event) {
   const cat = eventCategory(event)
   if (['runtime', 'rasp', 'log_audit'].includes(cat)) return false
-  return Boolean(event.src_ip || event.dst_ip)
+  return Boolean(event.src_ip || event.dst_ip || event.victim_ip)
 }
 
 function severityRank(value) {
@@ -278,4 +286,8 @@ onMounted(load)
 .tech { border-top: 1px solid var(--v-line); padding-top: 12px; }
 .tech summary { cursor: pointer; color: var(--v-ink-2); font-size: 12px; font-weight: 600; }
 .raw { margin: 10px 0 0; max-height: 320px; padding: 12px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--v-line); border-radius: var(--v-radius-sm); background: var(--v-surface-3); color: var(--v-ink-2); font-family: var(--v-mono); font-size: 10.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.narrative { padding: 12px 14px; border: 1px solid var(--v-line); border-left: 3px solid var(--v-accent, #3b6fd4); border-radius: var(--v-radius-sm); background: var(--v-surface-2); }
+.narrative-text { margin: 0; color: var(--v-ink); font-size: 12.5px; line-height: 1.7; }
+.narrative-detail { margin: 8px 0 0; color: var(--v-ink-2); font-size: 11.5px; line-height: 1.7; }
+.hint { color: var(--v-ink-3); font-size: 10.5px; font-weight: 400; }
 </style>

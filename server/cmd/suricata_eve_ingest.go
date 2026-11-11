@@ -146,16 +146,110 @@ func startSuricataEVEIngest(ctx context.Context, cfg *Config) {
 				if line == "" {
 					continue
 				}
-				if err := ingestSuricataEVELine(ctx, cfg, line, trustedCIDRs); err != nil {
-					// Keep the pipeline alive on malformed lines / transient DB
-					// errors. The line is dropped rather than blocking rotation.
-					log.Printf("[suricata-eve] ingest skipped: %v", err)
+				// Alerts materialize into threat_events; flow/http/tls/dns
+				// materialize into traffic sessions. Both need the JSON decode,
+				// everything else (stats, files, anomaly) is skipped at the byte
+				// level. The prefilter stays fail-open for the same reason as
+				// before: dropping a real record is worse than decoding one extra.
+				if suricataEVELineIsAlert(line) {
+					if err := ingestSuricataEVELine(ctx, cfg, line, trustedCIDRs); err != nil {
+						// Keep the pipeline alive on malformed lines / transient DB
+						// errors. The line is dropped rather than blocking rotation.
+						log.Printf("[suricata-eve] ingest skipped: %v", err)
+					}
+					continue
+				}
+				if !suricataEVELineIsSession(line) {
+					continue
+				}
+				if err := ingestSuricataEVESession(ctx, cfg, line); err != nil {
+					log.Printf("[suricata-eve] session ingest skipped: %v", err)
 				}
 			}
 			offset += int64(len(chunk))
 			saveSuricataEVEState(statePath, suricataEVEIngestState{Path: path, Inode: inode, Offset: offset})
 		}
 	}()
+}
+
+// suricataEVELineIsAlert is a byte-level prefilter for EVE lines. Real sensor
+// output is dominated by dns/flow/http/tls records (roughly 99% of lines), so
+// decoding every line into a map just to discard it wastes nearly all of the
+// ingest goroutine's CPU. This scans the raw line for an
+// {"event_type": "alert"} member and rejects everything else without touching
+// encoding/json.
+//
+// The predicate is deliberately biased towards false positives: any line that
+// might carry an alert is parsed, because dropping a real alert is far worse
+// than decoding one extra DNS record. It never assumes a fixed offset for
+// event_type and tolerates arbitrary whitespace around the colon.
+func suricataEVELineIsAlert(line string) bool {
+	const key = `"event_type"`
+	offset := 0
+	for {
+		index := strings.Index(line[offset:], key)
+		if index < 0 {
+			return false
+		}
+		cursor := offset + index + len(key)
+		// A key without a following colon is not decodable JSON, so the
+		// parser would reject the line anyway. Parsing it is harmless.
+		for cursor < len(line) && suricataEVEIsSpace(line[cursor]) {
+			cursor++
+		}
+		if cursor >= len(line) || line[cursor] != ':' {
+			return true
+		}
+		cursor++
+		for cursor < len(line) && suricataEVEIsSpace(line[cursor]) {
+			cursor++
+		}
+		if cursor >= len(line) {
+			return true
+		}
+		if line[cursor] != '"' {
+			// Value is not a JSON string (malformed for EVE). Let the real
+			// decoder decide instead of guessing.
+			return true
+		}
+		cursor++
+		start := cursor
+		for cursor < len(line) && line[cursor] != '"' {
+			if line[cursor] == '\\' {
+				cursor++
+			}
+			cursor++
+		}
+		if cursor >= len(line) {
+			// The line is a cut-off fragment: the value never closes, so it
+			// cannot be a complete event_type yet. The tail is kept in
+			// `pending` by the reader loop and re-evaluated after the next
+			// chunk is appended, which is why returning false here is safe.
+			return false
+		}
+		if strings.EqualFold(line[start:cursor], "alert") {
+			return true
+		}
+		if strings.IndexByte(line[start:cursor], '\\') >= 0 {
+			// The raw value contains JSON escapes, so a byte comparison can
+			// disagree with the decoded string (e.g. "ale\u0072t"). Hand the
+			// line to the real decoder rather than risk a false negative.
+			return true
+		}
+		offset = cursor + 1
+		if offset >= len(line) {
+			return false
+		}
+	}
+}
+
+func suricataEVEIsSpace(b byte) bool {
+	switch b {
+	case ' ', '\t', '\r', '\n':
+		return true
+	default:
+		return false
+	}
 }
 
 func ingestSuricataEVELine(ctx context.Context, cfg *Config, line string, trustedCIDRs []*net.IPNet) error {
@@ -230,7 +324,68 @@ func sanitizeSuricataAlert(event map[string]interface{}, signature, severity str
 	if http := asMap(event["http"]); len(http) > 0 {
 		out["http"] = http
 	}
+	// P0-5: TLS was dropped here, which is why tls_sni / Ja3 / Ja4 coverage was
+	// 0% even though the sensor emits them on every TLS handshake.
+	if tls := asMap(event["tls"]); len(tls) > 0 {
+		out["tls"] = tls
+	}
+	// P0-4: promote join keys next to the payload so a query does not have to
+	// reach into eve.* to correlate an alert with its session.
+	join := suricataEVEJoinKeys(event)
+	l7 := extractSuricataEVEL7(event)
+	out["community_id"] = join.CommunityID
+	out["flow_id"] = join.FlowID
+	out["sensor"] = join.Sensor
+	out["vlan"] = join.VLAN
+	out["app_proto"] = firstNonEmpty(join.AppProto, asString(out["app_proto"]))
+	out["direction"] = l7.Direction
+	out["http_host"] = l7.HTTPHost
+	out["http_method"] = l7.HTTPMethod
+	out["http_uri"] = l7.HTTPURI
+	out["tls_sni"] = l7.TLSSNI
+	out["tls_ja3"] = l7.TLSJA3
+	out["tls_ja4"] = l7.TLSJA4
+	out["dns_query"] = l7.DNSQuery
+	// Display identity for the two endpoints.
+	//
+	// The UI shows "来源 → 受害服务器", and both halves were misleading:
+	//   - src_ip is the proxy or the public source, while http.xff carries the
+	//     real client (1767 of 11896 traffic alerts in this deployment), and
+	//   - dst_ip is an internal address, while http.hostname carries the site
+	//     the attacker actually targeted (9335 alerts).
+	// Store an explicit display pair so the console does not have to guess, and
+	// keep the raw fields untouched for traceability.
+	if xff := strings.TrimSpace(asAnyMapString(asMap(event["http"]), "xff")); xff != "" {
+		out["client_forwarded_for_observed"] = xff
+	}
+	// The victim is the address the traffic was sent to. The requested domain
+	// (HTTP Host / TLS SNI / DNS name) is a separate fact: it says what the
+	// client asked for, not which host was actually attacked.
+	//
+	// client_forwarded_for and source_display are filled by the ingestion path
+	// from the trusted-proxy resolver, never from a bare XFF header, because
+	// that header is attacker-controlled. sanitizeSuricataAlert therefore does
+	// not promote it here.
+	out["victim_ip"] = asString(event["dest_ip"])
+	out["victim_display"] = firstNonEmpty(
+		asString(event["dest_ip"]),
+		"未知目标",
+	)
+	out["requested_domain"] = firstNonEmpty(
+		l7.HTTPHost,
+		l7.TLSSNI,
+		l7.DNSQuery,
+	)
 	return out
+}
+
+// asAnyMapString reads a string member defensively; used for optional EVE
+// members that may be absent or non-string.
+func asAnyMapString(values map[string]interface{}, key string) string {
+	if values == nil {
+		return ""
+	}
+	return asString(values[key])
 }
 
 func suricataAlertUID(event map[string]interface{}) string {

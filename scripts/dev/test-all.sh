@@ -80,4 +80,26 @@ bash "$ROOT_DIR/scripts/dev/check-secrets.sh"
 bash "$ROOT_DIR/scripts/dev/check-private.sh"
 bash "$ROOT_DIR/scripts/dev/check-licenses.sh"
 
+section "suricata profile direction guard"
+# Cheap, offline: proves the renderer cannot emit collapsed direction semantics.
+bash "$ROOT_DIR/scripts/qa/render-profile_test.sh"
+
+# The replay tests need a Suricata image. Skipped by default so the fast lane
+# stays dependency-free; CI sets LYFLOW_SURICATA_REPLAY=1 and builds/loads it.
+section "suricata direction and asset scope replay"
+if [[ "${LYFLOW_SURICATA_REPLAY:-0}" != "1" ]]; then
+  echo "skip: set LYFLOW_SURICATA_REPLAY=1 and SURICATA_IMAGE to run the replay acceptance tests"
+else
+  # The image must already be present: this network blocks Docker Hub and
+  # GitHub, so CI uses the locally built sensor image instead of pulling.
+  image="${SURICATA_IMAGE:-ly-flow/suricata-profile:v67}"
+  if ! docker image inspect "$image" >/dev/null 2>&1; then
+    echo "ERROR: SURICATA_IMAGE=$image is not available locally." >&2
+    echo "Load it first, e.g. docker load -i suricata-v67.tar" >&2
+    exit 1
+  fi
+  SURICATA_IMAGE="$image" bash "$ROOT_DIR/scripts/qa/suricata-direction_test.sh"
+  SURICATA_IMAGE="$image" bash "$ROOT_DIR/scripts/qa/suricata-asset-scope_test.sh"
+fi
+
 section "all fast checks passed"

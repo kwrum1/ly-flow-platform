@@ -1,0 +1,118 @@
+%YAML 1.1
+---
+# LyFlow Suricata production profile template.
+# ---------------------------------------------------------------------------
+# This file is a template. Do not mount it directly. Render it instead:
+#
+#   SURICATA_HOME_NET="[10.0.0.0/8,172.16.0.0/12,192.168.0.0/16]" \
+#     deploy/suricata/render-profile.sh --output /path/to/lyflow-suricata-profile.yaml
+#
+# Direction semantics are a hard constraint:
+#   HOME_NET is the set of ASSETS THIS SENSOR PROTECTS, not the whole intranet.
+#   EXTERNAL_NET is derived as !$HOME_NET. Neither may be "any".
+#
+#   With any/any every "external -> internal" signature also matches
+#   internal-to-internal and outbound traffic, which inflates the inbound attack
+#   surface to all traffic (measured: 90.4% of 7-day alerts were direction
+#   misfires, from a single scanning host).
+#
+#   Setting HOME_NET to all of RFC1918 is almost as wrong: it reclassifies the
+#   real attackers (internal scanners hitting the web tier) as "home", and
+#   drops 90% of genuine detections. Measured over 7 days of real alerts:
+#     HOME_NET = RFC1918 broad      -> keeps  8.4% of alerts
+#     HOME_NET = 10.1.18.0/24       -> keeps 49.9%
+#     HOME_NET = server zone + NAT  -> keeps 90.1%
+#   So the default below is the server zone plus the public NAT that fronts it.
+vars:
+  address-groups:
+    HOME_NET: "${SURICATA_HOME_NET}"
+    EXTERNAL_NET: "!$HOME_NET"
+    HTTP_SERVERS: "$HOME_NET"
+    SMTP_SERVERS: "$HOME_NET"
+    SQL_SERVERS: "$HOME_NET"
+    DNS_SERVERS: "$HOME_NET"
+    TELNET_SERVERS: "$HOME_NET"
+    AIM_SERVERS: "$EXTERNAL_NET"
+    DC_SERVERS: "$HOME_NET"
+    DNP3_SERVER: "$HOME_NET"
+    DNP3_CLIENT: "$HOME_NET"
+    MODBUS_CLIENT: "$HOME_NET"
+    MODBUS_SERVER: "$HOME_NET"
+    ENIP_CLIENT: "$HOME_NET"
+    ENIP_SERVER: "$HOME_NET"
+  port-groups:
+    HTTP_PORTS: "80"
+    SHELLCODE_PORTS: "!80"
+    ORACLE_PORTS: "1521"
+    SSH_PORTS: "22"
+    DNP3_PORTS: "20000"
+    MODBUS_PORTS: "502"
+    FILE_DATA_PORTS: "[$HTTP_PORTS,110,143]"
+    FTP_PORTS: "21"
+    GENEVE_PORTS: "6081"
+
+default-log-dir: /var/log/suricata
+default-rule-path: /var/lib/suricata/rules
+rule-files:
+  - server-zone/suricata.rules
+  - et-open/et-open.rules
+
+stream:
+  checksum-validation: yes
+
+app-layer:
+  protocols:
+    dns:
+      enabled: yes
+    http:
+      enabled: yes
+    tls:
+      enabled: yes
+    ssh:
+      enabled: no
+    smb:
+      enabled: no
+    krb5:
+      enabled: no
+
+outputs:
+  - eve-log:
+      enabled: yes
+      filetype: regular
+      filename: eve.json
+      threaded: false
+      community-id: true
+      community-id-seed: 0
+      metadata: yes
+      pcap-file: false
+      types:
+        - flow
+        - alert:
+            metadata: yes
+            tagged-packets: no
+        - dns:
+            version: 2
+            enabled: yes
+            requests: yes
+            responses: yes
+        - http:
+            extended: yes
+        - tls:
+            extended: yes
+            session-resumption: yes
+        - stats:
+            totals: yes
+            threads: no
+
+af-packet:
+  - interface: ${SURICATA_INTERFACE}
+    cluster-type: cluster_flow
+    cluster-id: 99
+    threads: ${SURICATA_THREADS}
+    defrag: yes
+    ring-size: 8192
+    buffer-size: 32768
+    bpf-filter: "${SURICATA_BPF_FILTER}"
+
+stats:
+  interval: 60

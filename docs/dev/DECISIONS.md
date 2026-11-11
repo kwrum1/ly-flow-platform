@@ -153,3 +153,44 @@
 - 原因：逐事件 Incident 在扫描流量下产生数百条重复队列；Redis 保存 180 天实时流导致 maxmemory OOM；100ms CPU 预算无法处理正常镜像流量。
 - 实现：候选按三维键聚合，事件作为证据时间线；Redis 清理覆盖全部流并 15 分钟执行；生产 compose 设置 CPU 预算。
 - 后果：活动 Incident 数量可解释；Redis 不再因历史流撑满；引擎可在正常负载下稳定运行。
+
+## D-019 HOME_NET 表示"受保护资产"，不是"整个内网"
+
+- 日期：2026-11-10
+- 决策：Suricata profile 的 `HOME_NET` 取"本传感器保护的资产集合"（当前为服务器区 `10.1.18.0/24` 加公网 NAT `113.194.3.11/32`），`EXTERNAL_NET` 由 `!$HOME_NET` 推导；两者都不允许是 `any`。profile 由 `deploy/suricata/render-profile.sh` 从模板渲染，`SURICATA_HOME_NET` 必须显式指定，无默认值。
+- 原因：`30e114a` 为检测"服务器区发起的外联攻击"把方向变量改成 `any/any`，导致 `$EXTERNAL_NET -> $HOME_NET` 的入站规则同时命中内网到内网、内网到外网流量。7 天 9,413 条告警中 **90.4% 是方向误报**（8,508 条），其中单源 `10.1.1.181` 占 85%。但把 `HOME_NET` 直接改成 RFC1918 全网段几乎同样错：它把真正的攻击者（内网扫描源）判定为"自己人"，只保留 8.4% 告警。
+- 实测对比（7 天真实告警，同一批规则）：
+  - `HOME_NET = any` → 保留 7.6%（且包含非受保护主机的噪声）
+  - `HOME_NET = RFC1918` → 保留 8.4%
+  - `HOME_NET = 10.1.18.0/24` → 保留 49.9%
+  - `HOME_NET = 服务器区 + 公网 NAT` → 保留 **90.1%**
+- 替代方案：`HOME_NET` 保留 `any` 并用 BPF 过滤内网 → 被否，BPF 只能丢包不能恢复方向语义，且丢包会连会话统计一起丢。
+- 实现：`lyflow-suricata-profile.tmpl.yaml` + `render-profile.sh`（拒绝 `any`、拒绝未设置的 `SURICATA_HOME_NET`、原地重写以保持单文件 bind mount 生效）；`et-open-refresh.sh` 每次同步前调用 `render-profile.sh --check`，方向语义不合法就拒绝刷新，避免每日同步把修复冲掉。
+- 验收：`scripts/qa/suricata-direction_test.sh`（方向门控）、`scripts/qa/suricata-asset-scope_test.sh`（资产范围，用真实告警载荷回放）、`scripts/qa/render-profile_test.sh`（渲染器单元测试），共 20 项断言，全部通过。
+- 后果：告警量下降但**保留的是真实攻击**；方向语义成为可测试的硬约束，不再依赖人工理解 YAML。新增部署动作：改资产范围必须改 `.env` 再重渲染，不能手改 profile。
+
+
+## D-020 受害服务器取报文目的地址，XFF 只作参考
+
+- 日期：2026-11-11
+- 决策：
+  - `victim_ip` 只取报文目的地址（`dst_ip` / `dest_ip` / `entities.target_ip`）。
+  - `requested_domain` 单独保存 Host / SNI / DNS 名，界面明确标注它只说明
+    客户端想访问谁，不等于被打的服务器。
+  - `client_forwarded_for` 保留 X-Forwarded-For 原文，但只标为“客户端自述，
+    仅供参考”，不据此推断来源，也不替代观测到的源地址。
+  - 主机侧检测（runtime / RASP / YARA）没有目的地址时，用事件里的主机名说明
+    “主机 X 上触发…”，`victim_ip` 保持为空，不把主机名塞进 IP 字段。
+- 原因：首版把 `http.hostname` 当成受害服务器，同时把 XFF 当成真实客户端；
+  请求域名可以解析到别处，DNS 查询本身也不能证明域名被攻击，两者都会误导
+  处置。XFF 由客户端写入，不可信，但保留原文有助于识别重复来源。
+- 替代方案：维护可信代理列表并按代理校验 XFF —— 被否。显示层只需要参考值，
+  引入解析器和信任配置的复杂度换不来更可靠的结论。
+- 实现：`event_narrative.go`、`event_narrative_apply.go`、
+  `incident_lifecycle_runtime.go`、`main.go`（unified events）、
+  `Threats.vue`、`Events.vue`、`Incidents.vue`、`domain/incidents.js`。
+- 验收：`.125` 真机 revision `f223d254`；真实行
+  `src 10.1.18.252 → victim 10.1.0.192`，请求域名 6 个，XFF 8 个参考值；
+  攻击链 10/10 条证据有叙述；四个检测面 200。测试覆盖“伪造 XFF 不得替换
+  观测源”“请求域名不得显示为受害目标”“主机侧检测不得写未知目标”。
+- 后果：历史数据无需重写，读取时推导；回滚为恢复上一镜像标签。

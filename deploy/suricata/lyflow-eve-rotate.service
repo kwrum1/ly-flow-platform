@@ -1,0 +1,25 @@
+[Unit]
+Description=LyFlow Suricata EVE retention (size + age + total cap, disk watermark)
+Documentation=file:///opt/ly-flow-platform/scripts/eve-retention.sh
+After=local-fs.target
+
+[Service]
+Type=oneshot
+# Thresholds live in /etc/lyflow/eve-rotate.conf, which the script reads itself.
+# Deliberately not using EnvironmentFile=: systemd applies EnvironmentFile after
+# Environment=, so a drop-in override would silently lose to the file. Drop-ins
+# work as written here, and the environment always wins over the file.
+Environment=EVE_ROTATE_CONF=/etc/lyflow/eve-rotate.conf
+ExecStart=/opt/ly-flow-platform/scripts/eve-retention.sh
+Nice=10
+IOSchedulingClass=idle
+TimeoutStartSec=600
+# The script only writes inside EVE_DIR and the lock directory. Both are prefixed
+# with '-' because ReadWritePaths= on a missing path makes systemd refuse to start
+# the unit; on a host whose runtime dir does not exist yet the script itself logs
+# "directory missing, nothing to do" and exits 0 instead.
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectHome=yes
+ProtectSystem=full
+ReadWritePaths=-/opt/ly-flow-platform/.sisyphus/runtime/engine-outputs/suricata-profile -/run/lock

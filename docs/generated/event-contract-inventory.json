@@ -1329,6 +1329,38 @@
       ]
     },
     {
+      "id": "adapter:server/cmd/event_triage.go",
+      "kind": "adapter",
+      "path": "server/cmd/event_triage.go",
+      "symbols": [
+        "EnsureThreatEventTriageSchema",
+        "applyEventTriage",
+        "bindAssetsForEvents",
+        "ensureDerivedAsset",
+        "eventsTriageHandler",
+        "getUserIDFromRequest",
+        "isInternalAssetIP",
+        "missingEventUIDs",
+        "normalizeAssetIP",
+        "resolveEventAsset",
+        "sanitizeEventUIDs"
+      ],
+      "roles": [
+        "adapter"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
       "id": "adapter:server/cmd/false_positive_feedback.go",
       "kind": "adapter",
       "path": "server/cmd/false_positive_feedback.go",
@@ -1526,6 +1558,7 @@
         "loadSystemTimeConfig",
         "loadTargetLocationConfig",
         "loadTrafficHeuristicThreats",
+        "loadTrafficSessionsFromClickHouse",
         "loadTrafficStream",
         "loadXDRAlertsForThreats",
         "loadXDRAlertsFromStream",
@@ -1713,6 +1746,7 @@
         "trafficItemMatches",
         "trafficNoiseRuleKey",
         "trafficNoiseRuleName",
+        "trafficSessionJoinAndL7",
         "trafficSessionQueryTokens",
         "trafficSessionRetentionDays",
         "trafficSessionsHandler",
@@ -1987,9 +2021,11 @@
         "GetEventV2",
         "QueryEventsV2",
         "QueryRetention",
+        "QueryTrafficSessions",
         "Read",
         "ReadCanonicalPayloads",
         "TrafficSessionCount",
+        "TrafficSessionTTL",
         "WriteCanonical",
         "WriteComponentAlert",
         "WriteEventsV2",
@@ -3924,6 +3960,7 @@
         "loadSystemTimeConfig",
         "loadTargetLocationConfig",
         "loadTrafficHeuristicThreats",
+        "loadTrafficSessionsFromClickHouse",
         "loadTrafficStream",
         "loadXDRAlertsForThreats",
         "loadXDRAlertsFromStream",
@@ -4111,6 +4148,7 @@
         "trafficItemMatches",
         "trafficNoiseRuleKey",
         "trafficNoiseRuleName",
+        "trafficSessionJoinAndL7",
         "trafficSessionQueryTokens",
         "trafficSessionRetentionDays",
         "trafficSessionsHandler",
@@ -4385,9 +4423,11 @@
         "GetEventV2",
         "QueryEventsV2",
         "QueryRetention",
+        "QueryTrafficSessions",
         "Read",
         "ReadCanonicalPayloads",
         "TrafficSessionCount",
+        "TrafficSessionTTL",
         "WriteCanonical",
         "WriteComponentAlert",
         "WriteEventsV2",
@@ -4440,6 +4480,7 @@
       "kind": "consumer",
       "path": "server/cmd/suricata_eve_ingest.go",
       "symbols": [
+        "asAnyMapString",
         "ingestSuricataEVELine",
         "loadSuricataEVEState",
         "parseSuricataTimestamp",
@@ -4448,11 +4489,55 @@
         "startSuricataEVEIngest",
         "suricataAlertUID",
         "suricataEVEInode",
+        "suricataEVEIsSpace",
+        "suricataEVELineIsAlert",
         "suricataSeverity",
         "suricataSignatureSeverity"
       ],
       "roles": [
         "consumer"
+      ],
+      "schemas": [
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
+      "id": "consumer:server/cmd/webhook_runtime.go",
+      "kind": "consumer",
+      "path": "server/cmd/webhook_runtime.go",
+      "symbols": [
+        "Channels",
+        "Enabled",
+        "dailyReportTime",
+        "deliverDailyReport",
+        "loadWebhookDailyReport",
+        "loadWebhookRuntimeConfig",
+        "nextWebhookReportTime",
+        "parseWebhookReportTime",
+        "runAlertNotifications",
+        "runDailyReports",
+        "startWebhookRuntime",
+        "startWebhookRuntimeWithLauncher",
+        "validateWebhookURL",
+        "webhookAlertFromStream",
+        "webhookAllDigits",
+        "webhookChannelEnvValues",
+        "webhookEnvBool",
+        "webhookSeverityUint8"
+      ],
+      "roles": [
+        "consumer"
+      ],
+      "streams": [
+        "alerts:xdr"
       ],
       "schemas": [
         "lyflow.security_event.v1"
@@ -5552,6 +5637,7 @@
         "loadSystemTimeConfig",
         "loadTargetLocationConfig",
         "loadTrafficHeuristicThreats",
+        "loadTrafficSessionsFromClickHouse",
         "loadTrafficStream",
         "loadXDRAlertsForThreats",
         "loadXDRAlertsFromStream",
@@ -5739,6 +5825,7 @@
         "trafficItemMatches",
         "trafficNoiseRuleKey",
         "trafficNoiseRuleName",
+        "trafficSessionJoinAndL7",
         "trafficSessionQueryTokens",
         "trafficSessionRetentionDays",
         "trafficSessionsHandler",
@@ -6845,6 +6932,7 @@
         "loadSystemTimeConfig",
         "loadTargetLocationConfig",
         "loadTrafficHeuristicThreats",
+        "loadTrafficSessionsFromClickHouse",
         "loadTrafficStream",
         "loadXDRAlertsForThreats",
         "loadXDRAlertsFromStream",
@@ -7032,6 +7120,7 @@
         "trafficItemMatches",
         "trafficNoiseRuleKey",
         "trafficNoiseRuleName",
+        "trafficSessionJoinAndL7",
         "trafficSessionQueryTokens",
         "trafficSessionRetentionDays",
         "trafficSessionsHandler",
@@ -7215,9 +7304,11 @@
         "GetEventV2",
         "QueryEventsV2",
         "QueryRetention",
+        "QueryTrafficSessions",
         "Read",
         "ReadCanonicalPayloads",
         "TrafficSessionCount",
+        "TrafficSessionTTL",
         "WriteCanonical",
         "WriteComponentAlert",
         "WriteEventsV2",
@@ -8600,6 +8691,7 @@
         "loadSystemTimeConfig",
         "loadTargetLocationConfig",
         "loadTrafficHeuristicThreats",
+        "loadTrafficSessionsFromClickHouse",
         "loadTrafficStream",
         "loadXDRAlertsForThreats",
         "loadXDRAlertsFromStream",
@@ -8787,6 +8879,7 @@
         "trafficItemMatches",
         "trafficNoiseRuleKey",
         "trafficNoiseRuleName",
+        "trafficSessionJoinAndL7",
         "trafficSessionQueryTokens",
         "trafficSessionRetentionDays",
         "trafficSessionsHandler",
@@ -8924,6 +9017,48 @@
       ],
       "schemas": [
         "lyflow.component_alert.v1",
+        "lyflow.security_event.v1"
+      ],
+      "owner": "server",
+      "phases": [
+        "reader_first",
+        "dual_write",
+        "reconcile",
+        "read_switch",
+        "observe"
+      ]
+    },
+    {
+      "id": "stream:server/cmd/webhook_runtime.go",
+      "kind": "stream",
+      "path": "server/cmd/webhook_runtime.go",
+      "symbols": [
+        "Channels",
+        "Enabled",
+        "dailyReportTime",
+        "deliverDailyReport",
+        "loadWebhookDailyReport",
+        "loadWebhookRuntimeConfig",
+        "nextWebhookReportTime",
+        "parseWebhookReportTime",
+        "runAlertNotifications",
+        "runDailyReports",
+        "startWebhookRuntime",
+        "startWebhookRuntimeWithLauncher",
+        "validateWebhookURL",
+        "webhookAlertFromStream",
+        "webhookAllDigits",
+        "webhookChannelEnvValues",
+        "webhookEnvBool",
+        "webhookSeverityUint8"
+      ],
+      "roles": [
+        "stream"
+      ],
+      "streams": [
+        "alerts:xdr"
+      ],
+      "schemas": [
         "lyflow.security_event.v1"
       ],
       "owner": "server",

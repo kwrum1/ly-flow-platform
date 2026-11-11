@@ -40,6 +40,12 @@ func initializeIncidentLifecycleRuntime(ctx context.Context, cfg *Config) error 
 	}
 	if cfg.IncidentLegacyMode {
 		cfg.Incidents = store
+		// Legacy mode intentionally skips the XDR cutover machinery, but it must
+		// not skip traffic materialization: that is what made "restart" stop
+		// healing the gap between alert ingestion and Incident creation.
+		if syncErr := syncTrafficIncidentCandidatesWithStore(ctx, cfg, store); syncErr != nil {
+			log.Printf("incident lifecycle legacy startup traffic sync failed: %v", syncErr)
+		}
 		return nil
 	}
 	persistedReport, cutoverComplete, err := store.LegacyCutover(ctx)
@@ -80,17 +86,29 @@ func initializeIncidentLifecycleRuntime(ctx context.Context, cfg *Config) error 
 	return nil
 }
 
+// syncActiveIncidentLifecycle runs the XDR chain sync and the traffic sync.
+//
+// Historically an error from the XDR sync aborted the whole function, which
+// also skipped traffic materialization and made the HTTP handler answer 503.
+// The two sources are independent, so an XDR failure must not suppress traffic
+// incidents: a mirror sensor can see an internal exploit for a victim that has
+// no runtime Agent at all, and that is exactly the case that must not be lost.
 func syncActiveIncidentLifecycle(ctx context.Context, cfg *Config, input xdrIncidentInput) error {
 	if cfg == nil || cfg.Incidents == nil {
 		return fmt.Errorf("persistent incident lifecycle unavailable")
 	}
+	var activeErr error
 	if err := syncActiveIncidentStore(ctx, cfg.Incidents, input); err != nil {
-		return err
+		activeErr = err
+		log.Printf("incident active chain sync failed, continuing with traffic candidates: %v", err)
 	}
 	if err := syncTrafficIncidentCandidates(ctx, cfg); err != nil {
 		log.Printf("traffic incident candidate sync failed: %v", err)
+		if activeErr == nil {
+			return err
+		}
 	}
-	return nil
+	return activeErr
 }
 
 func syncActiveIncidentStore(ctx context.Context, store *incidentlifecycle.PostgresStore, input xdrIncidentInput) error {
@@ -161,22 +179,42 @@ func syncTrafficIncidentCandidates(ctx context.Context, cfg *Config) error {
 }
 
 func syncTrafficIncidentCandidatesWithStore(ctx context.Context, cfg *Config, store *incidentlifecycle.PostgresStore) error {
+	_, err := runTrafficIncidentSync(ctx, cfg, store, incidentTrafficWindowFromEnv())
+	return err
+}
+
+// runTrafficIncidentSync materializes traffic incidents for an explicit window
+// and reports what it did. Callers that only care about success use the
+// wrappers above; the worker and the integration test need the counts.
+func runTrafficIncidentSync(ctx context.Context, cfg *Config, store *incidentlifecycle.PostgresStore, window incidentTrafficWindow) (incidentPipelineReport, error) {
+	started := time.Now()
+	report := incidentPipelineReport{Window: window.Lookback, Limit: window.Limit}
 	if cfg == nil || cfg.DBPool == nil || store == nil {
-		return nil
+		return report, nil
 	}
+	if window.Lookback <= 0 {
+		window.Lookback = defaultIncidentTrafficLookback
+	}
+	if window.Limit <= 0 {
+		window.Limit = defaultIncidentTrafficLimit
+	}
+	report.Window = window.Lookback
+	report.Limit = window.Limit
+
 	rows, err := cfg.DBPool.Query(ctx, `
 		SELECT event_uid, observed_at, raw_event::text
 		FROM threat_events
 		WHERE category = 'traffic' AND observed_at >= $1
 		ORDER BY observed_at DESC
-		LIMIT 100`, time.Now().Add(-30*time.Minute))
+		LIMIT $2`, time.Now().Add(-window.Lookback), window.Limit)
 	if err != nil {
-		return fmt.Errorf("query internal traffic candidates: %w", err)
+		return report, fmt.Errorf("query internal traffic candidates: %w", err)
 	}
 	defer rows.Close()
-	hits := make([]trafficHit, 0, 100)
+	hits := make([]trafficHit, 0, window.Limit)
 	policy := loadXDRResponsePolicy(cfg)
 	for rows.Next() {
+		report.Scanned++
 		var eventUID, raw string
 		var observedAt time.Time
 		if err := rows.Scan(&eventUID, &observedAt, &raw); err != nil {
@@ -206,23 +244,31 @@ func syncTrafficIncidentCandidatesWithStore(ctx context.Context, cfg *Config, st
 		})
 	}
 	if err := rows.Err(); err != nil {
-		return fmt.Errorf("iterate internal traffic candidates: %w", err)
+		return report, fmt.Errorf("iterate internal traffic candidates: %w", err)
 	}
 	candidates, withheld := buildTrafficIncidentCandidates(hits, lateralMinVictims())
+	report.Eligible = len(candidates)
+	report.Withheld = withheld
 	if withheld > 0 {
 		log.Printf("traffic incidents: withheld %d weak groups (min victims=%d)", withheld, lateralMinVictims())
 	}
 	if len(candidates) == 0 {
-		return nil
+		report.ElapsedMS = time.Since(started).Milliseconds()
+		return report, nil
 	}
 	snapshot, err := incidentlifecycle.NewActiveSnapshot(incidentlifecycle.ActiveAlgorithm, candidates)
 	if err != nil {
-		return fmt.Errorf("build traffic incident snapshot: %w", err)
+		return report, fmt.Errorf("build traffic incident snapshot: %w", err)
 	}
-	if _, err := store.SyncActive(ctx, snapshot); err != nil {
-		return fmt.Errorf("sync traffic incidents: %w", err)
+	syncReport, err := store.SyncActive(ctx, snapshot)
+	if err != nil {
+		return report, fmt.Errorf("sync traffic incidents: %w", err)
 	}
-	return nil
+	report.Created = syncReport.Created
+	report.Updated = syncReport.Updated
+	report.EvidenceAdded = syncReport.EvidenceAdded
+	report.ElapsedMS = time.Since(started).Milliseconds()
+	return report, nil
 }
 
 // incidentPathHasStrongEdge prevents a weak same-source-IP edge from being
@@ -290,6 +336,7 @@ func incidentJSONRow(incident incidentlifecycle.Incident) map[string]interface{}
 	seenStages := map[string]struct{}{}
 	sourceIPs := map[string]struct{}{}
 	victimIPs := map[string]struct{}{}
+	requestedDomains := map[string]struct{}{}
 	firstAgentID := ""
 	firstHostname := ""
 	for _, item := range incident.Evidence {
@@ -366,7 +413,13 @@ func incidentJSONRow(incident incidentlifecycle.Incident) map[string]interface{}
 			if ip := xdrPickString(rawValue, "src_ip", "source_ip"); ip != "" {
 				sourceIPs[ip] = struct{}{}
 			}
-			if ip := xdrPickString(rawValue, "dst_ip", "target_ip"); ip != "" {
+			// Reuse the same explanation the threat console shows, so an
+			// incident's evidence is readable instead of just a rule message.
+			applyEventNarrative(row, rawValue)
+			if domain := xdrPickString(row, "requested_domain"); domain != "" {
+				requestedDomains[domain] = struct{}{}
+			}
+			if ip := firstNonEmpty(xdrPickString(row, "victim_ip"), pick("dst_ip"), pick("target_ip")); ip != "" {
 				victimIPs[ip] = struct{}{}
 			}
 		}
@@ -375,6 +428,16 @@ func incidentJSONRow(incident incidentlifecycle.Incident) map[string]interface{}
 		if _, exists := seenStages[item.Stage]; item.Stage != "" && !exists {
 			seenStages[item.Stage] = struct{}{}
 			stages = append(stages, item.Stage)
+		}
+	}
+	// Lead with the first explained evidence: an incident is a chain, and the
+	// first link is what an analyst needs to understand before the timeline.
+	incidentNarrative, incidentDetail := "", ""
+	for _, row := range evidence {
+		if value := xdrPickString(row, "narrative"); value != "" {
+			incidentNarrative = value
+			incidentDetail = xdrPickString(row, "narrative_detail")
+			break
 		}
 	}
 	displayTitle := incident.Title
@@ -398,6 +461,9 @@ func incidentJSONRow(incident incidentlifecycle.Incident) map[string]interface{}
 		"acknowledged_at": incident.AcknowledgedAt, "resolved_at": incident.ResolvedAt, "version": incident.Version,
 		"event_count": len(evidence), "stages": stages, "stage_labels": stageLabels(stages), "events": evidence,
 		"attack_chain": evidence, "stage_groups": incidentStageGroups(stages, evidenceValues), "source_ips": sortedKeys(sourceIPs),
-		"victim_ips": sortedKeys(victimIPs), "audit": incident.Audit,
+		"victim_ips": sortedKeys(victimIPs), "victim_display": strings.Join(sortedKeys(victimIPs), "、"),
+		"requested_domains": sortedKeys(requestedDomains),
+		"narrative":         incidentNarrative, "narrative_detail": incidentDetail,
+		"audit": incident.Audit,
 	}
 }

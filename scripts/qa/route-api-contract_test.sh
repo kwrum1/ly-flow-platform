@@ -116,11 +116,11 @@ fi
 node -e '
   const fs = require("node:fs")
   const result = JSON.parse(fs.readFileSync(process.argv[1], "utf8"))
-  if (result.status !== "PASS" || result.mounted_paths !== 122 || result.contract_api_records !== 122) process.exit(1)
+  if (result.status !== "PASS" || result.mounted_paths !== 141 || result.contract_api_records !== 141) process.exit(1)
   if (result.duplicate_api_records !== 0 || result.unowned_actions !== 0) process.exit(1)
   if (result.unknown_protected_path_meets_404_requirement !== false || result.unknown_protected_path_red_gap_recorded !== true) process.exit(1)
   const auth = result.auth_contract_results
-  if (auth.public_routes !== 2 || auth.jwt_protected_routes !== 103 || auth.agent_credential_routes !== 10 || auth.loopback_routes !== 1) process.exit(1)
+  if (auth.public_routes !== 15 || auth.jwt_protected_routes !== 114 || auth.agent_credential_routes !== 11 || auth.loopback_routes !== 1) process.exit(1)
   if (auth.unauthenticated_jwt_status !== 401 || auth.unauthorized_role_status !== 403 || auth.authorized_role_status !== 200) process.exit(1)
   if (auth.remote_loopback_status !== 403 || auth.local_loopback_status !== 204) process.exit(1)
 ' "$result"
@@ -138,4 +138,4 @@ printf '%s\n' \
   '  "hung_long_commands": "N/A: all commands are local bounded unit, compiler, or generator operations"' \
   '}' >"$evidence/adversarial-classes.json"
 
-printf 'PASS route/API contract: mounted=122 duplicate_api_records=0 unowned_actions=0 unknown_404_current=false red_gap_recorded=true\n'
+printf 'PASS route/API contract: mounted=141 duplicate_api_records=0 unowned_actions=0 unknown_404_current=false red_gap_recorded=true\n'

@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
   "registry": {
-    "mounted_path_count": 138,
-    "sorted_path_sha256": "354bbce0b7628fb1d19354463211161c960b4daa2ddad88a5be3356e0de0b72e"
+    "mounted_path_count": 141,
+    "sorted_path_sha256": "032aaaf9e5215fb384bd8eea76cff623ac4844c0c3ffb56a04a4bca0a6cec731"
   },
   "roles": [
     "admin",
@@ -2951,6 +2951,39 @@
       "disposition": "ui-workflow"
     },
     {
+      "path": "/api/v1/events/triage",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/events/triage",
+            "body": {},
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/events/triage",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
       "path": "/api/v1/evidence/artifacts",
       "auth_mode": "jwt",
       "operations": [
@@ -3892,6 +3925,106 @@
         }
       ],
       "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/response/advisories",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "GET",
+          "allowed_roles": [
+            "admin",
+            "analyst",
+            "viewer"
+          ],
+          "valid_fixture": {
+            "method": "GET",
+            "path": "/api/v1/response/advisories",
+            "body": null,
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "DELETE",
+            "path": "/api/v1/response/advisories",
+            "body": null,
+            "expected_statuses": [
+              405
+            ]
+          },
+          "mutation": false,
+          "readback": "not-applicable",
+          "persistence": "none"
+        },
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/response/advisories",
+            "body": {
+              "candidate_id": "candidate-contract",
+              "action": "isolate",
+              "target": "agent-contract"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/response/advisories",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable-with-audit"
+        }
+      ],
+      "disposition": "ui-workflow"
+    },
+    {
+      "path": "/api/v1/response/advisories/",
+      "auth_mode": "jwt",
+      "operations": [
+        {
+          "method": "POST",
+          "allowed_roles": [
+            "admin",
+            "analyst"
+          ],
+          "valid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/response/advisories/advisory-contract/approve",
+            "body": {
+              "idempotency_key": "contract-approval"
+            },
+            "expected_statuses": [
+              200
+            ]
+          },
+          "invalid_fixture": {
+            "method": "POST",
+            "path": "/api/v1/response/advisories/advisory-contract/approve",
+            "body": {},
+            "expected_statuses": [
+              400
+            ]
+          },
+          "mutation": true,
+          "readback": "read-after-write",
+          "persistence": "durable-with-audit"
+        }
+      ],
+      "disposition": "ui-workflow",
+      "notes": "Mounted prefix owns dynamic resource or action suffixes under this single record."
     },
     {
       "path": "/api/v1/response/automation",
