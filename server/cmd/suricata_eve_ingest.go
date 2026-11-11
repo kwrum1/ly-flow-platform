@@ -346,7 +346,39 @@ func sanitizeSuricataAlert(event map[string]interface{}, signature, severity str
 	out["tls_ja3"] = l7.TLSJA3
 	out["tls_ja4"] = l7.TLSJA4
 	out["dns_query"] = l7.DNSQuery
+	// Display identity for the two endpoints.
+	//
+	// The UI shows "来源 → 受害服务器", and both halves were misleading:
+	//   - src_ip is the proxy or the public source, while http.xff carries the
+	//     real client (1767 of 11896 traffic alerts in this deployment), and
+	//   - dst_ip is an internal address, while http.hostname carries the site
+	//     the attacker actually targeted (9335 alerts).
+	// Store an explicit display pair so the console does not have to guess, and
+	// keep the raw fields untouched for traceability.
+	if xff := strings.TrimSpace(asAnyMapString(asMap(event["http"]), "xff")); xff != "" {
+		out["client_forwarded_for"] = xff
+	}
+	out["source_display"] = firstNonEmpty(
+		asString(out["client_forwarded_for"]),
+		asString(event["src_ip"]),
+	)
+	out["victim_display"] = firstNonEmpty(
+		l7.HTTPHost,
+		l7.TLSSNI,
+		l7.DNSQuery,
+		asString(event["dest_ip"]),
+	)
+	out["victim_ip"] = asString(event["dest_ip"])
 	return out
+}
+
+// asAnyMapString reads a string member defensively; used for optional EVE
+// members that may be absent or non-string.
+func asAnyMapString(values map[string]interface{}, key string) string {
+	if values == nil {
+		return ""
+	}
+	return asString(values[key])
 }
 
 func suricataAlertUID(event map[string]interface{}) string {
