@@ -1,7 +1,31 @@
 # LyFlow 开发进度
 
-> 每个 Task 完成后追加一条记录：日期 / Task / 变更 / 测试 / 风险 / 回滚。  
+> 每个 Task 完成后追加一条记录：日期 / Task / 变更 / 测试 / 风险 / 回滚。
 > 更细的任务状态见 `WORKQUEUE.md`。
+
+## 2026-11-11
+
+### 流量/事件/攻击链界面可读化与归因修正（DONE）
+
+- 变更：
+  - `Threats.vue` 抽屉先给结论（`narrative` / `narrative_detail`），再给请求内容，
+    原始载荷只用于核对；修复 `.raw` 少 `}` 导致叙述样式失效。
+  - 受害服务器 = 报文目的地址；请求域名（Host/SNI/DNS）单独展示，明确说明
+    “域名只说明客户端想访问谁，不等于被打的服务器”。
+  - X-Forwarded-For 仅作参考，标注“客户端自述，未经核实”，不替代观测源地址。
+  - `/api/v1/unified/events` 透传叙述与端点字段；`incidentJSONRow` 对每条证据
+    （含 `raw_event` 包装）复用同一叙述，攻击链时间线可逐条阅读。
+  - 主机侧检测（runtime/RASP/YARA）无目的地址时点名主机，`victim_ip` 保持为空。
+- 验证（`.125` 真机，revision `f223d254`）：
+  - `traffic/threats` 200（1.8s）、`traffic/flows` 200、`traffic/sessions` 200、
+    `unified/events` 200、`incidents` 200；日志无 `cannot scan`/`panic`。
+  - 浏览器逐页打开：检测面 200 行均有中文叙述；事件抽屉显示
+    “受害服务器 40.73.214.240（请求域名 …）”；攻击链 10/10 条证据有叙述，
+    每条显示请求域名与 XFF 参考。
+  - 真实 XFF 行：`src 10.1.18.252 → 10.1.0.192`，XFF `111.173.198.168`
+    仅作参考；受害地址与请求域名分开。
+- 风险：历史事件不重写数据库，叙述在读取时推导；回滚只需恢复
+  `ly-flow/server` / `ly-flow/frontend` 上一镜像标签。
 
 ## 2026-11-10
 
