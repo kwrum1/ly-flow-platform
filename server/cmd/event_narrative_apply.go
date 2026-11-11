@@ -64,6 +64,12 @@ func applyEventNarrative(threat map[string]interface{}, source map[string]interf
 	if requestedDomain != "" {
 		threat["requested_domain"] = requestedDomain
 	}
+	hostLabel := firstNonEmpty(
+		xdrPickString(source, "hostname"),
+		xdrPickString(source, "display_name"),
+		xdrPickString(source, "agent_display_name"),
+		xdrPickString(source, "entities.hostname"),
+	)
 	switch {
 	case victimIP != "" && requestedDomain != "" && requestedDomain != victimIP:
 		threat["victim_display"] = victimIP + "（请求域名 " + requestedDomain + "）"
@@ -71,6 +77,10 @@ func applyEventNarrative(threat map[string]interface{}, source map[string]interf
 		threat["victim_display"] = victimIP
 	case requestedDomain != "":
 		threat["victim_display"] = "未知目标（请求域名 " + requestedDomain + "）"
+	case hostLabel != "":
+		// Host-side detection: no wire destination exists. The host is the
+		// affected target, but it is not an address and is kept out of victim_ip.
+		threat["victim_display"] = "主机 " + hostLabel
 	default:
 		threat["victim_display"] = "未知目标"
 	}

@@ -123,6 +123,23 @@ func TestClassifyAttackCoversTheFamiliesSeenInProduction(t *testing.T) {
 	}
 }
 
+// Host-side detections have no wire destination. The host that produced the
+// evidence is the affected target; it must be named instead of leaving the
+// reader with "unknown target".
+func TestBuildEventNarrativeNamesTheHostForHostDetections(t *testing.T) {
+	summary, _ := buildEventNarrative(eventNarrativeInput{
+		Severity:  "medium",
+		Signature: "component.alert",
+		HostLabel: "web-01",
+	})
+	if !strings.Contains(summary, "web-01") {
+		t.Fatalf("host missing from narrative:\n%s", summary)
+	}
+	if strings.Contains(summary, "未知目标") {
+		t.Fatalf("host detection must not report an unknown target:\n%s", summary)
+	}
+}
+
 // Every class must be safely renderable: no empty text, no placeholder.
 func TestAttackClassesAreComplete(t *testing.T) {
 	for _, class := range attackClasses {

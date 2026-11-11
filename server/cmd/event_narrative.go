@@ -133,6 +133,10 @@ type eventNarrativeInput struct {
 	SourceIP        string
 	VictimIP        string
 	RequestedDomain string
+	// HostLabel names the host that produced a host-side detection (runtime,
+	// RASP, YARA). Such an event has no wire destination, so the host itself is
+	// the affected target; it is not an address and is never stored as one.
+	HostLabel string
 	// ForwardedClient is what X-Forwarded-For claimed. Shown as a reference
 	// only, never as an established fact: the header is written by the client
 	// side.
@@ -157,6 +161,7 @@ func buildEventNarrative(input eventNarrativeInput) (summary, detail string) {
 	victimIP := strings.TrimSpace(input.VictimIP)
 	domain := strings.TrimSpace(input.RequestedDomain)
 	forwarded := strings.TrimSpace(input.ForwardedClient)
+	hostLabel := strings.TrimSpace(input.HostLabel)
 
 	who := attacker
 	if who == "" {
@@ -175,9 +180,18 @@ func buildEventNarrative(input eventNarrativeInput) (summary, detail string) {
 	severityLabel := chineseSeverity(input.Severity)
 
 	var sentence string
-	if classified {
+	switch {
+	case victimIP == "" && hostLabel != "":
+		// Host-side detection: there is no wire destination. Name the host that
+		// produced the evidence instead of inventing an address for it.
+		if classified {
+			sentence = fmt.Sprintf("主机 %s 上%s，属于%s。", hostLabel, class.Attempt, class.Name)
+		} else {
+			sentence = fmt.Sprintf("主机 %s 上触发了一条检测规则「%s」。该规则未归入已知攻击类型，请结合原始载荷判断。", hostLabel, input.Signature)
+		}
+	case classified:
 		sentence = fmt.Sprintf("%s 对 %s %s，属于%s。", who, whom, class.Attempt, class.Name)
-	} else {
+	default:
 		// No class matched: say what the rule says, without pretending to
 		// understand it more than the rule name allows.
 		sentence = fmt.Sprintf("%s 对 %s 触发了一条检测规则「%s」。该规则未归入已知攻击类型，请结合原始载荷判断。", who, whom, input.Signature)
@@ -305,6 +319,7 @@ func eventNarrativeFromEvent(event map[string]interface{}) (string, string) {
 		SourceIP:        firstNonEmpty(xdrPickString(event, "src_ip"), xdrPickString(event, "proxy_ip")),
 		VictimIP:        firstNonEmpty(xdrPickString(event, "victim_ip"), xdrPickString(event, "dst_ip")),
 		RequestedDomain: requestedDomain,
+		HostLabel:       firstNonEmpty(xdrPickString(event, "hostname"), xdrPickString(event, "display_name"), xdrPickString(event, "agent_display_name"), xdrPickString(event, "entities.hostname")),
 		ForwardedClient: forwarded,
 		HTTPMethod:      firstNonEmpty(xdrPickString(event, "http_method"), xdrPickString(httpBlock, "http_method")),
 		HTTPURI:         firstNonEmpty(xdrPickString(event, "http_uri"), xdrPickString(httpBlock, "url")),

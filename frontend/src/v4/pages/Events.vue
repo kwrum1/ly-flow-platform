@@ -82,7 +82,7 @@
             <dt>首次 / 最近</dt><dd>{{ shortTime(selected.first_seen) }} / {{ shortTime(selected.last_seen) }}</dd>
             <dt>受害服务器</dt>
             <dd class="v-mono">
-              {{ selected.victim_ip || selected.dst_ip || '-' }}
+              {{ selected.victim_ip || selected.dst_ip || selected.victim_display || '-' }}
               <span v-if="selected.requested_domain" class="hint">
                 （请求域名 {{ selected.requested_domain }}；域名只说明客户端想访问谁，不等于被打的服务器）
               </span>
