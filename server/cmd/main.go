@@ -28,6 +28,7 @@ import (
 	"unicode"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/redis/go-redis/v9"
 
@@ -7367,7 +7368,13 @@ func loadPersistentThreatEvents(ctx context.Context, cfg *Config, category strin
 		var occurrenceCount int
 		var firstSeen, lastSeen time.Time
 		var triageStatus, triageReason, triageActor, assetBindingSource string
-		var triagedAt, assetID *string
+		// triaged_at is timestamptz and asset_id is bigint. Decoding them as
+		// *string made every page fail with
+		//   cannot scan timestamptz (OID 1184) in binary format into **string
+		// which took the whole 流量检测 view down, not just the triage fields.
+		// Use the matching nullable Go types.
+		var triagedAt pgtype.Timestamptz
+		var assetID pgtype.Int8
 		if err := rows.Scan(&raw, &occurrenceCount, &firstSeen, &lastSeen, &aggregateKey,
 			&triageStatus, &triageReason, &triageActor, &triagedAt, &assetID, &assetBindingSource); err != nil {
 			continue
@@ -7389,13 +7396,14 @@ func loadPersistentThreatEvents(ctx context.Context, cfg *Config, category strin
 			threat["triage_status"] = triageStatus
 			threat["triage_reason"] = triageReason
 			threat["triage_actor"] = triageActor
-			if triagedAt != nil {
-				threat["triaged_at"] = *triagedAt
+			if triagedAt.Valid {
+				threat["triaged_at"] = triagedAt.Time.UTC().Format(time.RFC3339)
 			}
-			if assetID != nil {
-				threat["asset_id"] = *assetID
+			if assetID.Valid {
+				threat["asset_id"] = assetID.Int64
 				threat["asset_binding_source"] = assetBindingSource
 			}
+			applyEventNarrative(threat, event)
 			items = append(items, threat)
 		}
 	}

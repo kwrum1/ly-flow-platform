@@ -45,8 +45,8 @@
               <td class="num">{{ shortTime(t.last_seen || t.timestamp || t.first_seen) }}</td>
               <td><span class="v-badge" :class="t.severity">{{ severityLabel(t.severity) }}</span></td>
               <td>{{ t.source_engine || t.source || '-' }}</td>
-              <td class="th-main"><b>{{ t.rule_name || t.rule_id || t.event_type || '安全告警' }}</b><small>{{ t.rule_id || '' }}</small></td>
-              <td class="v-mono">{{ (t.entities?.source_ip || t.src_ip || '-') }} → {{ (t.entities?.target_ip || t.dst_ip || '-') }}</td>
+              <td class="th-main"><b>{{ t.rule_name || t.rule_id || t.event_type || '安全告警' }}</b><small>{{ t.narrative || t.rule_id || '' }}</small></td>
+              <td class="v-mono">{{ pairText(t) }}</td>
               <td v-if="tab !== 'traffic'">{{ agentName(t) }}</td>
               <td class="num">{{ t.count || t.occurrence_count || 1 }}</td>
               <td class="actions"><button class="v-btn sm" type="button" @click.stop="selected = t">详情</button></td>
@@ -69,18 +69,52 @@
             <span class="v-badge info">{{ tabLabel }}</span>
             <span class="v-badge muted">{{ selected.aggregate_key || selected.id }}</span>
           </div>
+
+          <!-- 人类可读结论优先：分析员据此判断，而不是读签名名 -->
+          <section v-if="selected.narrative" class="narrative">
+            <h3>发生了什么</h3>
+            <p class="narrative-text">{{ selected.narrative }}</p>
+            <p v-if="selected.narrative_detail" class="narrative-detail">{{ selected.narrative_detail }}</p>
+          </section>
+
           <dl class="v-kv">
             <dt>时间</dt><dd>{{ shortTime(selected.first_seen) }} ~ {{ shortTime(selected.last_seen || selected.timestamp) }}</dd>
-            <dt v-if="selected.entities?.source_ip || selected.src_ip || selected.entities?.target_ip || selected.dst_ip">源 → 目标</dt>
-            <dd v-if="selected.entities?.source_ip || selected.src_ip || selected.entities?.target_ip || selected.dst_ip" class="v-mono">{{ selected.entities?.source_ip || selected.src_ip || '-' }} → {{ selected.entities?.target_ip || selected.dst_ip || '-' }}</dd>
+            <dt>攻击来源</dt>
+            <dd class="v-mono">
+              {{ selected.source_display || selected.entities?.source_ip || selected.src_ip || '-' }}
+              <span v-if="selected.client_forwarded_for && selected.client_forwarded_for !== selected.src_ip" class="hint">
+                （代理地址 {{ selected.src_ip }}，真实客户端来自 X-Forwarded-For）
+              </span>
+            </dd>
+            <dt>受害服务器</dt>
+            <dd class="v-mono">
+              {{ selected.victim_display || selected.entities?.target_ip || selected.dst_ip || '-' }}
+              <span v-if="selected.victim_display && selected.dst_ip && selected.victim_display !== selected.dst_ip" class="hint">
+                （内网地址 {{ selected.dst_ip }}）
+              </span>
+            </dd>
             <dt>端口</dt><dd class="v-mono">{{ selected.src_port || '未知' }} → {{ selected.dst_port || '未知' }}</dd>
             <dt>引擎</dt><dd>{{ selected.source_engine || selected.source || '-' }}</dd>
-            <dt>规则</dt><dd class="v-mono">{{ selected.rule_id || selected.component_rule_id || '-' }}</dd>
+            <dt>规则</dt><dd class="v-mono">{{ selected.rule_name || selected.rule_id || selected.component_rule_id || '-' }}</dd>
             <dt v-if="tab !== 'traffic'">受害服务器</dt><dd v-if="tab !== 'traffic'">{{ agentName(selected) }}</dd>
             <dt>次数</dt><dd>{{ selected.count || selected.occurrence_count || 1 }}</dd>
-            <dt>摘要</dt><dd>{{ selected.summary || selected.message || '-' }}</dd>
+            <dt>分诊状态</dt><dd>{{ triageLabel(selected.triage_status) }}</dd>
           </dl>
-          <section><h3>原始载荷</h3><pre class="raw">{{ pretty(selected) }}</pre></section>
+
+          <section v-if="requestLines(selected).length">
+            <h3>请求内容</h3>
+            <dl class="v-kv">
+              <template v-for="line in requestLines(selected)" :key="line.label">
+                <dt>{{ line.label }}</dt><dd class="v-mono">{{ line.value }}</dd>
+              </template>
+            </dl>
+          </section>
+
+          <section>
+            <h3>原始载荷</h3>
+            <p class="hint">仅用于核对，日常判断请以上面的说明为准。</p>
+            <pre class="raw">{{ pretty(selected) }}</pre>
+          </section>
         </div>
       </aside>
     </div>
@@ -134,6 +168,45 @@ function formatNumber(v) { return (Number(v) || 0).toLocaleString('zh-CN') }
 function shortTime(v) { return v ? formatChinaDateTime(v) : '-' }
 function pretty(v) { try { return JSON.stringify(v, null, 2) } catch { return String(v) } }
 
+// 列表里的「来源 → 目标」用可识别的名字，而不是两个 IP。
+// XFF 存在时来源是真实客户端；受害者优先显示站点名（http.hostname）。
+function pairText(row) {
+  if (!row) return '-'
+  const src = row.source_display || row.entities?.source_ip || row.src_ip || '-'
+  const dst = row.victim_display || row.entities?.target_ip || row.dst_ip || '-'
+  if (src === '-' && dst === '-') return '-'
+  return `${src} → ${dst}`
+}
+
+// 分诊状态的中文表述，避免把 true_positive 这类枚举直接暴露给分析员。
+function triageLabel(status) {
+  return ({
+    new: '未处置',
+    triaged: '已查看',
+    true_positive: '确认为真实攻击',
+    false_positive: '确认为误报',
+    closed: '已关闭',
+  })[status] || '未处置'
+}
+
+// 把请求细节拆成可直接阅读的行，只在有值时出现。
+function requestLines(row) {
+  const lines = []
+  if (!row) return lines
+  const host = row.victim_display || row.http_host
+  if (host) lines.push({ label: '目标站点', value: host })
+  const method = row.http_method
+  const uri = row.http_uri || row.http_path
+  if (method || uri) lines.push({ label: '请求', value: `${method || ''} ${uri || ''}`.trim() })
+  if (row.tls_sni && row.tls_sni !== host) lines.push({ label: 'TLS SNI', value: row.tls_sni })
+  if (row.dns_query) lines.push({ label: 'DNS 查询', value: row.dns_query })
+  if (row.tls_ja3) lines.push({ label: 'TLS 指纹 JA3', value: row.tls_ja3 })
+  if (row.tls_ja4) lines.push({ label: 'TLS 指纹 JA4', value: row.tls_ja4 })
+  if (row.app_proto) lines.push({ label: '应用协议', value: String(row.app_proto).toUpperCase() })
+  if (row.client_forwarded_for) lines.push({ label: 'X-Forwarded-For', value: row.client_forwarded_for })
+  return lines
+}
+
 async function load() {
   loading.value = true
   error.value = ''
@@ -177,5 +250,9 @@ onMounted(load)
 .threat-drawer { width: min(38vw, 520px); max-width: 520px; }
 .threat-drawer .v-kv dt, .threat-drawer .v-kv dd { padding: 8px 10px; font-size: 11.5px; }
 .threat-drawer .detail { gap: 14px; }
-.raw { margin: 0; max-height: 320px; padding: 12px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--v-line); border-radius: var(--v-radius-sm); background: var(--v-surface-3); color: var(--v-ink-2); font-family: var(--v-mono); font-size: 10.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; }
+.raw { margin: 0; max-height: 320px; padding: 12px; overflow-y: auto; overflow-x: hidden; border: 1px solid var(--v-line); border-radius: var(--v-radius-sm); background: var(--v-surface-3); color: var(--v-ink-2); font-family: var(--v-mono); font-size: 10.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word;
+.narrative { padding: 12px 14px; border: 1px solid var(--v-line); border-left: 3px solid var(--v-accent, #3b6fd4); border-radius: var(--v-radius-sm); background: var(--v-surface-2); }
+.narrative-text { margin: 0; color: var(--v-ink); font-size: 12.5px; line-height: 1.7; }
+.narrative-detail { margin: 8px 0 0; color: var(--v-ink-2); font-size: 11.5px; line-height: 1.7; }
+.hint { color: var(--v-ink-3); font-size: 10.5px; font-weight: 400; } }
 </style>

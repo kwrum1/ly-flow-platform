@@ -4480,6 +4480,7 @@
       "kind": "consumer",
       "path": "server/cmd/suricata_eve_ingest.go",
       "symbols": [
+        "asAnyMapString",
         "ingestSuricataEVELine",
         "loadSuricataEVEState",
         "parseSuricataTimestamp",
