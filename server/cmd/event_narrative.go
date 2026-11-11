@@ -122,19 +122,27 @@ func classifyAttack(signature string) (attackClass, bool) {
 }
 
 // eventNarrativeInput is the minimum an event must provide.
+//
+// VictimIP is the address the traffic was actually sent to (the wire
+// destination). RequestedDomain is what the client asked for (HTTP Host, TLS
+// SNI, or DNS name) and is a separate fact: a request can ask for a hostname
+// that resolves elsewhere.
 type eventNarrativeInput struct {
-	Severity    string
-	Signature   string
-	SourceIP    string
-	VictimIP    string
-	VictimHost  string
-	XForwarded  string
-	HTTPMethod  string
-	HTTPURI     string
-	AppProto    string
-	Protocol    string
-	DstPort     string
-	CommunityID string
+	Severity        string
+	Signature       string
+	SourceIP        string
+	VictimIP        string
+	RequestedDomain string
+	// ForwardedClient is what X-Forwarded-For claimed. Shown as a reference
+	// only, never as an established fact: the header is written by the client
+	// side.
+	ForwardedClient string
+	HTTPMethod      string
+	HTTPURI         string
+	AppProto        string
+	Protocol        string
+	DstPort         string
+	CommunityID     string
 }
 
 // buildEventNarrative returns a two-part explanation:
@@ -146,29 +154,21 @@ type eventNarrativeInput struct {
 // drawer, so an analyst can triage without knowing Suricata rule names.
 func buildEventNarrative(input eventNarrativeInput) (summary, detail string) {
 	attacker := strings.TrimSpace(input.SourceIP)
-	client := strings.TrimSpace(input.XForwarded)
-	victim := strings.TrimSpace(input.VictimHost)
 	victimIP := strings.TrimSpace(input.VictimIP)
+	domain := strings.TrimSpace(input.RequestedDomain)
+	forwarded := strings.TrimSpace(input.ForwardedClient)
 
-	// Who: prefer the forwarded client, because a proxy address is not the actor.
 	who := attacker
-	if client != "" && client != attacker {
-		who = fmt.Sprintf("%s（经代理 %s 转发）", client, attacker)
-	}
 	if who == "" {
 		who = "未知来源"
 	}
 
-	// Whom: a hostname is what an operator recognizes; the IP is context.
-	whom := victim
-	if whom != "" && victimIP != "" && victimIP != whom {
-		whom = fmt.Sprintf("%s（%s）", victim, victimIP)
-	}
+	// Whom: the victim is the address the traffic was sent to. The requested
+	// domain is reported separately, because requesting a name does not prove
+	// which host served it.
+	whom := victimIP
 	if whom == "" {
-		whom = victimIP
-	}
-	if whom == "" {
-		whom = "未知目标"
+		whom = "未知目标（未记录目的地址）"
 	}
 
 	class, classified := classifyAttack(input.Signature)
@@ -184,9 +184,17 @@ func buildEventNarrative(input eventNarrativeInput) (summary, detail string) {
 	}
 	summary = fmt.Sprintf("%s 判定等级：%s。", sentence, severityLabel)
 
-	// Detail: impact, then the concrete request evidence.
-	parts := make([]string, 0, 4)
-	if classified {
+	// Detail: request context first, then the impact.
+	parts := make([]string, 0, 5)
+	if forwarded != "" && forwarded != attacker {
+		// Plain reference: useful for spotting a repeat actor, but the header
+		// is self-reported and is not proof of origin.
+		parts = append(parts, fmt.Sprintf("请求头自述客户端 %s（X-Forwarded-For，仅供参考）。", forwarded))
+	}
+	if domain != "" {
+		parts = append(parts, fmt.Sprintf("请求的目标域名：%s（域名只说明客户端想访问谁，不等于实际被打的服务器）。", domain))
+	}
+	if class, ok := classifyAttack(input.Signature); ok {
 		parts = append(parts, "如果攻击成功："+class.Impact+"。")
 	}
 	if uri := strings.TrimSpace(input.HTTPURI); uri != "" {
@@ -238,22 +246,57 @@ func shorten(value string, limit int) string {
 }
 
 // eventNarrativeFromEvent builds the narrative from a stored threat event.
+//
+// Historical rows predate the promoted columns, so the requested domain is read
+// from the nested eve payload when the flat field is absent. The victim is
+// always the wire destination: a DNS query or HTTP Host is reported as the
+// requested domain, never as the victim.
 func eventNarrativeFromEvent(event map[string]interface{}) (string, string) {
 	if event == nil {
 		return "", ""
 	}
 	httpBlock := asMap(event["http"])
+	if len(httpBlock) == 0 {
+		httpBlock = asMap(asMap(event["eve"])["http"])
+	}
+	tlsBlock := asMap(event["tls"])
+	if len(tlsBlock) == 0 {
+		tlsBlock = asMap(asMap(event["eve"])["tls"])
+	}
+	dnsBlock := asMap(event["dns"])
+	if len(dnsBlock) == 0 {
+		dnsBlock = asMap(asMap(event["eve"])["dns"])
+	}
+
+	requestedDomain := firstNonEmpty(
+		xdrPickString(event, "http_host"),
+		xdrPickString(httpBlock, "hostname"),
+		xdrPickString(event, "tls_sni"),
+		xdrPickString(tlsBlock, "sni"),
+		xdrPickString(event, "dns_query"),
+		xdrPickString(dnsBlock, "rrname"),
+	)
+
+	// X-Forwarded-For is a reference value only. Read it directly from the
+	// stored fields; no trust resolution is involved because it is presented as
+	// self-reported context, never as the established origin.
+	forwarded := firstNonEmpty(
+		xdrPickString(event, "client_forwarded_for_observed"),
+		xdrPickString(httpBlock, "xff"),
+		xdrPickString(event, "client_forwarded_for"),
+	)
+
 	return buildEventNarrative(eventNarrativeInput{
-		Severity:   xdrPickString(event, "severity"),
-		Signature:  firstNonEmpty(xdrPickString(event, "rule_name"), xdrPickString(event, "event_type"), xdrPickString(event, "message")),
-		SourceIP:   firstNonEmpty(xdrPickString(event, "client_forwarded_for"), xdrPickString(event, "src_ip")),
-		VictimIP:   firstNonEmpty(xdrPickString(event, "victim_ip"), xdrPickString(event, "dst_ip")),
-		VictimHost: firstNonEmpty(xdrPickString(event, "victim_display"), xdrPickString(event, "http_host"), xdrPickString(event, "tls_sni"), xdrPickString(event, "dns_query")),
-		XForwarded: xdrPickString(event, "client_forwarded_for"),
-		HTTPMethod: firstNonEmpty(xdrPickString(event, "http_method"), xdrPickString(httpBlock, "http_method")),
-		HTTPURI:    firstNonEmpty(xdrPickString(event, "http_uri"), xdrPickString(httpBlock, "url")),
-		AppProto:   xdrPickString(event, "app_proto"),
-		Protocol:   xdrPickString(event, "protocol"),
-		DstPort:    fmt.Sprintf("%v", event["dst_port"]),
+		Severity:        xdrPickString(event, "severity"),
+		Signature:       firstNonEmpty(xdrPickString(event, "rule_name"), xdrPickString(event, "event_type"), xdrPickString(event, "message")),
+		SourceIP:        firstNonEmpty(xdrPickString(event, "src_ip"), xdrPickString(event, "proxy_ip")),
+		VictimIP:        firstNonEmpty(xdrPickString(event, "victim_ip"), xdrPickString(event, "dst_ip")),
+		RequestedDomain: requestedDomain,
+		ForwardedClient: forwarded,
+		HTTPMethod:      firstNonEmpty(xdrPickString(event, "http_method"), xdrPickString(httpBlock, "http_method")),
+		HTTPURI:         firstNonEmpty(xdrPickString(event, "http_uri"), xdrPickString(httpBlock, "url")),
+		AppProto:        xdrPickString(event, "app_proto"),
+		Protocol:        xdrPickString(event, "protocol"),
+		DstPort:         fmt.Sprintf("%v", event["dst_port"]),
 	})
 }

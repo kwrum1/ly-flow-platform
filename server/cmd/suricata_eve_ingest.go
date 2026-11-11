@@ -356,19 +356,26 @@ func sanitizeSuricataAlert(event map[string]interface{}, signature, severity str
 	// Store an explicit display pair so the console does not have to guess, and
 	// keep the raw fields untouched for traceability.
 	if xff := strings.TrimSpace(asAnyMapString(asMap(event["http"]), "xff")); xff != "" {
-		out["client_forwarded_for"] = xff
+		out["client_forwarded_for_observed"] = xff
 	}
-	out["source_display"] = firstNonEmpty(
-		asString(out["client_forwarded_for"]),
-		asString(event["src_ip"]),
-	)
+	// The victim is the address the traffic was sent to. The requested domain
+	// (HTTP Host / TLS SNI / DNS name) is a separate fact: it says what the
+	// client asked for, not which host was actually attacked.
+	//
+	// client_forwarded_for and source_display are filled by the ingestion path
+	// from the trusted-proxy resolver, never from a bare XFF header, because
+	// that header is attacker-controlled. sanitizeSuricataAlert therefore does
+	// not promote it here.
+	out["victim_ip"] = asString(event["dest_ip"])
 	out["victim_display"] = firstNonEmpty(
+		asString(event["dest_ip"]),
+		"未知目标",
+	)
+	out["requested_domain"] = firstNonEmpty(
 		l7.HTTPHost,
 		l7.TLSSNI,
 		l7.DNSQuery,
-		asString(event["dest_ip"]),
 	)
-	out["victim_ip"] = asString(event["dest_ip"])
 	return out
 }
 
