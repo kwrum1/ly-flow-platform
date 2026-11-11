@@ -255,6 +255,19 @@ func eventNarrativeFromEvent(event map[string]interface{}) (string, string) {
 	if event == nil {
 		return "", ""
 	}
+	// Incident evidence and unified events wrap the original detector event in
+	// raw_event. Read through that wrapper so the same explanation can be built
+	// from either shape.
+	if inner := asMap(event["raw_event"]); len(inner) > 0 {
+		merged := make(map[string]interface{}, len(inner)+len(event))
+		for key, value := range inner {
+			merged[key] = value
+		}
+		for key, value := range event {
+			merged[key] = value
+		}
+		event = merged
+	}
 	httpBlock := asMap(event["http"])
 	if len(httpBlock) == 0 {
 		httpBlock = asMap(asMap(event["eve"])["http"])

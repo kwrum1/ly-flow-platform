@@ -43,8 +43,8 @@
           <tbody>
             <tr v-for="i in filtered" :key="i.id" class="clickable" @click="open(i)">
               <td><span class="v-badge" :class="i.severity">{{ severityLabel(i.severity) }}</span></td>
-              <td class="title-cell"><b>{{ i.title }}</b><small>{{ i.id }}</small></td>
-              <td>{{ i.affectedAsset || '-' }}</td>
+              <td class="title-cell"><b>{{ i.title }}</b><small>{{ i.summary || i.id }}</small></td>
+              <td>{{ i.victimDisplay || i.affectedAsset || '-' }}</td>
               <td><span v-for="s in (i.stages || []).slice(0, 3)" :key="s.id" class="stage-chip">{{ s.name }}</span></td>
               <td><span class="v-badge" :class="statusTone(i.status)">{{ statusLabel(i.status) }}</span></td>
               <td class="num">{{ shortTime(i.updatedAt || i.createdAt) }}</td>
@@ -74,8 +74,21 @@
             <span class="v-badge" :class="statusTone(selected.status)">{{ statusLabel(selected.status) }}</span>
           </div>
 
+          <section v-if="selected.narrative" class="narrative">
+            <h3>发生了什么</h3>
+            <p class="narrative-text">{{ selected.narrative }}</p>
+            <p v-if="selected.narrativeDetail" class="narrative-detail">{{ selected.narrativeDetail }}</p>
+          </section>
+
           <dl class="v-kv">
-            <dt>受害服务器</dt><dd>{{ selected.affectedAsset || '-' }}</dd>
+            <dt>受害服务器</dt>
+            <dd class="v-mono">
+              {{ selected.victimDisplay || '-' }}
+              <span v-if="selected.requestedDomains.length" class="hint">
+                （请求域名 {{ selected.requestedDomains.join('、') }}；域名只说明客户端想访问谁，不等于被打的服务器）
+              </span>
+            </dd>
+            <dt>资产主机</dt><dd>{{ selected.affectedAsset || '-' }}</dd>
             <dt>处理人</dt><dd>{{ selected.assignee || '未填写' }}</dd>
             <dt>首次出现</dt><dd>{{ shortTime(selected.createdAt) }}</dd>
             <dt>最近更新</dt><dd>{{ shortTime(selected.updatedAt) }}</dd>
@@ -144,6 +157,8 @@
                   <span class="tl-ev-main">
                     <b>{{ ev.title || ev.ruleName || '事件证据' }}</b>
                     <small>{{ ev.summary }}</small>
+                    <small v-if="ev.requestedDomain" class="v-dim">请求域名 {{ ev.requestedDomain }}（只说明客户端想访问谁，不等于被打的服务器）</small>
+                    <small v-if="ev.forwardedFor" class="v-dim">X-Forwarded-For 自述客户端 {{ ev.forwardedFor }}（仅供参考，未经核实）</small>
                     <small v-if="ev.whyStage" class="v-dim">判定：{{ ev.whyStage.reason || ev.whyStage.source }} · 置信度 {{ ev.whyStage.confidence }}</small>
                   </span>
                   <time>{{ shortTime(ev.time) }}</time>
@@ -392,4 +407,8 @@ onMounted(load)
 .tl-ev-main b { color: var(--v-ink); font-size: 12px; font-weight: 550; }
 .tl-ev-main small { color: var(--v-ink-3); font-size: 10.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tl-ev time { color: var(--v-ink-3); font-family: var(--v-mono); font-size: 10px; }
+.narrative { padding: 12px 14px; border: 1px solid var(--v-line); border-left: 3px solid var(--v-accent, #3b6fd4); border-radius: var(--v-radius-sm); background: var(--v-surface-2); }
+.narrative-text { margin: 0; color: var(--v-ink); font-size: 12.5px; line-height: 1.7; }
+.narrative-detail { margin: 8px 0 0; color: var(--v-ink-2); font-size: 11.5px; line-height: 1.7; }
+.hint { color: var(--v-ink-3); font-size: 10.5px; font-weight: 400; }
 </style>
