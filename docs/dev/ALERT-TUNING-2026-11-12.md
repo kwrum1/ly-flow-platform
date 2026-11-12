@@ -107,3 +107,33 @@ Web 攻击告警全部保留。模板见 `deploy/suricata/threshold.config`。
 - 远端 Agent 更新后可以在 Agent 侧继续早退 cron 会话，服务端过滤保留作为兜底。
 - 负载偏高（ClickHouse/Redis），本轮不改；建议后续单独评估 Redis
   `maxmemory` 与 ClickHouse 合并策略。
+
+## 6. EVE 入库停摆（同日发现并修复）
+
+巡检时 `threat_events` 最新一条停在 **2026-11-11 16:01Z**，但 Suricata
+当前 `eve.json` 在 16:01 仍写入了 34 条 alert。定位到三个问题：
+
+1. `io.ReadAll` 读完整 backlog（240 MiB），一次循环停留数小时，state 从
+   14:27 起不再前进，16:00 的轮转没有被发现。
+2. 16:35 重启时 state 丢失/损坏，`!stateOK` 分支直接跳到文件末尾
+   （`offset = info.Size()`），把文件里已有的 34 条 alert 全部跳过。
+3. 每块约 7000 条 session 的插入让 alert 排在后面；4 MiB/块仍落后于
+   传感器约 1.7 MiB/min 的写入。
+
+修复：
+
+- 每 tick 最多读 **512 KiB**，处理完立即持久化 offset；
+- state 缺失/损坏/截断时从 **0 重放**（alert UID 按内容、session UID 按
+  `flow_id` 幂等），并打印 `state_ok / state_offset / resume`；
+- 同一块内 **先 alert 后 session**；
+- 新增 `SURICATA_EVE_SESSION_TYPES`，`.125` 设为 `http,tls`：flow/dns 由
+  local-mirror 写入，EVE 只补 host/SNI 字段。
+
+验证（`main-1a44dd6`）：
+
+- 17:00 轮转后 state offset 在 30 秒内追到文件末尾
+  （`2,172,766 / 2,278,098`）；
+- 16:00–16:02 的 **34/34** 条 alert 全部入库，24h 计数从 0 恢复；
+- 无 `ingest skipped` / session decode 错误；
+- cron privilege-use 在 02:17Z 后仍为 **0**。
+
