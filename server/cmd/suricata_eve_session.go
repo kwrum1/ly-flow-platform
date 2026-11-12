@@ -87,6 +87,27 @@ func suricataEVEEventType(line string) (string, bool) {
 	return strings.ToLower(line[start:cursor]), true
 }
 
+// suricataEVESessionTypeFilter limits which EVE session records are
+// materialized. The local mirror already writes flow/dns sessions on
+// installations that run it; re-ingesting the same records from EVE duplicates
+// rows and starves the alert tailer. Operators can set
+// SURICATA_EVE_SESSION_TYPES=http,tls to keep only the L7 records that add
+// fields the mirror does not carry. The default preserves the historical
+// flow,http,tls,dns behaviour.
+var suricataEVESessionTypeFilter = strings.ToLower(strings.TrimSpace(getEnv("SURICATA_EVE_SESSION_TYPES", "flow,http,tls,dns")))
+
+func suricataEVESessionTypeEnabled(eventType string) bool {
+	if suricataEVESessionTypeFilter == "" || suricataEVESessionTypeFilter == "all" {
+		return true
+	}
+	for _, item := range strings.Split(suricataEVESessionTypeFilter, ",") {
+		if strings.TrimSpace(item) == eventType {
+			return true
+		}
+	}
+	return false
+}
+
 // ingestSuricataEVESession materializes a flow/http/tls/dns EVE record as one
 // traffic session. The session UID is derived from the sensor-local flow_id, so
 // repeatedly reading the same EVE line cannot create duplicate rows.
@@ -99,7 +120,7 @@ func ingestSuricataEVESession(ctx context.Context, cfg *Config, line string) err
 		return fmt.Errorf("decode eve session line: %w", err)
 	}
 	eventType := strings.ToLower(strings.TrimSpace(asString(event["event_type"])))
-	if !suricataEVESessionEventTypes[eventType] {
+	if !suricataEVESessionEventTypes[eventType] || !suricataEVESessionTypeEnabled(eventType) {
 		return nil
 	}
 	join := suricataEVEJoinKeys(event)
