@@ -105,3 +105,7 @@
 > LY-CS-003 排除阿里云 WAF / Azure Traffic Manager 长标签；SNMP public 扫描
 > 每源每小时 1 条；修复 `.125` 规则源漂移并重新导出（57/8，overlap 0）。
 > 历史噪声 54 条已备份。详见 `docs/dev/ALERT-TUNING-2026-11-12.md`。
+> 2026-11-13：巡检发现 EVE 告警入库停摆（threat_events 停在 11-11 16:01Z）。
+> 三个修复：分块读取、state 丢失重放、EVE session 类型过滤；`.125` 已部署
+> `main-1a44dd6`，16:00Z 的 34/34 条 alert 恢复入库。详见
+> `docs/dev/ALERT-TUNING-2026-11-12.md` 第 6 节。
