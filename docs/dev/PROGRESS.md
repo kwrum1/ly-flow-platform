@@ -3,6 +3,33 @@
 > 每个 Task 完成后追加一条记录：日期 / Task / 变更 / 测试 / 风险 / 回滚。
 > 更细的任务状态见 `WORKQUEUE.md`。
 
+## 2026-11-12
+
+### 巡检与降噪（DONE）
+
+- 变更：
+  - 服务端过滤旧 Agent 的 root cron `privilege-use`（`component.alert`
+    形态），`sudo`/`su` 与 high 严重度保留；新增单元测试。
+  - `LY-CS-003` 排除 `*.yundunwafN.com` 与 `*.<hash>.trafficmanager.cn`，
+    rev 10。
+  - `GPL SNMP public access udp`（SID 2101411）每源每小时 1 条，
+    扫描器其他告警保留。
+  - 修复 `.125` 规则源漂移：`et-open.rules`、`frp.rules`、`webshell.rules`、
+    `proxy.rules`、`c2.rules` 同步到仓库最新版本，重新导出 57/8 条规则，
+    overlap 0。
+- 验证（`.125`，revision `bed6df9b`）：
+  - Suricata reload 完成，37972 条规则 0 failed；
+    `Threshold config parsed: 1 rule(s) found`。
+  - 关键 rev：1000040/41 rev 4、9001009 rev 3、9002003 rev 10、
+    9004301 rev 3、9004302 rev 2、9007051/111 rev 2。
+  - 历史噪声 54 条已备份到 `threat_events_noise_20261112_backup`
+    （47 条 cron + 7 条 CDN/WAF）；清理后 24h 108 条。
+- 风险：扫描器 `10.1.1.181` 的探测告警仍保留（既定决策），如需按已知扫描器
+  过滤应在产品层加标签，不删证据。
+- 回滚：恢复 `suricata.rules.bak.pre-export*` 与各规则源 `.bak.noise.*`；
+  服务端回退上一镜像标签。
+- 文档：`docs/dev/ALERT-TUNING-2026-11-12.md`。
+
 ## 2026-11-11
 
 ### 流量/事件/攻击链界面可读化与归因修正（DONE）
