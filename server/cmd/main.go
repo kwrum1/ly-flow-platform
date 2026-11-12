@@ -7256,7 +7256,7 @@ func persistThreatEvent(ctx context.Context, cfg *Config, event map[string]inter
 	}
 	applyTrafficNoisePolicy(event)
 	severity := strings.ToLower(xdrPickString(event, "severity"))
-	if severity == "" || severity == "info" || xdrEventIsSyntheticNoise(event) || xdrEventIsInformationalTelemetry(event) {
+	if severity == "" || severity == "info" || xdrEventIsSyntheticNoise(event) || xdrEventIsInformationalTelemetry(event) || xdrEventIsAuthPrivilegeNoise(event) {
 		return nil
 	}
 	uid := firstNonEmpty(xdrPickString(event, "id"), xdrPickString(event, "message_id"))
@@ -7706,6 +7706,21 @@ func xdrEventIsAuthPrivilegeNoise(event map[string]interface{}) bool {
 	severity := strings.ToLower(xdrPickString(event, "severity"))
 	if eventType == "runtime.auth.privilege" && strings.Contains(message, "privilege-use") {
 		return severity == "" || severity == "low" || severity == "medium"
+	}
+	// Older remote agents report a root cron session as a generic component
+	// alert instead of runtime.auth.privilege. It is the same benign signal:
+	// the cron daemon opening its own session is not privilege escalation. The
+	// agent-side fix only takes effect after that host is upgraded, so filter
+	// the pattern here as well. sudo/su/useradd lines do not match and stay.
+	if eventType == "component.alert" && strings.Contains(message, "privilege-use") {
+		metadata := asMap(event["metadata"])
+		if len(metadata) == 0 {
+			metadata = asMap(asMap(event["raw_event"])["metadata"])
+		}
+		logLine := strings.ToLower(xdrPickString(metadata, "log_line"))
+		if strings.Contains(logLine, "pam_unix(cron:session)") || strings.Contains(logLine, "cron[") {
+			return severity == "" || severity == "low" || severity == "medium"
+		}
 	}
 	return false
 }
