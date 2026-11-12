@@ -101,3 +101,7 @@
 > 改为中文叙述；受害服务器取报文目的地址，请求域名单列，X-Forwarded-For 仅作参考；
 > 主机侧检测点名主机。`.125` 真机 revision `f223d254` 验收通过，四个检测面 200，
 > 攻击链 10/10 条证据可读。详见 `PROGRESS.md` 与 `DECISIONS.md` D-020。
+> 2026-11-12：巡检与降噪 DONE。服务端过滤旧 Agent 的 root cron privilege-use；
+> LY-CS-003 排除阿里云 WAF / Azure Traffic Manager 长标签；SNMP public 扫描
+> 每源每小时 1 条；修复 `.125` 规则源漂移并重新导出（57/8，overlap 0）。
+> 历史噪声 54 条已备份。详见 `docs/dev/ALERT-TUNING-2026-11-12.md`。
