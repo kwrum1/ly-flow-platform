@@ -128,7 +128,15 @@ func startSuricataEVEIngest(ctx context.Context, cfg *Config) {
 				file.Close()
 				continue
 			}
-			chunk, err := io.ReadAll(file)
+			// Cap the amount read per tick. The sensor writes ~100 MiB/hour
+			// of flow/dns/http/tls records, and a slow insert can let the
+			// backlog grow. Reading the whole backlog in one io.ReadAll made
+			// the loop spend hours inside a single chunk: the state file did
+			// not advance, rotation was not noticed, and alert ingestion
+			// stalled behind it. A bounded chunk keeps the loop moving and
+			// persists the offset every few seconds.
+			const maxSuricataEVEChunkBytes = 4 << 20
+			chunk, err := io.ReadAll(io.LimitReader(file, maxSuricataEVEChunkBytes))
 			file.Close()
 			if err != nil {
 				continue
