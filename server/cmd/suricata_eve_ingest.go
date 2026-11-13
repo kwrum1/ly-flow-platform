@@ -95,20 +95,25 @@ func startSuricataEVEIngest(ctx context.Context, cfg *Config) {
 			}
 			inode := suricataEVEInode(info)
 			if first {
+				resume := int64(0)
 				switch {
 				case stateOK && state.Path == path && state.Inode == inode && info.Size() >= state.Offset:
 					// Resume after a server restart without replaying history.
-					offset = state.Offset
-				case !stateOK:
-					// First deployment: do not replay the whole historical file.
-					offset = info.Size()
+					resume = state.Offset
 				default:
-					// Rotated while the server was down; ingest the new file.
-					offset = 0
+					// Missing, corrupt or truncated state: replay from the
+					// beginning. Alert UIDs are content-derived and session
+					// UIDs are flow-derived, so replaying is idempotent; the
+					// previous "skip to file size" branch hid every alert
+					// already present in the file when the state was lost.
+					resume = 0
 				}
+				offset = resume
 				lastInode = inode
 				first = false
 				saveSuricataEVEState(statePath, suricataEVEIngestState{Path: path, Inode: inode, Offset: offset})
+				log.Printf("[suricata-eve] start path=%s inode=%d size=%d state_ok=%v state_inode=%d state_offset=%d resume=%d",
+					path, inode, info.Size(), stateOK, state.Inode, state.Offset, offset)
 				continue
 			}
 			if lastInode != inode || info.Size() < offset {
@@ -128,7 +133,16 @@ func startSuricataEVEIngest(ctx context.Context, cfg *Config) {
 				file.Close()
 				continue
 			}
-			chunk, err := io.ReadAll(file)
+			// Cap the amount read per tick. The sensor writes ~100 MiB/hour
+			// of flow/dns/http/tls records, and a slow insert can let the
+			// backlog grow. Reading the whole backlog in one io.ReadAll made
+			// the loop spend hours inside a single chunk: the state file did
+			// not advance, rotation was not noticed, and alert ingestion
+			// stalled behind it. 512 KiB keeps one chunk to roughly 900 EVE
+			// lines, so the offset advances every few seconds and an alert is
+			// never queued behind thousands of session inserts.
+			const maxSuricataEVEChunkBytes = 512 << 10
+			chunk, err := io.ReadAll(io.LimitReader(file, maxSuricataEVEChunkBytes))
 			file.Close()
 			if err != nil {
 				continue
@@ -141,27 +155,33 @@ func startSuricataEVEIngest(ctx context.Context, cfg *Config) {
 			} else {
 				pending = ""
 			}
+			alertLines := make([]string, 0, 4)
+			sessionLines := make([]string, 0, len(lines))
 			for _, line := range lines {
 				line = strings.TrimSpace(line)
 				if line == "" {
 					continue
 				}
 				// Alerts materialize into threat_events; flow/http/tls/dns
-				// materialize into traffic sessions. Both need the JSON decode,
-				// everything else (stats, files, anomaly) is skipped at the byte
-				// level. The prefilter stays fail-open for the same reason as
-				// before: dropping a real record is worse than decoding one extra.
+				// materialize into traffic sessions. Collect them separately
+				// so a rare alert is not queued behind thousands of session
+				// inserts in the same chunk.
 				if suricataEVELineIsAlert(line) {
-					if err := ingestSuricataEVELine(ctx, cfg, line, trustedCIDRs); err != nil {
-						// Keep the pipeline alive on malformed lines / transient DB
-						// errors. The line is dropped rather than blocking rotation.
-						log.Printf("[suricata-eve] ingest skipped: %v", err)
-					}
+					alertLines = append(alertLines, line)
 					continue
 				}
-				if !suricataEVELineIsSession(line) {
-					continue
+				if suricataEVELineIsSession(line) {
+					sessionLines = append(sessionLines, line)
 				}
+			}
+			for _, line := range alertLines {
+				if err := ingestSuricataEVELine(ctx, cfg, line, trustedCIDRs); err != nil {
+					// Keep the pipeline alive on malformed lines / transient DB
+					// errors. The line is dropped rather than blocking rotation.
+					log.Printf("[suricata-eve] ingest skipped: %v", err)
+				}
+			}
+			for _, line := range sessionLines {
 				if err := ingestSuricataEVESession(ctx, cfg, line); err != nil {
 					log.Printf("[suricata-eve] session ingest skipped: %v", err)
 				}
