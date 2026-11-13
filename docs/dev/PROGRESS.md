@@ -3,6 +3,28 @@
 > 每个 Task 完成后追加一条记录：日期 / Task / 变更 / 测试 / 风险 / 回滚。
 > 更细的任务状态见 `WORKQUEUE.md`。
 
+## 2026-11-13
+
+### 巡检：EVE 告警入库停摆修复（DONE）
+
+- 现象：`threat_events` 最新一条停在 2026-11-11 16:01Z，但 Suricata
+  当前 `eve.json` 在 16:01 仍有 34 条 alert；UI 24h 告警为 0。
+- 根因与修复（三个 PR）：
+  - #16：`io.ReadAll` 读完整 backlog（240 MiB），一次循环数小时；
+    改为每 tick 最多 4 MiB，处理完持久化 offset。
+  - #17：state 丢失/损坏时 `offset=info.Size()` 直接跳过文件内已有
+    alert；改为从 0 重放并打印 `state_ok/state_offset/resume`；分块降到
+    512 KiB，同一块先 alert 后 session。
+  - #18：新增 `SURICATA_EVE_SESSION_TYPES`；`.125` 设为 `http,tls`，
+    flow/dns 由 local-mirror 提供，避免重复 session 拖住 alert。
+- 部署：`.125` revision `main-1a44dd6`；compose 注入
+  `SURICATA_EVE_SESSION_TYPES=http,tls`。
+- 验证：16:00–16:02 的 **34/34** 条 alert 全部入库；17:00 轮转后 state
+  offset 在 30 秒内追到文件末尾（2,172,766 / 2,278,098）；无
+  `ingest skipped`；cron privilege-use 仍为 0。
+- 回滚：恢复上一镜像标签与 compose/.env 备份；state 文件可重置为 0 重放。
+- 文档：`docs/dev/ALERT-TUNING-2026-11-12.md` 第 6 节。
+
 ## 2026-11-12
 
 ### 巡检与降噪（DONE）
