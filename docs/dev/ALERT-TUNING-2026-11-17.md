@@ -56,12 +56,12 @@ bdcgslb.com  cdntips.net  tcdn.qq.com  wuchucloud.cn  sdk.myapp.com
 
 ## 3. 历史清理
 
-计划备份并删除上述 5 个后缀的 8 条历史误报：
+已备份并删除上述 5 个后缀的 **43 条历史误报**（其中 24h 内 8 条）：
 
 ```sql
 -- 条件：rule_name LIKE '%CobaltStrike DNS Beacon%'
 --       AND dns.queries[0].rrname LIKE 任一误报后缀
--- 备份表：threat_events_noise_20261117_backup
+-- 备份表：threat_events_noise_20261117_backup（43 条）
 ```
 
 `wmzfylgdsz.com` 的 6 条保留，作为待研判证据。
@@ -75,8 +75,11 @@ bdcgslb.com  cdntips.net  tcdn.qq.com  wuchucloud.cn  sdk.myapp.com
 
 ## 5. 验证
 
-- 规则导出 57 条、lyprobe 8 条、overlap 0。
-- `suricatasc` socket 不可用，使用 `SIGUSR2` reload；检查
-  `rule reload complete` 与 threshold 1 条。
-- 清理后 24h LY-CS-003 应从 17 降到约 9 条（剩余 6 条
-  `wmzfylgdsz.com` + 2 条 `pkoplink` + 1 条 `qrstuvwxyzab`）。
+- 规则导出 57 条、lyprobe 8 条、overlap 0；容器内
+  `sid:9002003; rev:11`。
+- `suricatasc` socket 不可用，使用 `SIGUSR2` reload；日志显示
+  38,063 条规则加载、0 failed、threshold 1 条。
+- 清理后 24h LY-CS-003 从 **17 降到 9** 条（剩余 6 条
+  `wmzfylgdsz.com` + 2 条 `pkoplink` + 1 条 `qrstuvwxyzab`）；
+  7d 剩余 10 条。
+- 历史误报 43 条已备份到 `threat_events_noise_20261117_backup`。
