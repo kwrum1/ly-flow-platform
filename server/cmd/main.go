@@ -7044,6 +7044,9 @@ func threatCategoryHTTPHandler(cfg *Config, category string) http.HandlerFunc {
 		severity := strings.TrimSpace(r.URL.Query().Get("severity"))
 		startTime := parseOptionalTime(r.URL.Query().Get("start_time"))
 		endTime := parseOptionalTime(r.URL.Query().Get("end_time"))
+		if startTime == nil && endTime == nil {
+			startTime = defaultObservabilityFrom(time.Now())
+		}
 
 		scheduleThreatBackfill(cfg)
 		all, total, err := loadPersistentThreatEvents(r.Context(), cfg, category, limit, offset, query, agentID, srcIP, dstIP, severity, startTime, endTime)
@@ -8085,6 +8088,15 @@ func loadTrafficSessionsFromClickHouse(ctx context.Context, cfg *Config, limit, 
 	if cfg == nil || cfg.EventStorage == nil {
 		return nil, 0, false
 	}
+	// The session table is ordered by session_uid, not by time. Without a
+	// time bound ClickHouse has to sort every retained row (31M rows / 4 GiB)
+	// to answer ORDER BY observed_at DESC. A default window lets the
+	// observed_at minmax index prune and keeps the live view responsive.
+	from := startTime
+	to := endTime
+	if from == nil && to == nil {
+		from = defaultObservabilityFrom(time.Now())
+	}
 	page, err := cfg.EventStorage.QueryTrafficSessions(ctx, analytics.TrafficSessionQuery{
 		AgentID: agentID,
 		SrcIP:   srcIP,
@@ -8092,8 +8104,8 @@ func loadTrafficSessionsFromClickHouse(ctx context.Context, cfg *Config, limit, 
 		SrcPort: srcPort,
 		DstPort: dstPort,
 		Keyword: query,
-		From:    startTime,
-		To:      endTime,
+		From:    from,
+		To:      to,
 		Limit:   limit,
 		Offset:  offset,
 	})
